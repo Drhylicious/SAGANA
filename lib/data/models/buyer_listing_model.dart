@@ -29,7 +29,7 @@ class BuyerListingModel {
   final String? batchNumber; // detail screen only
   final DateTime? harvestDate; // detail screen only
   final String?
-  marketType; // sp3_cooperative | da_amad_market | open_market — from inventory_batches.crop_type
+  marketType; // a market_types.code (Public / Cooperative) — from the listing's crop_type
 
   // From price_records — used for the market-range comparison badge.
   final double? marketRefPricePerKg;
@@ -54,6 +54,11 @@ class BuyerListingModel {
   // is unavailable or the listing has no completed orders yet.
   final double soldKg;
 
+  // How many different buyers have a completed order on this listing, from the
+  // same view as soldKg (a count only, never who). 0 when the lookup is
+  // unavailable or nothing has completed yet.
+  final int buyers;
+
   const BuyerListingModel({
     required this.id,
     required this.cropName,
@@ -74,6 +79,7 @@ class BuyerListingModel {
     this.canonicalCropName,
     this.farmerId,
     this.soldKg = 0,
+    this.buyers = 0,
   });
 
   // ─── Computed helpers ─────────────────────────────────────────────────────
@@ -168,6 +174,7 @@ class BuyerListingModel {
       canonicalCropName: map['canonical_crop_name'] as String?,
       farmerId: map['farmer_id'] as String?,
       soldKg: (map['sold_kg'] as num?)?.toDouble() ?? 0,
+      buyers: (map['buyers'] as num?)?.toInt() ?? 0,
     );
   }
 }

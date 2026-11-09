@@ -7,6 +7,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/skeleton.dart';
+import '../../widgets/dashboard_cards.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/cached_data_notice.dart';
@@ -38,6 +39,10 @@ class _MarketplaceDashboardScreenState
   ListingSummaryStats _stats     = ListingSummaryStats.empty;
   OrderSummaryStats _orderStats = OrderSummaryStats.empty;
   int _pendingOffersCount = 0;
+  // Edited listings waiting for a decision (with the new listings that are pending, they make up
+  // the Pending Approval count), and every offer ever made to the cooperative.
+  int _pendingEditCount = 0;
+  int _totalOffersCount = 0;
   int _buyerCount = 0;
   int _marketLinkingCount = 0;
   int _marketLinkingFarmersCount = 0;
@@ -60,6 +65,8 @@ class _MarketplaceDashboardScreenState
       tables: const [
         'marketplace_listings',
         'orders',
+        'program_product_purchases',
+        'listing_edit_requests',
         'cooperative_purchase_offers',
         'market_linking_programs',
         'user_roles',
@@ -91,6 +98,8 @@ class _MarketplaceDashboardScreenState
       _offerRepo.fetchAwaitingCooperativeCount().catchError((_) => _pendingOffersCount),
       _buyerRepo.fetchBuyerCount(),
       _marketLinkingRepo.fetchSummaryStats(),
+      _repo.fetchPendingEditCount().catchError((_) => _pendingEditCount),
+      _offerRepo.fetchTotalCount().catchError((_) => _totalOffersCount),
     ]);
     if (!mounted) return;
     setState(() {
@@ -98,6 +107,8 @@ class _MarketplaceDashboardScreenState
       _orderStats = results[1] as OrderSummaryStats;
       _pendingOffersCount = results[2] as int;
       _buyerCount = results[3] as int;
+      _pendingEditCount = results[5] as int;
+      _totalOffersCount = results[6] as int;
       final marketLinkingStats = results[4] as MarketLinkingSummaryStats;
       // The Market Linking tile counts the requests themselves (the "All" chip
       // of the Market Linking screen). The priority alerts say how many
@@ -184,6 +195,7 @@ class _MarketplaceDashboardScreenState
                         stats: _stats,
                         orderStats: _orderStats,
                         pendingOffersCount: _pendingOffersCount,
+                        pendingEditCount: _pendingEditCount,
                         buyerCount: _buyerCount,
                         marketLinkingCount: _marketLinkingCount,
                         cs: cs, sagana: sagana,
@@ -199,6 +211,10 @@ class _MarketplaceDashboardScreenState
                     stats: _stats,
                     orderStats: _orderStats,
                     pendingOffersCount: _pendingOffersCount,
+                    pendingEditCount: _pendingEditCount,
+                    totalOffersCount: _totalOffersCount,
+                    buyerCount: _buyerCount,
+                    marketLinkingCount: _marketLinkingCount,
                     cs: cs, sagana: sagana,
                     onAllListings: () => context.push(AppRoutes.allListings).then((_) => _loadAll()),
                     onPendingReview: () => context.push(AppRoutes.pendingApprovals).then((_) => _loadAll()),
@@ -401,6 +417,7 @@ class _KpiStrip extends StatelessWidget {
   final ListingSummaryStats stats;
   final OrderSummaryStats orderStats;
   final int pendingOffersCount;
+  final int pendingEditCount;
   final int buyerCount;
   final int marketLinkingCount;
   final ColorScheme cs;
@@ -410,6 +427,7 @@ class _KpiStrip extends StatelessWidget {
     required this.stats,
     required this.orderStats,
     required this.pendingOffersCount,
+    required this.pendingEditCount,
     required this.buyerCount,
     required this.marketLinkingCount,
     required this.cs,
@@ -419,72 +437,17 @@ class _KpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Same card as the main Dashboard's Overview: label, value and a short caption.
     final tiles = [
-      _KpiTile(l10n.marketDashKpiAllListings, '${stats.total}', cs.primary, Icons.list_alt_rounded),
-      _KpiTile(l10n.marketDashKpiPendingReview, '${stats.pending}', AppConstants.warningAmber, Icons.pending_actions_rounded),
-      _KpiTile(l10n.marketDashKpiBuyers, '$buyerCount', AppConstants.buyerBlue, Icons.people_rounded),
-      // Was cs.primary (near-black) before — visually indistinguishable from
-      // "black" next to the amber/blue tiles. programPurple isn't used
-      // elsewhere in this module, so Orders is now unambiguous at a glance.
-      _KpiTile(l10n.marketDashKpiOrders, '${orderStats.total}', AppConstants.programPurple, Icons.shopping_bag_rounded),
-      _KpiTile(l10n.marketDashKpiMarketLinking, '$marketLinkingCount', AppConstants.midGreen, Icons.eco_rounded),
-      _KpiTile(l10n.marketDashKpiCoopOffers, '$pendingOffersCount', AppConstants.successGreen, Icons.handshake_rounded),
+      DashboardKpiTile(label: l10n.marketDashKpiAllListings, value: '${stats.total}', sub: l10n.marketDashKpiSubListings, color: cs.primary, icon: Icons.list_alt_rounded),
+      DashboardKpiTile(label: l10n.adminDashKpiPending, value: '${stats.pending + pendingEditCount}', sub: l10n.marketDashKpiSubPending, color: AppConstants.warningAmber, icon: Icons.pending_actions_rounded),
+      DashboardKpiTile(label: l10n.marketDashKpiBuyers, value: '$buyerCount', sub: l10n.marketDashKpiSubBuyers, color: AppConstants.buyerBlue, icon: Icons.people_rounded),
+      DashboardKpiTile(label: l10n.marketDashKpiOrders, value: '${orderStats.total}', sub: l10n.marketDashKpiSubOrders, color: AppConstants.programPurple, icon: Icons.shopping_bag_rounded),
+      DashboardKpiTile(label: l10n.marketDashKpiMarketLinking, value: '$marketLinkingCount', sub: l10n.marketDashKpiSubLinking, color: AppConstants.midGreen, icon: Icons.eco_rounded),
+      DashboardKpiTile(label: l10n.marketDashKpiCoopOffers, value: '$pendingOffersCount', sub: l10n.marketDashKpiSubOffers, color: AppConstants.successGreen, icon: Icons.handshake_rounded),
     ];
-
-    // Tall enough for icon + a two-line label + the number (24px padding
-    // included): a label such as "Pending Approval", or its Tagalog form,
-    // wraps to two lines in a 112px tile.
-    return SizedBox(
-      height: 114,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: tiles.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) {
-          final t = tiles[i];
-          return Container(
-            width: 112,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: t.color.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: t.color.withValues(alpha: 0.18)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: t.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                  ),
-                  child: Icon(t.icon, size: 14, color: t.color),
-                ),
-                const SizedBox(height: 6),
-                Text(t.label,
-                    style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant, height: 1.2),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(t.value,
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: cs.onSurface)),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+    return DashboardKpiStrip(tiles: tiles);
   }
-}
-
-class _KpiTile {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  const _KpiTile(this.label, this.value, this.color, this.icon);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -495,6 +458,10 @@ class _QuickActionsGrid extends StatelessWidget {
   final ListingSummaryStats stats;
   final OrderSummaryStats orderStats;
   final int pendingOffersCount;
+  final int pendingEditCount;
+  final int totalOffersCount;
+  final int buyerCount;
+  final int marketLinkingCount;
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onAllListings;
@@ -508,6 +475,10 @@ class _QuickActionsGrid extends StatelessWidget {
     required this.stats,
     required this.orderStats,
     required this.pendingOffersCount,
+    required this.pendingEditCount,
+    required this.totalOffersCount,
+    required this.buyerCount,
+    required this.marketLinkingCount,
     required this.cs,
     required this.sagana,
     required this.onAllListings,
@@ -521,95 +492,62 @@ class _QuickActionsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Order matches the requested 2-column layout, row by row:
+    // Six cards, two columns by three rows, in the same style as the Dashboard's Management
+    // Modules. Order, row by row:
     // All Listings | Pending Review
     // Buyer Management | Orders
     // Market Linking | Offer to Cooperative
-    final actions = [
-      _ActionItem(icon: Icons.list_alt_rounded, label: l10n.marketDashKpiAllListings, badge: '${stats.total}', hasBadge: false, color: cs.primary, onTap: onAllListings),
-      _ActionItem(icon: Icons.pending_actions_rounded, label: l10n.marketDashKpiPendingReview, badge: stats.pending > 0 ? l10n.marketDashPendingBadge(stats.pending) : '', hasBadge: false,
-          color: stats.pending > 0 ? AppConstants.warningAmber : cs.outline, onTap: onPendingReview),
-      _ActionItem(icon: Icons.people_rounded, label: l10n.marketDashActionBuyerManagement, badge: '', hasBadge: false, color: AppConstants.buyerBlue, onTap: onBuyerManagement),
-      _ActionItem(icon: Icons.shopping_bag_rounded, label: l10n.marketDashKpiOrders, badge: orderStats.needsAction > 0 ? l10n.marketDashNeedActionBadge(orderStats.needsAction) : '', hasBadge: false,
-          color: orderStats.needsAction > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOrders),
-      _ActionItem(icon: Icons.alt_route_rounded, label: l10n.marketDashKpiMarketLinking, badge: 'DA-AMAD', hasBadge: false, color: AppConstants.primaryGreen, onTap: onMarketLinking),
-      _ActionItem(icon: Icons.handshake_rounded, label: l10n.marketDashActionOfferToCoop, badge: pendingOffersCount > 0 ? l10n.marketDashPendingBadge(pendingOffersCount) : '', hasBadge: false,
-          color: pendingOffersCount > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOfferToCooperative),
+    final items = [
+      DashboardModuleItem(
+        icon: Icons.list_alt_rounded,
+        title: l10n.marketDashKpiAllListings,
+        subtitle: l10n.marketDashModListingsSub,
+        badge: '${stats.total}',
+        onTap: onAllListings,
+      ),
+      DashboardModuleItem(
+        icon: Icons.pending_actions_rounded,
+        title: l10n.marketDashKpiPendingReview,
+        subtitle: l10n.marketDashModPendingSub,
+        // New listings and edited listings that are waiting for a decision.
+        badge: '${stats.pending + pendingEditCount}',
+        onTap: onPendingReview,
+      ),
+      DashboardModuleItem(
+        icon: Icons.people_rounded,
+        title: l10n.marketDashActionBuyerManagement,
+        subtitle: l10n.marketDashModBuyersSub,
+        badge: '$buyerCount',
+        onTap: onBuyerManagement,
+      ),
+      DashboardModuleItem(
+        icon: Icons.shopping_bag_rounded,
+        title: l10n.orderMgmtTitleGeneric,
+        subtitle: l10n.marketDashModOrdersSub,
+        // Marketplace and Cooperative orders together.
+        badge: '${orderStats.total}',
+        onTap: onOrders,
+      ),
+      DashboardModuleItem(
+        icon: Icons.alt_route_rounded,
+        title: l10n.marketDashKpiMarketLinking,
+        subtitle: l10n.marketDashModLinkingSub,
+        // The Market Linking requests themselves, not the quantity of products sold.
+        badge: '$marketLinkingCount',
+        onTap: onMarketLinking,
+      ),
+      DashboardModuleItem(
+        icon: Icons.handshake_rounded,
+        title: l10n.marketDashActionOfferToCoop,
+        subtitle: l10n.marketDashModOffersSub,
+        badge: '$totalOffersCount',
+        onTap: onOfferToCooperative,
+      ),
     ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      // No automatic status-bar padding: this list sits inside a bigger scroll view.
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.6),
-      itemCount: actions.length,
-      itemBuilder: (_, i) {
-        final a = actions[i];
-        return GestureDetector(
-          onTap: a.onTap,
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(color: a.color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-                      child: Icon(a.icon, color: a.color, size: 20),
-                    ),
-                    if (a.badge.isNotEmpty)
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                          child: Text(
-                            a.badge,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Text(
-                    a.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    // The page scrolls, the grid does not.
+    return KeyedSubtree(
+      key: const Key('marketplaceActions'),
+      child: DashboardModuleGrid(items: items),
     );
   }
 }
-
-class _ActionItem {
-  final IconData icon;
-  final String label;
-  final String badge;
-  final bool hasBadge;
-  final Color color;
-  final VoidCallback onTap;
-  const _ActionItem({required this.icon, required this.label, required this.badge, required this.hasBadge, required this.color, required this.onTap});
-}
-
-

@@ -76,7 +76,7 @@ Future<Map<String, MemberSalesTotals>> fetchMemberSalesTotals(
 /// Deliberately amount-only, never a summed physical quantity — different
 /// sales programs sell in different units (bags, pieces, bottles), so a
 /// cross-program quantity total would be meaningless the way Palay/Peanut
-/// kg is for Offer to Cooperative. Only `status = 'paid'` purchases count;
+/// kg is for Offer to Cooperative. Only `status = 'completed'` purchases (handed over, cash recorded, confirmed) count;
 /// pending/cancelled requests never represent real money moving.
 ///
 /// Fully dynamic across any current or future sales program: this reads
@@ -88,12 +88,36 @@ Future<Map<String, double>> fetchMemberProgramPurchaseTotals(
   SupabaseClient client,
   int year,
 ) async {
-  final rows = await client
-      .from('program_product_purchases')
-      .select('farmer_id, total_amount')
-      .eq('status', 'paid')
-      .gte('confirmed_at', '$year-01-01')
-      .lt('confirmed_at', '${year + 1}-01-01');
+  // total_amount is the NET amount charged (after any member discount).
+  //
+  // Only purchases made at the MEMBER price count here. Until member pricing
+  // existed, only enrolled farmers could buy, so this is exactly what was
+  // counted before: now that any farmer can buy, a non-enrolled farmer's
+  // purchase must not quietly enter (and dilute) the existing Purchase
+  // Patronage pool. Whether it should is a decision for review.
+  final List rows;
+  try {
+    rows = await client
+        .from('program_product_purchases')
+        .select('farmer_id, total_amount')
+        .eq('status', 'completed')
+        .eq('is_member_price', true)
+        .gte('confirmed_at', '$year-01-01')
+        .lt('confirmed_at', '${year + 1}-01-01');
+  } catch (_) {
+    // Member pricing not set up yet: every purchase so far was a member's.
+    final all = await client
+        .from('program_product_purchases')
+        .select('farmer_id, total_amount')
+        .eq('status', 'completed')
+        .gte('confirmed_at', '$year-01-01')
+        .lt('confirmed_at', '${year + 1}-01-01');
+    return _sumByFarmer(all);
+  }
+  return _sumByFarmer(rows);
+}
+
+Map<String, double> _sumByFarmer(List rows) {
 
   final totals = <String, double>{};
   for (final row in rows) {
@@ -102,6 +126,45 @@ Future<Map<String, double>> fetchMemberProgramPurchaseTotals(
     totals[farmerId] = (totals[farmerId] ?? 0) + amount;
   }
   return totals;
+}
+
+/// What a farmer's member-price purchases for a year were at the regular price,
+/// how much of that was discounted, and what was actually paid — so a report
+/// can show the three side by side and they reconcile (regular − discount = net).
+class ProgramPurchaseBreakdown {
+  double regular = 0;
+  double discount = 0;
+  double net = 0;
+}
+
+Future<Map<String, ProgramPurchaseBreakdown>> fetchMemberProgramPurchaseBreakdown(
+  SupabaseClient client,
+  int year,
+) async {
+  final out = <String, ProgramPurchaseBreakdown>{};
+  try {
+    final rows = await client
+        .from('program_product_purchases')
+        .select('farmer_id, total_amount, discount_amount')
+        .eq('status', 'completed')
+        .eq('is_member_price', true)
+        .gte('confirmed_at', '$year-01-01')
+        .lt('confirmed_at', '${year + 1}-01-01');
+    for (final row in rows) {
+      final b = out.putIfAbsent(
+        row['farmer_id'] as String,
+        () => ProgramPurchaseBreakdown(),
+      );
+      final net = (row['total_amount'] as num).toDouble();
+      final discount = (row['discount_amount'] as num?)?.toDouble() ?? 0;
+      b.net += net;
+      b.discount += discount;
+      b.regular += net + discount;
+    }
+  } catch (_) {
+    // Pricing columns not there yet: nothing to break down.
+  }
+  return out;
 }
 
 /// A farmer's percent share of total cooperative sales for a year.

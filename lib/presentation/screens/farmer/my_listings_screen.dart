@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../core/utils/listing_order.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -25,6 +25,7 @@ import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import 'farmer_marketplace_tab.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/app_error_message.dart';
 
 class MyListingsScreen extends StatefulWidget {
   const MyListingsScreen({super.key});
@@ -246,7 +247,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                 if (!mounted) return;
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(SnackBar(content: Text(e.message)));
+                ).showSnackBar(SnackBar(content: Text(friendlyError(AppLocalizations.of(context), e))));
               } catch (_) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -510,11 +511,6 @@ class _ListingOverviewCard extends StatelessWidget {
     required this.onPendingTap,
   });
 
-  String _formatCurrency(double v) {
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
-    return v.toStringAsFixed(0);
-  }
-
   int get _priorityCount => pendingCount > 0 ? 1 : 0;
 
   @override
@@ -588,7 +584,7 @@ class _ListingOverviewCard extends StatelessWidget {
                 child: _statMini(
                   icon: Icons.payments_outlined,
                   label: 'Total Sold',
-                  value: '₱${_formatCurrency(totalSold)}',
+                  value: formatPesosCompact(totalSold),
                 ),
               ),
             ],
@@ -1013,7 +1009,7 @@ class _StandardContent extends StatelessWidget {
                         ),
                         if (!showMenu)
                           Text(
-                            DateFormat('MMM d, yyyy').format(listing.createdAt),
+                            AppUtils.formatListingDate(listing.createdAt),
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               color: AppConstants.outline,
@@ -1084,7 +1080,7 @@ class _StandardContent extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 (listing.isLive || listing.isSold) && listing.submittedAt != null
-                    ? '${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)} • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
+                    ? '${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)} • Submitted ${AppUtils.formatListingDate(listing.submittedAt!)}'
                     : listing.isWithdrawn
                     ? '${formatPricePerUnit(listing.pricePerKg, listing.unit)} • ${formatQuantityUnit(listing.volumeKg, listing.unit)}'
                     : 'Volume: ${formatQuantityUnit(listing.volumeKg, listing.unit)}',
@@ -1104,7 +1100,7 @@ class _StandardContent extends StatelessWidget {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      'Removed on ${DateFormat('MMM d, yyyy').format(listing.updatedAt!)}',
+                      'Removed on ${AppUtils.formatListingDate(listing.updatedAt!)}',
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: AppConstants.outline,

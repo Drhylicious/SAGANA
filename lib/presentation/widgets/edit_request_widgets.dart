@@ -15,7 +15,7 @@ String editRequestStatusLabel(AppLocalizations l, String status) {
     case 'cancelled':
       return l.leStatusCancelled;
     default:
-      return l.listingFilterPending;
+      return l.leStatusPendingEdit;
   }
 }
 
@@ -28,7 +28,9 @@ Color editRequestStatusColor(String status) {
     case 'cancelled':
       return AppConstants.mutedSlate;
     default:
-      return AppConstants.warningAmber;
+      // Blue, so an edit waiting for approval never reads as a new listing
+      // waiting for approval (amber).
+      return AppConstants.buyerBlue;
   }
 }
 

@@ -9,8 +9,6 @@ class AppConstants {
 
   static const String appSubtitle = 'Streamlined Agricultural Gateway';
   static const String cooperativeName = 'SP3 Agriculture Cooperative';
-  static const String cooperativeLocation =
-      'Barangay Payanas, Torrijos, Marinduque';
 
   // ─── Brand Colors ────────────────────────────────────────────────────────────
   static const Color primaryGreen = Color(0xFF00450D);

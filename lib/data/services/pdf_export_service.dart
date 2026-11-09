@@ -78,9 +78,14 @@ class PdfExportService implements ReportExportService {
     final scope = exportScopeText(module, period, contributionYear);
     switch (module) {
       case ReportModuleType.sales:
+        final sales = await Future.wait([
+          _reportsRepo.fetchSalesReport(period),
+          _reportsRepo.fetchProductSalesReport(period),
+        ]);
         return buildSalesReportPdf(
-          await _reportsRepo.fetchSalesReport(period),
+          sales[0] as SalesReportData,
           scopeText: scope,
+          products: sales[1] as ProductSalesReportData,
         );
       case ReportModuleType.harvest:
         final results = await Future.wait([

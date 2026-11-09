@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import '../../../data/services/connectivity_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/app_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/quantity_utils.dart';
@@ -105,9 +105,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
               try {
                 await _repo.approveListing(widget.listingId);
               } catch (e) {
-                error = e is PostgrestException && e.message.isNotEmpty
-                    ? e.message
-                    : l10n.listingReviewApproveFailed;
+                error = friendlyError(l10n, e, null, l10n.listingReviewApproveFailed);
               }
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
@@ -185,9 +183,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
               try {
                 await onConfirm(noteCtrl.text.trim());
               } catch (e) {
-                error = e is PostgrestException && e.message.isNotEmpty
-                    ? e.message
-                    : failureMessage;
+                error = friendlyError(AppLocalizations.of(ctx), e, null, failureMessage);
               }
               if (!ctx.mounted) return;
               Navigator.pop(ctx);

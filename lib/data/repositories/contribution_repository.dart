@@ -70,7 +70,7 @@ class ContributionRepository {
   // Mirrors fetchRecentTransactions() above, but for the buying side (Option
   // B) — across every program, not scoped to one, so it lists everything
   // the farmer has confirmed buying from the cooperative this year and
-  // beyond. Only 'paid' purchases count as real activity, same convention
+  // beyond. Only 'completed' purchases count as real activity, same convention
   // as fetchMemberProgramPurchaseTotals().
   Future<List<ProgramPurchase>> fetchRecentProgramPurchases({
     int limit = 10,
@@ -79,13 +79,11 @@ class ContributionRepository {
       final rows = await _client
           .from('program_product_purchases')
           .select(
-            'id, program_id, product_id, farmer_id, quantity, unit_price, '
-            'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
-            'cooperative_programs(program_name), '
+            '*, cooperative_programs(program_name), '
             'program_products(cooperative_inventory(item_name, unit))',
           )
           .eq('farmer_id', _userId)
-          .eq('status', 'paid')
+          .eq('status', 'completed')
           .order('confirmed_at', ascending: false)
           .limit(limit);
       return rows.map((r) {

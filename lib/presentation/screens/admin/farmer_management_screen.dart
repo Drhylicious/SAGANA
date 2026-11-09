@@ -198,7 +198,11 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       builder: (dialogContext) => ManagementModalShell(
         title: l10n.farmerMgmtCreateNewAccountTitle,
         subtitle: l10n.farmerMgmtCreateNewAccountSubtitle,
-        body: Row(
+        // Both cards are the same height and start at the same top edge,
+        // whatever the length of their descriptions.
+        body: IntrinsicHeight(
+         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
               child: _AddTypeCard(
@@ -224,6 +228,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
               ),
             ),
           ],
+         ),
         ),
       ),
     );

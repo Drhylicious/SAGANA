@@ -4,7 +4,10 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_order_model.dart';
+import '../../../core/utils/order_reference.dart';
+import '../../../data/models/program_model.dart' show ProgramPurchase;
 import '../../../data/repositories/buyer_order_repository.dart';
+import '../../../data/repositories/cooperative_order_repository.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/order_result_pieces.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -47,6 +50,8 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   bool _isLoading = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
   List<BuyerOrderModel> _orders = [];
+  // Cooperative Product orders placed in the same checkout (a Farmer's mixed cart).
+  List<ProgramPurchase> _coopOrders = [];
 
   @override
   void initState() {
@@ -58,12 +63,15 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait(
-      widget.orderIds.map(_repository.fetchOrderById),
-    );
+    final marketIds = widget.orderIds.where((id) => !isProgramOrderToken(id)).toList();
+    final coopIds = widget.orderIds.where(isProgramOrderToken).map(programOrderIdOf).toList();
+    final coopRepo = CooperativeOrderRepository();
+    final results = await Future.wait(marketIds.map(_repository.fetchOrderById));
+    final coop = await Future.wait(coopIds.map(coopRepo.fetchOrderById));
     if (!mounted) return;
     setState(() {
       _orders = results.whereType<BuyerOrderModel>().toList();
+      _coopOrders = coop.whereType<ProgramPurchase>().toList();
       _isLoading = false;
     });
   }
@@ -76,6 +84,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     // choice — read it from whichever order loaded first rather than
     // repeating an identical card once per order.
     final firstOrder = _orders.isNotEmpty ? _orders.first : null;
+    final firstCoop = firstOrder == null && _coopOrders.isNotEmpty ? _coopOrders.first : null;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
@@ -140,6 +149,17 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     ),
                     const SizedBox(height: 10),
                   ],
+                  if (firstCoop != null) ...[
+                    FulfillmentInfoCard(
+                      fulfillmentMethod: firstCoop.fulfillmentMethod,
+                      deliveryAddress: firstCoop.deliveryAddress,
+                      deliveryContactNumber: firstCoop.deliveryContact,
+                      deliveryRecipientName: firstCoop.deliveryRecipient,
+                      deliveryLabel: firstCoop.deliveryLabel,
+                      deliveryNotes: firstCoop.deliveryNotes,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   for (int i = 0; i < _orders.length; i++) ...[
                     OrderReferenceCard(
                       orderId: _orders[i].id,
@@ -152,7 +172,21 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                       unit: _orders[i].unit,
                       totalPrice: _orders[i].totalPrice,
                     ),
-                    if (i < _orders.length - 1) const SizedBox(height: 10),
+                    if (i < _orders.length - 1 || _coopOrders.isNotEmpty) const SizedBox(height: 10),
+                  ],
+                  for (int i = 0; i < _coopOrders.length; i++) ...[
+                    OrderReferenceCard(
+                      orderId: _coopOrders[i].id,
+                      orderNumber: _coopOrders[i].reference,
+                      status: _coopOrders[i].status,
+                      photoUrl: _coopOrders[i].imageUrl,
+                      displayName: _coopOrders[i].itemName,
+                      quantityKg: _coopOrders[i].quantity,
+                      pricePerKg: _coopOrders[i].unitPrice,
+                      unit: _coopOrders[i].unit,
+                      totalPrice: _coopOrders[i].totalAmount,
+                    ),
+                    if (i < _coopOrders.length - 1) const SizedBox(height: 10),
                   ],
                 ],
               ),

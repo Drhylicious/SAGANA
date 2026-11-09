@@ -230,6 +230,17 @@ class MemberPatronageCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Regular price, discount and net paid side by side, so the
+              // purchases reconcile with the transactions.
+              if (r.programDiscountAmount > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Regular price ${currency.format(r.programRegularAmount)} − '
+                  'member discount ${currency.format(r.programDiscountAmount)} = '
+                  'net ${currency.format(r.programPurchasesAmount)}',
+                  style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant),
+                ),
+              ],
             ],
           ],
           const SizedBox(height: 8),

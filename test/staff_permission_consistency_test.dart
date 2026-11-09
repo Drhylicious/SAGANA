@@ -25,6 +25,21 @@ void main() {
     for (final script in [
       'supabase_schema/supabase_schema_officer_permissions_02_enforcement.sql',
       'supabase_schema/supabase_schema_officer_permissions_21_contribution_reversal.sql',
+      // Phase 3 registers the three outcome actions under Dashboard.
+      'supabase_schema/supabase_schema_program_rework_p3_outcome_workflow.sql',
+      // Phase 5 registers complete_program under Dashboard.
+      'supabase_schema/supabase_schema_program_rework_p5_completion_rules.sql',
+      // Proposal 12 registers the return and resolution actions under Dashboard.
+      'supabase_schema/supabase_schema_program_rework_p6_harvest_return_resolutions.sql',
+      // Phase 6 registers assistance review under Loans.
+      'supabase_schema/supabase_schema_program_rework_p7_failed_program_assistance.sql',
+      // p18 registers the outcome-report reminder (remind_program_report) under Dashboard.
+      'supabase_schema/supabase_schema_program_rework_p18_report_reminders.sql',
+      // Unified purchasing: Cooperative orders, allocation (m04) and the Marketplace payment steps (m05).
+      'supabase_schema/supabase_schema_unify_m04_cooperative_order_engine.sql',
+      'supabase_schema/supabase_schema_unify_m05_marketplace_payment_place_order.sql',
+      // m07 adds the separate Pickup switch (Manager-only function, registered under Marketplace).
+      'supabase_schema/supabase_schema_unify_m07_pickup_switch_location_guards.sql',
     ])
       for (final m in RegExp(r"\('(table|rpc)',\s*'(\w+)',\s*'(\w+)'\)").allMatches(read(script)))
         '${m.group(1)}:${m.group(2)}': m.group(3)!,
@@ -79,15 +94,31 @@ void main() {
     'rpc:cancel_loan_request', 'rpc:offer_batch_to_cooperative', 'rpc:deliver_cooperative_offer',
     'rpc:request_market_linking_cancellation', 'rpc:submit_ginger_for_sale',
     'rpc:acknowledge_da_amad_enrollment', 'rpc:submit_da_amad_enrollment',
-    'rpc:request_program_purchase', 'rpc:submit_program_enrollment_request',
+    'rpc:submit_program_enrollment_request',
+    // Farmer: orders a Cooperative Product, delivery quote and group, confirms receipt (all their own)
+    'rpc:place_program_order', 'rpc:confirm_program_order_received',
+    'rpc:create_checkout_group', 'rpc:get_delivery_quote',
+    // reads for every signed-in role: the cooperative's own details and whether Delivery is on
+    'rpc:get_cooperative_details', 'rpc:get_delivery_status',
     'rpc:request_payout_decision',
     'rpc:get_my_activity_share', // read: only the caller's own two percentages
+    'rpc:get_my_outcome_reports', // read: the Farmer's own outcome reports; no staff identity
+    'rpc:submit_program_outcome_report', // a Farmer files their own outcome report
   };
 
   /// Staff can do these and the gate does not stop a View Only Officer, on
   /// purpose: they read, or write only the signed-in person's own audit rows.
   const staffOpenOnPurpose = <String>{
     'rpc:get_officer_permissions', // read
+    'rpc:get_program_returns', 'rpc:get_failed_resolutions', // reads: staff only, checked inside the function
+    'rpc:get_assistance_requests', // read: staff only, checked inside the function
+    'rpc:get_my_assistance_options', 'rpc:get_my_assistance_requests', // reads: the Farmer's own, no staff identity
+    'rpc:submit_assistance_request', 'rpc:cancel_my_assistance_request', // a Farmer asks for / cancels their own request
+    'rpc:get_program_product_stats', // read: buyers and quantity sold per product, totals only (no names or prices)
+    'rpc:get_my_program_returns', // read: the Farmer's own returns and the plain status of their failed outcomes
+    'rpc:get_programs_completion_status', // read: which active programs are ready to complete; staff only, checked inside the function
+    'rpc:get_program_history', // read: one program's accountability history; staff only, checked inside the function
+    'rpc:get_program_outcome_reports', // read: outcome reports with photos and who did what; staff only, checked inside the function
     'rpc:preview_broadcast_recipients', // a count
     'rpc:get_manager_sign_in_emails', // read: Manager accounts' e-mail for Manage Accounts (script 19)
     // Broadcast is a primary screen (top bar): every Officer can send and schedule,
@@ -106,6 +137,9 @@ void main() {
   const managerOnlyInDatabase = <String>{
     'rpc:confirm_payout_decision', 'rpc:reject_payout_decision', // Balik-Tangkilik
     'table:cooperative_annual_totals', 'table:member_contributions', // Balik-Tangkilik
+    // Cooperative Details and Delivery Settings: the functions check is_manager(); an Officer only reads.
+    'rpc:save_cooperative_details', 'rpc:verify_cooperative_contact',
+    'rpc:save_delivery_fee_bands', 'rpc:set_delivery_enabled',
   };
 
   group('every database write the app can make is accounted for', () {
@@ -164,11 +198,14 @@ void main() {
       'lib/presentation/screens/admin/price_management_screen.dart': {'dashboard'},
       'lib/presentation/screens/admin/program_enrollment_requests_screen.dart': {'dashboard'},
       'lib/presentation/screens/admin/program_management_screen.dart': {'dashboard'},
-      'lib/presentation/screens/admin/program_purchase_review_screen.dart': {'dashboard'},
+      'lib/presentation/screens/admin/program_outcome_detail_screen.dart': {'dashboard'},
+      'lib/presentation/screens/admin/program_products_screen.dart': {'dashboard'},
+      'lib/presentation/screens/admin/assistance_requests_screen.dart': {'loans'},
       'lib/presentation/screens/admin/farmer_details_screen.dart': {'members'},
       'lib/presentation/screens/admin/farmer_management_screen.dart': {'members'}, // plus the loan actions (variable)
       'lib/presentation/screens/admin/manage_accounts_screen.dart': {'members'},
       'lib/presentation/screens/admin/admin_order_detail_screen.dart': {'marketplace'},
+      'lib/presentation/screens/admin/admin_program_order_detail_screen.dart': {'marketplace'},
       'lib/presentation/screens/admin/all_listings_screen.dart': {'marketplace'},
       'lib/presentation/screens/admin/da_amad_enrollment_screen.dart': {'marketplace'},
       'lib/presentation/screens/admin/listing_edit_request_screen.dart': {'marketplace'},

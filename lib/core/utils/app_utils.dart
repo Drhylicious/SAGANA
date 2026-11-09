@@ -92,6 +92,13 @@ class AppUtils {
     return DateFormat('MMM d, yyyy', localeName).format(date);
   }
 
+  /// The date shown on a listing (and on the cards that list a product): always the complete
+  /// date with the year, in the device's local day, for example "Oct 28, 2026". One format for
+  /// every listing screen.
+  static String formatListingDate(DateTime date, [String? localeName]) {
+    return DateFormat('MMM d, yyyy', localeName).format(date.toLocal());
+  }
+
   static String formatDateShort(DateTime date) {
     return DateFormat('MM/dd/yyyy').format(date);
   }

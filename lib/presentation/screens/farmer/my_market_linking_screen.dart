@@ -156,7 +156,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not submit enrollment. Please try again.'),
+            content: Text('Could not send your join request. Please try again.'),
           ),
         );
       }
@@ -417,7 +417,7 @@ class _NoGingerCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'DA-AMAD Market Linking is exclusive to Ginger. Add Ginger to your Crop Roster before you can enroll.',
+            'DA-AMAD Market Linking is exclusive to Ginger. Add Ginger to your Crop Roster before you can join.',
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
@@ -475,7 +475,7 @@ class _GingerPendingApprovalCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'You\'ve already requested Ginger for your Crop Roster — SP3 is still reviewing it. '
-            'You\'ll be able to enroll in Market Linking once that\'s approved.',
+            'You\'ll be able to join Market Linking once that\'s approved.',
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
@@ -535,8 +535,8 @@ class _EnrollmentIntroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'SP3 connects enrolled Ginger growers directly with DA-AMAD — an institutional buyer offering export '
-            'pricing, outside the open marketplace. Enroll once to participate; SP3 will review your request.',
+            'SP3 connects Ginger growers who have joined directly with DA-AMAD — an institutional buyer offering export '
+            'pricing, outside the open marketplace. Request to join once to participate; SP3 will review your request.',
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
@@ -559,7 +559,7 @@ class _EnrollmentIntroCard extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      isResubmit ? 'Submit New Enrollment' : 'Enroll Now',
+                      isResubmit ? 'Request to Join Again' : 'Request to Join',
                       style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
                     ),
             ),
@@ -606,7 +606,7 @@ class _RejectedBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your Previous Enrollment Was Declined',
+                  'Your Previous Join Request Was Closed',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -625,7 +625,7 @@ class _RejectedBanner extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  'You can submit a new enrollment below.',
+                  'You can send a new join request below.',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onSurfaceVariant,
@@ -689,7 +689,7 @@ class _PendingEnrollmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'Enrollment Under Review',
+            'Join Request Under Review',
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -698,7 +698,7 @@ class _PendingEnrollmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'SP3 is reviewing your DA-AMAD Ginger Market Linking enrollment. You\'ll be notified once a decision is made.',
+            'SP3 is reviewing your DA-AMAD Ginger Market Linking join request. You\'ll be notified once it is approved.',
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
@@ -779,7 +779,7 @@ class _EnrolledPill extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            'Enrolled',
+            'Joined',
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -832,7 +832,7 @@ class _ApprovedNextStepCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'You\'re enrolled — you have nothing submitted for sale yet. Go to Manage Inventory, open a Ginger '
+            'You\'ve joined — you have nothing submitted for sale yet. Go to Manage Inventory, open a Ginger '
             'batch, and tap "Submit to Sell" to start the process.',
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),

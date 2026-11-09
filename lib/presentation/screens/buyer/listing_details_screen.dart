@@ -19,20 +19,10 @@ import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/table_change_watcher.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/cooperative_address_text.dart';
+import '../../widgets/product_buy_now_sheet.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
-
-// Same fix pattern as create_listing_screen.dart's _DecimalInputFormatter
-// (max variant) — the previous formatter here only validated decimal
-// *format* (digits + up to 2 places), not the *value*, so a buyer could
-// freely type well past the listing's real available stock and only see
-// it silently clamped once the field lost focus. This rejects the
-// keystroke outright once the parsed value would exceed max, so the
-// field itself never shows more than what's actually available.
-// The order quantity accepts up to 2 decimals and never more than the stock
-// left; the shared DecimalInputFormatter checks the whole value on every edit.
-DecimalInputFormatter _maxQuantityFormatter(double max) =>
-    DecimalInputFormatter(max: max);
 
 // A visibly deeper card treatment than the shared flatCardDecoration()
 // (alpha 0.04 / blur 8 — reads as almost no shadow at all) for this
@@ -160,15 +150,45 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       return;
     }
     final listing = _listing!;
-    // A real bottom sheet (flush to the screen edges, native slide-up),
-    // not AppBottomSheet's centered-card-style transition — that read as a
-    // modal/pop-up rather than a bottom sheet.
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) =>
-          _BuyNowSheet(listing: listing, checkoutRoute: _checkoutRoute),
+    // The router is taken now, so going on to the checkout does not depend on this
+    // screen's context once the sheet has closed.
+    final router = GoRouter.of(context);
+    final checkoutRoute = _checkoutRoute;
+    // The same sliding sheet a Cooperative Product uses (see ProductBuyNowSheet). It does not
+    // place the order: it hands the chosen quantity on to the shared CheckoutScreen, which is
+    // where fulfillment is chosen and the order is actually created.
+    ProductBuyNowSheet.show(
+      context,
+      photoUrl: listing.listingPhotoUrl,
+      price: listing.pricePerKg,
+      unit: listing.unit,
+      available: listing.displayAvailableKg,
+      pillLabel: listing.marketTypeLabel,
+      // 10 of the unit, or the full stock if less.
+      initialQuantity: listing.displayAvailableKg >= 10
+          ? 10
+          : listing.displayAvailableKg.clamp(0.01, 999999).toDouble(),
+      onConfirm: (quantity) {
+        final item = CartItemModel(
+          listingId: listing.id,
+          cropName: listing.cropName,
+          variety: listing.variety,
+          pricePerKg: listing.pricePerKg,
+          unit: listing.unit,
+          photoUrl: listing.listingPhotoUrl,
+          category: listing.category,
+          marketType: listing.marketType,
+          availableKgSnapshot: listing.displayAvailableKg,
+          quantityKg: quantity,
+        );
+        router.push(
+          checkoutRoute,
+          extra: {
+            'items': [item],
+            'isCartCheckout': false,
+          },
+        );
+      },
     );
   }
 
@@ -452,8 +472,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    Text(
-                                      AppConstants.cooperativeLocation,
+                                    CooperativeAddressText(
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         color: AppConstants.onSurfaceVariant,
@@ -746,324 +765,6 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
           fontSize: 10,
           fontWeight: FontWeight.w700,
           color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-String _fmtQtyStatic(double q) => formatQuantity(q);
-
-// Buyer Browse-tab rework, Phase 6 — repackages the quantity-picking logic
-// that used to live inline on ListingDetailsScreen into a bottom sheet,
-// opened from its "Buy Now" action. Checkout + My Addresses (Phase 6a):
-// this sheet no longer places the order itself — it builds a single-item
-// CartItemModel from the chosen quantity and hands off to the shared
-// CheckoutScreen, which is where fulfillment is chosen and the order is
-// actually created. Takes checkoutRoute explicitly (rather than an
-// isFarmerContext flag) since that's the one piece of the parent screen's
-// role-aware routing this sheet needs — it has no access to
-// ListingDetailsScreen's own State to resolve it itself.
-class _BuyNowSheet extends StatefulWidget {
-  final BuyerListingModel listing;
-  final String checkoutRoute;
-
-  const _BuyNowSheet({required this.listing, required this.checkoutRoute});
-
-  @override
-  State<_BuyNowSheet> createState() => _BuyNowSheetState();
-}
-
-class _BuyNowSheetState extends State<_BuyNowSheet> {
-  late double _quantity;
-  late final TextEditingController _qtyController;
-  late final FocusNode _qtyFocusNode;
-
-  BuyerListingModel get _listing => widget.listing;
-
-  @override
-  void initState() {
-    super.initState();
-    // Same default-quantity formula _load() used to apply on the parent
-    // screen (10kg, or full stock if less).
-    _quantity = _listing.displayAvailableKg >= 10
-        ? 10
-        : _listing.displayAvailableKg.clamp(0.01, 999999);
-    _qtyController = TextEditingController(text: _fmtQtyStatic(_quantity));
-    _qtyFocusNode = FocusNode()
-      ..addListener(() {
-        if (!_qtyFocusNode.hasFocus) _commitQuantityInput();
-      });
-  }
-
-  @override
-  void dispose() {
-    _qtyController.dispose();
-    _qtyFocusNode.dispose();
-    super.dispose();
-  }
-
-  void _adjustQuantity(double delta) {
-    final max = _listing.displayAvailableKg;
-    final minQty = max < 1 ? max : 1.0;
-    setState(() {
-      _quantity = (_quantity + delta).clamp(minQty, max);
-      _qtyController.text = _fmtQtyStatic(_quantity);
-    });
-  }
-
-  void _commitQuantityInput() {
-    final max = _listing.displayAvailableKg;
-    final minQty = max < 1 ? max : 1.0;
-    final parsed = double.tryParse(_qtyController.text.trim());
-    setState(() {
-      _quantity = (parsed ?? minQty).clamp(minQty, max);
-      _qtyController.text = _fmtQtyStatic(_quantity);
-    });
-  }
-
-  // Captures the router before popping the sheet, so navigation doesn't
-  // depend on this widget's own context still being mounted/valid
-  // afterward — same defensive pattern the old placeOrder call used here.
-  void _goToCheckout() {
-    final router = GoRouter.of(context);
-    final item = CartItemModel(
-      listingId: _listing.id,
-      cropName: _listing.cropName,
-      variety: _listing.variety,
-      pricePerKg: _listing.pricePerKg,
-      unit: _listing.unit,
-      photoUrl: _listing.listingPhotoUrl,
-      category: _listing.category,
-      marketType: _listing.marketType,
-      availableKgSnapshot: _listing.displayAvailableKg,
-      quantityKg: _quantity,
-    );
-    Navigator.of(context).pop();
-    router.push(
-      widget.checkoutRoute,
-      extra: {
-        'items': [item],
-        'isCartCheckout': false,
-      },
-    );
-  }
-
-  // 40px — a proper touch target with a visible gap on either side of the
-  // quantity value (added in build()), not packed edge-to-edge against it.
-  // No border of its own — sits inside the single shared pill container
-  // built in build(), which supplies the one shared border around
-  // minus/value/plus together.
-  Widget _stepperButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        child: Icon(icon, size: 16, color: AppConstants.primaryGreen),
-      ),
-    );
-  }
-
-  Widget _marketTypePill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppConstants.primaryGreen,
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Text(
-        _listing.marketTypeLabel,
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    // A real bottom sheet: flush against the left/right/bottom screen
-    // edges (rounded top corners only — no outer margin, which is what
-    // made the previous version read as a floating card/modal instead).
-    // SafeArea handles the bottom system inset since showModalBottomSheet
-    // doesn't add one itself, matching this codebase's own sheet
-    // convention (e.g. crop_catalog_sheet.dart's _PhotoSourceSheet).
-    return SafeArea(
-      top: false,
-      child: Material(
-        color: context.saganaColors.cardBackground,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 24),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outline.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                    child: SizedBox(
-                      width: 76,
-                      height: 76,
-                      child: _listing.listingPhotoUrl != null
-                          ? Image.network(
-                              _listing.listingPhotoUrl!,
-                              fit: BoxFit.cover,
-                            )
-                          : Container(color: AppConstants.limeGreen),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              formatPesos(_listing.pricePerKg),
-                              style: GoogleFonts.poppins(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: AppConstants.primaryGreen,
-                              ),
-                            ),
-                            Text(
-                              '/${unitOrDefault(_listing.unit)}',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: AppConstants.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.buyerListingMaxAvailable(
-                            formatQuantityUnit(
-                              _listing.displayAvailableKg,
-                              _listing.unit,
-                            ),
-                          ),
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _marketTypePill(),
-              const SizedBox(height: 28),
-              // Wrap, not Row — a fixed 80px gap plus the label plus the
-              // pill doesn't always leave enough width to keep everything
-              // on one line (this hit a RenderFlex overflow once already,
-              // then a truncated label once the gap widened to 80px). Wrap
-              // keeps the exact same one-line look whenever there's room
-              // for it, and only drops the pill to its own line below the
-              // label on genuinely narrow widths — never clips the label
-              // and never overflows, unlike a Row with a fixed-width gap.
-              Wrap(
-                spacing: 80,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    l10n.buyerListingOrderQty(unitOrDefault(_listing.unit)),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  // One shared bordered pill around all three elements —
-                  // was three individually-boxed controls with gaps between
-                  // them, which read as three separate buttons rather than
-                  // a single compact stepper.
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppConstants.primaryGreen.withValues(
-                          alpha: 0.35,
-                        ),
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _stepperButton(Icons.remove, () => _adjustQuantity(-1)),
-                        SizedBox(
-                          width: 56,
-                          child: TextField(
-                            controller: _qtyController,
-                            focusNode: _qtyFocusNode,
-                            textAlign: TextAlign.center,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: [
-                              _maxQuantityFormatter(
-                                _listing.displayAvailableKg,
-                              ),
-                            ],
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppConstants.primaryGreen,
-                            ),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                              border: InputBorder.none,
-                            ),
-                            onSubmitted: (_) => _commitQuantityInput(),
-                          ),
-                        ),
-                        _stepperButton(Icons.add, () => _adjustQuantity(1)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              PrimaryButton(
-                label: l10n.buyerListingBuyNow,
-                onPressed: _goToCheckout,
-              ),
-            ],
-          ),
         ),
       ),
     );

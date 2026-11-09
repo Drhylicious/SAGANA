@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
+import 'cooperative_address_text.dart';
 
 /// Shared fulfillment display — same structure on Checkout's selected-
 /// address summary, Buyer Order Detail, Order Success/Cart Result, and
@@ -97,8 +98,9 @@ class FulfillmentInfoCard extends StatelessWidget {
           ),
           if (isPickup) ...[
             const SizedBox(height: 10),
-            Text(
-              '${AppConstants.cooperativeName}, ${AppConstants.cooperativeLocation}',
+            // The address comes from Cooperative Details, the same record checkout uses.
+            CooperativeAddressText(
+              withName: true,
               style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.4),
             ),
           ] else ...[

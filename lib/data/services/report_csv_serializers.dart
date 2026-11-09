@@ -1,3 +1,4 @@
+import '../../core/utils/item_type_utils.dart';
 import 'package:intl/intl.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/admin_loan_model.dart';
@@ -48,8 +49,11 @@ String csvExportHeader({
   return buffer.toString();
 }
 
-String serializeSalesReportCsv(SalesReportData data) {
+/// The Sales Report file. With [products] it has the two sections of the screen, each under its
+/// own title: Marketplace Sales (every selling channel) and Cooperative Product Sales.
+String serializeSalesReportCsv(SalesReportData data, [ProductSalesReportData? products]) {
   final buffer = StringBuffer();
+  if (products != null) buffer.writeln(_row(['Marketplace Sales']));
   buffer.writeln(
     _row([
       'Selling Channel',
@@ -77,6 +81,26 @@ String serializeSalesReportCsv(SalesReportData data) {
         t.referenceNo ?? '',
       ]),
     );
+  }
+  if (products != null) {
+    buffer.writeln();
+    buffer.writeln(_row(['Cooperative Product Sales']));
+    buffer.writeln(
+      _row(['Member Name', 'Product', 'Program', 'Quantity', 'Amount (PHP)', 'Completed Date', 'Order Number']),
+    );
+    for (final r in products.rows) {
+      buffer.writeln(
+        _row([
+          r.farmerName,
+          r.itemName,
+          r.programName ?? '',
+          exportQuantity(r.quantity, r.unit),
+          r.amount.toStringAsFixed(2),
+          _dateFmt.format(r.saleDate),
+          r.orderNumber,
+        ]),
+      );
+    }
   }
   return buffer.toString();
 }
@@ -215,6 +239,12 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
       'Other Crops Amount (PHP)',
       'Total Amount (PHP)',
       'Share (%)',
+      // Product Sales purchases at the member price: regular price, discount
+      // and what was actually paid, so they reconcile (regular - discount = net).
+      'Purchases - Regular Price (PHP)',
+      'Purchases - Discount Rate (%)',
+      'Purchases - Discount Amount (PHP)',
+      'Purchases - Net Amount Paid (PHP)',
     ]),
   );
   for (final r in data.rows) {
@@ -229,6 +259,10 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
         r.otherCropsAmount.toStringAsFixed(2),
         r.totalAmount.toStringAsFixed(2),
         r.sharePercent.toStringAsFixed(2),
+        r.programRegularAmount.toStringAsFixed(2),
+        r.programDiscountRatePercent.toStringAsFixed(2),
+        r.programDiscountAmount.toStringAsFixed(2),
+        r.programPurchasesAmount.toStringAsFixed(2),
       ]),
     );
   }
@@ -238,13 +272,14 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
 String serializeCoopStockReportCsv(CoopStockReportData data) {
   final buffer = StringBuffer();
   buffer.writeln(
-    _row(['Item Name', 'Category', 'On Hand', 'Unit', 'Low Stock']),
+    _row(['Item Name', 'Category', 'Item Type', 'On Hand', 'Unit', 'Low Stock']),
   );
   for (final item in data.items) {
     buffer.writeln(
       _row([
         item.itemName,
         item.category,
+        itemTypeExportLabel(item.itemType),
         item.quantityOnHand.toStringAsFixed(2),
         item.unit,
         item.isLowStock ? 'Yes' : 'No',

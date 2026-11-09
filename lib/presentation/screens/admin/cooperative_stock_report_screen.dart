@@ -1,3 +1,4 @@
+import '../../../core/utils/item_type_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -177,7 +178,9 @@ class _CooperativeStockReportScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return Row(
+    return Column(
+      children: [
+    Row(
       children: [
         Expanded(
           child: ReportIconStatCard(
@@ -204,6 +207,40 @@ class _CooperativeStockReportScreenState
             value: '${_data.categoryCounts.length}',
             accent: AppConstants.amber,
           ),
+        ),
+      ],
+    ),
+        const SizedBox(height: AppConstants.spacingSm),
+        // The Item Type Inventory Management gives every item.
+        Row(
+          children: [
+            Expanded(
+              child: ReportIconStatCard(
+                icon: Icons.grass_rounded,
+                label: l10n.itemTypeSeeds,
+                value: '${_data.seedsItemCount}',
+                accent: AppConstants.successGreen,
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Expanded(
+              child: ReportIconStatCard(
+                icon: Icons.agriculture_rounded,
+                label: l10n.itemTypeProduce,
+                value: '${_data.produceItemCount}',
+                accent: AppConstants.buyerBlue,
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Expanded(
+              child: ReportIconStatCard(
+                icon: Icons.handyman_rounded,
+                label: l10n.itemTypeNonCrop,
+                value: '${_data.nonCropItemCount}',
+                accent: AppConstants.outline,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -435,7 +472,7 @@ class _CooperativeStockReportScreenState
                     ),
                   ),
                   Text(
-                    item.category,
+                    '${item.category} • ${itemTypeLabel(AppLocalizations.of(context), item.itemType)}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: cs.onSurfaceVariant,

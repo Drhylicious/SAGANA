@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
+import '../services/order_evidence_service.dart';
 import '../services/server_only.dart';
 import '../../core/utils/order_reference.dart';
 import '../../core/utils/order_status.dart';
@@ -59,6 +60,24 @@ class AdminOrderModel {
   final String? deliveryPhotoUrl;
   final String? deliveryEvidenceNote;
 
+  // Payment: cash collected by the cooperative (counter for Pickup, on delivery for Delivery).
+  // Separate from the fulfillment status. A completed order from before payments were
+  // recorded reads 'not_recorded'.
+  final String paymentStatus; // 'unpaid' | 'paid' | 'not_recorded'
+  final DateTime? paidAt;
+  final double? amountCollected;
+  final double deliveryFeeCollected;
+  final String? paymentRecordedByName;
+  final String? paymentRecordedByRole;
+  final String? paymentNote;
+  final String? checkoutGroupId;
+  final String? completionMethod; // 'consumer' | 'staff'
+  final String? staffCompletionReason;
+  final String? staffCompletionPhotoUrl;
+  final String? staffCompletedByName;
+  final String? staffCompletedByRole;
+  final DateTime? staffCompletedAt;
+
   // Detail-screen-only, same convention as BuyerOrderModel.
   final String? batchNumber;
   final DateTime? harvestDate;
@@ -105,6 +124,20 @@ class AdminOrderModel {
     this.deliveredAt,
     this.deliveryPhotoUrl,
     this.deliveryEvidenceNote,
+    this.paymentStatus = 'unpaid',
+    this.paidAt,
+    this.amountCollected,
+    this.deliveryFeeCollected = 0,
+    this.paymentRecordedByName,
+    this.paymentRecordedByRole,
+    this.paymentNote,
+    this.checkoutGroupId,
+    this.completionMethod,
+    this.staffCompletionReason,
+    this.staffCompletionPhotoUrl,
+    this.staffCompletedByName,
+    this.staffCompletedByRole,
+    this.staffCompletedAt,
     this.batchNumber,
     this.harvestDate,
     this.category,
@@ -121,7 +154,9 @@ class AdminOrderModel {
   bool get isCompleted => status == 'completed';
 
   /// The Manager / Officer's next step on this order, or null when it is not theirs.
-  StaffOrderAction? get nextAction => nextStaffOrderAction(status, fulfillmentMethod);
+  StaffOrderAction? get nextAction =>
+      nextStaffOrderAction(status, fulfillmentMethod, paymentStatus: paymentStatus);
+  bool get isPaymentRecorded => paymentStatus == 'paid';
   bool get isCancelled => status == 'cancelled';
 
   bool get hasFulfillmentChoice => fulfillmentMethod != null;
@@ -206,6 +241,20 @@ class AdminOrderModel {
       deliveredAt: _dt(map['delivered_at']),
       deliveryPhotoUrl: map['delivery_photo_url'] as String?,
       deliveryEvidenceNote: map['delivery_evidence_note'] as String?,
+      paymentStatus: map['payment_status'] as String? ?? 'unpaid',
+      paidAt: _dt(map['paid_at']),
+      amountCollected: (map['amount_collected'] as num?)?.toDouble(),
+      deliveryFeeCollected: (map['delivery_fee_collected'] as num?)?.toDouble() ?? 0,
+      paymentRecordedByName: map['payment_recorded_by_name'] as String?,
+      paymentRecordedByRole: map['payment_recorded_by_role'] as String?,
+      paymentNote: map['payment_note'] as String?,
+      checkoutGroupId: map['checkout_group_id'] as String?,
+      completionMethod: map['completion_method'] as String?,
+      staffCompletionReason: map['staff_completion_reason'] as String?,
+      staffCompletionPhotoUrl: map['staff_completion_photo_url'] as String?,
+      staffCompletedByName: map['staff_completed_by_name'] as String?,
+      staffCompletedByRole: map['staff_completed_by_role'] as String?,
+      staffCompletedAt: _dt(map['staff_completed_at']),
       batchNumber: map['batch_number'] as String?,
       harvestDate: map['harvest_date'] != null
           ? DateTime.parse(map['harvest_date'] as String)
@@ -230,6 +279,10 @@ class OrderSummaryStats {
   final int completed;
   final int cancelled;
 
+  /// Ready for Pickup / Delivered orders whose cash the cooperative has not recorded yet:
+  /// staff still have a step to do on them.
+  final int awaitingPayment;
+
   const OrderSummaryStats({
     required this.total,
     required this.pending,
@@ -239,12 +292,13 @@ class OrderSummaryStats {
     this.delivered = 0,
     required this.completed,
     required this.cancelled,
+    this.awaitingPayment = 0,
   });
 
   /// Orders waiting for the Manager / Officer: Pending + Approved + Out for
-  /// Delivery. Orders waiting only for the consumer's confirmation (Ready for
-  /// Pickup, Delivered) are not counted.
-  int get needsAction => pending + approved + outForDelivery;
+  /// Delivery + those whose payment is not recorded yet. Orders that are paid and wait only
+  /// for the consumer's confirmation are not counted.
+  int get needsAction => pending + approved + outForDelivery + awaitingPayment;
 
   static const empty = OrderSummaryStats(
     total: 0,
@@ -268,6 +322,7 @@ class OrderSummaryStats {
       delivered: of('delivered'),
       completed: of('completed'),
       cancelled: of('cancelled'),
+      awaitingPayment: of('awaiting_payment'),
     );
   }
 }
@@ -293,7 +348,7 @@ class AdminOrderRepository {
               .from('orders')
               .select(
                 'id, order_number, listing_id, buyer_id, quantity_kg, price_per_kg, unit, total_price, '
-                'status, notes, cancelled_by, created_at, updated_at, fulfillment_method',
+                'status, notes, cancelled_by, created_at, updated_at, fulfillment_method, payment_status',
               );
 
           if (statusFilter != null) query = query.eq('status', statusFilter);
@@ -386,23 +441,39 @@ class AdminOrderRepository {
   Future<OrderSummaryStats> fetchSummaryStats() async {
     try {
       final rows = await OfflineCache.load(
-        screen: 'order_status_counts_v2',
+        screen: 'order_status_counts_v3',
         fetch: () async {
-          Future<int> n([List<String>? statuses]) {
-            var q = _client.from('orders').count();
-            if (statuses != null) q = q.inFilter('status', statuses);
-            return q;
+          // One count per status, over Marketplace orders AND Cooperative Product orders (the
+          // staff list shows both). A table that cannot be read counts as zero.
+          Future<int> n(String table, [List<String>? statuses, bool unpaidOnly = false]) async {
+            try {
+              var q = _client.from(table).count();
+              if (statuses != null) q = q.inFilter('status', statuses);
+              if (unpaidOnly) q = q.eq('payment_status', 'unpaid');
+              return await q;
+            } catch (_) {
+              return 0;
+            }
+          }
+
+          Future<int> both([List<String>? statuses, bool unpaidOnly = false]) async {
+            final r = await Future.wait([
+              n('orders', statuses, unpaidOnly),
+              n('program_product_purchases', statuses, unpaidOnly),
+            ]);
+            return r[0] + r[1];
           }
 
           final results = await Future.wait([
-            n(),
-            n(['pending']),
-            n(['approved']),
-            n(['completed']),
-            n(['cancelled', 'rejected']),
-            n(['ready_for_pickup']),
-            n(['out_for_delivery']),
-            n(['delivered']),
+            both(),
+            both(['pending']),
+            both(['approved']),
+            both(['completed']),
+            both(['cancelled', 'rejected']),
+            both(['ready_for_pickup']),
+            both(['out_for_delivery']),
+            both(['delivered']),
+            both(['ready_for_pickup', 'delivered'], true),
           ]);
           return [
             {'status': 'total', 'n': results[0]},
@@ -413,6 +484,7 @@ class AdminOrderRepository {
             {'status': 'ready_for_pickup', 'n': results[5]},
             {'status': 'out_for_delivery', 'n': results[6]},
             {'status': 'delivered', 'n': results[7]},
+            {'status': 'awaiting_payment', 'n': results[8]},
           ];
         },
       );
@@ -432,7 +504,10 @@ class AdminOrderRepository {
             'fulfillment_method, delivery_address, delivery_latitude, '
             'delivery_longitude, delivery_contact_number, delivery_notes, '
             'delivery_recipient_name, delivery_label, ready_at, out_for_delivery_at, '
-            'delivered_at, delivery_photo_url, delivery_evidence_note',
+            'delivered_at, delivery_photo_url, delivery_evidence_note, payment_status, paid_at, '
+            'amount_collected, delivery_fee_collected, payment_recorded_by_name, payment_recorded_by_role, '
+            'payment_note, checkout_group_id, completion_method, staff_completion_reason, '
+            'staff_completion_photo_url, staff_completed_by_name, staff_completed_by_role, staff_completed_at',
           )
           .eq('id', orderId)
           .maybeSingle();
@@ -587,25 +662,48 @@ class AdminOrderRepository {
     );
   }
 
-  /// Marks the order Delivered. The photo evidence is uploaded first (to the
-  /// signed-in staff member's own folder of the photo bucket); the database
-  /// refuses Delivered without it.
-  Future<void> markDelivered({
+  /// The delivery fee the next handover in this order delivery group has to collect: the whole
+  /// group fee until it was collected once, then zero. No group (or no delivery fee) is zero.
+  Future<double> fetchGroupFeeDue(String? groupId) async {
+    if (groupId == null) return 0;
+    try {
+      final rows = await _client
+          .from('checkout_groups')
+          .select('delivery_fee, fee_collected_at')
+          .eq('id', groupId)
+          .limit(1);
+      if (rows.isEmpty || rows.first['fee_collected_at'] != null) return 0;
+      return (rows.first['delivery_fee'] as num?)?.toDouble() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Pickup: records the cash received at the counter. Delivery: records the handover (photo
+  /// required, uploaded first) together with the cash collected, which marks it Delivered. The
+  /// database checks the amount against the order total plus, for the first handover of a
+  /// delivery group, the group's one delivery fee.
+  Future<void> recordHandover({
     required String orderId,
-    required Uint8List photoBytes,
-    required String photoExtension,
+    required double amount,
+    Uint8List? photoBytes,
+    String? photoExtension,
     String? note,
   }) async {
     await ServerOnly.ensureOnline();
-    final userId = _client.auth.currentUser!.id;
-    final path =
-        '$userId/order_delivery_${orderId}_${DateTime.now().millisecondsSinceEpoch}.$photoExtension';
-    await _client.storage
-        .from('crop_images')
-        .uploadBinary(path, photoBytes, fileOptions: const FileOptions(upsert: true));
-    final url = _client.storage.from('crop_images').getPublicUrl(path);
-    await _client.rpc('mark_order_delivered', params: {
+    String? url;
+    if (photoBytes != null) {
+      url = await uploadOrderEvidence(
+        client: _client,
+        kind: 'delivery',
+        orderId: orderId,
+        bytes: photoBytes,
+        extension: photoExtension ?? 'jpg',
+      );
+    }
+    await _client.rpc('record_order_handover', params: {
       'p_order_id': orderId,
+      'p_amount': amount,
       'p_photo_url': url,
       'p_note': note,
     });
@@ -615,6 +713,39 @@ class AdminOrderRepository {
       message: const AdminLogMessage('adminLogOrderDelivered'),
       referenceId: orderId,
     );
+  }
+
+  /// The cash for an order that was already Delivered before payments were recorded.
+  Future<void> recordPayment({required String orderId, required double amount, String? note}) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('record_order_payment', params: {
+      'p_order_id': orderId,
+      'p_amount': amount,
+      'p_note': note,
+    });
+  }
+
+  /// The consumer cannot confirm: staff complete it. Needs a reason and a photo; the database
+  /// stores who did it and when.
+  Future<void> completeForCustomer({
+    required String orderId,
+    required String reason,
+    required Uint8List photoBytes,
+    required String photoExtension,
+  }) async {
+    await ServerOnly.ensureOnline();
+    final url = await uploadOrderEvidence(
+      client: _client,
+      kind: 'assisted',
+      orderId: orderId,
+      bytes: photoBytes,
+      extension: photoExtension,
+    );
+    await _client.rpc('staff_complete_order', params: {
+      'p_order_id': orderId,
+      'p_reason': reason,
+      'p_photo_url': url,
+    });
   }
 
   // There is no Manager "reject / cancel order" any more. An order ends in one of

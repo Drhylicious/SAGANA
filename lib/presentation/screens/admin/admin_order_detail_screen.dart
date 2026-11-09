@@ -11,9 +11,11 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
-import '../../widgets/coop_offer_widgets.dart' show CoopDeliveryPhoto, showCoopDeliveryDialog;
+import '../../widgets/coop_offer_widgets.dart' show CoopDeliveryPhoto;
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/order_status_style.dart';
+import '../../widgets/order_payment_widgets.dart';
+import '../../../core/utils/app_error_message.dart';
 import '../../widgets/app_toast.dart';
 import '../../../core/utils/order_status.dart';
 import '../../widgets/management_modal.dart';
@@ -51,6 +53,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   final _repo = AdminOrderRepository();
   bool _isLoading = true;
   AdminOrderModel? _order;
+  // What the next handover in this order delivery group collects as the delivery fee.
+  double _feeDue = 0;
 
   @override
   void initState() {
@@ -61,9 +65,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final order = await _repo.fetchOrderById(widget.orderId);
+    final fee = (order != null && order.isDelivery && !order.isPaymentRecorded)
+        ? await _repo.fetchGroupFeeDue(order.checkoutGroupId)
+        : 0.0;
     if (!mounted) return;
     setState(() {
       _order = order;
+      _feeDue = fee;
       _isLoading = false;
     });
   }
@@ -131,32 +139,65 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  /// Photo evidence is required: the dialog will not submit without one.
-  Future<void> _markDelivered() async {
+  /// Pickup: the cash received at the counter. Delivery: the handover with a photo and the
+  /// cash collected on delivery (it becomes Delivered). Never recorded without the exact amount.
+  Future<void> _recordHandover() async {
     if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
     final order = _order!;
-    final input = await showCoopDeliveryDialog(
+    final needsPhoto = order.isDelivery && order.status == 'out_for_delivery';
+    final input = await showCashHandoverDialog(
       context,
       subtitle: '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
-      title: l10n.orderDeliveredDialogTitle,
-      body: l10n.orderDeliveredDialogBody,
-      confirmLabel: l10n.orderActionMarkDelivered,
+      itemsAmount: order.totalPrice,
+      deliveryFee: order.isDelivery ? _feeDue : 0,
+      needsPhoto: needsPhoto,
     );
     if (input == null || !mounted) return;
     try {
-      await _repo.markDelivered(
+      if (order.status == 'delivered') {
+        await _repo.recordPayment(orderId: widget.orderId, amount: input.amount, note: input.note);
+      } else {
+        await _repo.recordHandover(
+          orderId: widget.orderId,
+          amount: input.amount,
+          photoBytes: input.photo?.bytes,
+          photoExtension: input.photo?.extension,
+          note: input.note,
+        );
+      }
+      if (!mounted) return;
+      AppToast.show(context, needsPhoto ? l10n.uoToastHandoverRecorded : l10n.uoToastPaymentRecorded);
+      _load();
+    } catch (e, st) {
+      if (!mounted) return;
+      AppToast.show(context, friendlyError(l10n, e, st), isError: true);
+    }
+  }
+
+  /// The customer cannot confirm: staff complete it. Reason and photo are required.
+  Future<void> _completeForCustomer() async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
+    final l10n = AppLocalizations.of(context);
+    final order = _order!;
+    final input = await showAssistedCompleteDialog(
+      context,
+      subtitle: '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
+    );
+    if (input == null || !mounted) return;
+    try {
+      await _repo.completeForCustomer(
         orderId: widget.orderId,
+        reason: input.reason,
         photoBytes: input.photo.bytes,
         photoExtension: input.photo.extension,
-        note: input.note,
       );
       if (!mounted) return;
-      AppToast.show(context, l10n.orderToastDelivered);
+      AppToast.show(context, l10n.uoToastAssistedDone);
       _load();
-    } catch (_) {
+    } catch (e, st) {
       if (!mounted) return;
-      AppToast.show(context, l10n.adminOrderDetailFailedTryAgain, isError: true);
+      AppToast.show(context, friendlyError(l10n, e, st), isError: true);
     }
   }
 
@@ -277,6 +318,33 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ],
                             _buildStatusCard(_order!, cs, l10n),
                         const SizedBox(height: 12),
+                            if (!_order!.isPending && !_order!.isCancelled && _order!.status != 'approved') ...[
+                              OrderPaymentCard(
+                                paymentStatus: _order!.paymentStatus,
+                                itemsTotal: _order!.totalPrice,
+                                amountCollected: _order!.amountCollected,
+                                deliveryFee: _order!.deliveryFeeCollected,
+                                paidAt: _order!.paidAt,
+                                recordedByName: _order!.paymentRecordedByName,
+                                recordedByRole: _order!.paymentRecordedByRole,
+                                staffView: true,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (_order!.completionMethod == 'staff') ...[
+                              StaffCompletionCard(
+                                reason: _order!.staffCompletionReason,
+                                photoUrl: _order!.staffCompletionPhotoUrl,
+                                byName: _order!.staffCompletedByName,
+                                byRole: _order!.staffCompletedByRole,
+                                at: _order!.staffCompletedAt,
+                              ),
+                              if (_order!.staffCompletionPhotoUrl != null) ...[
+                                const SizedBox(height: 8),
+                                CoopDeliveryPhoto(url: _order!.staffCompletionPhotoUrl!),
+                              ],
+                              const SizedBox(height: 12),
+                            ],
                             if (_order!.deliveryPhotoUrl != null) ...[
                               _SectionCard(
                                 child: Column(
@@ -336,7 +404,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       final (label, icon, onTap) = switch (next) {
         StaffOrderAction.readyForPickup => (l10n.orderActionReadyForPickup, Icons.storefront_rounded, _confirmReady),
         StaffOrderAction.outForDelivery => (l10n.orderActionOutForDelivery, Icons.local_shipping_outlined, _confirmOut),
-        StaffOrderAction.markDelivered => (l10n.orderActionMarkDelivered, Icons.photo_camera_outlined, _markDelivered),
+        StaffOrderAction.recordHandover => (l10n.uoActionRecordHandover, Icons.photo_camera_outlined, _recordHandover),
+        StaffOrderAction.recordPayment => (l10n.uoActionRecordPayment, Icons.payments_outlined, _recordHandover),
+        StaffOrderAction.completeForCustomer => (l10n.uoActionCompleteForCustomer, Icons.assignment_turned_in_outlined, _completeForCustomer),
       };
       return SafeArea(
         child: Padding(
@@ -419,7 +489,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ],
           ),
-          if (order.isReadyForPickup || order.isDelivered) ...[
+          if (order.isDelivered) ...[
+            const SizedBox(height: 10),
+            Text(
+              l10n.uoHandedOver,
+              key: const Key('handedOverNote'),
+              style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant),
+            ),
+          ],
+          if ((order.isReadyForPickup || order.isDelivered) && order.isPaymentRecorded) ...[
             const SizedBox(height: 10),
             Text(
               l10n.adminOrderWaitingForBuyerNote,

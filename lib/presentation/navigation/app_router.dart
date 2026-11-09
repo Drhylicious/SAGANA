@@ -53,6 +53,10 @@ import '../../presentation/screens/farmer/my_loan_history_screen.dart';
 import '../../presentation/screens/farmer/my_payment_history_screen.dart';
 import '../../presentation/screens/admin/loan_requests_screen.dart';
 import '../../presentation/screens/farmer/my_programs_screen.dart';
+import '../../presentation/screens/farmer/received_items_screen.dart';
+import '../../presentation/screens/farmer/report_outcome_screen.dart';
+import '../../presentation/screens/farmer/request_assistance_screen.dart';
+import '../../presentation/screens/admin/assistance_requests_screen.dart';
 import '../../presentation/screens/farmer/browse_programs_screen.dart';
 import '../../presentation/screens/farmer/program_details_screen.dart';
 import '../../data/models/farmer_profile_model.dart';
@@ -74,8 +78,10 @@ import '../../presentation/screens/admin/manage_accounts_screen.dart';
 import '../../presentation/screens/admin/staff_accountability_screen.dart';
 import '../../presentation/screens/admin/crop_management_screen.dart';
 import '../../presentation/screens/admin/crop_request_approval_screen.dart';
-import '../../presentation/screens/admin/program_purchase_review_screen.dart';
-import '../../presentation/screens/farmer/program_product_catalog_screen.dart';
+import '../../data/models/program_outcome_model.dart';
+import '../../presentation/screens/admin/program_outcomes_screen.dart';
+import '../../presentation/screens/admin/program_products_screen.dart';
+import '../../presentation/screens/admin/program_outcome_detail_screen.dart';
 import '../../presentation/screens/admin/loan_item_management_screen.dart';
 import '../../presentation/screens/admin/program_management_screen.dart';
 import '../../presentation/screens/admin/program_enrollment_requests_screen.dart';
@@ -88,7 +94,7 @@ import '../../presentation/screens/admin/notification_broadcast_screen.dart';
 import '../../presentation/screens/admin/all_listings_screen.dart';
 import '../../presentation/screens/admin/pending_approvals_screen.dart';
 import '../../presentation/screens/admin/price_management_screen.dart';
-import '../../presentation/screens/admin/supply_chain_map_screen.dart';
+import '../../presentation/screens/admin/supply_chain_screen.dart';
 import '../../presentation/screens/admin/market_linking_screen.dart';
 import '../../presentation/screens/admin/da_amad_enrollment_screen.dart';
 import '../../presentation/screens/admin/listing_review_screen.dart';
@@ -120,6 +126,12 @@ import '../../presentation/screens/admin/buyer_order_history_screen.dart';
 import '../../presentation/screens/admin/order_management_screen.dart';
 import '../../presentation/screens/admin/admin_order_detail_screen.dart'
     as admin_order_detail;
+import '../../presentation/screens/admin/admin_program_order_detail_screen.dart';
+import '../../presentation/screens/admin/cooperative_details_screen.dart';
+import '../../presentation/screens/admin/delivery_settings_screen.dart';
+import '../../presentation/screens/farmer/cooperative_product_details_screen.dart';
+import '../../presentation/screens/farmer/farmer_program_order_detail_screen.dart';
+import '../../data/models/cooperative_product_model.dart';
 import '../../presentation/screens/buyer/marketplace_browse_screen.dart';
 import '../../presentation/screens/buyer/listing_details_screen.dart';
 import '../../presentation/screens/buyer/cart_screen.dart';
@@ -511,6 +523,22 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.receivedCropItems,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ReceivedItemsScreen(cropItems: true),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.receivedItems,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ReceivedItemsScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.myProgramsEnrolled,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -765,12 +793,98 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.programPurchaseReview,
+          path: AppRoutes.programMembers,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            final program = extra?['program'] as CooperativeProgram?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: program == null
+                  ? const ProgramManagementScreen()
+                  : ProgramMembersScreen(program: program),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.programProducts,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: ProgramProductsScreen(
+                programId: extra?['programId'] as String? ?? '',
+                programName: extra?['programName'] as String? ?? 'Program',
+                memberDiscountPercent: (extra?['discount'] as num?)?.toDouble() ?? 0,
+                justCreated: extra?['justCreated'] as bool? ?? false,
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.programOutcomes,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const ProgramPurchaseReviewScreen(),
+            child: const ProgramOutcomesScreen(),
           ),
+        ),
+        GoRoute(
+          path: AppRoutes.programOutcomeDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            final report = extra?['report'] as OutcomeReport?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: report == null
+                  ? const ProgramOutcomesScreen()
+                  : ProgramOutcomeDetailScreen(report: report),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.requestAssistance,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            final memberId = extra?['programMemberId'] as String?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: memberId == null
+                  ? const MyProgramsScreen()
+                  : RequestAssistanceScreen(
+                      programMemberId: memberId,
+                      programName: extra?['programName'] as String? ?? '',
+                    ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.assistanceRequests,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AssistanceRequestsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.reportOutcome,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            final entry = extra?['entry'] as MyProgramEntry?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: entry == null
+                  ? const MyProgramsScreen()
+                  : ReportOutcomeScreen(
+                      entry: entry,
+                      returnNote: extra?['returnNote'] as String?,
+                    ),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.programEnrollmentRequests,
@@ -779,20 +893,6 @@ class AppRouter {
             key: s.pageKey,
             child: const ProgramEnrollmentRequestsScreen(),
           ),
-        ),
-        GoRoute(
-          path: AppRoutes.programProductCatalog,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) {
-            final extra = s.extra as Map<String, dynamic>?;
-            return AppPageTransitions.slideForward(
-              key: s.pageKey,
-              child: ProgramProductCatalogScreen(
-                programId: extra?['programId'] as String? ?? '',
-                programName: extra?['programName'] as String? ?? 'Program',
-              ),
-            );
-          },
         ),
         GoRoute(
           path: AppRoutes.programManagement,
@@ -819,19 +919,11 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.supplyChainMap,
+          path: AppRoutes.supplyChain,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.fadeThrough(
             key: s.pageKey,
-            child: const SupplyChainMapScreen(),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.supplyChainFullMap,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: const SupplyChainFullMapScreen(),
+            child: const SupplyChainScreen(),
           ),
         ),
         GoRoute(
@@ -1050,6 +1142,36 @@ class AppRouter {
               ),
             );
           },
+        ),
+        // Purchase Requests no longer exist: Cooperative orders are in Marketplace > Orders. An
+        // old notification that still points here lands on that list.
+        GoRoute(
+          path: '/admin/programs/purchases',
+          redirect: (context, state) => AppRoutes.adminOrders,
+        ),
+        GoRoute(
+          path: AppRoutes.adminCooperativeDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CooperativeDetailsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminDeliverySettings,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const DeliverySettingsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminProgramOrderDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: AdminProgramOrderDetailScreen(orderId: s.extra is String ? s.extra as String : ''),
+          ),
         ),
         GoRoute(
           path: AppRoutes.buyerOrderHistory,
@@ -1455,6 +1577,22 @@ class AppRouter {
               listingId: s.extra as String,
               isFarmerContext: true,
             ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerProgramOrderDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: FarmerProgramOrderDetailScreen(orderId: s.extra is String ? s.extra as String : ''),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerCooperativeProduct,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: CooperativeProductDetailsScreen(product: s.extra as CooperativeProduct),
           ),
         ),
         GoRoute(

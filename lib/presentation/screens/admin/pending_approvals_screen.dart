@@ -14,6 +14,8 @@ import '../../../data/repositories/admin_listing_repository.dart';
 import '../../widgets/edit_request_widgets.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/listing_order.dart';
+import '../../widgets/choice_filter_modal.dart';
+import '../../widgets/filter_icon_button.dart';
 import '../../widgets/listing_filter_modal.dart'
     show MarketplaceFilterBar, MarketplaceFilterOption, ListingMarketBadge;
 import '../../widgets/listing_status_badge.dart';
@@ -46,8 +48,11 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
   // Farmer requests to change a PUBLISHED listing. The listing itself stays as it
   // is until one of these is approved.
   List<ListingEditRequest> _edits = [];
-  // 0 = New Listings, 1 = Edit Requests.
+  // 0 = All (new listings and edited listings together, each clearly labelled),
+  // 1 = New Listings, 2 = Edited Listings.
   int _tab = 0;
+  // The All tab's decision chips: null | pending | approved | disapproved.
+  String? _allFilter;
   // null = All; otherwise pending | approved | rejected | cancelled.
   String? _editFilter;
   bool _isLoading = true;
@@ -64,12 +69,13 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (!mounted) return;
-      final cameOnline = v && !_isOnline;
-      setState(() => _isOnline = v);
-      if (cameOnline) _load();
-    });
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((v) {
+          if (!mounted) return;
+          final cameOnline = v && !_isOnline;
+          setState(() => _isOnline = v);
+          if (cameOnline) _load();
+        });
     AppTheme.applySystemOverlay(context);
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text),
@@ -145,11 +151,9 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
     return orderForApprovals(list);
   }
 
-  int get _pendingNewCount => _allListings.where((l) => l.isPending).length;
-  int get _pendingEditCount => _edits.where((e) => e.isPending).length;
-
-  int _editCount(String? status) =>
-      status == null ? _edits.length : _edits.where((e) => e.status == status).length;
+  int _editCount(String? status) => status == null
+      ? _edits.length
+      : _edits.where((e) => e.status == status).length;
 
   // Waiting requests first, then the decided ones; newest first inside each.
   List<ListingEditRequest> get _filteredEdits {
@@ -165,78 +169,188 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
             (e.variety?.toLowerCase().contains(q) ?? false),
       );
     }
-    return stableGroupSort<ListingEditRequest>(list, (e) => e.isPending ? 0 : 1);
+    final grouped = stableGroupSort<ListingEditRequest>(
+      list,
+      (e) => e.isPending ? 0 : 1,
+    );
+    final firstDecided = grouped.indexWhere((e) => !e.isPending);
+    final end = firstDecided < 0 ? grouped.length : firstDecided;
+    // Waiting requests: oldest first. The decided ones follow, newest first.
+    return [
+      ...oldestFirst(grouped.sublist(0, end), (e) => e.createdAt),
+      ...grouped.sublist(end),
+    ];
   }
 
-  Widget _tabSelector(AppLocalizations l10n, ColorScheme cs) {
-    Widget tab(int index, String label, int waiting) {
-      final selected = _tab == index;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _tab = index),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            decoration: BoxDecoration(
-              color: selected ? cs.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? cs.onPrimary : cs.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                if (waiting > 0) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: selected ? cs.onPrimary : AppConstants.warningAmber,
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                    ),
-                    child: Text(
-                      '$waiting',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: selected ? cs.primary : Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+  void _openListing(AdminListingModel listing) => context
+      .push(
+        AppRoutes.listingReview,
+        // Approve / disapprove stays on the pending ones. A decided listing opens
+        // read-only.
+        extra: listing.isPending
+            ? listing.id
+            : {'listingId': listing.id, 'readOnly': true},
+      )
+      .then((_) => _load());
 
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd + 2),
-      ),
-      child: Row(
-        children: [
-          tab(0, l10n.lePendingTabNew, _pendingNewCount),
-          tab(1, l10n.lePendingTabEdits, _pendingEditCount),
-        ],
-      ),
+  void _openEdit(ListingEditRequest e) => context
+      .push(AppRoutes.listingEditRequest, extra: e.id)
+      .then((_) => _load());
+
+  // The decision a new listing / an edit stands at, on one scale, so the All tab
+  // can filter both kinds with the same chips. A cancelled edit has none.
+  String? _decisionOfListing(AdminListingModel l) =>
+      switch (listingApprovalOf(l.status)) {
+        ListingApproval.pending => 'pending',
+        ListingApproval.approved => 'approved',
+        ListingApproval.disapproved => 'disapproved',
+        null => null,
+      };
+
+  String? _decisionOfEdit(ListingEditRequest e) => switch (e.status) {
+    'pending' => 'pending',
+    'approved' => 'approved',
+    'rejected' => 'disapproved',
+    _ => null,
+  };
+
+  bool _matchesSearch(String crop, String farmer, String? variety) {
+    if (_searchQuery.isEmpty) return true;
+    final q = _searchQuery.toLowerCase();
+    return crop.toLowerCase().contains(q) ||
+        farmer.toLowerCase().contains(q) ||
+        (variety?.toLowerCase().contains(q) ?? false);
+  }
+
+  int _allCount(String? decision) {
+    if (decision == null) return _allListings.length + _edits.length;
+    return _allListings.where((l) => _decisionOfListing(l) == decision).length +
+        _edits.where((e) => _decisionOfEdit(e) == decision).length;
+  }
+
+  Widget _allSection(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    // Everything waiting for a decision first (a new listing or an edited
+    // listing), then the decided ones; newest first inside each group.
+    final entries =
+        <({bool pending, DateTime at, Widget Function() card})>[
+          for (final l in _allListings)
+            if ((_allFilter == null || _decisionOfListing(l) == _allFilter) &&
+                _matchesSearch(l.cropName, l.farmerName, l.variety))
+              (
+                pending: l.isPending,
+                at: l.createdAt,
+                card: () => _PendingListingCard(
+                  listing: l,
+                  cs: cs,
+                  sagana: sagana,
+                  onTap: () => _openListing(l),
+                ),
+              ),
+          for (final e in _edits)
+            if ((_allFilter == null || _decisionOfEdit(e) == _allFilter) &&
+                _matchesSearch(e.cropName, e.farmerName, e.variety))
+              (
+                pending: e.isPending,
+                at: e.createdAt,
+                card: () => _EditRequestCard(
+                  request: e,
+                  cs: cs,
+                  sagana: sagana,
+                  onTap: () => _openEdit(e),
+                ),
+              ),
+        ]..sort((a, b) {
+          if (a.pending != b.pending) return a.pending ? -1 : 1;
+          // What is waiting for a decision: oldest first (first in, first out). The decided
+          // ones follow, newest first.
+          return a.pending ? a.at.compareTo(b.at) : b.at.compareTo(a.at);
+        });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MarketplaceFilterBar<String?>(
+          selected: _allFilter,
+          onSelected: (v) => setState(() => _allFilter = v),
+          options: [
+            MarketplaceFilterOption(
+              value: null,
+              label: l10n.farmerMgmtAllFilter,
+              count: _allCount(null),
+              color: cs.primary,
+            ),
+            MarketplaceFilterOption(
+              value: 'pending',
+              label: l10n.listingFilterPending,
+              count: _allCount('pending'),
+              color: AppConstants.warningAmber,
+            ),
+            MarketplaceFilterOption(
+              value: 'approved',
+              label: l10n.listingStateApproved,
+              count: _allCount('approved'),
+              color: AppConstants.successGreen,
+            ),
+            MarketplaceFilterOption(
+              value: 'disapproved',
+              label: l10n.listingStateDisapproved,
+              count: _allCount('disapproved'),
+              color: AppConstants.errorRed,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (entries.isEmpty)
+          _EmptyPendingState(
+            cs: cs,
+            sagana: sagana,
+            hasActiveFilter: _searchQuery.isNotEmpty || _allFilter != null,
+          )
+        else
+          for (final e in entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: e.card(),
+            ),
+      ],
     );
   }
 
-  Widget _editRequestsSection(AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
+  // The kind of approval shown: All, New Listings or Edited Listings. It sits behind the
+  // filter button beside the search bar, the same way Order Management filters by source.
+  Future<void> _openFilter() async {
+    final l10n = AppLocalizations.of(context);
+    final result = await showChoiceFilterModal<int>(
+      context,
+      title: l10n.paFilterTitle,
+      subtitle: l10n.paFilterSubtitle,
+      sectionLabel: l10n.paFilterType,
+      selected: _tab,
+      resetTo: 0,
+      choices: [
+        FilterChoice<int>(
+          0,
+          '${l10n.lePendingTabAll} (${_allListings.length + _edits.length})',
+        ),
+        FilterChoice<int>(
+          1,
+          '${l10n.lePendingTabNew} (${_allListings.length})',
+        ),
+        FilterChoice<int>(2, '${l10n.lePendingTabEdits} (${_edits.length})'),
+      ],
+    );
+    if (result != null && mounted) setState(() => _tab = result.value);
+  }
+
+  Widget _editRequestsSection(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     final list = _filteredEdits;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +365,12 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
               count: _editCount(null),
               color: cs.primary,
             ),
-            for (final s in const ['pending', 'approved', 'rejected', 'cancelled'])
+            for (final s in const [
+              'pending',
+              'approved',
+              'rejected',
+              'cancelled',
+            ])
               MarketplaceFilterOption(
                 value: s,
                 label: editRequestStatusLabel(l10n, s),
@@ -297,9 +416,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
                 request: e,
                 cs: cs,
                 sagana: sagana,
-                onTap: () => context
-                    .push(AppRoutes.listingEditRequest, extra: e.id)
-                    .then((_) => _load()),
+                onTap: () => _openEdit(e),
               ),
             ),
           ),
@@ -337,99 +454,103 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
-                        // ── Search — no filter icon here anymore; crop/
-                        // category filtering was removed from this screen,
-                        // it stays exclusive to All Listings.
-                        TextField(
-                          controller: _searchCtrl,
-                          decoration: InputDecoration(
-                            hintText: l10n.marketplaceSearchHint,
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(
-                                      Icons.close_rounded,
-                                      size: 18,
-                                    ),
-                                    onPressed: () => _searchCtrl.clear(),
-                                  )
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // New Listings | Edit Requests: a Farmer's change to a
-                        // published listing is a different decision from
-                        // approving a brand-new listing, so they are kept apart.
-                        _tabSelector(l10n, cs),
-                        const SizedBox(height: 14),
-
-                        if (_tab == 1)
-                          _editRequestsSection(l10n, cs, sagana)
-                        else ...[
-                        // ── Approval chips — instant, client-side switching ──
-                        MarketplaceFilterBar<ListingApproval?>(
-                          selected: _approvalFilter,
-                          onSelected: (v) => setState(() => _approvalFilter = v),
-                          options: [
-                            MarketplaceFilterOption(
-                              value: null,
-                              label: l10n.farmerMgmtAllFilter,
-                              count: _allListings.length,
-                              color: cs.primary,
-                            ),
-                            for (final a in const [
-                              ListingApproval.pending,
-                              ListingApproval.approved,
-                              ListingApproval.disapproved,
-                            ])
-                              MarketplaceFilterOption(
-                                value: a,
-                                label: switch (a) {
-                                  ListingApproval.pending => l10n.listingFilterPending,
-                                  ListingApproval.approved => l10n.listingStateApproved,
-                                  ListingApproval.disapproved => l10n.listingStateDisapproved,
-                                },
-                                count: _approvalCounts[a] ?? 0,
-                                color: listingApprovalColor(context, a),
+                        // Search, and the shared filter button beside it (All, New Listings or
+                        // Edited Listings): the same design as Order Management. A Farmer's change
+                        // to a published listing is a different decision from approving a brand-new
+                        // listing, so they can be shown apart.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _searchCtrl,
+                                decoration: InputDecoration(
+                                  hintText: l10n.marketplaceSearchHint,
+                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  suffixIcon: _searchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            size: 18,
+                                          ),
+                                          onPressed: () => _searchCtrl.clear(),
+                                        )
+                                      : null,
+                                ),
                               ),
+                            ),
+                            const SizedBox(width: 10),
+                            FilterIconButton(
+                              buttonKey: const Key('approvalFilterButton'),
+                              dotKey: const Key('approvalFilterDot'),
+                              semanticLabel: l10n.paFilterTitle,
+                              active: _tab != 0,
+                              onTap: _openFilter,
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
 
-                        // ── List / empty state ────────────────────────────
-                        if (_filtered.isEmpty)
-                          _EmptyPendingState(
-                            cs: cs,
-                            sagana: sagana,
-                            hasActiveFilter:
-                                _searchQuery.isNotEmpty ||
-                                _approvalFilter != null,
-                          )
-                        else
-                          ..._filtered.map(
-                            (listing) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _PendingListingCard(
-                                listing: listing,
-                                cs: cs,
-                                sagana: sagana,
-                                // Approve / disapprove stays on the pending ones. A
-                                // decided listing opens read-only.
-                                onTap: () => context
-                                    .push(
-                                      AppRoutes.listingReview,
-                                      extra: listing.isPending
-                                          ? listing.id
-                                          : {
-                                              'listingId': listing.id,
-                                              'readOnly': true,
-                                            },
-                                    )
-                                    .then((_) => _load()),
+                        if (_tab == 0)
+                          _allSection(l10n, cs, sagana)
+                        else if (_tab == 2)
+                          _editRequestsSection(l10n, cs, sagana)
+                        else ...[
+                          // ── Approval chips — instant, client-side switching ──
+                          MarketplaceFilterBar<ListingApproval?>(
+                            selected: _approvalFilter,
+                            onSelected: (v) =>
+                                setState(() => _approvalFilter = v),
+                            options: [
+                              MarketplaceFilterOption(
+                                value: null,
+                                label: l10n.farmerMgmtAllFilter,
+                                count: _allListings.length,
+                                color: cs.primary,
+                              ),
+                              for (final a in const [
+                                ListingApproval.pending,
+                                ListingApproval.approved,
+                                ListingApproval.disapproved,
+                              ])
+                                MarketplaceFilterOption(
+                                  value: a,
+                                  label: switch (a) {
+                                    ListingApproval.pending =>
+                                      l10n.listingFilterPending,
+                                    ListingApproval.approved =>
+                                      l10n.listingStateApproved,
+                                    ListingApproval.disapproved =>
+                                      l10n.listingStateDisapproved,
+                                  },
+                                  count: _approvalCounts[a] ?? 0,
+                                  color: listingApprovalColor(context, a),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ── List / empty state ────────────────────────────
+                          if (_filtered.isEmpty)
+                            _EmptyPendingState(
+                              cs: cs,
+                              sagana: sagana,
+                              hasActiveFilter:
+                                  _searchQuery.isNotEmpty ||
+                                  _approvalFilter != null,
+                            )
+                          else
+                            ..._filtered.map(
+                              (listing) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _PendingListingCard(
+                                  listing: listing,
+                                  cs: cs,
+                                  sagana: sagana,
+                                  onTap: () => _openListing(listing),
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ],
                     ),
@@ -624,7 +745,10 @@ class _PendingListingCard extends StatelessWidget {
                   children: [
                     _InfoChip(
                       icon: Icons.payments_outlined,
-                      label: formatPricePerUnit(listing.pricePerKg, listing.unit),
+                      label: formatPricePerUnit(
+                        listing.pricePerKg,
+                        listing.unit,
+                      ),
                       cs: cs,
                     ),
                     _InfoChip(
@@ -888,8 +1012,12 @@ class _EditRequestCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final r = request;
     final unit = r.unit;
-    final name = (r.variety ?? '').trim().isEmpty ? r.cropName : '${r.cropName} — ${r.variety}';
-    final when = DateFormat.yMMMd(Localizations.localeOf(context).toString()).add_jm();
+    final name = (r.variety ?? '').trim().isEmpty
+        ? r.cropName
+        : '${r.cropName} — ${r.variety}';
+    final when = DateFormat.yMMMd(
+      Localizations.localeOf(context).toString(),
+    ).add_jm();
 
     Widget change(IconData icon, String text) => Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -927,7 +1055,8 @@ class _EditRequestCard extends StatelessWidget {
         ),
       if (r.changesDescription)
         change(Icons.notes_rounded, l10n.wfDetailDescription),
-      if (r.changesPhoto) change(Icons.photo_camera_outlined, l10n.wfDetailPhoto),
+      if (r.changesPhoto)
+        change(Icons.photo_camera_outlined, l10n.wfDetailPhoto),
     ];
 
     return GestureDetector(
@@ -938,7 +1067,12 @@ class _EditRequestCard extends StatelessWidget {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -964,7 +1098,11 @@ class _EditRequestCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.edit_note_rounded, size: 15, color: AppConstants.buyerBlue),
+                Icon(
+                  Icons.edit_note_rounded,
+                  size: 15,
+                  color: AppConstants.buyerBlue,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   l10n.leEditRequestBadge,
@@ -998,13 +1136,17 @@ class _EditRequestCard extends StatelessWidget {
                   ),
                 ),
                 Icon(
-                  r.isPending ? Icons.rate_review_outlined : Icons.visibility_outlined,
+                  r.isPending
+                      ? Icons.rate_review_outlined
+                      : Icons.visibility_outlined,
                   size: 16,
                   color: cs.primary,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  r.isPending ? l10n.pendingApprovalsReviewAction : l10n.listingApprovalsViewDetails,
+                  r.isPending
+                      ? l10n.pendingApprovalsReviewAction
+                      : l10n.listingApprovalsViewDetails,
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,

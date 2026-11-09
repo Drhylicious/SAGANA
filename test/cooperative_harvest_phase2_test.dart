@@ -208,7 +208,7 @@ void main() {
     });
   });
 
-  test('program pickers tell same-crop Farmer items apart', () {
+  test('program pickers show just the item name; the source stays in Inventory', () {
     DistributionItem row(String farmerId, String? source) =>
         DistributionItem.fromMap({
           'id': 'i-${source ?? 'none'}',
@@ -219,9 +219,10 @@ void main() {
           'source': source,
           'source_farmer_id': farmerId.isEmpty ? null : farmerId,
         });
-    expect(row('a', 'Farmer JD').displayName, 'Tomato — Farmer JD');
-    expect(row('b', 'Other Farmer').displayName, 'Tomato — Other Farmer');
-    // Supplies keep their plain name; their source is a supplier, not a Farmer.
+    // Where an item came from is already recorded in Inventory, so the pickers do
+    // not repeat it: every item reads as its plain name, like an inventory card.
+    expect(row('a', 'Farmer JD').displayName, 'Tomato');
+    expect(row('b', 'Other Farmer').displayName, 'Tomato');
     expect(row('', 'Agri Supplier Inc.').displayName, 'Tomato');
   });
 

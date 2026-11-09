@@ -220,12 +220,16 @@ void main() {
         'lib/data/repositories/dashboard_repository.dart',
         'lib/data/repositories/analytics_repository.dart',
         'lib/data/repositories/admin_reports_repository.dart',
-        'lib/data/repositories/admin_dashboard_repository.dart',
         'lib/data/repositories/farmer_details_repository.dart',
         'lib/data/repositories/inventory_repository.dart',
       ]) {
         expect(read(f), contains('isKg('), reason: f);
       }
+      // The Cooperative Performance card no longer makes a kg total at all: it adds Farmer Stock
+      // up per unit, so no unit is ever mixed into another.
+      final dash = read('lib/data/repositories/admin_dashboard_repository.dart');
+      expect(dash, contains("unitOrDefault(r['unit'] as String?)"));
+      expect(dash, contains('byUnit[unit]'));
     });
   });
 

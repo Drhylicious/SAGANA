@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
+import '../models/admin_reports_model.dart' show ReportPeriod, ReportPeriodExt;
 import 'completed_order_dates.dart';
 import '../models/admin_dashboard_model.dart';
 import '../repositories/admin_loan_repository.dart';
+import 'admin_reports_repository.dart';
+import 'supply_chain_repository.dart';
 import '../../core/utils/bod_schedule_utils.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../routes/app_routes.dart';
@@ -61,11 +64,10 @@ class AdminDashboardRepository {
     'admin_dash__kpiLoanDataAsOf_1',
     'admin_dash__kpiRevenueThisMonth_1',
     'admin_dash_fetchAdminFirstName_1',
-    'admin_dash_fetchCoopPerformance_1',
-    'admin_dash_fetchCoopPerformance_2',
-    'admin_dash_fetchCoopPerformance_3',
-    'admin_dash_fetchCoopPerformance_4',
-    'admin_dash_fetchCoopPerformance_5',
+    'admin_dash_fetchCoopPerformance_1b',
+    'admin_dash_fetchCoopPerformance_3c',
+    'admin_dash_fetchCoopPerformance_4c',
+    'admin_dash_fetchCoopPerformance_5c',
     'admin_dash_fetchDashboardPriorities_1',
     'admin_dash_fetchDashboardPriorities_2',
     'admin_dash_fetchManagementModuleBadges_1',
@@ -545,7 +547,7 @@ class AdminDashboardRepository {
       final end = DateTime(year, month + 1, 1);
       final rows = await _client
           .from('harvest_records')
-          .select('id, crop_name, harvest_date, farmer_id')
+          .select('id, crop_name, harvest_date, farmer_id').eq('source_type', 'self')
           .gte('harvest_date', start.toIso8601String())
           .lt('harvest_date', end.toIso8601String());
 
@@ -699,16 +701,9 @@ class AdminDashboardRepository {
     }
 
     try {
-      final mapped = await OfflineCache.load(
-        screen: 'admin_dash_fetchManagementModuleBadges_3',
-        fetch: () => _client
-            .from('farmer_profiles')
-            .select('user_id')
-            .not('farm_latitude', 'is', null),
-      );
-      supplyChainBadge = mapped.isEmpty
-          ? '0 mapped'
-          : '${mapped.length} mapped';
+      // Supplies that moved this calendar year (incoming + outgoing).
+      final totals = await SupplyChainRepository().fetchYearTotals();
+      supplyChainBadge = '${totals.total} supplies';
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchManagementModuleBadges/supplyChain: $e',
@@ -737,6 +732,24 @@ class AdminDashboardRepository {
       );
     }
 
+    String inventoryBadge = '—';
+    try {
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchManagementModuleBadges_inventory',
+        fetch: () => _client
+            .from('cooperative_inventory')
+            .select('id')
+            .eq('is_active', true),
+      );
+      inventoryBadge = rows.isEmpty
+          ? 'No items'
+          : '${rows.length} ${rows.length == 1 ? 'item' : 'items'}';
+    } catch (e) {
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/inventory: $e',
+      );
+    }
+
     try {
       final rows = await OfflineCache.load(
         screen: 'admin_dash_fetchManagementModuleBadges_1',
@@ -757,7 +770,7 @@ class AdminDashboardRepository {
         id: 'inventory',
         title: 'Inventory Management',
         subtitle: 'Cooperative stock levels',
-        badgeLabel: '',
+        badgeLabel: inventoryBadge,
         route: AppRoutes.adminInventory,
         useGo: false,
       ),
@@ -788,9 +801,9 @@ class AdminDashboardRepository {
       ManagementModuleCard(
         id: 'supply-chain',
         title: 'Supply Chain Management',
-        subtitle: 'Cooperative workflow & flow',
+        subtitle: 'Track products from source to consumer',
         badgeLabel: supplyChainBadge,
-        route: AppRoutes.supplyChainMap,
+        route: AppRoutes.supplyChain,
         useGo: false,
       ),
       ManagementModuleCard(
@@ -805,38 +818,84 @@ class AdminDashboardRepository {
   }
 
   // ─── Recent Activity ───────────────────────────────────────────────────────
+  /// Every row of a query, read a page at a time (the server hands out at most 1,000 rows per
+  /// request, so a plain select would silently stop there as the cooperative grows).
+  Future<List<Map<String, dynamic>>> _allRows(
+    PostgrestTransformBuilder<List<Map<String, dynamic>>> Function(int from, int to) page,
+  ) async {
+    const size = 1000;
+    final all = <Map<String, dynamic>>[];
+    for (var from = 0; ; from += size) {
+      final rows = await page(from, from + size - 1);
+      all.addAll(rows);
+      if (rows.length < size) break;
+    }
+    return all;
+  }
+
   Future<CoopPerformanceSummary> fetchCoopPerformance() async {
     int totalHarvests = 0;
     int activeListings = 0;
-    int completedSales = 0;
+    double salesAmount = 0;
     int activeMembersThisSeason = 0;
 
+    // Every figure on this card is for the CURRENT YEAR and starts again each January, so a year
+    // never piles onto the last one. (The season is the calendar year.)
+    final now = DateTime.now();
+    final yearStart = DateTime(now.year, 1, 1);
+    final yearStartDate =
+        '${yearStart.year}-${yearStart.month.toString().padLeft(2, '0')}-${yearStart.day.toString().padLeft(2, '0')}';
+    final yearStartUtc = yearStart.toUtc().toIso8601String();
+
     try {
+      // An exact count by the database, not rows downloaded and counted.
       final rows = await OfflineCache.load(
-        screen: 'admin_dash_fetchCoopPerformance_5',
-        fetch: () => _client.from('harvest_records').select('id'),
+        screen: 'admin_dash_fetchCoopPerformance_5c',
+        fetch: () async => [
+          {
+            'n': await _client
+                .from('harvest_records')
+                .count().eq('source_type', 'self')
+                .gte('harvest_date', yearStartDate),
+          },
+        ],
       );
-      totalHarvests = rows.length;
+      totalHarvests = (rows.first['n'] as num).toInt();
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchCoopPerformance/harvests: $e',
       );
     }
 
-    double farmerAvailableStockKg = 0;
+    // Farmer Stock: what the Farmers still hold of what they harvested THIS YEAR. A batch holds its
+    // stock as "available" (not listed yet) plus "reserved" (listed or ordered); sold stock is
+    // gone and a withdrawn batch is not stock. Added up per unit.
+    var farmerStock = <({double quantity, String unit})>[];
     try {
       final rows = await OfflineCache.load(
-        screen: 'admin_dash_fetchCoopPerformance_4',
-        fetch: () =>
-            _client.from('inventory_batches').select('available_kg, unit'),
+        screen: 'admin_dash_fetchCoopPerformance_4c',
+        fetch: () => _allRows(
+          (from, to) => _client
+              .from('inventory_batches')
+              .select('available_kg, reserved_kg, unit, status')
+              .neq('status', 'withdrawn')
+              .gte('created_at', yearStartUtc)
+              .order('id')
+              .range(from, to),
+        ),
       );
-      // A kg total: stock held in another unit is not added to it.
-      farmerAvailableStockKg = rows.fold<double>(
-        0,
-        (s, r) => isKg(r['unit'] as String?)
-            ? s + (r['available_kg'] as num).toDouble()
-            : s,
-      );
+      final byUnit = <String, double>{};
+      for (final r in rows) {
+        final unit = unitOrDefault(r['unit'] as String?);
+        final held =
+            ((r['available_kg'] as num?)?.toDouble() ?? 0) +
+            ((r['reserved_kg'] as num?)?.toDouble() ?? 0);
+        if (held > 0) byUnit[unit] = (byUnit[unit] ?? 0) + held;
+      }
+      // The biggest first, so the main unit leads.
+      final entries = byUnit.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      farmerStock = [for (final e in entries) (quantity: e.value, unit: e.key)];
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchCoopPerformance/farmerStock: $e',
@@ -844,18 +903,23 @@ class AdminDashboardRepository {
     }
 
     try {
+      // Every listing the Manager approved this year: approved, or approved and since sold out
+      // (a sold-out listing is still an approved listing). Pending, disapproved and withdrawn
+      // ones are not counted. It used to count only those with stock left, which is why the
+      // card read lower than All Listings.
       final rows = await OfflineCache.load(
-        screen: 'admin_dash_fetchCoopPerformance_3',
-        // Available only: approved AND still some kg left to buy. A listing
-        // whose last kg has been ordered is Sold Out (see listingStateOf),
-        // so it is not counted here, matching All Listings.
-        fetch: () => _client
-            .from('marketplace_listings')
-            .select('id')
-            .eq('status', 'approved')
-            .gt('remaining_kg', 0),
+        screen: 'admin_dash_fetchCoopPerformance_3c',
+        fetch: () async => [
+          {
+            'n': await _client
+                .from('marketplace_listings')
+                .count()
+                .inFilter('status', ['approved', 'sold'])
+                .gte('created_at', yearStartUtc),
+          },
+        ],
       );
-      activeListings = rows.length;
+      activeListings = (rows.first['n'] as num).toInt();
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchCoopPerformance/listings: $e',
@@ -863,12 +927,11 @@ class AdminDashboardRepository {
     }
 
     try {
-      final rows = await OfflineCache.load(
-        screen: 'admin_dash_fetchCoopPerformance_2',
-        fetch: () =>
-            _client.from('orders').select('id').eq('status', 'completed'),
-      );
-      completedSales = rows.length;
+      // What the Farmers have sold THIS YEAR: the very total the Sales Report gives for "This
+      // Year" (Offer to Cooperative, Marketplace, Informal Sale and DA-AMAD Market Linking).
+      final window = ReportPeriod.thisYear.range();
+      final report = await AdminReportsRepository().fetchSalesReportForRange(window.startDate, window.endDate);
+      salesAmount = report.totalRevenue;
     } catch (e) {
       debugPrint('[AdminDashboardRepository] fetchCoopPerformance/sales: $e');
     }
@@ -904,13 +967,17 @@ class AdminDashboardRepository {
     }
 
     try {
-      final seasonStart = DateTime(DateTime.now().year, 1, 1).toIso8601String();
+      final seasonStart = yearStartDate;
       final rows = await OfflineCache.load(
-        screen: 'admin_dash_fetchCoopPerformance_1',
-        fetch: () => _client
-            .from('harvest_records')
-            .select('farmer_id')
-            .gte('harvest_date', seasonStart),
+        screen: 'admin_dash_fetchCoopPerformance_1b',
+        fetch: () => _allRows(
+          (from, to) => _client
+              .from('harvest_records')
+              .select('farmer_id').eq('source_type', 'self')
+              .gte('harvest_date', seasonStart)
+              .order('id')
+              .range(from, to),
+        ),
       );
       activeMembersThisSeason = rows
           .map((r) => r['farmer_id'] as String)
@@ -925,9 +992,9 @@ class AdminDashboardRepository {
 
     return CoopPerformanceSummary(
       totalHarvests: totalHarvests,
-      farmerAvailableStockKg: farmerAvailableStockKg,
+      farmerStock: farmerStock,
       activeListings: activeListings,
-      completedSales: completedSales,
+      salesAmount: salesAmount,
       activeMembersThisSeason: activeMembersThisSeason,
       totalMembers: totalMembersQueryFailed
           ? 52

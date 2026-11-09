@@ -127,7 +127,7 @@ class FarmerManagementRepository {
           // 6. Last harvest date per farmer
           final harvestRows = await _client
               .from('harvest_records')
-              .select('farmer_id, harvest_date')
+              .select('farmer_id, harvest_date').eq('source_type', 'self')
               .inFilter('farmer_id', userIds)
               .order('harvest_date', ascending: false);
 

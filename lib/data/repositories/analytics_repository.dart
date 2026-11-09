@@ -134,7 +134,7 @@ class AnalyticsRepository {
       final harvestRows = await _source(failures, 'harvests', () async {
         var query = _client
             .from('harvest_records')
-            .select('crop_id, crop_name, quantity_kg, unit, harvest_date')
+            .select('crop_id, crop_name, quantity_kg, unit, harvest_date').eq('source_type', 'self')
             .eq('farmer_id', _userId);
         if (start != null) {
           query = query.gte('harvest_date', _dateOnly(start));

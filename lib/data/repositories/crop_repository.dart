@@ -334,7 +334,7 @@ extension CropHarvestSummary on CropRepository {
     try {
       final rows = await _client
           .from('harvest_records')
-          .select('crop_id, quantity_kg')
+          .select('crop_id, quantity_kg').eq('source_type', 'self')
           .eq('farmer_id', _userId);
       for (final row in rows) {
         final id = row['crop_id'] as String;

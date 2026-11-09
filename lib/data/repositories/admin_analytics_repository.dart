@@ -47,7 +47,7 @@ class AdminAnalyticsRepository {
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       if (farmerIds.isEmpty) return MemberParticipationSummary.empty();
 
-      var harvestQuery = _client.from('harvest_records').select('farmer_id');
+      var harvestQuery = _client.from('harvest_records').select('farmer_id').eq('source_type', 'self');
       if (since != null) {
         harvestQuery = harvestQuery.gte('harvest_date', _dateOnly(since));
       }

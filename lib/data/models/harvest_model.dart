@@ -17,6 +17,11 @@ class HarvestModel {
   final bool isSynced;
   final DateTime createdAt;
 
+  /// 'self' (the Farmer recorded their own harvest) or 'program_received' (a cooperative program gave
+  /// them this produce). A received record is not the Farmer's own production.
+  final String sourceType;
+  final String? sourceProgramId;
+
   const HarvestModel({
     required this.id,
     required this.farmerId,
@@ -31,9 +36,12 @@ class HarvestModel {
     required this.harvestDate,
     required this.isSynced,
     required this.createdAt,
+    this.sourceType = 'self',
+    this.sourceProgramId,
   });
 
   bool get isPending => !isSynced;
+  bool get isReceivedFromProgram => sourceType == 'program_received';
 
   /// The batch number with its leading #, or a note when the database has not
   /// issued one yet (a harvest saved offline is numbered when it syncs).
@@ -63,6 +71,8 @@ class HarvestModel {
       harvestDate: DateTime.parse(map['harvest_date'] as String),
       isSynced: map['is_synced'] as bool? ?? false,
       createdAt: DateTime.parse(map['created_at'] as String),
+      sourceType: map['source_type'] as String? ?? 'self',
+      sourceProgramId: map['source_program_id'] as String?,
     );
   }
 
@@ -81,6 +91,8 @@ class HarvestModel {
       'harvest_date': harvestDate.toIso8601String(),
       'is_synced': isSynced,
       'created_at': createdAt.toIso8601String(),
+      'source_type': sourceType,
+      'source_program_id': sourceProgramId,
     };
   }
 }

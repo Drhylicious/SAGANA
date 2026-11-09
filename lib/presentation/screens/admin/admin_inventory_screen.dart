@@ -27,6 +27,10 @@ import '../../../data/repositories/unit_repository.dart';
 import '../../widgets/add_unit_dialog.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_dropdown_field.dart';
+import '../../widgets/labeled_text_field.dart';
+import '../../widgets/crop_master_dropdown.dart';
+import '../../../core/utils/item_type_utils.dart';
+import '../../../core/utils/app_error_message.dart';
 import '../../widgets/report_summary_widgets.dart'
     show ReportIconStatCard, ReportSectionCard;
 import '../../widgets/management_modal.dart';
@@ -58,37 +62,35 @@ class _CoopInventoryRepository {
     // Page through all rows; do not hide distinct Farmers with UI deduplication.
     final result = <InventoryItem>[];
     for (var offset = 0; ; offset += 500) {
+      // Newest first: the most recently added item is at the top, then older ones in the order they were
+      // added (archived items: the most recently archived first). The id keeps the order stable between pages.
       final rows = await _client
           .from('cooperative_inventory')
           .select()
           .eq('is_active', !archived)
-          .order('category')
-          .order('item_name')
-          .order('id')
+          .order(archived ? 'archived_at' : 'created_at', ascending: false)
+          .order('id', ascending: false)
           .range(offset, offset + 499);
       result.addAll(rows.map(InventoryItem.fromMap));
       if (rows.length < 500) return result;
     }
   }
 
-  Future<bool> itemExists({required String name}) async {
+  Future<bool> itemExists({required String name, required String itemType}) async {
     try {
       final rows = await _client
           .from('cooperative_inventory')
-          .select('id, item_name')
+          .select('id, item_name, item_type')
           .isFilter('source_farmer_id', null)
           .isFilter('archived_at', null)
           .order('item_name');
       final normalizedName = name.trim().toLowerCase();
-      // Name alone is the identity of an inventory item — category and unit
-      // are attributes of that item, not part of what distinguishes it from
-      // another item. Matching on all three let "Peanut Seeds" (Seeds, kg)
-      // and "Peanut seeds" (Seeds, bag) coexist as two unlinked rows.
+      // An item is identified by its name AND its Item Type: the crop Tomato can be a Seeds and
+      // Seedlings item and a Harvested Produce item. Category and unit are attributes, not identity.
       return rows.any((row) {
-        final existingName = (row['item_name'] as String? ?? '')
-            .trim()
-            .toLowerCase();
-        return existingName == normalizedName;
+        final existingName = (row['item_name'] as String? ?? '').trim().toLowerCase();
+        return existingName == normalizedName &&
+            (row['item_type'] as String? ?? kItemTypeNonCrop) == itemType;
       });
     } catch (_) {
       return false;
@@ -129,14 +131,19 @@ class _CoopInventoryRepository {
     double? unitCost,
     required double reorderLevel,
     required String source,
+    required String itemType,
+    String? cropMasterId,
     String? imageUrl,
   }) async {
     try {
-      final duplicate = await itemExists(name: name);
+      final duplicate = await itemExists(name: name, itemType: itemType);
       if (duplicate) return false;
       await _client.from('cooperative_inventory').insert({
         'item_name': name.trim(),
         'category': category,
+        'item_type': itemType,
+        // The crop's real Crop Master id for a crop type (null for a Non-Crop Item).
+        'crop_master_id': isCropItemType(itemType) ? cropMasterId : null,
         'unit': unit,
         'unit_cost': unitCost,
         'reorder_level': reorderLevel,
@@ -227,6 +234,8 @@ class _CoopInventoryRepository {
     double? unitCost,
     required double reorderLevel,
     required String source,
+    required String itemType,
+    String? cropMasterId,
     String? imageUrl,
   }) async {
     try {
@@ -235,6 +244,8 @@ class _CoopInventoryRepository {
           .update({
             'item_name': name.trim(),
             'category': category,
+            'item_type': itemType,
+            'crop_master_id': isCropItemType(itemType) ? cropMasterId : null,
             'unit': unit,
             'unit_cost': unitCost,
             'reorder_level': reorderLevel,
@@ -254,6 +265,22 @@ class _CoopInventoryRepository {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Sets what comes back when a Farmer returns this item (null = the same item). Throws when refused.
+  Future<void> setReturnItem(String id, String? returnItemId) async {
+    await _client.from('cooperative_inventory').update({'return_item_id': returnItemId}).eq('id', id);
+  }
+
+  /// Undoes an archive. Throws when the database refuses (for example the same item is active already).
+  Future<void> restoreItem(String id) async {
+    await _client.rpc('restore_inventory_item', params: {'p_inventory_id': id});
+    AdminActivityRepository().log(
+      module: 'inventory',
+      actionType: 'updated',
+      message: const AdminLogMessage('adminLogInventoryItemRestored'),
+      referenceId: id,
+    );
   }
 
   Future<bool> deleteItem(String id) async {
@@ -293,7 +320,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   List<String> _categories = [];
   bool _isLoading = true;
   bool _loadError = false;
-  bool _showArchived = false;
+  // Archived items now open in their own modal (see _showArchivedSheet); the list always shows live items.
+  final bool _showArchived = false;
   late final TableChangeWatcher _watcher;
   StreamSubscription<bool>? _connectivitySub;
   bool _isOnline = true;
@@ -389,6 +417,37 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   // or below it (that's what isLow checks).
   int get _lowStockCount => _items.where((i) => i.isDepleted || i.isLow).length;
 
+  /// "When returned, it comes back as": the one setting that says what the cooperative receives back when a
+  /// Farmer returns this item in a Harvest Return program (Pechay Seeds -> Pechay produce, Pig -> Pig).
+  /// Empty = the same item. Only active, cooperative-owned items can be chosen, never the item itself.
+  Widget _returnItemField(
+    AppLocalizations l10n, {
+    required String value,
+    required String excludeId,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final options = _items
+        .where((i) => i.id != excludeId && i.sourceFarmerId == null && i.isActive && i.archivedAt == null)
+        .toList()
+      ..sort((a, b) => a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase()));
+    final byId = {for (final i in options) i.id: i};
+    final dropdown = AppDropdownField<String>(
+      key: const Key('returnItemField'),
+      value: value,
+      hintText: l10n.invReturnItemSame,
+      labelText: l10n.invReturnItemLabel,
+      wrapText: true,
+      items: ['', ...options.map((i) => i.id)],
+      itemLabel: (id) {
+        if (id.isEmpty) return l10n.invReturnItemSame;
+        final i = byId[id];
+        return i == null ? id : '${i.itemName} (${i.unit}) · ${itemTypeLabel(l10n, i.itemType)}';
+      },
+      onChanged: onChanged,
+    );
+    return dropdown;
+  }
+
   void _showAddSheet() {
     if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
@@ -399,6 +458,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final sourceCtrl = TextEditingController();
     String? selectedCategory;
     String? selectedUnit;
+    String? selectedItemType;
+    String? selectedCropId;
+    String? selectedCropName;
     bool isSaving = false;
     Uint8List? pickedImageBytes;
     String? pickedImageExt;
@@ -446,7 +508,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 );
               }
               final ok = await _repo.addItem(
-                name: nameCtrl.text,
+                // A crop type takes its name from the crop chosen in Crop Management.
+                name: isCropItemType(selectedItemType) ? selectedCropName! : nameCtrl.text,
                 category: selectedCategory!,
                 unit: selectedUnit!,
                 unitCost: costCtrl.text.trim().isEmpty
@@ -454,6 +517,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     : double.tryParse(costCtrl.text.trim()),
                 reorderLevel: double.tryParse(reorderCtrl.text.trim()) ?? 0,
                 source: sourceCtrl.text,
+                itemType: selectedItemType!,
+                cropMasterId: selectedCropId,
                 imageUrl: imageUrl,
               );
               if (!ctx.mounted || !mounted) return;
@@ -514,19 +579,51 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
-                      controller: nameCtrl,
-                      decoration: InputDecoration(
-                        labelText: l10n.adminInvItemNameLabel,
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return l10n.adminInvItemNameRequired;
+                    // Category, then Item Type, then the item itself. The Item Type (never the
+                    // Category) decides the next field: a crop type picks its crop from Crop
+                    // Management (the crop IS the item name); a Non-Crop Item is typed.
+                    AppDropdownField<String>(
+                      key: const Key('itemTypeField'),
+                      value: selectedItemType,
+                      hintText: l10n.invItemTypeHint,
+                      labelText: l10n.invItemTypeLabel,
+                      items: kItemTypes,
+                      itemLabel: (t) => itemTypeOptionLabel(l10n, t),
+                      onChanged: (v) => setSheet(() {
+                        // Moving between a crop type and Non-Crop clears the other field's choice.
+                        if (isCropItemType(v) != isCropItemType(selectedItemType)) {
+                          selectedCropId = null;
+                          selectedCropName = null;
                         }
-                        return null;
-                      },
+                        selectedItemType = v;
+                      }),
+                      validator: (v) => v == null ? l10n.invItemTypeRequired : null,
                     ),
+                    const SizedBox(height: 12),
+                    if (isCropItemType(selectedItemType))
+                      CropMasterDropdown(
+                        value: selectedCropId,
+                        labelText: l10n.adminInvItemNameLabel,
+                        hintText: l10n.invItemNameCropHint,
+                        requiredMessage: l10n.adminInvItemNameRequired,
+                        onChanged: (id, name) => setSheet(() {
+                          selectedCropId = id;
+                          selectedCropName = name;
+                        }),
+                      )
+                    else
+                      LabeledTextField(
+                        controller: nameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        label: l10n.adminInvItemNameLabel,
+                        hint: l10n.adminInvItemNameHint,
+                        validator: (value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return l10n.adminInvItemNameRequired;
+                          }
+                          return null;
+                        },
+                      ),
                     const SizedBox(height: 12),
                     Text(
                       l10n.adminInvItemPhotoLabel,
@@ -626,93 +723,37 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Unit Cost *',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: Theme.of(
-                                    ctx,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                controller: costCtrl,
-                                style: GoogleFonts.inter(fontSize: 14),
-                                decoration: InputDecoration(
-                                  hintText: '0.00',
-                                  prefixText: '₱ ',
-                                  isDense: true,
-                                  // Same height as the Unit dropdown beside it (its box is 50 tall).
-                                  constraints: const BoxConstraints(
-                                    minHeight: 50,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 14,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: Theme.of(ctx).colorScheme.outline
-                                          .withValues(alpha: 0.4),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: Theme.of(ctx).colorScheme.primary,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'^\d*\.?\d*'),
-                                  ),
-                                ],
-                                validator: (value) {
-                                  if ((value ?? '').trim().isEmpty) {
-                                    return 'Unit cost is required';
-                                  }
-                                  if (!isValidCurrencyValue(value)) {
-                                    return l10n.adminInvEnterValidAmount;
-                                  }
-                                  return null;
-                                },
-                              ),
+                          child: LabeledTextField(
+                            controller: costCtrl,
+                            label: 'Unit Cost *',
+                            hint: '0.00',
+                            prefixText: '₱ ',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                             ],
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Unit cost is required';
+                              }
+                              if (!isValidCurrencyValue(value)) {
+                                return l10n.adminInvEnterValidAmount;
+                              }
+                              return null;
+                            },
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
+                    LabeledTextField(
                       controller: reorderCtrl,
-                      decoration: InputDecoration(
-                        labelText: '${l10n.adminInvReorderLevel} *',
-                        hintText: l10n.adminInvReorderHint,
-                        suffixText: l10n.adminInvUnitsSuffix,
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                      label: '${l10n.adminInvReorderLevel} *',
+                      hint: l10n.adminInvReorderHint,
+                      suffixText: l10n.adminInvUnitsSuffix,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\.?\d*'),
-                        ),
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                       ],
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
@@ -725,12 +766,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
+                    LabeledTextField(
                       controller: sourceCtrl,
-                      decoration: InputDecoration(
-                        labelText: '${l10n.adminInvSourceLabel} *',
-                        hintText: l10n.adminInvSourceHint,
-                      ),
+                      label: '${l10n.adminInvSourceLabel} *',
+                      hint: l10n.adminInvSourceHint,
                       textCapitalization: TextCapitalization.sentences,
                       maxLength: kInventorySourceMaxLength,
                       maxLines: 2,
@@ -1240,6 +1279,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final sourceCtrl = TextEditingController(text: item.source ?? '');
     String? selectedCategory = item.category;
     String? selectedUnit = item.unit;
+    String? selectedItemType = item.itemType;
+    String? selectedCropId = item.cropMasterId;
+    String? selectedCropName = item.itemName;
     bool isSaving = false;
     Uint8List? pickedImageBytes;
     String? pickedImageExt;
@@ -1286,7 +1328,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               }
               final ok = await _repo.updateItem(
                 id: item.id,
-                name: nameCtrl.text,
+                // A crop type keeps the item's name unless its crop was changed (then the new crop's name).
+                name: isCropItemType(selectedItemType) && !item.isFarmerHarvest
+                    ? (selectedCropId != item.cropMasterId ? selectedCropName! : item.itemName)
+                    : nameCtrl.text,
                 category: selectedCategory!,
                 unit: selectedUnit!,
                 unitCost: costCtrl.text.trim().isEmpty
@@ -1294,6 +1339,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     : double.tryParse(costCtrl.text.trim()),
                 reorderLevel: double.tryParse(reorderCtrl.text.trim()) ?? 0,
                 source: sourceCtrl.text,
+                itemType: selectedItemType!,
+                cropMasterId: selectedCropId,
                 imageUrl: imageUrl,
               );
               if (!ctx.mounted || !mounted) return;
@@ -1359,20 +1406,54 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
-                      controller: nameCtrl,
-                      readOnly: item.isFarmerHarvest,
-                      decoration: InputDecoration(
-                        labelText: l10n.adminInvItemNameLabel,
+                    // Farmer-delivered Harvest Stock is always Harvested Produce of the Farmer's crop
+                    // (the database sets it), so its type and name are fixed.
+                    AbsorbPointer(
+                      absorbing: item.isFarmerHarvest,
+                      child: AppDropdownField<String>(
+                        key: const Key('itemTypeField'),
+                        value: selectedItemType,
+                        hintText: l10n.invItemTypeHint,
+                        labelText: l10n.invItemTypeLabel,
+                        items: kItemTypes,
+                        itemLabel: (t) => itemTypeOptionLabel(l10n, t),
+                        onChanged: (v) => setSheet(() {
+                          if (isCropItemType(v) != isCropItemType(selectedItemType)) {
+                            selectedCropId = null;
+                            selectedCropName = null;
+                          }
+                          selectedItemType = v;
+                        }),
+                        validator: (v) => v == null ? l10n.invItemTypeRequired : null,
                       ),
-                      textCapitalization: TextCapitalization.words,
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return l10n.adminInvItemNameRequired;
-                        }
-                        return null;
-                      },
                     ),
+                    const SizedBox(height: 12),
+                    if (isCropItemType(selectedItemType) && !item.isFarmerHarvest)
+                      CropMasterDropdown(
+                        value: selectedCropId,
+                        currentName: item.itemName,
+                        labelText: l10n.adminInvItemNameLabel,
+                        hintText: l10n.invItemNameCropHint,
+                        requiredMessage: l10n.adminInvItemNameRequired,
+                        onChanged: (id, name) => setSheet(() {
+                          selectedCropId = id;
+                          selectedCropName = name;
+                        }),
+                      )
+                    else
+                      LabeledTextField(
+                        controller: nameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        readOnly: item.isFarmerHarvest,
+                        label: l10n.adminInvItemNameLabel,
+                        hint: l10n.adminInvItemNameHint,
+                        validator: (value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return l10n.adminInvItemNameRequired;
+                          }
+                          return null;
+                        },
+                      ),
                     const SizedBox(height: 12),
                     Text(
                       l10n.adminInvItemPhotoLabel,
@@ -1510,74 +1591,37 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Unit Cost *',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: Theme.of(
-                                    ctx,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                controller: costCtrl,
-                                style: GoogleFonts.inter(fontSize: 14),
-                                decoration: const InputDecoration(
-                                  hintText: '0.00',
-                                  prefixText: '₱ ',
-                                  isDense: true,
-                                  // Same height as the Unit dropdown beside it (its box is 50 tall).
-                                  constraints: BoxConstraints(minHeight: 50),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 14,
-                                  ),
-                                ),
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'^\d*\.?\d*'),
-                                  ),
-                                ],
-                                validator: (value) {
-                                  if ((value ?? '').trim().isEmpty) {
-                                    return 'Unit cost is required';
-                                  }
-                                  if (!isValidCurrencyValue(value)) {
-                                    return l10n.adminInvEnterValidAmount;
-                                  }
-                                  return null;
-                                },
-                              ),
+                          child: LabeledTextField(
+                            controller: costCtrl,
+                            label: 'Unit Cost *',
+                            hint: '0.00',
+                            prefixText: '₱ ',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                             ],
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Unit cost is required';
+                              }
+                              if (!isValidCurrencyValue(value)) {
+                                return l10n.adminInvEnterValidAmount;
+                              }
+                              return null;
+                            },
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
+                    LabeledTextField(
                       controller: reorderCtrl,
-                      decoration: InputDecoration(
-                        labelText: '${l10n.adminInvReorderLevel} *',
-                        hintText: l10n.adminInvReorderHint,
-                        suffixText: l10n.adminInvUnitsSuffix,
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                      label: '${l10n.adminInvReorderLevel} *',
+                      hint: l10n.adminInvReorderHint,
+                      suffixText: l10n.adminInvUnitsSuffix,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\.?\d*'),
-                        ),
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                       ],
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
@@ -1590,13 +1634,11 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
+                    LabeledTextField(
                       controller: sourceCtrl,
                       readOnly: item.isFarmerHarvest,
-                      decoration: InputDecoration(
-                        labelText: '${l10n.adminInvSourceLabel} *',
-                        hintText: l10n.adminInvSourceHint,
-                      ),
+                      label: '${l10n.adminInvSourceLabel} *',
+                      hint: l10n.adminInvSourceHint,
                       textCapitalization: TextCapitalization.sentences,
                       maxLength: kInventorySourceMaxLength,
                       maxLines: 2,
@@ -1652,6 +1694,191 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
       isError: !ok,
     );
     if (ok) _load();
+  }
+
+  /// Harvest Return setting for one item, from the card's three-dot menu: what the cooperative receives back
+  /// when a Farmer returns this item. Its own small modal, like Publish for the loan catalog.
+  void _showReturnItemSheet(InventoryItem item) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
+    var selected = item.returnItemId ?? '';
+    var saving = false;
+    showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final l = AppLocalizations.of(ctx);
+          Future<void> save() async {
+            if (saving) return;
+            if (selected == (item.returnItemId ?? '')) {
+              Navigator.pop(ctx);
+              return;
+            }
+            setSheet(() => saving = true);
+            try {
+              await _repo.setReturnItem(item.id, selected.isEmpty ? null : selected);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                AppToast.show(context, l.invReturnSaved(item.itemName));
+                _load();
+              }
+            } catch (e, st) {
+              if (!ctx.mounted) return;
+              setSheet(() => saving = false);
+              AppToast.show(ctx, friendlyError(l, e, st, l.adminInvFailedTryAgain), isError: true);
+            }
+          }
+
+          return ManagementModalShell(
+            title: l.invReturnSectionTitle,
+            subtitle: item.itemName,
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l.invReturnSectionHelp,
+                  textAlign: TextAlign.justify,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _returnItemField(
+                  l,
+                  value: selected,
+                  excludeId: item.id,
+                  onChanged: (v) => setSheet(() => selected = v ?? ''),
+                ),
+              ],
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: saving ? l.adminInvSaving : l.adminInvUpdate,
+              isLoading: saving,
+              onPrimary: saving ? null : save,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Restore an archived item. Messages show over the modal, so they use AppToast on the modal's context.
+  Future<bool> _restoreItem(InventoryItem item, BuildContext modalCtx) async {
+    if (!requireManage(modalCtx, StaffModule.dashboard)) return false;
+    final l10n = AppLocalizations.of(context);
+    try {
+      await _repo.restoreItem(item.id);
+    } catch (e, st) {
+      if (modalCtx.mounted) {
+        AppToast.show(modalCtx, friendlyError(l10n, e, st, l10n.adminInvFailedTryAgain), isError: true);
+      }
+      return false;
+    }
+    if (mounted) {
+      AppToast.show(context, l10n.coopInvItemRestored(item.itemName));
+      _load();
+    }
+    return true;
+  }
+
+  // ── Archived Items modal ──────────────────────────────────────────────────
+  // The Archive button opens this, laid out like the Archived modals in Loan Item Catalog and Crop
+  // Management: a centered card with a title, a count, one line saying what archiving means, then a card
+  // per archived item.
+
+  Future<void> _showArchivedSheet() async {
+    final l10n = AppLocalizations.of(context);
+    List<InventoryItem> archived;
+    try {
+      archived = await _repo.fetchAll(archived: true);
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.show(context, l10n.adminInvFailedTryAgain, isError: true);
+      return;
+    }
+    if (!mounted) return;
+
+    await showManagementModal(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return ManagementModalShell(
+          title: l10n.coopInvArchivedTitle,
+          subtitle: l10n.coopInvArchivedCount(archived.length),
+          bodyIsScrollable: true,
+          body: archived.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 44,
+                          color: cs.outline.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.coopInvNoArchived,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.coopInvNoArchivedBody,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                  // One line up top says what archiving does, then the cards.
+                  itemCount: archived.length + 1,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) {
+                    if (i == 0) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 16, color: cs.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              l10n.coopInvArchivedInfo,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    final item = archived[i - 1];
+                    return _ArchivedInventoryCard(
+                      item: item,
+                      archivedOn: item.archivedAt == null
+                          ? null
+                          : l10n.coopInvArchivedOn(_formatDate(item.archivedAt!)),
+                      onRestore: () async {
+                        final ok = await _restoreItem(item, ctx);
+                        if (ok && ctx.mounted) Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+        );
+      },
+    );
   }
 
   String _formatDate(DateTime dt) {
@@ -1716,27 +1943,15 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
       body: Column(
         children: [
           // Top bar
-          // Archive button at the top right, like the Loan Catalog; it switches
-          // between active and archived/inactive items.
+          // Archive button at the top right, like Loan Item Catalog and Crop Management: it opens the
+          // Archived Items modal.
           SubPageTopBar(
             title: l10n.adminInvManagementTitle,
             onBack: () => context.pop(),
             trailing: IconButton(
-              icon: Icon(
-                _showArchived
-                    ? Icons.unarchive_rounded
-                    : Icons.archive_rounded,
-                color: _showArchived ? AppConstants.primaryGreen : cs.onSurface,
-              ),
-              tooltip: _showArchived
-                  ? l10n.coopInvShowActive
-                  : l10n.coopInvShowArchived,
-              onPressed: _isLoading
-                  ? null
-                  : () {
-                      setState(() => _showArchived = !_showArchived);
-                      _load();
-                    },
+              icon: Icon(Icons.archive_rounded, color: cs.onSurface),
+              tooltip: l10n.coopInvShowArchived,
+              onPressed: _isLoading ? null : _showArchivedSheet,
             ),
           ),
 
@@ -1765,32 +1980,6 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               ),
             ),
 
-          if (_showArchived)
-            Container(
-              width: double.infinity,
-              color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.archive_rounded,
-                    size: 16,
-                    color: AppConstants.primaryGreen,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.coopInvViewingArchived,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: _loadError
                 ? Center(
@@ -2088,7 +2277,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                               ),
                                                         ),
                                                         Text(
-                                                          item.category,
+                                                          '${item.category} • ${itemTypeLabel(l10n, item.itemType)}',
                                                           style: GoogleFonts.inter(
                                                             fontSize: 11,
                                                             color: cs
@@ -2179,6 +2368,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                               item,
                                                             );
                                                           }
+                                                        case 'return':
+                                                          if (_isOnline &&
+                                                              !_showArchived) {
+                                                            _showReturnItemSheet(
+                                                              item,
+                                                            );
+                                                          }
                                                         case 'history':
                                                           _showTransactionHistory(
                                                             item,
@@ -2227,6 +2423,21 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                           cs.onSurface,
                                                         ),
                                                       ),
+                                                      // Cooperative-owned items only: a Farmer's delivered
+                                                      // batch has no Harvest Return setting.
+                                                      if (!item.isFarmerHarvest)
+                                                        PopupMenuItem(
+                                                          value: 'return',
+                                                          enabled:
+                                                              _isOnline &&
+                                                              !_showArchived,
+                                                          child: _menuRow(
+                                                            Icons
+                                                                .assignment_return_outlined,
+                                                            l10n.invReturnMenu,
+                                                            cs.onSurface,
+                                                          ),
+                                                        ),
                                                       PopupMenuItem(
                                                         value: 'history',
                                                         child: _menuRow(
@@ -2561,6 +2772,139 @@ class _Chip extends StatelessWidget {
             color: selected ? Colors.white : cs.onSurfaceVariant,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One archived item in the Archived Items modal: greyed out, because it is kept for the record, not live.
+class _ArchivedInventoryCard extends StatefulWidget {
+  final InventoryItem item;
+  final String? archivedOn;
+  final Future<void> Function() onRestore;
+  const _ArchivedInventoryCard({required this.item, this.archivedOn, required this.onRestore});
+
+  @override
+  State<_ArchivedInventoryCard> createState() => _ArchivedInventoryCardState();
+}
+
+class _ArchivedInventoryCardState extends State<_ArchivedInventoryCard> {
+  bool _busy = false;
+
+  InventoryItem get item => widget.item;
+  String? get archivedOn => widget.archivedOn;
+
+  Future<void> _restore() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await widget.onRestore();
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final hasImage = item.imageUrl != null && item.imageUrl!.isNotEmpty;
+    const greyscale = ColorFilter.matrix(<double>[
+      0.2126, 0.7152, 0.0722, 0, 0,
+      0.2126, 0.7152, 0.0722, 0, 0,
+      0.2126, 0.7152, 0.0722, 0, 0,
+      0, 0, 0, 1, 0,
+    ]);
+    final placeholder = Container(
+      color: cs.surfaceContainerHighest,
+      alignment: Alignment.center,
+      child: Icon(Icons.inventory_2_outlined, size: 26, color: cs.onSurfaceVariant),
+    );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            child: SizedBox(
+              width: 64,
+              height: 64,
+              child: hasImage
+                  ? ColorFiltered(
+                      colorFilter: greyscale,
+                      child: Image.network(
+                        item.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => placeholder,
+                      ),
+                    )
+                  : placeholder,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${item.category} • ${itemTypeLabel(l10n, item.itemType)}',
+                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      ),
+                      child: Text(
+                        l10n.coopInvArchivedChip,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    if (archivedOn != null)
+                      Text(
+                        archivedOn!,
+                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    key: Key('restoreInventory_${item.id}'),
+                    onPressed: _busy ? null : _restore,
+                    icon: _busy
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.unarchive_rounded, size: 18),
+                    label: Text(l10n.coopInvRestore),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

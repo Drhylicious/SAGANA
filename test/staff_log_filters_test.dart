@@ -65,6 +65,13 @@ Future<void> main() async {
     final arr = RegExp(r"FOREACH t IN ARRAY ARRAY\[([^\]]*)\]").firstMatch(s12)!.group(1)!;
     out.addAll(RegExp(r"'(\w+)'").allMatches(arr).map((m) => m.group(1)!));
     out.add('officer_permissions');
+    // The cooperative's own settings (m02): Cooperative Details, Delivery Settings and the fees.
+    final m02 = sql('supabase_schema_unify_m02_cooperative_details_delivery_settings.sql');
+    out.addAll(
+      RegExp(r'CREATE TRIGGER trg_audit_staff_change AFTER INSERT OR UPDATE OR DELETE ON public\.(\w+)')
+          .allMatches(m02)
+          .map((m) => m.group(1)!),
+    );
     return out;
   }
 

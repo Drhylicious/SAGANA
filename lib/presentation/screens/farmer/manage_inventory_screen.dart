@@ -1116,7 +1116,7 @@ class _ActionButton extends StatelessWidget {
           ? 'See Progress'
           : gingerEnrollmentApproved
               ? 'Submit to Sell'
-              : 'Enroll to Sell';
+              : 'Join to Sell';
     } else {
       switch (status) {
         case 'available':

@@ -1758,6 +1758,17 @@ class _HistoryMemberCard extends StatelessWidget {
                 ),
             ],
           ),
+          // Purchases at the member price: regular price, discount and net paid
+          // side by side, so they reconcile with the transactions.
+          if (r.programDiscountAmount > 0) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            Text(
+              'Purchases: regular ${currency.format(r.programRegularAmount)} − '
+              'member discount ${currency.format(r.programDiscountAmount)} = '
+              'net paid ${currency.format(r.programPurchasesAmount)}',
+              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ],
           if (r.payoutDecision != null) ...[
             const SizedBox(height: AppConstants.spacingSm),
             _PayoutDecisionStatus(

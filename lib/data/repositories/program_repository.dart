@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/server_only.dart';
 import '../models/program_model.dart';
 import '../models/program_enrollment_request_model.dart';
+import '../models/program_outcome_model.dart';
+import '../models/program_return_model.dart';
+import '../services/outcome_evidence_service.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
 
@@ -25,11 +28,7 @@ class ProgramRepository {
   Future<List<CooperativeProgram>> fetchPrograms() async {
     try {
       final results = await Future.wait([
-        _client
-            .from('cooperative_programs')
-            .select()
-            .order('season_year', ascending: false)
-            .order('program_name'),
+        _selectPrograms(),
         _client
             .from('program_members')
             .select('program_id')
@@ -56,19 +55,69 @@ class ProgramRepository {
     }
   }
 
-  Future<List<ProgramMember>> fetchProgramMembers(String programId) async {
+  /// distribution_item / return_crop: the program's configured item
+  /// (Inventory Management) and Harvest Return crop (crop list). If the
+  /// Phase 5A SQL has not been applied yet those columns do not exist, so fall
+  /// back to the plain select instead of showing an empty program list.
+  Future<List<Map<String, dynamic>>> _selectPrograms() async {
     try {
       final rows = await _client
-          .from('program_members')
+          .from('cooperative_programs')
           .select(
-            'id, program_id, farmer_id, status, enrolled_at, '
-              'inventory_item_id, quantity_given, distributed_at, '
-              'amount_returned, settled_at, distribution_outcome, '
-            'outcome_recorded_at, converted_loan_id',
+            '*, '
+            'distribution_item:cooperative_inventory!distribution_item_id(item_name, unit, quantity_on_hand), '
+            'return_crop:crop_master!return_crop_id(crop_name), '
+            'return_item:cooperative_inventory!return_item_id(item_name, unit)',
           )
-          .eq('program_id', programId)
-          .eq('status', 'active')
-          .order('enrolled_at', ascending: false);
+          .order('season_year', ascending: false)
+          .order('program_name');
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      final rows = await _client
+          .from('cooperative_programs')
+          .select()
+          .order('season_year', ascending: false)
+          .order('program_name');
+      return List<Map<String, dynamic>>.from(rows);
+    }
+  }
+
+  Future<List<ProgramMember>> fetchProgramMembers(String programId) async {
+    try {
+      const baseCols =
+          'id, program_id, farmer_id, status, enrolled_at, '
+          'inventory_item_id, quantity_given, distributed_at, '
+          'amount_returned, settled_at, distribution_outcome, '
+          'outcome_recorded_at, converted_loan_id';
+      Future<List<Map<String, dynamic>>> read(String cols) async =>
+          List<Map<String, dynamic>>.from(
+            await _client
+                .from('program_members')
+                .select(cols)
+                .eq('program_id', programId)
+                .eq('status', 'active')
+                .order('enrolled_at', ascending: false),
+          );
+      // The unit kept with each distribution is read when the database has it
+      // (p17); an older database simply does not return it.
+      List<Map<String, dynamic>> rows;
+      try {
+        rows = await read(
+          '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity, round_no',
+        );
+      } catch (_) {
+       try {
+        rows = await read(
+          '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity',
+        );
+       } catch (_) {
+        try {
+          rows = await read('$baseCols, distributed_item_name, distributed_unit');
+        } catch (_) {
+          rows = await read(baseCols);
+        }
+       }
+      }
 
       if (rows.isEmpty) return [];
 
@@ -125,16 +174,21 @@ class ProgramRepository {
     }
   }
 
-  Future<bool> createProgram({
+  Future<String?> createProgram({
     required String name,
     required String type,
     String benefitType = 'grant',
-    double? expectedReturnPercent,
     String? description,
     double? budget,
     String? distributionCategory,
+    String? distributionItemId,
+    String? returnCropId,
+    double? returnQuantity,
+    String? returnItemId,
     String programPurpose = 'distribution',
     String? imageUrl,
+    double? memberDiscountPercent,
+    List<String>? sourceCategories,
   }) async {
     final trimmedName = name.trim();
     // program_name already has a DB-level UNIQUE constraint (so a
@@ -163,27 +217,45 @@ class ProgramRepository {
       // the insert, which is still protected by the DB constraint.
     }
     try {
-      await _client.from('cooperative_programs').insert({
-        'program_name': trimmedName,
-        'program_type': type,
-        'benefit_type': benefitType,
-        'expected_return_percent': expectedReturnPercent,
-        'description': description?.trim(),
-        'budget': budget,
-        'distribution_category': distributionCategory,
-        'program_purpose': programPurpose,
-        'image_url': imageUrl,
-        'season_year': DateTime.now().year,
-        'created_by': _client.auth.currentUser?.id,
-      });
+      final row = await _client
+          .from('cooperative_programs')
+          .insert({
+            'program_name': trimmedName,
+            'program_type': type,
+            'benefit_type': benefitType,
+            'description': description?.trim(),
+            'budget': budget,
+            'distribution_category': distributionCategory,
+            'distribution_item_id': distributionItemId,
+            'return_crop_id': returnCropId,
+            'return_quantity': returnQuantity,
+            'program_purpose': programPurpose,
+            'image_url': imageUrl,
+            'season_year': DateTime.now().year,
+            'created_by': _client.auth.currentUser?.id,
+            // Sent only when there is a discount to record, so creating a
+            // program works the same before and after the pricing script.
+            if (memberDiscountPercent != null)
+              'member_discount_percent': memberDiscountPercent,
+            if (sourceCategories != null)
+              'source_categories': sourceCategories,
+            // The default item a Harvest Return Farmer returns (blank = the item they were given).
+            if (returnItemId != null) 'return_item_id': returnItemId,
+          })
+          .select('id')
+          .single();
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'created',
         message: AdminLogMessage('adminLogProgramCreated', {'name': name.trim()}),
+        referenceId: row['id'] as String?,
       );
-      return true;
-    } catch (_) {
-      return false;
+      return row['id'] as String?;
+    }
+    // Any other failure reaches the screen, which explains it in plain words
+    // (and the technical text goes to the developer log).
+    catch (_) {
+      rethrow;
     }
   }
 
@@ -191,29 +263,40 @@ class ProgramRepository {
     required String id,
     required String name,
     required String type,
-    String benefitType = 'grant',
-    double? expectedReturnPercent,
     String? description,
     double? budget,
-    required String status,
     String? distributionCategory,
-    String programPurpose = 'distribution',
+    String? distributionItemId,
+    String? returnCropId,
+    double? returnQuantity,
+    String? returnItemId,
+    bool setReturnItem = false,
     String? imageUrl,
+    double? memberDiscountPercent,
+    List<String>? sourceCategories,
   }) async {
+    // Benefit Type and Program Purpose are fixed when a program is created, so
+    // neither is sent here; the database refuses a change to Benefit Type too.
     try {
       await _client
           .from('cooperative_programs')
           .update({
-        'program_name': name.trim(),
-        'program_type': type.trim(),
-        'benefit_type': benefitType,
-        'expected_return_percent': expectedReturnPercent,
-        'description': description?.trim(),
-        'budget': budget,
-        'status': status,
-        'distribution_category': distributionCategory,
-        'program_purpose': programPurpose,
-        'image_url': imageUrl,
+            if (memberDiscountPercent != null)
+              'member_discount_percent': memberDiscountPercent,
+            if (sourceCategories != null)
+              'source_categories': sourceCategories,
+            'program_name': name.trim(),
+            'program_type': type.trim(),
+            'description': description?.trim(),
+            'budget': budget,
+            'distribution_category': distributionCategory,
+            'distribution_item_id': distributionItemId,
+            'return_crop_id': returnCropId,
+            // Not sent unless given: the program form no longer edits it, and an older program's default
+            // is still the fallback for Farmers who have no agreed return of their own.
+            if (returnQuantity != null) 'return_quantity': returnQuantity,
+            if (setReturnItem) 'return_item_id': returnItemId,
+            'image_url': imageUrl,
           })
           .eq('id', id);
       AdminActivityRepository().log(
@@ -224,57 +307,109 @@ class ProgramRepository {
       );
       return true;
     } catch (_) {
-      return false;
+      // The screen explains the real reason; nothing is swallowed here.
+      rethrow;
     }
   }
 
-  // ─── Delete program ─────────────────────────────────────────────────────
-  // program_members and program_activities both cascade-delete with the
-  // program (ON DELETE CASCADE); farmer_loans.source_program_id uses
-  // ON DELETE SET NULL, so a loan converted from a distribution survives —
-  // it just loses the "From Program Distribution" tag, which is correct
-  // (deleting a program record shouldn't make a real loan disappear).
+  // ─── Program completion ──────────────────────────────────────────────────
+  // The ONE way a program is closed. The checklist comes from the database, and
+  // complete_program() enforces the same rules there, so a disabled button is
+  // not the only thing standing in the way.
 
-  Future<ProgramDeleteImpact> fetchProgramDeleteImpact(String programId) async {
+  Future<Map<String, ProgramCompletionStatus>> fetchCompletionStatuses() async {
     try {
-      final rows = await _client
-          .from('program_members')
-          .select('distributed_at')
-          .eq('program_id', programId);
-      final memberCount = rows.length;
-      final distributedCount = rows
-          .where((r) => r['distributed_at'] != null)
-          .length;
-      return ProgramDeleteImpact(
-        memberCount: memberCount,
-        distributedCount: distributedCount,
-      );
+      final res = await _client.rpc('get_programs_completion_status');
+      return {
+        for (final r in (res as List))
+          (r as Map)['program_id'] as String:
+              ProgramCompletionStatus.fromMap(Map<String, dynamic>.from(r)),
+      };
     } catch (_) {
-      return const ProgramDeleteImpact(
-        memberCount: 0,
-        distributedCount: 0,
-        checkFailed: true,
-      );
+      return {};
     }
   }
 
-  Future<bool> deleteProgram(String programId) async {
-    try {
-      final row = await _client
-          .from('cooperative_programs')
-          .select('program_name')
-          .eq('id', programId)
-          .maybeSingle();
-      await _client.from('cooperative_programs').delete().eq('id', programId);
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'deleted',
-        message: AdminLogMessage('adminLogProgramDeleted', {'name': '${row?['program_name'] ?? programId}'}),
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
+  // ── Harvest Return and Failed-outcome resolutions (Proposal 12) ─────────────
+  // Each action is a database function that re-checks the caller and the rules;
+  // the screens only decide what to show.
+
+  Future<List<ProgramReturn>> fetchReturns({String? programId}) async {
+    final res = await _client.rpc('get_program_returns', params: {'p_program_id': programId});
+    return (res as List)
+        .map((r) => ProgramReturn.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  Future<List<FailedResolution>> fetchResolutions({String? programId}) async {
+    final res = await _client.rpc('get_failed_resolutions', params: {'p_program_id': programId});
+    return (res as List)
+        .map((r) => FailedResolution.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  Future<void> adjustReturn({
+    required String returnId,
+    required double newQuantity,
+    required String reason,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('adjust_program_return', params: {
+      'p_return_id': returnId,
+      'p_new_quantity': newQuantity,
+      'p_reason': reason,
+    });
+  }
+
+  Future<void> recordReturnReceipt({
+    required String returnId,
+    required double quantity,
+    String? note,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('record_program_return_receipt', params: {
+      'p_return_id': returnId,
+      'p_quantity': quantity,
+      'p_note': note,
+    });
+  }
+
+  Future<void> closeReturn({required String returnId, required String reason}) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('close_program_return', params: {
+      'p_return_id': returnId,
+      'p_reason': reason,
+    });
+  }
+
+  Future<void> recordFailedResolution({
+    required String programMemberId,
+    required String resolution,
+    required String note,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('record_failed_resolution', params: {
+      'p_program_member_id': programMemberId,
+      'p_resolution': resolution,
+      'p_note': note,
+    });
+  }
+
+  /// Marks the program Completed and returns how many pending enrollment
+  /// requests were declined with it. Throws when refused.
+  Future<int> completeProgram(String programId) async {
+    await ServerOnly.ensureOnline();
+    final res = await _client.rpc(
+      'complete_program',
+      params: {'p_program_id': programId},
+    );
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'updated',
+      message: const AdminLogMessage('adminLogProgramCompleted'),
+      referenceId: programId,
+    );
+    return (res as num?)?.toInt() ?? 0;
   }
 
   // ─── Program enrollment requests (farmer-initiated, Full Workflow) ────────
@@ -291,6 +426,63 @@ class ProgramRepository {
 
   Future<List<ProgramEnrollmentRequest>> fetchPendingEnrollmentRequests() =>
       _fetchEnrollmentRequestsByStatus('pending');
+
+  /// Admin: everyone who is ENROLLED right now, in every program (Distribution and
+  /// Product Sales alike) — the active program_members, the same definition the
+  /// Program Management count uses, so the two always agree. Where the member came
+  /// through a request, that request's details are attached; a member with no
+  /// request on record (enrolled directly or before requests existed) still appears.
+  Future<List<ProgramEnrollmentRequest>> fetchEnrolledMembers() async {
+    final memberRows = await _client
+        .from('program_members')
+        .select(
+          'id, program_id, farmer_id, status, enrolled_at, distributed_at, '
+          'quantity_given, distributed_item_name, '
+          'cooperative_programs(program_name, image_url, program_type, program_purpose)',
+        )
+        .eq('status', 'active');
+    if (memberRows.isEmpty) return [];
+
+    final farmerIds = memberRows.map((r) => r['farmer_id'] as String).toSet().toList();
+    final results = await Future.wait([
+      _client.from('user_information').select('user_id, full_name').inFilter('user_id', farmerIds),
+      _client
+          .from('program_enrollment_requests')
+          .select('id, farmer_id, program_id, admin_notes, submitted_at, reviewed_at')
+          .eq('status', 'approved')
+          .inFilter('farmer_id', farmerIds)
+          .order('reviewed_at', ascending: false),
+    ]);
+    final names = {for (final r in results[0] as List) r['user_id'] as String: r['full_name'] as String?};
+    // The latest approved request per farmer and program.
+    final requests = <String, Map<String, dynamic>>{};
+    for (final q in results[1] as List) {
+      requests.putIfAbsent('${q['program_id']}|${q['farmer_id']}', () => Map<String, dynamic>.from(q as Map));
+    }
+
+    final list = memberRows.map((m) {
+      final q = requests['${m['program_id']}|${m['farmer_id']}'];
+      return ProgramEnrollmentRequest.fromMap({
+        'id': q?['id'] ?? 'member:${m['id']}',
+        'program_id': m['program_id'],
+        'status': 'approved',
+        'admin_notes': q?['admin_notes'],
+        'submitted_at': q?['submitted_at'] ?? m['enrolled_at'],
+        'reviewed_at': q?['reviewed_at'],
+        'cooperative_programs': m['cooperative_programs'],
+        'user_information': {'full_name': names[m['farmer_id']]},
+        'member': m,
+        'has_request': q != null,
+      });
+    }).toList();
+    // Grouped by program, newest enrollment first within each.
+    list.sort((a, b) {
+      final p = a.programName.toLowerCase().compareTo(b.programName.toLowerCase());
+      if (p != 0) return p;
+      return (b.enrolledAt ?? b.submittedAt).compareTo(a.enrolledAt ?? a.submittedAt);
+    });
+    return list;
+  }
 
   /// Admin: requests already reviewed (approved or rejected), most
   /// recently reviewed first.
@@ -317,7 +509,7 @@ class ProgramRepository {
           .from('program_enrollment_requests')
           .select(
             'id, farmer_id, program_id, status, admin_notes, submitted_at, reviewed_at, '
-            'cooperative_programs(program_name, image_url)',
+            'cooperative_programs(program_name, image_url, program_type, program_purpose)',
           )
           .eq('status', status)
           .order('submitted_at', ascending: status == 'pending');
@@ -333,57 +525,57 @@ class ProgramRepository {
           .inFilter('user_id', farmerIds);
       final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
+      // The farmer's CURRENT membership, so an Enrolled request can show
+      // whether they are still enrolled and what they received.
+      final memberMap = <String, Map<String, dynamic>>{};
+      if (status == 'approved') {
+        final programIds = rows
+            .map((r) => r['program_id'] as String)
+            .toSet()
+            .toList();
+        final memberRows = await _client
+            .from('program_members')
+            .select(
+              'program_id, farmer_id, status, enrolled_at, distributed_at, '
+              'quantity_given, distributed_item_name',
+            )
+            .inFilter('farmer_id', farmerIds)
+            .inFilter('program_id', programIds);
+        for (final m in memberRows) {
+          memberMap['${m['program_id']}|${m['farmer_id']}'] = m;
+        }
+      }
+
       return rows.map((r) {
         final info = infoMap[r['farmer_id']];
         return ProgramEnrollmentRequest.fromMap({
           ...r,
           'user_information': info,
-      });
+          'member': memberMap['${r['program_id']}|${r['farmer_id']}'],
+        });
       }).toList();
     } catch (_) {
       return [];
     }
   }
 
-  Future<bool> respondToEnrollmentRequest({
-    required String id,
-    required bool approve,
-    String? notes,
-  }) async {
+  /// A join request is approved, never declined: it ends either here or, if its program
+  /// is completed first, when the database closes it. (The database refuses a decline.)
+  Future<bool> approveEnrollmentRequest({required String id, String? notes}) async {
     try {
       await _client.rpc(
         'respond_to_program_enrollment_request',
         params: {
           'p_request_id': id,
-          'p_approve': approve,
+          'p_approve': true,
           if (notes != null && notes.isNotEmpty) 'p_notes': notes,
         },
       );
       AdminActivityRepository().log(
         module: 'programs',
-        actionType: approve ? 'approved' : 'rejected',
-        message: approve
-? const AdminLogMessage('adminLogProgramEnrollmentApproved')
-: const AdminLogMessage('adminLogProgramEnrollmentDeclined'),
+        actionType: 'approved',
+        message: const AdminLogMessage('adminLogProgramEnrollmentApproved'),
         referenceId: id,
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> removeMember(String programMemberId) async {
-    try {
-      await _client
-          .from('program_members')
-          .update({'status': 'withdrawn'})
-          .eq('id', programMemberId);
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'member_removed',
-        message: const AdminLogMessage('adminLogProgramMemberRemoved'),
-        referenceId: programMemberId,
       );
       return true;
     } catch (_) {
@@ -397,14 +589,93 @@ class ProgramRepository {
   // failing silently would let inventory drift from reality.
 
   Future<List<DistributionItem>> fetchDistributionItems() async {
-    final rows = await _client
-        .from('cooperative_inventory')
-        .select(
-          'id, item_name, category, unit, quantity_on_hand, source, source_farmer_id',
-        )
-        .eq('is_active', true)
-        .order('item_name');
+    const base = 'id, item_name, category, unit, quantity_on_hand, source, source_farmer_id, item_type, crop_master_id';
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = List<Map<String, dynamic>>.from(await _client
+          .from('cooperative_inventory')
+          .select('$base, return_item_id')
+          .eq('is_active', true)
+          .order('item_name'));
+    } catch (_) {
+      // The return-item setting is not in the database yet.
+      rows = List<Map<String, dynamic>>.from(await _client
+          .from('cooperative_inventory')
+          .select(base)
+          .eq('is_active', true)
+          .order('item_name'));
+    }
     return rows.map((r) => DistributionItem.fromMap(r)).toList();
+  }
+
+  /// Pending requests for another distribution in a program, by the failed round they follow.
+  Future<Map<String, RedistributionRequest>> fetchRedistributionRequests(String programId) async {
+    try {
+      final rows = await _client
+          .from('program_redistribution_requests')
+          .select('id, program_member_id, note, requested_at')
+          .eq('program_id', programId)
+          .eq('status', 'pending');
+      return {
+        for (final r in rows)
+          r['program_member_id'] as String: RedistributionRequest(
+            id: r['id'] as String,
+            memberId: r['program_member_id'] as String,
+            note: r['note'] as String? ?? '',
+            requestedAt: DateTime.tryParse(r['requested_at'] as String? ?? '')?.toLocal(),
+          ),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Approves a Farmer's request: starts the next distribution round. There is no decline.
+  Future<String?> approveRedistribution(String requestId) async {
+    await ServerOnly.ensureOnline();
+    final res = await _client.rpc('approve_program_redistribution', params: {'p_request_id': requestId});
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'redistributed',
+      message: const AdminLogMessage('adminLogProgramRedistributed'),
+      referenceId: requestId,
+    );
+    return res as String?;
+  }
+
+  /// Starts a NEW distribution for a Farmer whose Failed outcome was decided "Eligible for Reassessment".
+  /// The failed round stays in the history. Returns the new member id. A note is required.
+  Future<String?> redistributeMember({required String memberId, required String note}) async {
+    await ServerOnly.ensureOnline();
+    final res = await _client.rpc('redistribute_program_member', params: {
+      'p_member_id': memberId,
+      'p_note': note,
+    });
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'redistributed',
+      message: const AdminLogMessage('adminLogProgramRedistributed'),
+      referenceId: memberId,
+    );
+    return res as String?;
+  }
+
+  /// Saves what this member returns (the Inventory item and the quantity) before their item is
+  /// handed out. Null item = the program's default, else the item given. Harvest Return only.
+  Future<void> setMemberReturnArrangement({
+    required String programMemberId,
+    required String? returnItemId,
+    required double? returnQuantity,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'set_member_return_arrangement',
+      params: {
+        'p_member_id': programMemberId,
+        'p_return_item_id': returnItemId,
+        'p_return_quantity': returnQuantity,
+      },
+    );
   }
 
   /// Atomic via distribute_program_benefit() — see
@@ -441,12 +712,37 @@ class ProgramRepository {
   // Admin-side product management for a 'sales'-purpose program — see
   // program_products in supabase_schema_program_product_sales.sql.
 
+  /// The program's sales figures from ONE read of its purchases. A failed read gives none,
+  /// so the products still show.
+  Future<ProgramSalesSummary> fetchProgramSalesSummary(String programId) async {
+    try {
+      final rows = await _client
+          .from('program_product_purchases')
+          .select('product_id, farmer_id, status, quantity, total_amount, discount_amount')
+          .eq('program_id', programId);
+      return ProgramSalesSummary.fromRows(List<Map<String, dynamic>>.from(rows));
+    } catch (_) {
+      return const ProgramSalesSummary();
+    }
+  }
+
+  /// 'active' or 'completed'. Anything unreadable is treated as active, because the
+  /// database refuses a change to a completed program's products anyway.
+  Future<String> fetchProgramStatus(String programId) async {
+    try {
+      final rows = await _client.from('cooperative_programs').select('status').eq('id', programId).limit(1);
+      return rows.isEmpty ? 'active' : (rows.first['status'] as String? ?? 'active');
+    } catch (_) {
+      return 'active';
+    }
+  }
+
   Future<List<ProgramProduct>> fetchProgramProducts(String programId) async {
     try {
       final rows = await _client
           .from('program_products')
           .select(
-            'id, program_id, inventory_item_id, unit_price, is_available, '
+            'id, program_id, inventory_item_id, unit_price, is_available, stock_allocated, stock_reserved, '
             'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)',
           )
           .eq('program_id', programId)
@@ -471,7 +767,13 @@ class ProgramRepository {
   /// Catalog — a query-level exclusion (decision: keep cross-catalog
   /// separation adjustable without a migration, see
   /// supabase_schema_program_product_sales.sql), not a DB constraint.
-  Future<List<DistributionItem>> fetchEligibleInventoryForSaleProgram() async {
+  ///
+  /// [categories] are the program's "Distribute from" inventory categories: only
+  /// items in those categories are offered (none selected = none offered).
+  Future<List<DistributionItem>> fetchEligibleInventoryForSaleProgram({
+    required List<String> categories,
+  }) async {
+    if (categories.every((c) => c.trim().isEmpty)) return [];
     try {
       final results = await Future.wait([
         _client
@@ -489,37 +791,82 @@ class ProgramRepository {
           .map((r) => r['inventory_item_id'] as String?)
           .whereType<String>()
           .toSet();
-      return invRows
-          .where((r) => !loanItemIds.contains(r['id'] as String))
-          .map((r) => DistributionItem.fromMap(r))
-          .toList();
+      return itemsInSources(
+        invRows
+            .where((r) => !loanItemIds.contains(r['id'] as String))
+            .map((r) => DistributionItem.fromMap(r)),
+        categories,
+      );
     } catch (_) {
       return [];
     }
   }
 
-  Future<bool> addProgramProduct({
+  /// The program's "Distribute from" categories. Throws if it cannot be read.
+  Future<List<String>> fetchProgramSources(String programId) async {
+    final row = await _client
+        .from('cooperative_programs')
+        .select('source_categories')
+        .eq('id', programId)
+        .single();
+    return ((row['source_categories'] as List?) ?? const []).map((e) => '$e').toList();
+  }
+
+  /// Adds a product. Throws with the database's reason when refused (for example
+  /// an item outside the program's categories), so the screen can explain it.
+  Future<void> addProgramProduct({
     required String programId,
     required String inventoryItemId,
     required double unitPrice,
+    double allocated = 0,
   }) async {
-    try {
-      await _client.from('program_products').insert({
-        'program_id': programId,
-        'inventory_item_id': inventoryItemId,
-        'unit_price': unitPrice,
-        'created_by': _client.auth.currentUser?.id,
-      });
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'product_added',
-        message: const AdminLogMessage('adminLogProgramProductAdded'),
-        referenceId: programId,
-      );
-      return true;
-    } catch (_) {
-      return false;
+    final row = await _client
+        .from('program_products')
+        .insert({
+          'program_id': programId,
+          'inventory_item_id': inventoryItemId,
+          'unit_price': unitPrice,
+          'created_by': _client.auth.currentUser?.id,
+        })
+        .select('id')
+        .single();
+    // The stock for this program is set by a guarded function (the database checks that it
+    // fits what is on hand and not already set aside for something else).
+    if (allocated > 0) {
+      await setProductAllocation(productId: row['id'] as String, allocated: allocated);
     }
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'product_added',
+      message: const AdminLogMessage('adminLogProgramProductAdded'),
+      referenceId: programId,
+    );
+  }
+
+  /// Sets the stock for this program. Throws with the database's reason when refused
+  /// (more than is free, or less than open orders have reserved).
+  Future<void> setProductAllocation({required String productId, required double allocated}) async {
+    await _client.rpc('set_program_product_allocation', params: {
+      'p_product_id': productId,
+      'p_allocated': allocated,
+    });
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'product_stock_set',
+      message: const AdminLogMessage('adminLogProgramProductUpdated'),
+      referenceId: productId,
+    );
+  }
+
+  /// Gives the unsold part of the program stock back to the cooperative's shared stock.
+  Future<void> releaseProductAllocation(String productId) async {
+    await _client.rpc('release_program_product_allocation', params: {'p_product_id': productId});
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'product_stock_released',
+      message: const AdminLogMessage('adminLogProgramProductUpdated'),
+      referenceId: productId,
+    );
   }
 
   Future<bool> updateProgramProduct({
@@ -544,63 +891,112 @@ class ProgramRepository {
     }
   }
 
-  Future<bool> removeProgramProduct(String productId) async {
+  // Cooperative Product orders are handled in Marketplace > Orders
+  // (CooperativeOrderRepository): there is no separate purchase review here any more.
+
+  // The Manager and Officer cannot cancel a purchase request: only the Farmer who
+  // made it can (the database refuses staff too).
+
+  // ─── One member's participation (the Member details view) ────────────────
+
+  /// When a member asked to join and who approved it. Null when there is no approved
+  /// request (a member the cooperative added directly).
+  Future<MemberJoinInfo?> fetchMemberJoinInfo(String programId, String farmerId) async {
     try {
-      await _client.from('program_products').delete().eq('id', productId);
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'product_removed',
-        message: const AdminLogMessage('adminLogProgramProductRemoved'),
-        referenceId: productId,
+      final rows = await _client
+          .from('program_enrollment_requests')
+          .select('submitted_at, reviewed_at, reviewed_by')
+          .eq('program_id', programId)
+          .eq('farmer_id', farmerId)
+          .eq('status', 'approved')
+          .order('reviewed_at', ascending: false)
+          .limit(1);
+      if (rows.isEmpty) return null;
+      final r = rows.first;
+      String? name;
+      String? role;
+      final by = r['reviewed_by'] as String?;
+      if (by != null) {
+        try {
+          final info = await _client
+              .from('user_information')
+              .select('full_name')
+              .eq('user_id', by)
+              .limit(1);
+          if (info.isNotEmpty) name = info.first['full_name'] as String?;
+          final roles = await _client
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', by)
+              .limit(1);
+          if (roles.isNotEmpty) role = roles.first['role'] as String?;
+        } catch (_) {}
+      }
+      return MemberJoinInfo(
+        requestedAt: r['submitted_at'] != null ? DateTime.tryParse('${r['submitted_at']}')?.toLocal() : null,
+        reviewedAt: r['reviewed_at'] != null ? DateTime.tryParse('${r['reviewed_at']}')?.toLocal() : null,
+        reviewerName: name,
+        reviewerRole: role,
       );
-      return true;
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
-  // ─── Purchase review (Cooperative Product Sales Program) ────────────────
-  // Admin-wide — spans every 'sales' program, not just one, since an admin
-  // reviewing payment confirmations wants one place to see all of them.
+  /// Every member's purchase figures for one Product Sales program, from ONE read (not one
+  /// per member). A failed read gives none, so the member list still shows.
+  Future<Map<String, MemberPurchaseSummary>> fetchPurchaseSummaries(String programId) async {
+    try {
+      final rows = await _client
+          .from('program_product_purchases')
+          .select('farmer_id, status, total_amount, discount_amount')
+          .eq('program_id', programId);
+      return MemberPurchaseSummary.group(List<Map<String, dynamic>>.from(rows));
+    } catch (_) {
+      return {};
+    }
+  }
 
-  Future<List<ProgramPurchase>> fetchPurchasesByStatus(String status) async {
+  /// The latest reminder sent for each member of a program. A failed read (or a database
+  /// without p20) gives none, so the member list still shows.
+  Future<Map<String, ProgramReportReminder>> fetchLastReminders(String programId) async {
+    try {
+      final rows = await _client
+          .from('program_report_reminders')
+          .select('program_member_id, created_at, sent_by_role')
+          .eq('program_id', programId);
+      return ProgramReportReminder.latest(List<Map<String, dynamic>>.from(rows));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Reminds the Farmer to submit their outcome report. The database allows one per
+  /// distributed item per calendar day and records it in the Accountability Log; its
+  /// reason is thrown to the screen if it refuses.
+  Future<void> remindReport(String programMemberId) async {
+    await _client.rpc('remind_program_report', params: {'p_program_member_id': programMemberId});
+  }
+
+  /// One Farmer's purchases in one Product Sales program, newest first.
+  Future<List<ProgramPurchase>> fetchMemberPurchases(String programId, String farmerId) async {
     try {
       final rows = await _client
           .from('program_product_purchases')
           .select(
-            'id, program_id, product_id, farmer_id, quantity, unit_price, '
-              'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
-              'cooperative_programs(program_name), '
-            'program_products(cooperative_inventory(item_name, unit, image_url))',
+            '*, program_products(cooperative_inventory(item_name, unit, image_url))',
           )
-          .eq('status', status)
-          .order('requested_at', ascending: status != 'pending');
-      if (rows.isEmpty) return [];
-
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', farmerIds);
-      final nameMap = {
-        for (final r in infoRows)
-          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown',
-      };
-
-      return rows.map((r) {
-        final program = r['cooperative_programs'] as Map<String, dynamic>?;
+          .eq('program_id', programId)
+          .eq('farmer_id', farmerId)
+          .order('requested_at', ascending: false);
+      return rows.map<ProgramPurchase>((r) {
         final product = r['program_products'] as Map<String, dynamic>?;
         final inv = product?['cooperative_inventory'] as Map<String, dynamic>?;
         return ProgramPurchase.fromMap({
           ...r,
-          'program_name': program?['program_name'],
           'item_name': inv?['item_name'],
           'unit': inv?['unit'],
           'image_url': inv?['image_url'],
-          'farmer_name': nameMap[r['farmer_id'] as String],
         });
       }).toList();
     } catch (_) {
@@ -608,185 +1004,134 @@ class ProgramRepository {
     }
   }
 
-  /// Moves a pending purchase to 'paid' and deducts stock — see
-  /// confirm_program_purchase() in supabase_schema_program_product_sales.sql.
-  /// Deliberately uncaught, same reasoning as issueLoan()/distributeBenefit():
-  /// a stock-moving, real-money write failing silently would let inventory
-  /// and the purchase record disagree.
-  Future<void> confirmPurchase(String purchaseId) async {
-    await _client.rpc(
-      'confirm_program_purchase',
-      params: {'p_purchase_id': purchaseId},
-    );
-    AdminActivityRepository().log(
-      module: 'programs',
-      actionType: 'purchase_confirmed',
-      message: const AdminLogMessage('adminLogProgramPurchaseConfirmed'),
-      referenceId: purchaseId,
-    );
-  }
+  // ─── Outcome reports: review, field verification, final decision ─────────
+  // Every rule (who may do what, reviewer ≠ verifier, both steps before the
+  // final decision) is enforced by the database functions; these methods only
+  // carry the request and hand back the database's own reason when refused.
 
-  // p_reason has no default on the DB function (confirmed live:
-  // cancel_program_purchase(p_purchase_id uuid, p_reason text)), so it must
-  // always be supplied — omitting it previously meant PostgREST couldn't
-  // match the function overload and every cancellation silently failed.
-  Future<bool> cancelPurchase(String purchaseId, String reason) async {
+  Future<T> _outcomeCall<T>(Future<T> Function() action) async {
     try {
-      await _client.rpc(
-        'cancel_program_purchase',
-        params: {'p_purchase_id': purchaseId, 'p_reason': reason},
-      );
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'purchase_cancelled',
-        message: const AdminLogMessage('adminLogProgramPurchaseCancelled'),
-        referenceId: purchaseId,
-      );
-      return true;
+      await ServerOnly.ensureOnline();
     } catch (_) {
-      return false;
+      throw const OutcomeActionException('offline', offline: true);
+    }
+    try {
+      return await action();
+    } on PostgrestException catch (e) {
+      throw OutcomeActionException(e.message);
     }
   }
 
-  // ─── Revenue-share settlement ───────────────────────────────────────────
+  /// All outcome reports (or one program's), newest first. Throws on failure
+  /// so the screen can show an error with Retry.
+  Future<List<OutcomeReport>> fetchOutcomeReports({String? programId}) async {
+    final res = await _client.rpc(
+      'get_program_outcome_reports',
+      params: {'p_program_id': programId},
+    );
+    return (res as List)
+        .map((r) => OutcomeReport.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
 
-  Future<void> confirmProgramReturn({
-    required String programMemberId,
-    required double amountReturned,
-    String? adminNotes,
-  }) async {
-    await _client.rpc(
-      'confirm_program_return',
+  Future<void> reviewOutcome({
+    required String reportId,
+    required bool validate,
+    String? note,
+  }) => _outcomeCall(
+    () => _client.rpc(
+      'review_program_outcome',
       params: {
-      'p_program_member_id': programMemberId,
-      'p_amount_returned': amountReturned,
-      'p_admin_notes': adminNotes,
+        'p_report_id': reportId,
+        'p_decision': validate ? 'validated' : 'returned',
+        'p_note': note,
       },
-    );
-    AdminActivityRepository().log(
-      module: 'programs',
-      actionType: 'return_confirmed',
-      message: AdminLogMessage('adminLogProgramReturnConfirmed', {'amount': amountReturned.toStringAsFixed(2)}),
-      referenceId: programMemberId,
-    );
-  }
+    ),
+  );
 
-  // ─── Distribution outcome (Phase 8 / Issue 3's Loan/ROI workflow) ───────
-  // 'thriving' goes through record_program_thriving_outcome(), which marks the
-  // member eligible for the Revenue Share settlement above and notifies the
-  // farmer in the same transaction (batch9_01). 'failed' needs an RPC because
-  // it must atomically create the farmer_loans row and mark the distribution
-  // converted in one transaction — see convertDistributionToLoan() below.
-
-  Future<bool> recordThrivingOutcome(String programMemberId) async {
-    try {
-      await _client.rpc(
-        'record_program_thriving_outcome',
-        params: {'p_program_member_id': programMemberId},
-      );
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'outcome_recorded',
-        message: const AdminLogMessage('adminLogProgramOutcomeThriving'),
-        referenceId: programMemberId,
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Converts a failed distribution into a farmer_loans entry via
-  /// convert_program_distribution_to_loan() — see
-  /// supabase_schema_program_loan_roi_workflow.sql. Deliberately does not
-  /// deduct inventory again: the stock was already taken at distribution
-  /// time by distributeBenefit().
-  Future<bool> convertDistributionToLoan({
-    required String programMemberId,
-    required double monthlyPayment,
-    required DateTime nextPaymentDate,
-    String? notes,
+  Future<void> verifyOutcome({
+    required String reportId,
+    required bool confirms,
+    double? measuredQuantity,
+    String? measuredUnit,
+    required DateTime fieldVisitDate,
+    required String note,
+    List<PickedPhoto> photos = const [],
   }) async {
     try {
+      await ServerOnly.ensureOnline();
+    } catch (_) {
+      throw const OutcomeActionException('offline', offline: true);
+    }
+    final evidence = OutcomeEvidenceService();
+    final paths = <String>[];
+    try {
+      for (final p in photos) {
+        paths.add(await evidence.upload(p.bytes, p.extension));
+      }
       await _client.rpc(
-        'convert_program_distribution_to_loan',
+        'verify_program_outcome',
         params: {
-        'p_program_member_id': programMemberId,
-        'p_monthly_payment': monthlyPayment,
-          'p_next_payment_date': nextPaymentDate
-              .toIso8601String()
-              .split('T')
-              .first,
-        'p_notes': notes,
+          'p_report_id': reportId,
+          'p_finding': confirms ? 'confirms' : 'disputes',
+          'p_verified_quantity': measuredQuantity,
+          'p_verified_unit': measuredUnit,
+          'p_field_visit_date': fieldVisitDate.toIso8601String().split('T').first,
+          'p_note': note,
+          'p_photo_paths': paths,
         },
       );
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'converted_to_loan',
-        message: const AdminLogMessage('adminLogProgramConvertedToLoan'),
-        referenceId: programMemberId,
-      );
-      return true;
-    } catch (_) {
-      return false;
+    } on PostgrestException catch (e) {
+      await evidence.removeAll(paths);
+      throw OutcomeActionException(e.message);
+    } catch (e) {
+      await evidence.removeAll(paths);
+      throw OutcomeActionException('$e');
     }
   }
 
-  // ─── Program activities ──────────────────────────────────────────────────
+  /// Confirms the outcome. The decision is made here, after the field
+  /// verification: for a Successful Harvest Return the quantity and unit to
+  /// return; for a Failed outcome one of the four cooperative decisions.
+  Future<void> finalizeOutcome({
+    required String reportId,
+    required bool successful,
+    String? note,
+    double? returnQuantity,
+    String? returnUnit,
+    String? resolution,
+    String? resolutionNote,
+  }) => _outcomeCall(
+    () => _client.rpc(
+      'finalize_program_outcome',
+      params: {
+        'p_report_id': reportId,
+        'p_final_outcome': successful ? 'successful' : 'failed',
+        'p_note': note,
+        'p_return_quantity': successful ? returnQuantity : null,
+        'p_return_unit': successful ? returnUnit : null,
+        'p_resolution': successful ? null : resolution,
+        'p_resolution_note': successful ? null : resolutionNote,
+      },
+    ),
+  );
 
-  Future<List<ProgramActivity>> fetchActivities(String programId) async {
-    try {
-      final rows = await _client
-          .from('program_activities')
-          .select()
-          .eq('program_id', programId)
-          .order('activity_date', ascending: true);
-      return rows.map((r) => ProgramActivity.fromMap(r)).toList();
-    } catch (_) {
-      return [];
-    }
-  }
+  /// Short-lived links for evidence photos (the bucket is private).
+  Future<Map<String, String>> evidenceUrls(List<String> paths) =>
+      OutcomeEvidenceService().signedUrls(paths);
 
-  Future<bool> createActivity({
-    required String programId,
-    required String title,
-    String? description,
-    required DateTime activityDate,
-    String? location,
-  }) async {
-    try {
-      await _client.from('program_activities').insert({
-        'program_id': programId,
-        'title': title.trim(),
-        'description': description?.trim(),
-        'activity_date': activityDate.toIso8601String().split('T').first,
-        'location': location?.trim(),
-        'created_by': _client.auth.currentUser?.id,
-      });
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'activity_created',
-        message: AdminLogMessage('adminLogProgramActivityCreated', {'title': title.trim()}),
-        referenceId: programId,
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> deleteActivity(String activityId) async {
-    try {
-      await _client.from('program_activities').delete().eq('id', activityId);
-      AdminActivityRepository().log(
-        module: 'programs',
-        actionType: 'activity_deleted',
-        message: const AdminLogMessage('adminLogProgramActivityDeleted'),
-        referenceId: activityId,
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
+  // ─── Program history (staff-only) ────────────────────────────────────────
+  // One per-program view over the existing accountability trail — see
+  // get_program_history() in supabase_schema_program_rework_5a_creation_history.sql.
+  // Throws on failure so the History sheet can show an error with Retry
+  // instead of an empty list that looks like "nothing happened".
+  Future<List<ProgramHistoryEntry>> fetchProgramHistory(String programId) async {
+    final rows = await _client.rpc(
+      'get_program_history',
+      params: {'p_program_id': programId},
+    );
+    return (rows as List)
+        .map((r) => ProgramHistoryEntry.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
   }
 }

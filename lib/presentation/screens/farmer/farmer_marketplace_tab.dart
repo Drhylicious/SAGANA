@@ -6,12 +6,16 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/buyer_listing_model.dart';
+import '../../../data/models/cooperative_product_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
+import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/animated_pressable.dart';
 import '../../widgets/guest_prompt.dart';
+import '../../widgets/product_card.dart';
+import '../../../core/utils/order_status.dart' show kOrderSourceCooperative, kOrderSourceMarketplace;
 import '../../widgets/skeleton.dart';
 
 /// Farmer-as-buyer Marketplace tab (Phase 9) — mirrors Buyer's
@@ -38,11 +42,16 @@ class FarmerMarketplaceTab extends StatefulWidget {
 
 class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   final _repository = BuyerMarketplaceRepository();
+  final _programRepo = FarmerProgramRepository();
   final _cartService = CartService();
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
   List<BuyerListingModel> _allListings = [];
+  // Cooperative Products (Product Sales programs): shown here, with the listings, to Farmers only.
+  List<CooperativeProduct> _allProducts = [];
+  // null = both sources.
+  String? _sourceFilter;
   String _searchQuery = '';
   String _selectedCategory = 'All';
   int _cartCount = 0;
@@ -68,9 +77,14 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final listings = await _repository.fetchApprovedListings();
+    // A guest has no account and the database shows Cooperative Products to Farmers only.
+    final products = GuestModeService.active
+        ? <CooperativeProduct>[]
+        : await _programRepo.fetchCooperativeProducts();
     if (!mounted) return;
     setState(() {
       _allListings = listings;
+      _allProducts = products;
       _isLoading = false;
     });
   }
@@ -84,16 +98,32 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   // Same "only categories actually present" rule as Buyer Browse — never a
   // filter chip guaranteed to return zero results.
   List<String> get _availableCategories {
-    final cats = _allListings
-        .map((l) => l.category)
-        .whereType<String>()
-        .toSet()
-        .toList()
+    final cats = <String>{
+      for (final l in _allListings)
+        if (_sourceFilter != kOrderSourceCooperative && l.category != null) l.category!,
+      for (final p in _allProducts)
+        if (_sourceFilter != kOrderSourceMarketplace && p.category.trim().isNotEmpty) p.category.trim(),
+    }.toList()
       ..sort();
     return ['All', ...cats];
   }
 
+  bool get _showListings => _sourceFilter != kOrderSourceCooperative;
+  bool get _showProducts => _sourceFilter != kOrderSourceMarketplace;
+
+  List<CooperativeProduct> get _filteredProducts {
+    if (!_showProducts) return const [];
+    return _allProducts.where((p) {
+      final matchesCategory = _selectedCategory == 'All' || p.category.trim() == _selectedCategory;
+      final matchesSearch = _searchQuery.isEmpty ||
+          p.itemName.toLowerCase().contains(_searchQuery) ||
+          p.programName.toLowerCase().contains(_searchQuery);
+      return matchesCategory && matchesSearch;
+    }).toList();
+  }
+
   List<BuyerListingModel> get _filteredListings {
+    if (!_showListings) return const [];
     return _allListings.where((l) {
       final matchesCategory =
           _selectedCategory == 'All' || l.category == _selectedCategory;
@@ -121,6 +151,8 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final filtered = _filteredListings;
+    final products = _filteredProducts;
+    final nothingAtAll = _allListings.isEmpty && _allProducts.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +161,12 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: _buildHeader(l10n),
         ),
-        if (_allListings.isNotEmpty) ...[
+        // Only when Cooperative Products exist: which source to browse.
+        if (_allProducts.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _buildSourceChips(l10n),
+        ],
+        if (!nothingAtAll) ...[
           const SizedBox(height: 14),
           _buildCategoryChips(),
         ],
@@ -141,11 +178,11 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
                   padding: EdgeInsets.symmetric(vertical: 40),
                   child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
                 )
-              : _allListings.isEmpty
+              : nothingAtAll
                   ? _buildEmptyState(l10n, isFilterEmpty: false)
-                  : filtered.isEmpty
+                  : (filtered.isEmpty && products.isEmpty)
                       ? _buildEmptyState(l10n, isFilterEmpty: true)
-                      : _buildGrid(l10n, filtered),
+                      : _buildGrid(l10n, filtered, products),
         ),
       ],
     );
@@ -171,7 +208,16 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
+        IconButton(
+          key: const Key('myOrdersShortcut'),
+          tooltip: AppLocalizations.of(context).uoMyOrdersShortcut,
+          icon: const Icon(Icons.receipt_long_outlined, color: AppConstants.primaryGreen, size: 24),
+          onPressed: () async {
+            await context.push(AppRoutes.farmerMyOrders);
+            _loadCartCount();
+          },
+        ),
         _CartIconButton(count: _cartCount, onTap: _openCart),
       ],
     );
@@ -221,23 +267,83 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
     );
   }
 
-  Widget _buildGrid(AppLocalizations l10n, List<BuyerListingModel> listings) {
+  // Marketplace listings first, then Cooperative Products: the same card, the same grid.
+  Widget _buildGrid(
+    AppLocalizations l10n,
+    List<BuyerListingModel> listings,
+    List<CooperativeProduct> products,
+  ) {
     return GridView.builder(
       shrinkWrap: true,
       // No automatic status-bar padding: this list sits inside a bigger scroll view.
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.68,
-      ),
-      itemCount: listings.length,
-      itemBuilder: (context, i) => _ListingCard(
-        listing: listings[i],
-        isOwn: listings[i].farmerId != null && listings[i].farmerId == _currentUserId,
-        onReturn: _loadCartCount,
+      // Same grid as every other product screen (see ProductCard).
+      gridDelegate: ProductCard.gridDelegate,
+      itemCount: listings.length + products.length,
+      itemBuilder: (context, i) {
+        if (i < listings.length) {
+          return _ListingCard(
+            listing: listings[i],
+            isOwn: listings[i].farmerId != null && listings[i].farmerId == _currentUserId,
+            onReturn: _loadCartCount,
+          );
+        }
+        return _CooperativeProductCard(
+          product: products[i - listings.length],
+          onReturn: () {
+            _loadCartCount();
+            _load();
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSourceChips(AppLocalizations l10n) {
+    Widget chip(String? value, String label) {
+      final selected = _sourceFilter == value;
+      return AnimatedPressable(
+        onTap: () => setState(() {
+          _sourceFilter = value;
+          _selectedCategory = 'All';
+        }),
+        scaleDown: 0.95,
+        child: Container(
+          key: Key('source_${value ?? 'all'}'),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? AppConstants.programPurple : Colors.white,
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            border: Border.all(
+              color: selected ? AppConstants.programPurple : AppConstants.outline.withValues(alpha: 0.25),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : AppConstants.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          chip(null, l10n.cpFilterAll),
+          const SizedBox(width: 8),
+          chip(kOrderSourceMarketplace, l10n.cpFilterMarketplace),
+          const SizedBox(width: 8),
+          chip(kOrderSourceCooperative, l10n.cpFilterCooperative),
+        ],
       ),
     );
   }
@@ -271,8 +377,10 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Listing Card — same visual shape as Buyer Browse's _ListingCard, plus the
-// disabled/"Your Listing" state for a farmer's own approved listings.
+// Listing Card — the shared ProductCard (same card as Buyer Browse and the
+// Product Sales catalog), plus this tab's own "YOURS" badge for a farmer's own
+// approved listing. Tapping still opens Listing Details, where the purchase is
+// blocked for an own listing (and by place_order() in the database).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ListingCard extends StatelessWidget {
@@ -291,122 +399,76 @@ class _ListingCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final soldOut = listing.isSoldOut;
 
-    return AnimatedPressable(
-      onTap: () => _open(context),
-      scaleDown: 0.97,
-      child: Opacity(
-        opacity: soldOut ? 0.55 : 1.0,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: AppConstants.cardBorder,
-            boxShadow: AppConstants.cardShadow,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // The photo takes whatever height the details leave, so the text
-              // below is never clipped by the grid cell.
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    listing.listingPhotoUrl != null
-                        ? Image.network(
-                            listing.listingPhotoUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: AppConstants.limeGreen,
-                              child: const Icon(Icons.eco_rounded, size: 32),
-                            ),
-                          )
-                        : Container(
-                            color: AppConstants.limeGreen,
-                            child: const Icon(Icons.eco_rounded, size: 32),
-                          ),
-                    if (isOwn)
-                      Positioned(
-                        top: 8, left: 8,
-                        child: _Badge(label: l10n.farmerBrowseOwnListingBadge, color: AppConstants.primaryGreen),
-                      )
-                    else if (soldOut)
-                      Positioned(
-                        top: 8, left: 8,
-                        child: _Badge(label: l10n.buyerBrowseSoldOut, color: AppConstants.errorRed),
-                      )
-                    else if (listing.isLowStock)
-                      Positioned(
-                        top: 8, left: 8,
-                        child: _Badge(label: l10n.buyerBrowseLowStock, color: AppConstants.warningAmber),
-                      ),
-                  ],
-                ),
-              ),
-              // Same field order/content as Buyer Browse's own card (Phase —
-              // Browse-tab rework): name, then price + cumulative units sold
-              // on one row, then market type, then available qty. The
-              // farmer-only addition is just the "isOwn" badge above; no
-              // extra CTA button here — same tap-anywhere-on-card
-              // interaction as Buyer's card, which dropped its own button.
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      listing.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 1),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              formatPricePerUnit(listing.pricePerKg, listing.unit),
-                              maxLines: 1,
-                              style: GoogleFonts.poppins(
-                                fontSize: 14, fontWeight: FontWeight.w800,
-                                color: AppConstants.primaryGreen,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.buyerBrowseUnitsSold(
-                            formatQuantityUnit(listing.soldKg, listing.unit),
-                          ),
-                          style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      listing.marketTypeLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+    final String? badge = isOwn
+        ? l10n.farmerBrowseOwnListingBadge
+        : soldOut
+        ? l10n.buyerBrowseSoldOut
+        : listing.isLowStock
+        ? l10n.buyerBrowseLowStock
+        : null;
+    final Color badgeColor = isOwn
+        ? AppConstants.primaryGreen
+        : soldOut
+        ? AppConstants.errorRed
+        : AppConstants.warningAmber;
+
+    return ProductCard(
+      name: listing.displayName,
+      imageUrl: listing.listingPhotoUrl,
+      priceText: formatPricePerUnit(listing.pricePerKg, listing.unit),
+      buyersText: l10n.catBuyers(listing.buyers),
+      marketTypeText: '${l10n.uoSourceMarketplace} · ${listing.marketTypeLabel}',
+      availableText:
+          '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
+      soldText: l10n.buyerBrowseUnitsSold(
+        formatQuantityUnit(listing.soldKg, listing.unit),
       ),
+      soldOut: soldOut,
+      badgeLabel: badge,
+      badgeColor: badgeColor,
+      onTap: () => _open(context),
+    );
+  }
+}
+
+/// A Cooperative Product: the same shared card, labelled so it is never mistaken for a
+/// Marketplace listing, with the member price when the Farmer is an enrolled member.
+class _CooperativeProductCard extends StatelessWidget {
+  final CooperativeProduct product;
+  final VoidCallback? onReturn;
+  const _CooperativeProductCard({required this.product, this.onReturn});
+
+  Future<void> _open(BuildContext context) async {
+    await context.push(AppRoutes.farmerCooperativeProduct, extra: product);
+    onReturn?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final p = product;
+    final String? hint = p.memberPriceApplies
+        ? l10n.prodRegularPrice(formatPesos(p.regularPrice))
+        : p.hasMemberDiscount
+            ? l10n.cpMemberPriceHint(formatPesos(p.memberPrice))
+            : null;
+    return ProductCard(
+      key: Key('coopProduct_${p.productId}'),
+      name: p.itemName,
+      imageUrl: p.imageUrl,
+      placeholderIcon: Icons.inventory_2_outlined,
+      priceText: formatPricePerUnit(p.payPrice, p.unit),
+      priceColor: p.memberPriceApplies ? AppConstants.successGreen : AppConstants.primaryGreen,
+      hintText: hint,
+      hintColor: p.memberPriceApplies ? null : AppConstants.programPurple,
+      buyersText: l10n.catBuyers(p.buyers),
+      marketTypeText: '${l10n.cpSourceLabel} · ${p.programName}',
+      availableText: '${formatQuantityUnit(p.availableToSell, p.unit)} ${l10n.buyerBrowseAvailableSuffix}',
+      soldText: l10n.buyerBrowseUnitsSold(formatQuantityUnit(p.soldQuantity, p.unit)),
+      soldOut: p.isOutOfStock,
+      badgeLabel: p.isOutOfStock ? l10n.buyerBrowseSoldOut : null,
+      badgeColor: AppConstants.errorRed,
+      onTap: () => _open(context),
     );
   }
 }
@@ -444,27 +506,6 @@ class _CartIconButton extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Badge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
-      ),
     );
   }
 }

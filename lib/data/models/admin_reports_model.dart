@@ -108,6 +108,13 @@ class PerformanceSummary {
   final double totalExpenses;
   final double memberParticipationPercent;
 
+  /// What members paid for Cooperative Products (Product Sales programs) in the period. Kept
+  /// apart from the selling channels and from the Marketplace figure.
+  final double productSalesAmount;
+
+  /// Completed orders in the period: Marketplace and Cooperative Product orders together.
+  final int completedOrders;
+
   const PerformanceSummary({
     required this.totalHarvestKg,
     required this.totalSalesAmount,
@@ -116,6 +123,8 @@ class PerformanceSummary {
     required this.activeLoanOutstanding,
     required this.totalExpenses,
     required this.memberParticipationPercent,
+    this.productSalesAmount = 0,
+    this.completedOrders = 0,
   });
 
   factory PerformanceSummary.empty() => const PerformanceSummary(
@@ -126,6 +135,110 @@ class PerformanceSummary {
     activeLoanOutstanding: 0,
     totalExpenses: 0,
     memberParticipationPercent: 0,
+  );
+}
+
+/// What members bought from the cooperative through Product Sales programs (completed orders
+/// only), for a period. It is its own figure: it is not one of the four selling channels and it
+/// is not Marketplace revenue. Delivery fees are not part of it.
+class ProductSalesSummary {
+  final double amount;
+  final int orders;
+
+  /// Different Farmers who bought.
+  final int buyers;
+
+  const ProductSalesSummary({
+    required this.amount,
+    required this.orders,
+    required this.buyers,
+  });
+
+  double get averageOrder => orders > 0 ? amount / orders : 0;
+
+  static const empty = ProductSalesSummary(amount: 0, orders: 0, buyers: 0);
+}
+
+/// One completed Cooperative Product order, as a line of the Cooperative Product Sales report.
+class ProductSaleRow {
+  final String id;
+  final String orderNumber;
+  final String farmerName;
+  final String itemName;
+  final String? programName;
+  final double quantity;
+  final String unit;
+  final double amount;
+  final DateTime saleDate;
+
+  const ProductSaleRow({
+    required this.id,
+    required this.orderNumber,
+    required this.farmerName,
+    required this.itemName,
+    this.programName,
+    required this.quantity,
+    required this.unit,
+    required this.amount,
+    required this.saleDate,
+  });
+}
+
+/// The Cooperative Product Sales report of a period: the figures and every sale behind them.
+class ProductSalesReportData {
+  final ProductSalesSummary summary;
+  final List<ProductSaleRow> rows;
+
+  const ProductSalesReportData({required this.summary, required this.rows});
+
+  static const empty = ProductSalesReportData(summary: ProductSalesSummary.empty, rows: []);
+}
+
+/// The Dashboard Overview: the figure of each of the six Management Modules, and the Revenue.
+/// Everything follows the CURRENT YEAR and starts again each January (like the Marketplace and
+/// Loans figures), so a year never piles onto the last one.
+class DashboardOverview {
+  /// Inventory Management: inventory items in use.
+  final int inventoryItems;
+
+  /// Crop Management: crops in use.
+  final int crops;
+
+  /// Program Management: programs of this year's season.
+  final int programs;
+
+  /// Marketplace revenue plus Cooperative Product sales, this year.
+  final double revenue;
+
+  /// Supply Chain Management: supplies tracked this year. Incoming and outgoing
+  /// movements that really happened (Total Supplies = incoming + outgoing).
+  final int suppliesIncoming;
+  final int suppliesOutgoing;
+
+  /// Incoming plus outgoing supplies of the year.
+  int get totalSupplies => suppliesIncoming + suppliesOutgoing;
+
+  /// Price Management: retail prices entered this year, Public Market and Cooperative Market.
+  final int retailPrices;
+
+  const DashboardOverview({
+    required this.inventoryItems,
+    required this.crops,
+    required this.programs,
+    required this.revenue,
+    required this.suppliesIncoming,
+    required this.suppliesOutgoing,
+    required this.retailPrices,
+  });
+
+  static const empty = DashboardOverview(
+    inventoryItems: 0,
+    crops: 0,
+    programs: 0,
+    revenue: 0,
+    suppliesIncoming: 0,
+    suppliesOutgoing: 0,
+    retailPrices: 0,
   );
 }
 
@@ -435,6 +548,10 @@ class MemberContributionRow {
   /// above (farmer sells TO the coop via Offer to Cooperative). Shown as
   /// its own line, never folded into the sales-based total.
   final double programPurchasesAmount;
+  // For display only: the member-price purchases at the regular price and the
+  // discount given (regular - discount = programPurchasesAmount).
+  final double programRegularAmount;
+  final double programDiscountAmount;
 
   /// This member's share of the year's total Product Sales Program
   /// purchases across all members — computed the same way sharePercent
@@ -453,6 +570,8 @@ class MemberContributionRow {
     this.otherCropsQtyKg = 0,
     this.otherCropsAmount = 0,
     this.programPurchasesAmount = 0,
+    this.programRegularAmount = 0,
+    this.programDiscountAmount = 0,
     this.purchaseSharePercent = 0,
   });
 
@@ -463,6 +582,11 @@ class MemberContributionRow {
   /// should be judged by, so the report doesn't read as biased toward
   /// whichever side happens to be shown first.
   double get combinedTotalAmount => totalAmount + programPurchasesAmount;
+
+  /// The effective discount rate on this farmer's member-price purchases:
+  /// discount given as a share of the regular price (0 when there is none).
+  double get programDiscountRatePercent =>
+      programRegularAmount > 0 ? programDiscountAmount / programRegularAmount * 100 : 0;
 
   bool get hasAnyActivity => combinedTotalAmount > 0;
 }
@@ -696,6 +820,8 @@ class CoopStockReportRow {
   final String id;
   final String itemName;
   final String category;
+  // 'crop' or 'non_crop', from Inventory Management.
+  final String itemType;
   final String unit;
   final double quantityOnHand;
   final double reorderLevel;
@@ -708,6 +834,7 @@ class CoopStockReportRow {
     required this.id,
     required this.itemName,
     required this.category,
+    this.itemType = 'non_crop',
     required this.unit,
     required this.quantityOnHand,
     required this.reorderLevel,
@@ -723,12 +850,19 @@ class CoopStockReportData {
   final int lowStockCount;
   final Map<String, int> categoryCounts;
   final List<CoopStockReportRow> items;
+  // How many items are of each Item Type (their sum is [totalItems]).
+  final int seedsItemCount;
+  final int produceItemCount;
+  final int nonCropItemCount;
 
   const CoopStockReportData({
     required this.totalItems,
     required this.lowStockCount,
     required this.categoryCounts,
     required this.items,
+    this.seedsItemCount = 0,
+    this.produceItemCount = 0,
+    this.nonCropItemCount = 0,
   });
 
   static const empty = CoopStockReportData(

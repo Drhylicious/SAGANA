@@ -1,3 +1,4 @@
+import '../../widgets/order_payment_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -138,6 +139,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           if (order.deliveryPhotoUrl != null) ...[
             const SizedBox(height: 16),
             _buildDeliveryPhoto(order, l10n),
+          ],
+          // The cash is recorded by the cooperative first; only then can receipt be confirmed.
+          if (order.isWaitingForPayment) ...[
+            const SizedBox(height: 16),
+            const WaitingForPaymentCard(),
+          ],
+          if (order.isPaymentRecorded) ...[
+            const SizedBox(height: 16),
+            OrderPaymentCard(
+              paymentStatus: order.paymentStatus,
+              itemsTotal: order.totalPrice,
+              amountCollected: order.amountCollected,
+              deliveryFee: order.deliveryFeeCollected,
+              paidAt: order.paidAt,
+            ),
+          ],
+          if (order.completionMethod == 'staff') ...[
+            const SizedBox(height: 16),
+            const StaffCompletionCard(showStaffIdentity: false),
           ],
           if (order.canConfirmReceipt) ...[
             const SizedBox(height: 16),

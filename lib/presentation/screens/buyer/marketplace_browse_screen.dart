@@ -15,6 +15,7 @@ import '../../widgets/animated_pressable.dart';
 import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/guest_prompt.dart';
+import '../../widgets/product_card.dart';
 import '../../widgets/skeleton.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/table_change_watcher.dart';
@@ -375,15 +376,8 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
         100,
       ),
       sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          // Buyer Browse-tab rework: card content is now name, price+sold
-          // row, market type, available — one more line than the earlier
-          // 0.72 tuning accounted for; loosened further to fit it.
-          childAspectRatio: 0.68,
-        ),
+        // Same grid as every other product screen (see ProductCard).
+        gridDelegate: ProductCard.gridDelegate,
         delegate: SliverChildBuilderDelegate(
           (context, i) =>
               _ListingCard(listing: listings[i], onReturn: _loadCartCount),
@@ -438,7 +432,8 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Listing Card
+// Listing Card — the shared ProductCard (same card as the Farmer Marketplace and
+// the Product Sales catalog); only the data and the tap are this screen's own.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ListingCard extends StatelessWidget {
@@ -456,139 +451,25 @@ class _ListingCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final soldOut = listing.isSoldOut;
 
-    return AnimatedPressable(
-      onTap: () => _open(context),
-      scaleDown: 0.97,
-      child: Opacity(
-        opacity: soldOut ? 0.55 : 1.0,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: AppConstants.cardBorder,
-            boxShadow: AppConstants.cardShadow,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Photo + badges ──────────────────────────────────────────
-              // The photo takes whatever height the details leave, so the text
-              // below is never clipped by the grid cell (a fixed ratio did that
-              // once the price wrapped or the phone used a larger font).
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    listing.listingPhotoUrl != null
-                        ? Image.network(
-                            listing.listingPhotoUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: AppConstants.limeGreen,
-                              child: const Icon(Icons.eco_rounded, size: 32),
-                            ),
-                          )
-                        : Container(
-                            color: AppConstants.limeGreen,
-                            child: const Icon(Icons.eco_rounded, size: 32),
-                          ),
-                    if (soldOut)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: _Badge(
-                          label: l10n.buyerBrowseSoldOut,
-                          color: AppConstants.errorRed,
-                        ),
-                      )
-                    else if (listing.isLowStock)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: _Badge(
-                          label: l10n.buyerBrowseLowStock,
-                          color: AppConstants.warningAmber,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              // ── Details ──────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      listing.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    // Price left, units sold right — same row, per reference.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              formatPricePerUnit(
-                                listing.pricePerKg,
-                                listing.unit,
-                              ),
-                              maxLines: 1,
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: AppConstants.primaryGreen,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.buyerBrowseUnitsSold(
-                            formatQuantityUnit(listing.soldKg, listing.unit),
-                          ),
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      listing.marketTypeLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+    return ProductCard(
+      name: listing.displayName,
+      imageUrl: listing.listingPhotoUrl,
+      priceText: formatPricePerUnit(listing.pricePerKg, listing.unit),
+      buyersText: l10n.catBuyers(listing.buyers),
+      marketTypeText: listing.marketTypeLabel,
+      availableText:
+          '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
+      soldText: l10n.buyerBrowseUnitsSold(
+        formatQuantityUnit(listing.soldKg, listing.unit),
       ),
+      soldOut: soldOut,
+      badgeLabel: soldOut
+          ? l10n.buyerBrowseSoldOut
+          : listing.isLowStock
+          ? l10n.buyerBrowseLowStock
+          : null,
+      badgeColor: soldOut ? AppConstants.errorRed : AppConstants.warningAmber,
+      onTap: () => _open(context),
     );
   }
 }
@@ -637,31 +518,6 @@ class _CartIconButton extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Badge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-      ),
     );
   }
 }

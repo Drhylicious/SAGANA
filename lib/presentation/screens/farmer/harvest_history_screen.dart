@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
@@ -363,6 +364,18 @@ class _HarvestDetailsSheet extends StatelessWidget {
           ),
           _DetailRow(label: 'Category', value: harvest.cropCategory),
           _DetailRow(label: 'Batch Number', value: harvest.displayBatch),
+          // Produce a program gave the Farmer: its source and the program it came from.
+          if (harvest.isReceivedFromProgram) ...[
+            _DetailRow(
+              label: AppLocalizations.of(context).harvestSourceLabel,
+              value: AppLocalizations.of(context).harvestSourceReceived,
+            ),
+            if (harvest.sourceProgramId != null)
+              _ProgramNameRow(
+                label: AppLocalizations.of(context).harvestSourceProgram,
+                programId: harvest.sourceProgramId!,
+              ),
+          ],
           _DetailRow(label: 'Storage Location', value: harvest.storageLocation ?? '—'),
           _DetailRow(
             label: 'Harvest Date',
@@ -377,6 +390,42 @@ class _HarvestDetailsSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The name of the program a harvest record came from (looked up by its id; "—" if unavailable).
+class _ProgramNameRow extends StatefulWidget {
+  const _ProgramNameRow({required this.label, required this.programId});
+
+  final String label;
+  final String programId;
+
+  @override
+  State<_ProgramNameRow> createState() => _ProgramNameRowState();
+}
+
+class _ProgramNameRowState extends State<_ProgramNameRow> {
+  String _name = '—';
+
+  @override
+  void initState() {
+    super.initState();
+    () async {
+      try {
+        final row = await Supabase.instance.client
+            .from('cooperative_programs')
+            .select('program_name')
+            .eq('id', widget.programId)
+            .maybeSingle();
+        final n = row?['program_name'] as String?;
+        if (mounted && n != null && n.isNotEmpty) setState(() => _name = n);
+      } catch (_) {
+        // Offline or not readable: the row keeps its dash.
+      }
+    }();
+  }
+
+  @override
+  Widget build(BuildContext context) => _DetailRow(label: widget.label, value: _name);
 }
 
 class _DetailRow extends StatelessWidget {

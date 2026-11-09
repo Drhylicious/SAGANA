@@ -196,35 +196,42 @@ class AdminActivityItem {
 
 // ─── Cooperative Performance Summary ─────────────────────────────────────────
 
+/// How the Farmers do together. Every figure covers all farmer-members, however many there are.
 class CoopPerformanceSummary {
+  /// Every harvest record any farmer-member has submitted.
   final int totalHarvests;
-  final double farmerAvailableStockKg;
+
+  /// The harvested crop stock the Farmers still hold (not yet sold), added up per unit so
+  /// kilograms, sacks and so on are never mixed into one number.
+  final List<({double quantity, String unit})> farmerStock;
+
+  /// Approved listings that still have stock left to buy.
   final int activeListings;
-  final int completedSales;
+
+  /// What the Farmers have sold, all time, across all four selling channels (pesos).
+  final double salesAmount;
   final int activeMembersThisSeason;
   final int totalMembers;
   final double? estimatedStockValue;
 
   const CoopPerformanceSummary({
     required this.totalHarvests,
-    required this.farmerAvailableStockKg,
+    required this.farmerStock,
     required this.activeListings,
-    required this.completedSales,
+    required this.salesAmount,
     required this.activeMembersThisSeason,
     required this.totalMembers,
     this.estimatedStockValue,
   });
-
-  double get totalStockKg => farmerAvailableStockKg;
 
   double get participationPercent =>
       totalMembers > 0 ? activeMembersThisSeason / totalMembers : 0;
 
   static const empty = CoopPerformanceSummary(
     totalHarvests: 0,
-    farmerAvailableStockKg: 0,
+    farmerStock: [],
     activeListings: 0,
-    completedSales: 0,
+    salesAmount: 0,
     activeMembersThisSeason: 0,
     totalMembers: 52,
   );

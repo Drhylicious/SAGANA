@@ -13,9 +13,11 @@ import 'package:sagana/presentation/screens/admin/operational_reports_screen.dar
 import 'support/ignore_font_errors.dart';
 import 'support/test_storage_mocks.dart';
 
-/// The Reports hub for the two staff roles. The tools row fills the width for
-/// both: the Manager's three cards (Balik-Tangkilik included) side by side, the
-/// Officer's two (no Balik-Tangkilik) as two equal columns with no empty slot.
+/// The Reports hub for the two staff roles. Detailed Reports and Management
+/// Tools use the same two-column card grid as the Dashboard and Marketplace
+/// tabs. The Manager's three tools (Balik-Tangkilik included) sit in one row
+/// that scrolls sideways; the Officer's two (no Balik-Tangkilik) fill a fixed
+/// row with no empty slot.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -90,29 +92,26 @@ void main() {
     });
   }
 
-  ftest('Officer: two equal columns filling the same width as the Manager row, no empty slot', (tester) async {
-    await show(tester, 'admin');
-    final mAnalytics = cardOf(tester, 'Analytics Dashboard');
-    final mExport = cardOf(tester, 'Export Center');
-    final sales = cardOf(tester, 'Sales Report');
-
+  ftest('Officer: the two tools are one full row of the same card grid', (tester) async {
     await show(tester, 'officer');
     final analytics = cardOf(tester, 'Analytics Dashboard');
     final export = cardOf(tester, 'Export Center');
+    final sales = cardOf(tester, 'Sales Report');
+    final harvest = cardOf(tester, 'Harvest Report');
 
-    // Side by side, same top, same size.
+    // Side by side, same top, same size as every Detailed Reports card.
     expect(export.top, closeTo(analytics.top, 0.5));
-    expect(export.width, closeTo(analytics.width, 0.5));
-    expect(export.height, closeTo(analytics.height, 0.5));
-    // Together they span the same width as the Manager's row of three, and the
-    // first column lines up with the first column of Detailed Reports.
-    expect(analytics.left, closeTo(mAnalytics.left, 0.5));
-    expect(export.right, closeTo(mExport.right, 0.5), reason: 'no empty slot on the right');
+    expect(export.size.width, closeTo(analytics.size.width, 0.5));
+    expect(export.size.height, closeTo(analytics.size.height, 0.5));
+    expect(analytics.size.width, closeTo(sales.size.width, 0.5));
+    expect(analytics.size.height, closeTo(sales.size.height, 0.5));
+    // The same two columns as Detailed Reports, so no empty slot on the right.
     expect(analytics.left, closeTo(sales.left, 0.5));
+    expect(export.right, closeTo(harvest.right, 0.5));
   });
 
-  ftest('Manager: the original three tools in one row, Balik included', (tester) async {
-    await show(tester, 'admin');
+  ftest('Manager: the three tools are one row of cards that scrolls sideways', (tester) async {
+    await show(tester, 'admin', width: 360);
     expect(find.text('Analytics Dashboard'), findsOneWidget);
     expect(find.text('Balik-Tangkilik Management'), findsOneWidget);
     expect(find.text('Export Center'), findsOneWidget);
@@ -120,10 +119,42 @@ void main() {
     final a = cardOf(tester, 'Analytics Dashboard');
     final b = cardOf(tester, 'Balik-Tangkilik Management');
     final e = cardOf(tester, 'Export Center');
+    final sales = cardOf(tester, 'Sales Report');
+
+    // One row: same top and height, left to right, same height as every card
+    // of Detailed Reports (the strip cards are only a little narrower).
     expect(a.top, closeTo(b.top, 0.5));
     expect(b.top, closeTo(e.top, 0.5));
     expect(a.left, lessThan(b.left));
     expect(b.left, lessThan(e.left));
+    expect(a.left, closeTo(sales.left, 0.5), reason: 'starts at the page margin');
+    for (final card in [a, b, e]) {
+      expect(card.size.width, closeTo(a.size.width, 0.5));
+      expect(card.size.height, closeTo(sales.size.height, 0.5));
+    }
+    expect(a.size.width, lessThan(sales.size.width));
+    // Two cards fill the content width, and the third starts inside the screen
+    // edge, so the row visibly continues.
+    expect(b.right, lessThan(sales.left + 2 * sales.size.width + 12));
+    expect(e.left, lessThan(360));
+    tester.takeException();
+  });
+
+  ftest('Manager: dragging the row sideways brings Export Center fully into view', (tester) async {
+    await show(tester, 'admin', width: 360);
+    final before = cardOf(tester, 'Export Center');
+    expect(before.right, greaterThan(360), reason: 'cut off before scrolling');
+
+    final drag = find.ancestor(
+      of: find.text('Analytics Dashboard'),
+      matching: find.byType(Scrollable),
+    );
+    // The innermost Scrollable around the tools is the horizontal one.
+    await tester.drag(drag.first, const Offset(-400, 0));
+    await tester.pump(const Duration(milliseconds: 400));
+    final after = cardOf(tester, 'Export Center');
+    expect(after.right, lessThanOrEqualTo(360));
+    expect(after.left, lessThan(before.left));
     tester.takeException();
   });
 

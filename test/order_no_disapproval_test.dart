@@ -108,10 +108,14 @@ void main() {
       for (final f in [
         'lib/presentation/screens/buyer/my_orders_screen.dart',
         'lib/presentation/screens/farmer/farmer_orders_screen.dart',
-        'lib/presentation/screens/admin/order_management_screen.dart',
       ]) {
         expect(src(f).contains('kOrderStatuses'), isTrue, reason: f);
       }
+      // Staff work with the six operational statuses (a handed-over delivery is filed under Out for Delivery).
+      expect(src('lib/presentation/screens/admin/order_management_screen.dart').contains('kStaffOrderStatuses'), isTrue);
+      final staff = status.substring(status.indexOf('const List<String> kStaffOrderStatuses'), status.indexOf(']', status.indexOf('const List<String> kStaffOrderStatuses')));
+      expect(staff.contains('rejected'), isFalse);
+      expect(staff.contains('delivered'), isFalse);
     });
 
     test('the cleanup SQL deletes nothing and is run by hand', () {

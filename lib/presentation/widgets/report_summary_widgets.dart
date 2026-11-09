@@ -387,7 +387,8 @@ class ReportHeroCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   s.label,
-                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(fontSize: 10, height: 1.2, color: cs.onSurfaceVariant),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

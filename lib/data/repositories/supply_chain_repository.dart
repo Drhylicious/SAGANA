@@ -1,193 +1,52 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/supply_chain_model.dart';
+import '../services/offline_cache.dart';
 
+/// Read-only access to the Supply Chain tracking records.
+///
+/// Both calls go to database functions that only read (see
+/// supabase_schema_supply_chain_01_read_model.sql) and answer only for a Manager
+/// or Officer. This repository has no write method on purpose.
 class SupplyChainRepository {
-  final SupabaseClient _client = Supabase.instance.client;
+  SupplyChainRepository({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
 
-  // ─── Fetch all mapped farmers (have coordinates) ──────────────────────────
+  final SupabaseClient _client;
 
-  Future<List<SupplyChainFarmerModel>> fetchMappedFarmers() async {
-    try {
-      // Fetch farmer_profiles with coordinates
-      final profileRows = await _client
-          .from('farmer_profiles')
-          .select('user_id, farm_latitude, farm_longitude, is_verified')
-          .not('farm_latitude', 'is', null)
-          .not('farm_longitude', 'is', null);
-
-      if (profileRows.isEmpty) return [];
-
-      final userIds = profileRows.map((r) => r['user_id'] as String).toList();
-
-      // Fetch user_information for names and photos
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name, profile_photo_url')
-          .inFilter('user_id', userIds);
-
-      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
-
-      // Fetch crops per farmer
-      final cropRows = await _client
-          .from('farmer_crops')
-          .select('farmer_id, crop_name')
-          .inFilter('farmer_id', userIds);
-
-      final cropsMap = <String, List<String>>{};
-      for (final r in cropRows) {
-        final id = r['farmer_id'] as String;
-        cropsMap.putIfAbsent(id, () => []).add(r['crop_name'] as String);
-      }
-
-      return profileRows.map((p) {
-        final uid  = p['user_id'] as String;
-        final info = infoMap[uid] ?? {};
-
-        return SupplyChainFarmerModel.fromMap({
-          'user_id':            uid,
-          'full_name':          info['full_name'] as String? ?? 'Farmer',
-          'profile_photo_url':  info['profile_photo_url'] as String?,
-          'farm_latitude':      p['farm_latitude'],
-          'farm_longitude':     p['farm_longitude'],
-          'is_verified':        p['is_verified'] as bool? ?? false,
-          'crops':              cropsMap[uid] ?? [],
-        });
-      }).toList();
-    } catch (_) {
-      return [];
-    }
+  /// Every tracked supply movement, newest first. The screen filters by date, stage
+  /// and movement itself so every chip can show a count. Throws when the records can
+  /// neither be read nor found in the saved snapshot, so the screen can say so instead
+  /// of showing a misleading "nothing tracked".
+  Future<List<SupplyChainRecord>> fetchRecords() async {
+    final rows = await OfflineCache.load(
+      screen: cacheKey,
+      fetch: () async {
+        final data = await _client.rpc('get_supply_chain_records');
+        return List<Map<String, dynamic>>.from(
+          (data as List).map((r) => Map<String, dynamic>.from(r as Map)),
+        );
+      },
+    );
+    return rows.map(SupplyChainRecord.fromMap).toList();
   }
 
-  // ─── Fetch supply chain summary ───────────────────────────────────────────
+  /// The OfflineCache key (for the "saved data" notice).
+  static const String cacheKey = 'supply_chain_all';
 
-  Future<SupplyChainSummary> fetchSummary() async {
-    int totalMembers  = 0;
-    int mappedMembers = 0;
-    final cropCounts  = <String, int>{};
-
+  /// Total Supplies of the CURRENT calendar year (the Dashboard card): supplies
+  /// that moved in and out, plus orders still in progress. A figure that cannot
+  /// be read counts as zero.
+  Future<SupplyChainTotals> fetchYearTotals() async {
     try {
-      final allFarmers = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'farmer')
-          .eq('status', 'active');
-      totalMembers = allFarmers.length;
-    } catch (_) {
-      totalMembers = 52; // SP3 known count fallback
-    }
-
-    try {
-      final mapped = await _client
-          .from('farmer_profiles')
-          .select('user_id')
-          .not('farm_latitude', 'is', null);
-      mappedMembers = mapped.length;
-    } catch (_) {}
-
-    try {
-      final cropRows = await _client.from('farmer_crops').select('crop_name');
-      for (final r in cropRows) {
-        final name = r['crop_name'] as String;
-        cropCounts[name] = (cropCounts[name] ?? 0) + 1;
-      }
-    } catch (_) {}
-
-    // Map to SP3 primary crops with abbreviations
-    const primaryCrops = [
-      ('Peanut', 'PNT'),
-      ('Ginger', 'GGR'),
-      ('Palay', 'PLY'),
-      ('Banana', 'BNA'),
-    ];
-
-    final stats = primaryCrops.map((pair) {
-      final count = cropCounts.entries
-          .where((e) => e.key.toLowerCase().contains(pair.$1.toLowerCase()))
-          .fold<int>(0, (s, e) => s + e.value);
-      return CropMapStat(
-        cropName:     pair.$1,
-        abbreviation: pair.$2,
-        farmerCount:  count,
+      final data = await _client.rpc('get_supply_chain_totals');
+      final rows = data as List;
+      if (rows.isEmpty) return SupplyChainTotals.empty;
+      return SupplyChainTotals.fromMap(
+        Map<String, dynamic>.from(rows.first as Map),
       );
-    }).toList();
-
-    return SupplyChainSummary(
-      totalMembers:  totalMembers,
-      mappedMembers: mappedMembers,
-      cropStats:     stats,
-    );
-  }
-
-  // ─── Fetch coverage (mapped vs. unmapped members) ──────────────────────────
-  // Replaces fetchOperationsSnapshot(), which queried farmer_loans,
-  // marketplace_listings, and inventory_batches — none of which describe
-  // supply chain map coverage. Only membership + mapping status belong here.
-
-  Future<SupplyChainCoverage> fetchCoverage() async {
-    int totalMembers = 0;
-    int mappedMembers = 0;
-
-    try {
-      final allFarmers = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'farmer')
-          .eq('status', 'active');
-      totalMembers = allFarmers.length;
     } catch (_) {
-      totalMembers = 52; // SP3 known count fallback
-    }
-
-    try {
-      final mapped = await _client
-          .from('farmer_profiles')
-          .select('user_id')
-          .not('farm_latitude', 'is', null);
-      mappedMembers = mapped.length;
-    } catch (_) {}
-
-    return SupplyChainCoverage(
-      totalMembers: totalMembers,
-      mappedMembers: mappedMembers,
-    );
-  }
-
-  // ─── Fetch unmapped members (for the "no farm location" insight) ──────────
-
-  Future<List<UnmappedMemberEntry>> fetchUnmappedMembers() async {
-    try {
-      final allFarmers = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'farmer')
-          .eq('status', 'active');
-      final allIds = allFarmers.map((r) => r['user_id'] as String).toSet();
-
-      final mapped = await _client
-          .from('farmer_profiles')
-          .select('user_id')
-          .not('farm_latitude', 'is', null);
-      final mappedIds = mapped.map((r) => r['user_id'] as String).toSet();
-
-      final unmappedIds = allIds.difference(mappedIds).toList();
-      if (unmappedIds.isEmpty) return [];
-
-      final info = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', unmappedIds);
-
-      return info
-          .map(
-            (r) => UnmappedMemberEntry(
-                userId: r['user_id'] as String,
-                fullName: r['full_name'] as String? ?? 'Unknown',
-            ),
-          )
-          .toList()
-        ..sort((a, b) => a.fullName.compareTo(b.fullName));
-    } catch (_) {
-      return [];
+      return SupplyChainTotals.empty;
     }
   }
 }

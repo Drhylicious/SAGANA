@@ -135,7 +135,7 @@ void main() {
     test('Order Management: All / Pending Orders / Approved / Completed / Cancelled with counts', () {
       final t = s('order_management_screen.dart');
       expect(t.contains('MarketplaceFilterBar<String?>'), isTrue);
-      expect(t.contains('count: _allOrders.length'), isTrue);
+      expect(t.contains('count: inSource.length'), isTrue);
       expect(t.contains('_statusCounts'), isTrue);
       expect(t.contains('orderMgmtChipPending'), isTrue);
     });
@@ -276,11 +276,11 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Farmer Juan'), findsOneWidget);
-        expect(find.text('Enrolled'), findsOneWidget);
-        expect(find.text('Applied Oct 1, 2026'), findsOneWidget);
+        expect(find.text('Joined'), findsOneWidget);
+        expect(find.text('Requested Oct 1, 2026'), findsOneWidget);
         expect(find.text('Approved Oct 3, 2026 by Maria Manager'), findsOneWidget);
         expect(find.text('Sale requests: 3'), findsOneWidget);
-        expect(find.text('Review application'), findsNothing);
+        expect(find.text('Review request'), findsNothing);
       });
     });
 
@@ -311,10 +311,10 @@ void main() {
           ),
         );
         await tester.pump();
-        expect(find.text('Enrolled'), findsOneWidget);
+        expect(find.text('Joined'), findsOneWidget);
         expect(find.textContaining('Approved '), findsNothing);
         expect(find.textContaining('Reviewed '), findsNothing);
-        expect(find.textContaining('Applied '), findsNothing);
+        expect(find.textContaining('Requested '), findsNothing);
         expect(find.text('Sale requests: 2'), findsOneWidget);
       });
     });
@@ -332,8 +332,37 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Pending review'), findsOneWidget);
-        await tester.tap(find.text('Review application'));
+        await tester.tap(find.text('Review request'));
         expect(opened, 1);
+      });
+    });
+
+    testWidgets('the status pill sits at the far right of the card, clear of the edge', (tester) async {
+      await runIgnoringFontErrors(() async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          host(
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: EnrollmentCard(
+                item: enrollment('a', 'Jhon Drhy M. Salangsang', DaAmadEnrollmentStatus.approved,
+                    submitted: DateTime(2026, 9, 26), reviewed: DateTime(2026, 9, 27), requests: 3),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final cardRight = tester.getTopRight(find.byType(EnrollmentCard)).dx;
+        final pillRight = tester.getTopRight(find.text('Joined')).dx;
+        final gap = cardRight - pillRight;
+        // card padding 14 + pill padding 9: the pill is flush with the content
+        // column's right edge, not floating in the middle of the row.
+        expect(gap, inInclusiveRange(20, 28));
+        // and the farmer name is left of it with a gap
+        final nameRight = tester.getTopRight(find.textContaining('Jhon Drhy')).dx;
+        expect(nameRight, lessThan(tester.getTopLeft(find.text('Joined')).dx - 10));
       });
     });
 

@@ -32,6 +32,7 @@ class AppRoutes {
   static const String farmerListingHistory = '/farmer/marketplace/history';
   static const String farmerMarketplaceListingDetail =
       '/farmer/marketplace/browse/details';
+  static const String farmerCooperativeProduct = '/farmer/marketplace/browse/cooperative-product';
   static const String farmerMarketplaceCart = '/farmer/marketplace/browse/cart';
   static const String farmerMarketplaceCartResult =
       '/farmer/marketplace/browse/cart/result';
@@ -55,6 +56,8 @@ class AppRoutes {
   // bar rather than being the primary route themselves.
   static const String myPrograms = '/farmer/profile/programs';
   static const String myProgramsEnrolled = '/farmer/profile/programs/enrolled';
+  static const String receivedItems = '/farmer/profile/received-items';
+  static const String receivedCropItems = '/farmer/harvest/received-crops';
   static const String programDetails = '/farmer/profile/programs/detail';
   static const String myMarketLinking = '/farmer/profile/market-linking';
   static const String myTransactionHistory = '/farmer/profile/transactions';
@@ -64,6 +67,7 @@ class AppRoutes {
       '/farmer/profile/cooperative-offers/detail';
   static const String farmerMyOrders = '/farmer/profile/orders';
   static const String farmerOrderDetail = '/farmer/profile/orders/detail';
+  static const String farmerProgramOrderDetail = '/farmer/profile/orders/cooperative';
   static const String farmerSettings = '/farmer/settings';
   static const String farmerEditProfile = '/farmer/profile/edit';
   static const String viewMarket = '/farmer/market-rates';
@@ -73,8 +77,7 @@ class AppRoutes {
   static const String adminDashboard = '/admin/dashboard';
   static const String priceManagement = '/admin/prices';
   static const String announcementDashboard = '/admin/announcements';
-  static const String supplyChainMap = '/admin/map';
-  static const String supplyChainFullMap = '/admin/map/full';
+  static const String supplyChain = '/admin/supply-chain';
   static const String farmerManagement = '/admin/farmers';
   static const String farmerDetails = '/admin/farmers/details';
   static const String farmerHarvestHistory = '/admin/farmers/harvest-history';
@@ -145,8 +148,13 @@ class AppRoutes {
   static const String programManagement = '/admin/programs';
   static const String programEnrollmentRequests =
       '/admin/programs/enrollment-requests';
-  static const String programPurchaseReview = '/admin/programs/purchases';
-  static const String programProductCatalog = '/farmer/programs/products';
+  static const String programMembers = '/admin/programs/members';
+  static const String programProducts = '/admin/programs/products';
+  static const String programOutcomes = '/admin/programs/outcomes';
+  static const String programOutcomeDetail = '/admin/programs/outcomes/detail';
+  static const String reportOutcome = '/farmer/profile/programs/report-outcome';
+  static const String requestAssistance = '/farmer/profile/programs/request-assistance';
+  static const String assistanceRequests = '/admin/loans/assistance';
   static const String loanItemManagement = '/admin/loan-items';
   static const String adminCalendar = '/admin/calendar';
   static const String broadcastHistory = '/admin/broadcast-history';
@@ -160,6 +168,9 @@ class AppRoutes {
   static const String adminMarketplace = '/admin/marketplace';
   static const String adminOrders = '/admin/marketplace/orders';
   static const String adminOrderDetail = '/admin/marketplace/orders/detail';
+  static const String adminProgramOrderDetail = '/admin/marketplace/orders/cooperative';
+  static const String adminCooperativeDetails = '/admin/marketplace/cooperative-details';
+  static const String adminDeliverySettings = '/admin/marketplace/delivery-settings';
   static const String offerToCooperative =
       '/admin/marketplace/offer-to-cooperative';
   static const String offerDetail =

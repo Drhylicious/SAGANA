@@ -8,6 +8,8 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
+import '../../../data/models/admin_reports_model.dart' show DashboardOverview;
+import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
@@ -17,6 +19,7 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/dashboard_cards.dart';
 import '../../widgets/sync_status_card.dart';
 import '../../../core/utils/member_access.dart';
 import 'admin_activity_screen.dart'
@@ -34,7 +37,7 @@ enum _DashSection { priorities, coop, kpi, calendar, modules, activity }
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _repo = AdminDashboardRepository();
 
-  AdminKpiSummary _kpi = AdminKpiSummary.empty;
+  DashboardOverview _pulse = DashboardOverview.empty;
   List<DashboardPriority> _priorities = [];
   List<AdminActivityItem> _activity = [];
   CoopPerformanceSummary _coopSummary = CoopPerformanceSummary.empty;
@@ -79,7 +82,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _repo.clearDashboardCache(); // fresh data every cycle, not stale reuse
     final month = _calendarMonth;
     await Future.wait<void>([
-      _section(_DashSection.kpi, _repo.fetchKpiSummary(), (v) => _kpi = v),
+      _section(
+        _DashSection.kpi,
+        AdminReportsRepository().fetchDashboardOverview(),
+        (v) => _pulse = v,
+      ),
       _section(
         _DashSection.priorities,
         _repo.fetchDashboardPriorities(),
@@ -382,10 +389,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SkeletonBlock(height: 150)
                   else
                     ReportSectionCard(
-                      title: 'Overview',
+                      title: l10n.adminDashOverviewTitle,
                       icon: Icons.dashboard_rounded,
                       accent: AppConstants.primaryGreen,
-                      child: _KpiStrip(kpi: _kpi, cs: cs, sagana: sagana),
+                      child: _KpiStrip(pulse: _pulse, cs: cs, sagana: sagana),
                     ),
                   const SizedBox(height: 20),
 
@@ -729,175 +736,75 @@ class _PrioritiesHeroCard extends StatelessWidget {
 // KPI Strip
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Phase 2, item 2.1 — flags the Overdue Loans figure as stale when the
-// nightly run_daily_loan_maintenance() job hasn't confirmed a run in over
-// 30 hours (its usual cadence is daily; 30h gives one missed-run's grace
-// before surfacing a warning).
-bool _isLoanDataStale(DateTime? asOf) {
-  if (asOf == null) return false;
-  return DateTime.now().difference(asOf) > const Duration(hours: 30);
-}
-
-String _loanDataStalenessLabel(AppLocalizations l10n, DateTime? asOf) {
-  if (!_isLoanDataStale(asOf)) return l10n.adminDashLoansLabel;
-  final hours = DateTime.now().difference(asOf!).inHours;
-  final days = (hours / 24).floor();
-  return days >= 1
-      ? l10n.adminDashLoanDataStaleDays(days)
-      : l10n.adminDashLoanDataStaleHours(hours);
-}
-
+/// The Dashboard Overview: one card for each Management Module (same order as the modules below
+/// it) with Revenue in the middle. Every figure is for the current year and starts again each
+/// January, so nothing piles up across years.
 class _KpiStrip extends StatelessWidget {
-  final AdminKpiSummary kpi;
+  final DashboardOverview pulse;
   final ColorScheme cs;
   final SaganaColors sagana;
 
-  const _KpiStrip({required this.kpi, required this.cs, required this.sagana});
+  const _KpiStrip({required this.pulse, required this.cs, required this.sagana});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final tiles = [
-      _KpiTile(
-        label: l10n.adminDashKpiMembers,
-        value: '${kpi.activeMembers}',
-        sub: l10n.adminDashKpiOfTarget(kpi.totalMembersTarget),
-        color: AppConstants.successGreen,
-        icon: Icons.people_rounded,
-      ),
-      _KpiTile(
-        label: l10n.adminDashKpiCoopStock,
-        value: _fmt(kpi.totalStockKg),
-        sub: l10n.buyerBrowseAvailableSuffix,
+      DashboardKpiTile(
+        label: l10n.adminDashModInventory,
+        value: '${pulse.inventoryItems}',
+        sub: l10n.adminDashModInventorySub,
         color: AppConstants.warningAmber,
         icon: Icons.inventory_2_rounded,
       ),
-      _KpiTile(
-        label: l10n.adminDashKpiPending,
-        value: '${kpi.pendingListings}',
-        sub: l10n.adminDashKpiListingsSub,
-        color: cs.primary,
-        icon: Icons.pending_actions_rounded,
+      DashboardKpiTile(
+        label: l10n.adminDashModCrops,
+        value: '${pulse.crops}',
+        sub: l10n.adminDashModCropsSub,
+        color: AppConstants.midGreen,
+        icon: Icons.grass_rounded,
       ),
-      _KpiTile(
-        label: l10n.adminDashKpiOverdue,
-        value: '${kpi.overdueLoans}',
-        sub: _loanDataStalenessLabel(l10n, kpi.loanDataAsOf),
-        color: _isLoanDataStale(kpi.loanDataAsOf)
-            ? AppConstants.warningAmber
-            : kpi.overdueLoans > 0
-            ? AppConstants.errorRed
-            : cs.outline,
-        icon: Icons.warning_amber_rounded,
+      DashboardKpiTile(
+        label: l10n.adminDashModPrograms,
+        value: '${pulse.programs}',
+        sub: l10n.adminDashModProgramsSub,
+        color: AppConstants.programPurple,
+        icon: Icons.people_alt_rounded,
       ),
-      _KpiTile(
+      DashboardKpiTile(
         label: l10n.adminDashKpiRevenue,
-        value: '₱${_fmt(kpi.totalRevenueThisMonth)}',
-        sub: l10n.adminDashKpiThisMonth,
+        value: '₱${_fmt(pulse.revenue)}',
+        // Marketplace sales plus what members paid for Cooperative Products.
+        sub: l10n.adminDashPulseRevenueSub,
         color: AppConstants.successGreen,
         icon: Icons.trending_up_rounded,
       ),
+      DashboardKpiTile(
+        label: l10n.adminDashModSupplyChain,
+        value: '${pulse.totalSupplies}',
+        sub: l10n.adminDashModSupplyChainSub(
+          pulse.suppliesIncoming,
+          pulse.suppliesOutgoing,
+        ),
+        color: AppConstants.primaryGreen,
+        icon: Icons.alt_route_rounded,
+      ),
+      DashboardKpiTile(
+        label: l10n.adminDashModPrices,
+        value: '${pulse.retailPrices}',
+        sub: l10n.adminDashModPricesSub,
+        color: AppConstants.amber,
+        icon: Icons.sell_rounded,
+      ),
     ];
 
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: tiles.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) => _KpiCard(tile: tiles[i], cs: cs, sagana: sagana),
-      ),
-    );
+    return DashboardKpiStrip(tiles: tiles);
   }
 
   String _fmt(double v) {
     if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
     return v.toStringAsFixed(0);
-  }
-}
-
-class _KpiTile {
-  final String label;
-  final String value;
-  final String sub;
-  final Color color;
-  final IconData icon;
-  const _KpiTile({
-    required this.label,
-    required this.value,
-    required this.sub,
-    required this.color,
-    required this.icon,
-  });
-}
-
-class _KpiCard extends StatelessWidget {
-  final _KpiTile tile;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _KpiCard({required this.tile, required this.cs, required this.sagana});
-
-  // Visually matches ReportIconStatCard (report_summary_widgets.dart) —
-  // accent-tinted background/border, icon in its own tinted badge — the
-  // Report tab's reference KPI card style (dashboard.md section 2). Kept
-  // as its own widget rather than reusing ReportIconStatCard directly
-  // because this card needs a 3rd "sub" caption line (e.g. "of 500
-  // target", "This month") that ReportIconStatCard's 2-line shape doesn't
-  // have room for.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 128,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tile.color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: tile.color.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: tile.color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                ),
-                child: Icon(tile.icon, size: 12, color: tile.color),
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  tile.label,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          Text(
-            tile.value,
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: cs.onSurface,
-            ),
-          ),
-          Text(
-            tile.sub,
-            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -1262,116 +1169,17 @@ class _ManagementModulesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final textScale =
-        MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.4).toDouble();
-    return GridView.builder(
-      shrinkWrap: true,
-      // No automatic status-bar padding: this list sits inside a bigger scroll view.
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        // A fixed height that grows with the phone's font size, so a two-line
-        // title (Inventory Management, Supply Chain Management) fits instead of
-        // being cut to "Inventory Manage...".
-        mainAxisExtent: 128 * textScale,
-      ),
-      itemCount: modules.length,
-      itemBuilder: (context, i) {
-        final m = modules[i];
-        final icon = _icons[m.id] ?? Icons.settings_rounded;
-        return GestureDetector(
-          onTap: () => onTap(m),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: cs.primary.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.radiusMd,
-                        ),
-                      ),
-                      child: Icon(icon, color: cs.primary, size: 20),
-                    ),
-                    if (m.badgeLabel.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: cs.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                        ),
-                        child: Text(
-                          m.badgeLabel,
-                          style: GoogleFonts.inter(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurfaceVariant,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        _title(l10n, m.id),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        _subtitle(l10n, m.id),
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          color: cs.onSurfaceVariant,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    return DashboardModuleGrid(
+      items: [
+        for (final m in modules)
+          DashboardModuleItem(
+            icon: _icons[m.id] ?? Icons.settings_rounded,
+            title: _title(l10n, m.id),
+            subtitle: _subtitle(l10n, m.id),
+            badge: m.badgeLabel,
+            onTap: () => onTap(m),
           ),
-        );
-      },
+      ],
     );
   }
 }
@@ -1637,7 +1445,10 @@ class _CoopPerformanceCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+            // Top-aligned, so the four labels share a line and the four figures share a line;
+            // only Farmer Stock (one line per unit) runs longer.
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _StatPill(
                   l10n.adminDashStatHarvests,
@@ -1647,7 +1458,11 @@ class _CoopPerformanceCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 _StatPill(
                   l10n.adminDashStatFarmerStock,
-                  formatKgTotal(summary.totalStockKg),
+                  // One line per unit (kg, sack...), never added together.
+                  summary.farmerStock.isEmpty
+                      ? '0'
+                      : formatQuantitiesByUnit(summary.farmerStock)
+                            .replaceAll(' + ', '\n'),
                   cs,
                 ),
                 const SizedBox(width: 12),
@@ -1659,7 +1474,7 @@ class _CoopPerformanceCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 _StatPill(
                   l10n.adminDashStatSalesAllTime,
-                  '${summary.completedSales}',
+                  formatPesosCompact(summary.salesAmount),
                   cs,
                 ),
               ],
@@ -1720,24 +1535,42 @@ class _StatPill extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label.toUpperCase(),
-            style: GoogleFonts.inter(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-              color: cs.onSurfaceVariant,
+          // Two lines of room for every label, so a longer one never pushes its figure down.
+          SizedBox(
+            height: 24,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Text(
+                label.toUpperCase(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  height: 1.2,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: cs.primary,
+          // A figure may have several lines (stock in more than one unit); each line shrinks to
+          // fit rather than breaking in the middle ("377.50 / kg").
+          for (final line in value.split('\n'))
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                line,
+                maxLines: 1,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: cs.primary,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );

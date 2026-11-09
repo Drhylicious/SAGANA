@@ -29,6 +29,10 @@ class MemberDistributionRow {
   /// counterparts are, but against totalProgramSales/
   /// distributableProgramSurplus instead — never the sales-side pool.
   final double programPurchasesAmount;
+  // Display only: the same purchases at the regular price and the discount
+  // given (regular - discount = programPurchasesAmount, the NET paid).
+  final double programRegularAmount;
+  final double programDiscountAmount;
   final double purchaseSharePercent;
   final double estimatedPurchasePatronage;
   final double? actualPurchasePatronage;
@@ -60,6 +64,8 @@ class MemberDistributionRow {
     this.otherCropsQtyKg = 0,
     this.otherCropsAmount = 0,
     this.programPurchasesAmount = 0,
+    this.programRegularAmount = 0,
+    this.programDiscountAmount = 0,
     this.purchaseSharePercent = 0,
     this.estimatedPurchasePatronage = 0,
     this.actualPurchasePatronage,

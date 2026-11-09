@@ -18,6 +18,9 @@ class CategoryRepository {
 
   Future<List<String>> fetchCropCategories() => _fetchNames('crop_categories');
 
+  /// The program types (Crop, Livestock, Processed Products, and any added since).
+  Future<List<String>> fetchProgramTypes() => _fetchNames('program_types');
+
   Future<List<String>> fetchExpenseCategories() =>
       _fetchNames('expense_categories');
 
@@ -45,6 +48,20 @@ class CategoryRepository {
         module: 'inventory',
         actionType: 'category_added',
         message: AdminLogMessage('adminLogInventoryCategoryAdded', {'name': result}),
+      );
+    }
+    return result;
+  }
+
+  /// Adds a program type and returns its name (or the existing one if it is already
+  /// there). It appears in every Program Type dropdown at once.
+  Future<String?> addProgramType(String name) async {
+    final result = await _addCategory('program_types', name);
+    if (result != null) {
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'type_added',
+        message: AdminLogMessage('adminLogProgramTypeAdded', {'name': result}),
       );
     }
     return result;

@@ -7,10 +7,18 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_address_model.dart';
+import '../../../core/utils/app_error_message.dart';
+import '../../../core/utils/client_id.dart';
+import '../../../core/utils/order_reference.dart';
 import '../../../data/models/cart_item_model.dart';
+import '../../../data/models/cooperative_delivery_model.dart';
+import '../../../data/repositories/cooperative_delivery_repository.dart';
+import '../../../data/repositories/cooperative_order_repository.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/repositories/buyer_address_repository.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+import '../../../data/services/cooperative_address_service.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
@@ -36,11 +44,28 @@ class CheckoutScreen extends StatefulWidget {
   final bool isCartCheckout;
   final bool isFarmerContext;
 
+  // The data layer, replaceable in tests. In the app every one of these is left out.
+  @visibleForTesting
+  final BuyerMarketplaceRepository? marketRepo;
+  @visibleForTesting
+  final BuyerAddressRepository? addressRepo;
+  @visibleForTesting
+  final CooperativeDeliveryRepository? deliveryRepo;
+  @visibleForTesting
+  final CooperativeOrderRepository? coopRepo;
+  @visibleForTesting
+  final CartService? cartService;
+
   const CheckoutScreen({
     super.key,
     required this.items,
     required this.isCartCheckout,
     this.isFarmerContext = false,
+    this.marketRepo,
+    this.addressRepo,
+    this.deliveryRepo,
+    this.coopRepo,
+    this.cartService,
   });
 
   @override
@@ -48,9 +73,22 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  final _marketRepo = BuyerMarketplaceRepository();
-  final _addressRepo = BuyerAddressRepository();
-  final _cartService = CartService();
+  late final _marketRepo = widget.marketRepo ?? BuyerMarketplaceRepository();
+  late final _addressRepo = widget.addressRepo ?? BuyerAddressRepository();
+  late final _cartService = widget.cartService ?? CartService();
+  late final _deliveryRepo = widget.deliveryRepo ?? CooperativeDeliveryRepository();
+  late final _coopRepo = widget.coopRepo ?? CooperativeOrderRepository();
+
+  // The delivery rules (distance-based fee, Barangay Payanas only). Off until the Manager has
+  // set everything up and switched them on: then Delivery behaves as it always did for a
+  // Marketplace-only checkout, and is not offered for Cooperative Products.
+  DeliveryStatus _delivery = DeliveryStatus.off;
+  CooperativeDetails? _coopDetails;
+  DeliveryQuote? _quote;
+  DeliveryRefusal? _quoteProblem;
+  bool _quoting = false;
+  // One delivery group per checkout: a retry sends the same id and gets the same group.
+  final String _groupRequestId = newClientId();
 
   _FulfillmentMethod _method = _FulfillmentMethod.pickup;
   List<BuyerAddressModel> _addresses = [];
@@ -63,6 +101,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   double get _total => widget.items.fold(0.0, (s, i) => s + i.subtotal);
 
+  bool get _rulesOn => _delivery.enabled;
+
+  /// Delivery is offered only while the Manager has it switched ON (and set up): for everyone,
+  /// Marketplace orders and Cooperative Products alike. The database refuses a Delivery order
+  /// otherwise.
+  bool get _deliveryAvailable => _rulesOn;
+
+  /// Pickup is offered unless the Manager has switched it off.
+  bool get _pickupAvailable => _delivery.pickupEnabled;
+
+  bool get _usesFee => _method == _FulfillmentMethod.delivery && _rulesOn;
+
+  /// The one delivery fee of this checkout (not per item), added to the total.
+  double get _deliveryFee => _usesFee ? (_quote?.fee ?? 0) : 0;
+  double get _grandTotal => _total + _deliveryFee;
+
   String get _orderSuccessRoute => widget.isFarmerContext
       ? AppRoutes.farmerMarketplaceOrderSuccess
       : AppRoutes.orderSuccess;
@@ -72,7 +126,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   bool get _canPlaceOrder =>
       !_isSubmitting &&
-      (_method == _FulfillmentMethod.pickup || _selectedAddress != null);
+      ((_method == _FulfillmentMethod.pickup && _pickupAvailable) ||
+          (_method == _FulfillmentMethod.delivery &&
+              _selectedAddress != null &&
+              _deliveryAvailable &&
+              (!_rulesOn || (_quote != null && !_quoting))));
 
   @override
   void initState() {
@@ -81,6 +139,71 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (mounted) setState(() => _isOnline = v);
     });
     _loadAddresses();
+    _loadDelivery();
+  }
+
+  Future<void> _loadDelivery() async {
+    final status = await _deliveryRepo.fetchDeliveryStatus();
+    CooperativeDetails? details;
+    try {
+      details = await _deliveryRepo.fetchDetails();
+      CooperativeAddressService.instance.remember(details);
+    } catch (_) {
+      // The last good copy (if this device has read it before) keeps the address on screen.
+      details = CooperativeAddressService.instance.cached;
+    }
+    if (!mounted) return;
+    setState(() {
+      _delivery = status;
+      _coopDetails = details;
+      // A method that cannot be used is never left selected.
+      if (!_deliveryAvailable && _pickupAvailable) _method = _FulfillmentMethod.pickup;
+      if (!_pickupAvailable && _deliveryAvailable) _method = _FulfillmentMethod.delivery;
+    });
+    _refreshQuote();
+  }
+
+  /// With the delivery rules on, asks the database what delivery to the chosen saved address
+  /// costs (and whether it is allowed at all). Nothing is charged here.
+  Future<void> _refreshQuote() async {
+    final address = _selectedAddress;
+    if (!_usesFee || address == null) {
+      if (_quote != null || _quoteProblem != null) {
+        setState(() {
+          _quote = null;
+          _quoteProblem = null;
+        });
+      }
+      return;
+    }
+    setState(() {
+      _quoting = true;
+      _quote = null;
+      _quoteProblem = null;
+    });
+    try {
+      final q = await _deliveryRepo.fetchQuote(address.id);
+      if (!mounted || _selectedAddress?.id != address.id) return;
+      setState(() {
+        _quote = q;
+        _quoting = false;
+      });
+    } catch (e) {
+      if (!mounted || _selectedAddress?.id != address.id) return;
+      setState(() {
+        _quoteProblem = deliveryRefusalOf(e);
+        _quoting = false;
+      });
+    }
+  }
+
+  /// A sentence for a failed order: a database refusal in the person's own language, else the
+  /// message as it came.
+  String _errorText(Object e) {
+    final l10n = AppLocalizations.of(context);
+    if (e is PostgrestException) return friendlyError(l10n, e);
+    final raw = e.toString().replaceFirst('Exception: ', '');
+    return messageForDatabaseText(l10n, raw) ?? raw;
   }
 
   Future<void> _loadAddresses() async {
@@ -96,6 +219,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             );
       _isLoadingAddresses = false;
     });
+    _refreshQuote();
   }
 
   Future<void> _addNewAddress() async {
@@ -119,21 +243,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ? _selectedAddress
         : null;
 
+    // Delivery with the rules on: ONE delivery group for the whole checkout (Buy Now and the
+    // cart alike). The database takes the address, the distance and the single fee from it.
+    String? groupId;
+    if (_usesFee && address != null) {
+      try {
+        groupId = (await _deliveryRepo.createCheckoutGroup(
+          addressId: address.id,
+          requestId: _groupRequestId,
+        )).groupId;
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isSubmitting = false;
+          _error = _errorText(e);
+        });
+        return;
+      }
+    }
+
     if (!widget.isCartCheckout) {
       final item = widget.items.single;
       try {
-        final orderId = await _marketRepo.placeOrder(
-          listingId: item.listingId,
-          quantityKg: item.quantityKg,
-          fulfillmentMethod: method,
-          deliveryAddress: address?.addressLine,
-          deliveryLatitude: address?.latitude,
-          deliveryLongitude: address?.longitude,
-          deliveryContactNumber: address?.contactNumber,
-          deliveryNotes: address?.notes,
-          deliveryRecipientName: address?.recipientName,
-          deliveryLabel: address?.label,
-        );
+        final orderId = await _placeLine(item, method, address, groupId);
         AppEventService.instance.notifyOrderPlaced();
         if (!mounted) return;
         context.pushReplacement(_orderSuccessRoute, extra: [orderId]);
@@ -141,7 +273,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (!mounted) return;
         setState(() {
           _isSubmitting = false;
-          _error = e.toString().replaceFirst('Exception: ', '');
+          _error = _errorText(e);
         });
       }
       return;
@@ -155,22 +287,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     for (final item in widget.items) {
       setState(() => _checkoutIndex = succeeded.length + failed.length + 1);
       try {
-        final orderId = await _marketRepo.placeOrder(
-          listingId: item.listingId,
-          quantityKg: item.quantityKg,
-          fulfillmentMethod: method,
-          deliveryAddress: address?.addressLine,
-          deliveryLatitude: address?.latitude,
-          deliveryLongitude: address?.longitude,
-          deliveryContactNumber: address?.contactNumber,
-          deliveryNotes: address?.notes,
-          deliveryRecipientName: address?.recipientName,
-          deliveryLabel: address?.label,
-        );
+        final orderId = await _placeLine(item, method, address, groupId);
         succeeded.add((item, orderId));
         await _cartService.removeItem(item.listingId);
       } catch (e) {
-        failed.add((item, e.toString().replaceFirst('Exception: ', '')));
+        failed.add((item, _errorText(e)));
       }
     }
 
@@ -203,6 +324,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'deliveryLabel': address?.label,
         'deliveryNotes': address?.notes,
       },
+    );
+  }
+
+  /// Places one line through its own source: a Marketplace listing through place_order, a
+  /// Cooperative Product through place_program_order. The line keeps one request id, so a retry
+  /// returns the order that already exists instead of placing it again. Returns the id the
+  /// success screens use (a Cooperative order carries a prefix).
+  Future<String> _placeLine(
+    CartItemModel item,
+    String method,
+    BuyerAddressModel? address,
+    String? groupId,
+  ) async {
+    if (item.isCooperative) {
+      final placed = await _coopRepo.placeOrder(
+        programId: item.programId!,
+        productId: item.listingId,
+        quantity: roundQuantity(item.quantityKg),
+        fulfillmentMethod: method,
+        requestId: item.requestId,
+        groupId: groupId,
+      );
+      return programOrderToken(placed.orderId);
+    }
+    return _marketRepo.placeOrder(
+      listingId: item.listingId,
+      quantityKg: item.quantityKg,
+      fulfillmentMethod: method,
+      deliveryAddress: address?.addressLine,
+      deliveryLatitude: address?.latitude,
+      deliveryLongitude: address?.longitude,
+      deliveryContactNumber: address?.contactNumber,
+      deliveryNotes: address?.notes,
+      deliveryRecipientName: address?.recipientName,
+      deliveryLabel: address?.label,
+      requestId: item.requestId,
+      groupId: groupId,
     );
   }
 
@@ -241,10 +399,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 12),
                 _buildFulfillmentSelector(l10n),
                 const SizedBox(height: 14),
+                if (!_deliveryAvailable) ...[
+                  _buildNote(
+                    l10n.uoCheckoutDeliveryOff,
+                    key: const Key('deliveryOffNote'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (!_pickupAvailable) ...[
+                  _buildNote(
+                    l10n.uoCheckoutPickupOff,
+                    key: const Key('pickupOffNote'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 if (_method == _FulfillmentMethod.pickup)
                   _buildPickupCard(l10n)
-                else
+                else ...[
                   _buildDeliveryCard(l10n),
+                  if (_usesFee && _selectedAddress != null) ...[
+                    const SizedBox(height: 10),
+                    _buildQuoteCard(l10n),
+                  ],
+                ],
                 const SizedBox(height: 18),
                 _sectionHeader(
                   Icons.shopping_bag_outlined,
@@ -300,6 +477,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ],
                         ),
                       ),
+                      if (_usesFee && _quote != null)
+                        Container(
+                          key: const Key('deliveryFeeRow'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                          color: sagana.scaffoldBackground.withValues(
+                            alpha: 0.6,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                l10n.uoPaymentDeliveryFee,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppConstants.onSurfaceVariant,
+                                ),
+                              ),
+                              Text(
+                                '₱${_quote!.fee.toStringAsFixed(2)}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -349,7 +554,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 96),
+          // Grows with the text size, so enlarged text is not cut off.
+          constraints: BoxConstraints(maxHeight: MediaQuery.textScalerOf(context).scale(96)),
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(
@@ -381,12 +587,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           color: AppConstants.onSurfaceVariant,
                         ),
                       ),
-                      Text(
-                        '₱${_total.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppConstants.primaryGreen,
+                      // A large total (items plus the delivery fee) shrinks to fit instead of wrapping.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '₱${_grandTotal.toStringAsFixed(2)}',
+                          key: const Key('grandTotal'),
+                          style: GoogleFonts.poppins(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppConstants.primaryGreen,
+                          ),
                         ),
                       ),
                     ],
@@ -426,9 +638,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       children: [
         Icon(icon, size: 16, color: AppConstants.primaryGreen),
         const SizedBox(width: 6),
-        Text(
-          title,
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+        // Can wrap on a narrow screen or with large text instead of running off the edge.
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
         ),
       ],
     );
@@ -442,7 +657,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             label: l10n.checkoutFulfillmentPickup,
             icon: Icons.storefront_rounded,
             selected: _method == _FulfillmentMethod.pickup,
-            onTap: () => setState(() => _method = _FulfillmentMethod.pickup),
+            onTap: !_pickupAvailable
+                ? null
+                : () {
+                    setState(() => _method = _FulfillmentMethod.pickup);
+                    _refreshQuote();
+                  },
           ),
         ),
         const SizedBox(width: 12),
@@ -451,7 +671,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             label: l10n.checkoutFulfillmentDelivery,
             icon: Icons.local_shipping_outlined,
             selected: _method == _FulfillmentMethod.delivery,
-            onTap: () => setState(() => _method = _FulfillmentMethod.delivery),
+            onTap: !_deliveryAvailable
+                ? null
+                : () {
+                    setState(() => _method = _FulfillmentMethod.delivery);
+                    _refreshQuote();
+                  },
           ),
         ),
       ],
@@ -497,17 +722,39 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  AppConstants.cooperativeName,
+                  _coopDetails?.cooperativeName ?? AppConstants.cooperativeName,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 2),
+                // The address of Cooperative Details, exactly as the Manager has it saved.
                 Text(
-                  AppConstants.cooperativeLocation,
+                  _coopDetails?.addressLine ?? l10n.cdAddressUnavailable,
+                  key: const Key('pickupAddress'),
                   style: GoogleFonts.inter(
                     fontSize: 12,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
+                // Only a real, entered number: never the placeholder.
+                if (_coopDetails?.hasRealContact ?? false) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _coopDetails!.contactNumber!,
+                    key: const Key('pickupContact'),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  l10n.uoCheckoutCashNote,
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
                     color: AppConstants.onSurfaceVariant,
                   ),
                 ),
@@ -588,6 +835,139 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  Widget _buildNote(String text, {Key? key}) {
+    return Container(
+      key: key,
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppConstants.warningAmber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(
+          color: AppConstants.warningAmber.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: AppConstants.warningAmber,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The delivery fee of the chosen address, or why delivery cannot go there.
+  Widget _buildQuoteCard(AppLocalizations l10n) {
+    if (_quoting) {
+      return Row(
+        key: const Key('quoteLoading'),
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            l10n.uoCheckoutQuoteLoading,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+        ],
+      );
+    }
+    final q = _quote;
+    if (q != null) {
+      return Container(
+        key: const Key('quoteCard'),
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppConstants.primaryGreen.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.local_shipping_outlined,
+              size: 18,
+              color: AppConstants.primaryGreen,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                l10n.uoCheckoutFeeNote(q.distanceKm.toStringAsFixed(2)),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Text(
+              formatPesos(q.fee),
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final problem = _quoteProblem;
+    if (problem == null) return const SizedBox.shrink();
+    final message = switch (problem) {
+      DeliveryRefusal.outsideArea => l10n.errOutsideArea,
+      DeliveryRefusal.noPin => l10n.errNoPin,
+      DeliveryRefusal.tooFar => l10n.errTooFar,
+      DeliveryRefusal.noBand => l10n.errNoBand,
+      DeliveryRefusal.off || DeliveryRefusal.notReady => l10n.errDeliveryOff,
+      _ => l10n.errGeneric,
+    };
+    return Column(
+      key: const Key('quoteProblem'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildNote(message),
+        if (problem == DeliveryRefusal.noPin)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('editAddressForPin'),
+              onPressed: () async {
+                final saved = await context.push<bool>(
+                  AppRoutes.addEditAddress,
+                  extra: _selectedAddress,
+                );
+                if (saved == true) _loadAddresses();
+              },
+              icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+              label: Text(l10n.uoCheckoutEditAddress),
+            ),
+          ),
+      ],
+    );
+  }
+
   Future<void> _openAddressPicker(AppLocalizations l10n) {
     return showModalBottomSheet<void>(
       context: context,
@@ -643,6 +1023,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               onTap: () {
                                 setState(() => _selectedAddress = address);
                                 Navigator.of(sheetContext).pop();
+                                _refreshQuote();
                               },
                             ),
                           ),
@@ -805,7 +1186,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                   ),
                   child: Text(
-                    marketTypeLabelFor(item.marketType),
+                    item.isCooperative
+                        ? AppLocalizations.of(context).cpSourceLabel
+                        : marketTypeLabelFor(item.marketType),
                     style: GoogleFonts.inter(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w600,
@@ -842,7 +1225,7 @@ class _MethodChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _MethodChip({
     required this.label,
@@ -853,48 +1236,51 @@ class _MethodChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppConstants.primaryGreen
-              : context.saganaColors.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(
+    return Opacity(
+      opacity: onTap == null ? 0.45 : 1,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
             color: selected
                 ? AppConstants.primaryGreen
-                : AppConstants.outline.withValues(alpha: 0.2),
+                : context.saganaColors.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(
+              color: selected
+                  ? AppConstants.primaryGreen
+                  : AppConstants.outline.withValues(alpha: 0.2),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppConstants.primaryGreen.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppConstants.primaryGreen.withValues(alpha: 0.25),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: selected ? Colors.white : AppConstants.primaryGreen,
-              size: 22,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          child: Column(
+            children: [
+              Icon(
+                icon,
                 color: selected ? Colors.white : AppConstants.primaryGreen,
+                size: 22,
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : AppConstants.primaryGreen,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

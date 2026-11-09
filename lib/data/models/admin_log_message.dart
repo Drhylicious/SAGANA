@@ -85,6 +85,8 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogContributionReversed(v('amount'));
     case 'adminLogInventoryCategoryAdded':
       return l.adminLogInventoryCategoryAdded(v('name'));
+    case 'adminLogProgramTypeAdded':
+      return l.adminLogProgramTypeAdded(v('name'));
     case 'adminLogUnitAdded':
       return l.adminLogUnitAdded(v('name'));
     case 'adminLogCropCategoryAdded':
@@ -139,6 +141,10 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogProgramMemberRemoved;
     case 'adminLogProgramBenefitDistributed':
       return l.adminLogProgramBenefitDistributed;
+    case 'adminLogInventoryItemRestored':
+      return l.adminLogInventoryItemRestored;
+    case 'adminLogProgramRedistributed':
+      return l.adminLogProgramRedistributed;
     case 'adminLogProgramProductAdded':
       return l.adminLogProgramProductAdded;
     case 'adminLogProgramProductUpdated':
@@ -153,6 +159,8 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogProgramReturnConfirmed(v('amount'));
     case 'adminLogProgramOutcomeThriving':
       return l.adminLogProgramOutcomeThriving;
+    case 'adminLogProgramCompleted':
+      return l.adminLogProgramCompleted;
     case 'adminLogProgramConvertedToLoan':
       return l.adminLogProgramConvertedToLoan;
     case 'adminLogProgramActivityCreated':

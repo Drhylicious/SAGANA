@@ -47,7 +47,7 @@ class BuyerOrderRepository {
         .from('orders')
         .select(
           'id, order_number, listing_id, quantity_kg, price_per_kg, unit, total_price, '
-          'status, notes, created_at, updated_at, fulfillment_method',
+          'status, notes, created_at, updated_at, fulfillment_method, payment_status',
         )
         .eq('buyer_id', _userId)
         .order('created_at', ascending: false);
@@ -126,7 +126,8 @@ class BuyerOrderRepository {
               'fulfillment_method, delivery_address, delivery_latitude, '
               'delivery_longitude, delivery_contact_number, delivery_notes, '
               'delivery_recipient_name, delivery_label, ready_at, out_for_delivery_at, '
-              'delivered_at, delivery_photo_url, delivery_evidence_note',
+              'delivered_at, delivery_photo_url, delivery_evidence_note, payment_status, '
+              'amount_collected, delivery_fee_collected, paid_at, completion_method, checkout_group_id',
             )
             .eq('id', orderId)
             .eq('buyer_id', _userId)

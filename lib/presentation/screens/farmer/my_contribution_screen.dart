@@ -9,6 +9,7 @@ import '../../../data/models/contribution_model.dart';
 import '../../../data/models/program_model.dart';
 import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/contribution_repository.dart';
+import '../../../data/repositories/member_sales_aggregation.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
@@ -53,6 +54,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
   MemberContribution? _previous;
   List<MemberSalesTransaction> _transactions = [];
   List<ProgramPurchase> _purchases = [];
+  ProgramPurchaseBreakdown? _purchaseBreakdown;
   CapitalSharesModel? _shares;
   double _sellingSharePercent = 0;
   double _buyingSharePercent = 0;
@@ -89,6 +91,9 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       _repo.fetchCapitalShares(),
       _repo.fetchMyActivityShare(year),
       _capitalRepo.fetchCapitalSummary(userId),
+      // This farmer's own member-price purchases (the database only returns
+      // their own): regular price, discount and net paid.
+      fetchMemberProgramPurchaseBreakdown(Supabase.instance.client, year),
     ]);
     if (!mounted) return;
     setState(() {
@@ -96,6 +101,8 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       _previous = results[1] as MemberContribution?;
       _transactions = results[2] as List<MemberSalesTransaction>;
       _purchases = results[3] as List<ProgramPurchase>;
+      _purchaseBreakdown =
+          (results[7] as Map<String, ProgramPurchaseBreakdown>)[userId];
       _shares = results[4] as CapitalSharesModel?;
       final share = results[5] as ({double selling, double buying});
       _sellingSharePercent = share.selling;
@@ -331,6 +338,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                           sellingSharePercent: _sellingSharePercent,
                           buyingSharePercent: _buyingSharePercent,
                           year: year,
+                          purchaseBreakdown: _purchaseBreakdown,
                         ),
                       const SizedBox(height: 20),
 
@@ -452,12 +460,14 @@ class _MyActivityCard extends StatelessWidget {
   final double sellingSharePercent;
   final double buyingSharePercent;
   final int year;
+  final ProgramPurchaseBreakdown? purchaseBreakdown;
 
   const _MyActivityCard({
     required this.current,
     required this.sellingSharePercent,
     required this.buyingSharePercent,
     required this.year,
+    this.purchaseBreakdown,
   });
 
   @override
@@ -602,6 +612,15 @@ class _MyActivityCard extends StatelessWidget {
                   fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
                 ),
           ),
+          if ((purchaseBreakdown?.discount ?? 0) > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Regular price ₱${NumberFormat('#,##0.00').format(purchaseBreakdown!.regular)} − '
+              'member discount ₱${NumberFormat('#,##0.00').format(purchaseBreakdown!.discount)} = '
+              'net paid ₱${NumberFormat('#,##0.00').format(purchaseBreakdown!.net)}',
+              style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+            ),
+          ],
           const SizedBox(height: 14),
           _ActivityShareProgress(
             percent: buyingSharePercent,
@@ -1510,11 +1529,15 @@ class _PurchasesTable extends StatelessWidget {
               color: AppConstants.onSurface,
             ),
             dividerThickness: 0.5,
-            columns: const [
-              DataColumn(label: Text('Date')),
-              DataColumn(label: Text('Product')),
-              DataColumn(label: Text('Qty'), numeric: true),
-              DataColumn(label: Text('Amount'), numeric: true),
+            columns: [
+              const DataColumn(label: Text('Date')),
+              const DataColumn(label: Text('Product')),
+              const DataColumn(label: Text('Qty'), numeric: true),
+              if (purchases.any((p) => p.hasDiscount)) ...const [
+                DataColumn(label: Text('Regular'), numeric: true),
+                DataColumn(label: Text('Discount'), numeric: true),
+              ],
+              const DataColumn(label: Text('Paid'), numeric: true),
             ],
             rows: purchases.map((p) {
               final date = p.confirmedAt ?? p.requestedAt;
@@ -1541,6 +1564,16 @@ class _PurchasesTable extends StatelessWidget {
                   DataCell(
                     Text('${NumberFormat('#,##0').format(p.quantity)} ${p.unit}'),
                   ),
+                  if (purchases.any((x) => x.hasDiscount)) ...[
+                    DataCell(Text('₱${NumberFormat('#,##0.00').format(p.regularTotal)}')),
+                    DataCell(
+                      Text(
+                        p.hasDiscount
+                            ? '− ₱${NumberFormat('#,##0.00').format(p.discountAmount)}'
+                            : '—',
+                      ),
+                    ),
+                  ],
                   DataCell(
                     Text(
                       '₱${NumberFormat('#,##0.00').format(p.totalAmount)}',

@@ -97,6 +97,7 @@ class BalikTangkilikRepository {
         fetchFarmerInfoMap(_client, farmerIds),
         _fetchExistingContributions(year, farmerIds),
         fetchMemberProgramPurchaseTotals(_client, year),
+        fetchMemberProgramPurchaseBreakdown(_client, year),
       ]);
 
       final salesTotals = results[0] as Map<String, MemberSalesTotals>;
@@ -104,6 +105,8 @@ class BalikTangkilikRepository {
       final farmerInfo = results[2] as Map<String, dynamic>;
       final existing = results[3] as Map<String, Map<String, dynamic>>;
       final purchaseTotals = results[4] as Map<String, double>;
+      final purchaseBreakdown =
+          results[5] as Map<String, ProgramPurchaseBreakdown>;
 
       final liveTotalCoopSales = salesTotals.values.fold<double>(
         0,
@@ -182,6 +185,8 @@ class BalikTangkilikRepository {
           otherCropsQtyKg: sales.otherCropsQtyKg,
           otherCropsAmount: sales.otherCropsAmount,
           programPurchasesAmount: purchasesAmount,
+          programRegularAmount: purchaseBreakdown[farmerId]?.regular ?? 0,
+          programDiscountAmount: purchaseBreakdown[farmerId]?.discount ?? 0,
           purchaseSharePercent: purchaseShare * 100,
           estimatedPurchasePatronage: estimatedPurchasePatronage,
           actualPurchasePatronage:

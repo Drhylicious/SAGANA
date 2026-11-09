@@ -240,7 +240,7 @@ void main() {
       final tl = read('lib/core/l10n/app_tl.arb');
       for (final k in [
         'editListingTitle', 'editListingAction', 'editListingApprovedNote', 'editListingPendingNote',
-        'editListingSave', 'editListingSaved', 'editListingRetakePhoto', 'editListingQtyTooLow',
+        'editListingSave', 'editListingSaved', 'leFieldPhotoLocked', 'editListingQtyTooLow',
         'editListingOffline', 'editListingFailed', 'editListingNotEditable',
       ]) {
         expect(en, contains('"$k"'), reason: 'en $k');

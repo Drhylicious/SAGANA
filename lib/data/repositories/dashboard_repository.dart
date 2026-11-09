@@ -55,7 +55,7 @@ class DashboardRepository {
         screen: 'dash_yield_month_${startOfMonth.toIso8601String()}',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg, unit')
+            .select('quantity_kg, unit').eq('source_type', 'self')
             .eq('farmer_id', _userId)
             .gte('harvest_date', startOfMonth.toIso8601String()),
       );
@@ -74,7 +74,7 @@ class DashboardRepository {
         screen: 'dash_yield_last_month_${startOfLastMonth.toIso8601String()}',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg, unit')
+            .select('quantity_kg, unit').eq('source_type', 'self')
             .eq('farmer_id', _userId)
             .gte('harvest_date', startOfLastMonth.toIso8601String())
             .lte('harvest_date', endOfLastMonth.toIso8601String()),
@@ -220,7 +220,7 @@ class DashboardRepository {
         screen: 'dash_yield_year_${start.toIso8601String()}',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg, unit')
+            .select('quantity_kg, unit').eq('source_type', 'self')
             .eq('farmer_id', _userId)
             .gte('harvest_date', _dateOnly(start))
             .lt('harvest_date', _dateOnly(end)),
@@ -446,6 +446,7 @@ class DashboardRepository {
           'id, crop_name, quantity_kg, unit, batch_number, created_at, is_synced',
         )
         .eq('farmer_id', _userId)
+        .eq('source_type', 'self')
         .order('created_at', ascending: false)
         .limit(sourceLimit);
     for (final h in harvests) {

@@ -4,6 +4,7 @@ import '../../data/models/activity_text.dart';
 import '../../data/models/admin_legacy_generated.dart';
 import '../../data/models/staff_action_model.dart';
 import '../../data/services/staff_permission_service.dart';
+import '../../presentation/widgets/program_return_panel.dart' show resolutionLabel;
 import '../../presentation/widgets/staff_access_matrix.dart';
 import '../l10n/app_localizations.dart';
 
@@ -179,6 +180,28 @@ String? staffThingLabel(AppLocalizations l10n, String? table) {
       return l10n.staffThingMemberContributions;
     case 'broadcast_logs':
       return l10n.staffThingBroadcastLogs;
+    case 'program_outcome_reports':
+      return l10n.staffThingProgramOutcomeReports;
+    case 'program_returns':
+      return l10n.staffThingProgramReturns;
+    case 'program_failure_resolutions':
+      return l10n.staffThingProgramFailureResolutions;
+    case 'program_report_reminders':
+      return l10n.staffThingProgramReportReminders;
+    case 'program_assistance_requests':
+      return l10n.staffThingProgramAssistanceRequests;
+    case 'cooperative_details':
+      return l10n.staffThingCooperativeDetails;
+    case 'delivery_settings':
+      return l10n.staffThingDeliverySettings;
+    case 'delivery_fee_bands':
+      return l10n.staffThingDeliveryFeeBands;
+    case 'cooperative_details':
+      return l10n.staffThingCooperativeDetails;
+    case 'delivery_settings':
+      return l10n.staffThingDeliverySettings;
+    case 'delivery_fee_bands':
+      return l10n.staffThingDeliveryFeeBands;
   }
   return null;
 }
@@ -188,7 +211,7 @@ String? staffThingLabel(AppLocalizations l10n, String? table) {
 /// language, the BOD reminder line for the system, and the app's own text for an
 /// export. Falls back to the database's description, so nothing is ever hidden.
 String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
-  final specific = memberActionHeadline(e, l10n);
+  final specific = memberActionHeadline(e, l10n) ?? programActionHeadline(e, l10n);
   if (specific != null) return specific;
 
   if (e.module == 'system') {
@@ -217,6 +240,9 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
     return message == null ? e.description : renderActivityMessage(l10n, message);
   }
 
+  final coop = cooperativeSettingsHeadline(e, l10n);
+  if (coop != null) return coop;
+
   final thing = staffThingLabel(l10n, e.tableName);
   if (thing == null) return e.description;
   final ref = (e.reference ?? '').trim();
@@ -228,6 +254,98 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
     default:
       return ref.isEmpty ? l10n.staffActGenericChangedNoRef(thing) : l10n.staffActGenericChanged(thing, ref);
   }
+}
+
+/// What a Manager or Officer did to a program member, in plain words: set (or changed) the quantity the
+/// Farmer is expected to return, or gave the Farmer their item. The log row holds only the columns that
+/// changed. Null for any other row, which then keeps the generic wording.
+String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
+  // A cooperative decision on a Failed outcome: every one is kept, with who recorded it and when.
+  if (e.tableName == 'program_failure_resolutions' && e.operation == 'created') {
+    final decision = (e.newValues ?? const <String, dynamic>{})['resolution'];
+    if (decision is! String) return null;
+    final who = (e.reference ?? '').trim();
+    return l10n.staffActDecisionRecorded(who.isEmpty ? '—' : who, resolutionLabel(l10n, decision));
+  }
+  if (e.tableName == 'program_redistribution_requests' && e.operation == 'updated') {
+    final status = (e.newValues ?? const <String, dynamic>{})['status'];
+    if (status == 'approved') {
+      final who = (e.reference ?? '').trim();
+      return l10n.staffActRedistApproved(who.isEmpty ? '—' : who);
+    }
+    return null;
+  }
+  // A second distribution: the new round, and the earlier round closing (both kept as history).
+  if (e.tableName == 'program_members' && e.operation == 'created') {
+    final round = num.tryParse('${(e.newValues ?? const <String, dynamic>{})['round_no']}')?.toInt() ?? 1;
+    if (round > 1) {
+      final who = (e.reference ?? '').trim();
+      return l10n.staffActNewRound(who.isEmpty ? '—' : who, round);
+    }
+    return null;
+  }
+  if (e.tableName != 'program_members' || e.operation != 'updated') return null;
+  final before = e.oldValues ?? const <String, dynamic>{};
+  final after = e.newValues ?? const <String, dynamic>{};
+  final ref = (e.reference ?? '').trim();
+  final name = ref.isEmpty ? '—' : ref;
+  String qty(num v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+  if (after['status'] == 'completed' && before['status'] == 'active') {
+    return l10n.staffActRoundClosed(name);
+  }
+  if (after['distributed_at'] != null && before['distributed_at'] == null) {
+    final given = num.tryParse('${after['quantity_given']}');
+    final item = '${after['distributed_item_name'] ?? ''}'.trim();
+    final unit = '${after['distributed_unit'] ?? ''}'.trim();
+    if (given == null || item.isEmpty) return null;
+    return l10n.staffActGaveItem([qty(given), if (unit.isNotEmpty) unit, item].join(' '), name);
+  }
+  if (after.containsKey('return_quantity')) {
+    final to = num.tryParse('${after['return_quantity']}');
+    if (to == null) return null;
+    final from = num.tryParse('${before['return_quantity']}');
+    return from == null
+        ? l10n.staffActReturnSet(name, qty(to))
+        : l10n.staffActReturnChanged(name, qty(from), qty(to));
+  }
+  return null;
+}
+
+/// What the Manager did to the cooperative's own settings, in plain words: moved the location,
+/// changed or verified the contact number, switched Delivery or Pickup, set a delivery fee.
+/// Null for any other row.
+String? cooperativeSettingsHeadline(StaffActionEntry e, AppLocalizations l10n) {
+  final before = e.oldValues ?? const <String, dynamic>{};
+  final after = e.newValues ?? const <String, dynamic>{};
+  switch (e.tableName) {
+    case 'cooperative_details':
+      if (e.operation != 'updated') return null;
+      final parts = <String>[
+        if (after.containsKey('latitude') || after.containsKey('longitude')) l10n.staffCoopPartLocation,
+        if (after.containsKey('contact_number') || after.containsKey('contact_is_placeholder')) l10n.staffCoopPartContact,
+        if (after['contact_verified_at'] != null) l10n.staffCoopPartVerified,
+      ];
+      return parts.isEmpty ? l10n.staffActCoopChangedPlain : l10n.staffActCoopChanged(parts.join(', '));
+    case 'delivery_settings':
+      if (e.operation != 'updated') return null;
+      if (after['delivery_enabled'] is bool && after['delivery_enabled'] != before['delivery_enabled']) {
+        return after['delivery_enabled'] == true ? l10n.staffActDeliveryOn : l10n.staffActDeliveryOff;
+      }
+      if (after['pickup_enabled'] is bool && after['pickup_enabled'] != before['pickup_enabled']) {
+        return after['pickup_enabled'] == true ? l10n.staffActPickupOn : l10n.staffActPickupOff;
+      }
+      return l10n.staffActDeliverySettingsChanged;
+    case 'delivery_fee_bands':
+      if (e.operation != 'created') return null;
+      final min = num.tryParse('${after['min_km']}');
+      final max = num.tryParse('${after['max_km']}');
+      final fee = num.tryParse('${after['fee']}');
+      if (min == null || max == null || fee == null) return null;
+      String km(num v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+      return l10n.staffActFeeBandAdded('${km(min)}–${km(max)}', '₱${NumberFormat('#,##0.00').format(fee)}');
+  }
+  return null;
 }
 
 /// The line under the sentence: the Members reason or note, or for any other

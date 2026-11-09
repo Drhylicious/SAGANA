@@ -9,13 +9,11 @@ import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/inventory_batch_model.dart';
 import '../../../data/models/listing_edit_request_model.dart';
 import '../../../data/models/marketplace_listing_model.dart';
-import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/server_only.dart';
 import '../../widgets/app_toast.dart';
-import '../../widgets/crop_photo_capture.dart';
 import '../../widgets/edit_request_widgets.dart';
 import '../../widgets/listing_status_badge.dart';
 import '../../widgets/shared_widgets.dart';
@@ -23,15 +21,17 @@ import '../../widgets/top_bar_spacer.dart';
 
 /// Farmer > Listing > Edit Listing.
 ///
-/// A Farmer can change the quantity, asking price, description and product photo
-/// of their own listing while it is Pending Approval or Available (approved with
-/// quantity left). The crop (its name and identity) and the unit are fixed: the
-/// unit is the one recorded on the harvest, and is only ever shown here.
+/// A Farmer can change the quantity, asking price and description of their own
+/// listing while it is Pending Approval or Available (approved with quantity
+/// left). Nothing else is editable: the crop and the unit are fixed (the unit is
+/// the one recorded on the harvest), and the listing photo is always the Farmer's
+/// Crop Roster photo, so it is shown here but never changed.
 ///
-/// The database does the work (`update_my_listing`): it reserves or releases the
-/// difference on the harvest batch and leaves existing orders alone. This form
-/// checks the same rules first so the Farmer gets a plain answer, and bounds the
-/// quantity to what the batch can actually give.
+/// A listing still Pending Approval is updated directly. A PUBLISHED listing is
+/// never updated live: the edit is submitted for the Manager / Officer to approve
+/// (`request_listing_edit`), and buyers keep seeing the listing exactly as it is
+/// until then. This form checks the same rules as the database first so the
+/// Farmer gets a plain answer, and bounds the quantity to what the batch can give.
 class EditListingScreen extends StatefulWidget {
   final MarketplaceListingModel listing;
   const EditListingScreen({super.key, required this.listing});
@@ -43,7 +43,6 @@ class EditListingScreen extends StatefulWidget {
 class _EditListingScreenState extends State<EditListingScreen> {
   final _listingRepo = ListingRepository();
   final _inventoryRepo = InventoryRepository();
-  final _cropRepo = CropRepository();
 
   late MarketplaceListingModel _listing;
   final _quantityController = TextEditingController();
@@ -53,7 +52,6 @@ class _EditListingScreenState extends State<EditListingScreen> {
   final _priceFocus = FocusNode();
 
   InventoryBatchModel? _batch;
-  CapturedCropPhoto? _newPhoto;
 
   /// The open edit request for this listing, if there is one (approved listings only).
   ListingEditRequest? _pending;
@@ -166,12 +164,6 @@ class _EditListingScreenState extends State<EditListingScreen> {
     }
   }
 
-  Future<void> _takePhoto() async {
-    final photo = await captureCropPhoto(context);
-    if (photo == null || !mounted) return;
-    setState(() => _newPhoto = photo);
-  }
-
   Future<void> _save() async {
     final l = AppLocalizations.of(context);
     if (_saving) return;
@@ -198,7 +190,6 @@ class _EditListingScreenState extends State<EditListingScreen> {
       currentQuantity: _listing.volumeKg,
       currentPrice: _listing.pricePerKg,
       currentDescription: _listing.description,
-      newPhoto: _newPhoto != null,
     )) {
       AppToast.show(context, l.editListingNoChanges);
       return;
@@ -211,25 +202,11 @@ class _EditListingScreenState extends State<EditListingScreen> {
       return;
     }
     try {
-      final photo = _newPhoto;
-      final batch = _batch;
-      if (photo != null && batch != null) {
-        // The listing always shows the Farmer's own crop photo: retaking it
-        // updates the Crop Roster photo, and the database copies that onto the
-        // listing. Camera only, like everywhere else.
-        await _cropRepo.setCropPhotoOnline(
-          bytes: photo.bytes,
-          fileExtension: photo.extension,
-          cropId: batch.cropId,
-          cropName: batch.cropName,
-        );
-      }
       await _listingRepo.updateListing(
         listingId: _listing.id,
         quantity: result.quantity!,
         pricePerUnit: result.price!,
         description: result.description!,
-        refreshPhoto: photo != null && batch != null,
       );
       if (!mounted) return;
       AppToast.show(context, l.editListingSaved);
@@ -248,32 +225,15 @@ class _EditListingScreenState extends State<EditListingScreen> {
     }
   }
 
-  /// A published listing: the proposed values go to the Manager / Officer. The
-  /// listing is not changed, no stock moves. A new photo is uploaded to this
-  /// listing's own photo storage and only replaces the listing photo if approved.
+  /// A published listing: the edit is submitted to the Manager / Officer. The
+  /// live listing is not changed and no stock moves until they approve it.
   Future<void> _sendRequest(AppLocalizations l, ListingEditResult result) async {
     try {
-      String? photoUrl;
-      final photo = _newPhoto;
-      if (photo != null) {
-        photoUrl = await _listingRepo.uploadListingPhoto(
-          batchNumber: _batch?.batchNumber ?? 'listing',
-          imageBytes: photo.bytes,
-          fileExtension: photo.extension,
-        );
-        if (photoUrl == null) {
-          if (!mounted) return;
-          setState(() => _saving = false);
-          AppToast.show(context, l.lePhotoUploadFailed, isError: true);
-          return;
-        }
-      }
       await _listingRepo.requestEdit(
         listingId: _listing.id,
         quantity: result.quantity!,
         pricePerUnit: result.price!,
         description: result.description!,
-        photoUrl: photoUrl,
       );
       if (!mounted) return;
       AppToast.show(context, l.leRequestSent);
@@ -323,7 +283,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: _requestMode ? l.leRequestTitle : l.editListingTitle,
+              title: l.editListingTitle,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -549,42 +509,27 @@ class _EditListingScreenState extends State<EditListingScreen> {
     );
   }
 
+  /// The listing photo is the Farmer's Crop Roster photo: shown, never edited here.
   Widget _photo(AppLocalizations l) {
     final url = _listing.photoUrl;
-    Widget image;
-    if (_newPhoto != null) {
-      image = Image.memory(_newPhoto!.bytes, fit: BoxFit.cover);
-    } else if (url != null && url.isNotEmpty) {
-      image = Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder());
-    } else {
-      image = _placeholder();
-    }
+    final image = (url != null && url.isNotEmpty)
+        ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
+        : _placeholder();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: SizedBox(width: double.infinity, height: 160, child: image),
+          child: SizedBox(width: double.infinity, height: 140, child: image),
         ),
         const SizedBox(height: 8),
-        Text(
-          _newPhoto != null
-              ? (_requestMode ? l.lePhotoChanged : l.editListingPhotoPending)
-              : (_requestMode ? l.lePhotoUnchanged : l.editListingPhotoNote),
-          style: _hint,
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: (_saving || _batch == null) ? null : _takePhoto,
-          icon: const Icon(Icons.photo_camera_rounded, size: 18),
-          label: Text(l.editListingRetakePhoto, style: GoogleFonts.poppins(fontSize: 13)),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppConstants.primaryGreen,
-            side: BorderSide(color: AppConstants.primaryGreen.withValues(alpha: 0.5)),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            ),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.lock_outline_rounded, size: 13, color: AppConstants.outline),
+            const SizedBox(width: 6),
+            Expanded(child: Text(l.leFieldPhotoLocked, style: _hint)),
+          ],
         ),
       ],
     );

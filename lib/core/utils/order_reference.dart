@@ -11,6 +11,15 @@ String orderReferenceOf(String orderId, String? orderNumber) {
   return legacyOrderReference(orderId);
 }
 
+/// A checkout can place Marketplace orders and Cooperative Product orders together. The ids it
+/// hands to the success screens are plain order ids for the first kind and this prefix plus the
+/// order id for the second, so each screen knows which table to read.
+const String kProgramOrderIdPrefix = 'pso:';
+
+String programOrderToken(String orderId) => '$kProgramOrderIdPrefix$orderId';
+bool isProgramOrderToken(String token) => token.startsWith(kProgramOrderIdPrefix);
+String programOrderIdOf(String token) => token.substring(kProgramOrderIdPrefix.length);
+
 /// The reference orders had before order numbers were stored.
 String legacyOrderReference(String orderId) {
   final short = orderId.length >= 8 ? orderId.substring(0, 8) : orderId;

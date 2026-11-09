@@ -1,3 +1,4 @@
+import '../../core/utils/item_type_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -108,6 +109,7 @@ pw.Widget _table(List<String> headers, List<List<String>> rows) {
 Future<pw.Document> buildSalesReportPdf(
   SalesReportData data, {
   String? scopeText,
+  ProductSalesReportData? products,
 }) async {
   final rows = data.transactions
       .map(
@@ -123,23 +125,69 @@ Future<pw.Document> buildSalesReportPdf(
         ],
       )
       .toList();
+  final marketplaceTable = _table([
+    'Selling Channel',
+    'Market Type',
+    'Farmer',
+    'Crop',
+    'Qty (kg)',
+    'Amount (PHP)',
+    'Date',
+    'Reference',
+  ], rows);
+  if (products == null) {
+    return _buildDocument(
+      title: 'Sales Report',
+      subtitle: _withScope(
+        scopeText,
+        'Total Revenue: PHP ${data.totalRevenue.toStringAsFixed(2)} — ${data.transactionCount} transactions',
+      ),
+      sections: [marketplaceTable],
+    );
+  }
+  // Two sections, as on the screen: Marketplace Sales, then Cooperative Product Sales.
+  final productRows = products.rows
+      .map(
+        (r) => [
+          r.farmerName,
+          r.itemName,
+          r.programName ?? '',
+          exportQuantity(r.quantity, r.unit),
+          r.amount.toStringAsFixed(2),
+          _dateFmt.format(r.saleDate),
+          r.orderNumber,
+        ],
+      )
+      .toList();
   return _buildDocument(
     title: 'Sales Report',
     subtitle: _withScope(
       scopeText,
-      'Total Revenue: PHP ${data.totalRevenue.toStringAsFixed(2)} — ${data.transactionCount} transactions',
+      'Marketplace Sales: PHP ${data.totalRevenue.toStringAsFixed(2)} (${data.transactionCount} transactions) — '
+      'Cooperative Product Sales: PHP ${products.summary.amount.toStringAsFixed(2)} (${products.summary.orders} orders)',
     ),
     sections: [
+      pw.Text(
+        'Marketplace Sales',
+        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+      ),
+      pw.SizedBox(height: 6),
+      marketplaceTable,
+      pw.SizedBox(height: 16),
+      pw.Text(
+        'Cooperative Product Sales',
+        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+      ),
+      pw.SizedBox(height: 6),
       _table([
-        'Selling Channel',
-        'Market Type',
-        'Farmer',
-        'Crop',
-        'Qty (kg)',
+        'Member',
+        'Product',
+        'Program',
+        'Qty',
         'Amount (PHP)',
-        'Date',
-        'Reference',
-      ], rows),
+        'Completed',
+        'Order #',
+      ], productRows),
     ],
   );
 }
@@ -299,6 +347,10 @@ Future<pw.Document> buildMemberContributionReportPdf(
             r.otherCropsAmount.toStringAsFixed(2),
             r.totalAmount.toStringAsFixed(2),
             r.sharePercent.toStringAsFixed(2),
+            r.programRegularAmount.toStringAsFixed(2),
+            r.programDiscountRatePercent.toStringAsFixed(2),
+            r.programDiscountAmount.toStringAsFixed(2),
+            r.programPurchasesAmount.toStringAsFixed(2),
         ],
       )
       .toList();
@@ -317,6 +369,10 @@ Future<pw.Document> buildMemberContributionReportPdf(
         'Other (PHP)',
         'Total (PHP)',
         'Share (%)',
+        'Regular (PHP)',
+        'Disc. rate (%)',
+        'Discount (PHP)',
+        'Net paid (PHP)',
       ], rows),
     ],
   );
@@ -331,6 +387,7 @@ Future<pw.Document> buildCoopStockReportPdf(
         (i) => [
             i.itemName,
             i.category,
+            itemTypeExportLabel(i.itemType),
             i.quantityOnHand.toStringAsFixed(2),
             i.unit,
             i.isLowStock ? 'Yes' : 'No',
@@ -341,10 +398,10 @@ Future<pw.Document> buildCoopStockReportPdf(
     title: 'Cooperative Stock Report',
     subtitle: _withScope(
       scopeText,
-      '${data.totalItems} items — ${data.lowStockCount} low stock',
+      '${data.totalItems} items (${data.seedsItemCount} seeds, ${data.produceItemCount} produce, ${data.nonCropItemCount} non-crop) — ${data.lowStockCount} low stock',
     ),
     sections: [
-      _table(['Item', 'Category', 'On Hand', 'Unit', 'Low Stock'], rows),
+      _table(['Item', 'Category', 'Item Type', 'On Hand', 'Unit', 'Low Stock'], rows),
     ],
   );
 }

@@ -52,6 +52,8 @@ AdminLogMessage? parseLegacyAdminLog(String text) {
     (RegExp('^Declined a farmer\'s program enrollment request\\.\$'), 'adminLogProgramEnrollmentDeclined', []),
     (RegExp('^Removed a member from a program\\.\$'), 'adminLogProgramMemberRemoved', []),
     (RegExp('^Distributed a program benefit to a member\\.\$'), 'adminLogProgramBenefitDistributed', []),
+    (RegExp('^Started another distribution for a member after a failed outcome\\.\$'), 'adminLogProgramRedistributed', []),
+    (RegExp('^Restored an archived inventory item\\.\$'), 'adminLogInventoryItemRestored', []),
     (RegExp('^Added a product to a sales program\\.\$'), 'adminLogProgramProductAdded', []),
     (RegExp('^Updated a sales program product\\.\$'), 'adminLogProgramProductUpdated', []),
     (RegExp('^Removed a product from a sales program\\.\$'), 'adminLogProgramProductRemoved', []),

@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/app_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/listing_edit_request_model.dart';
@@ -54,7 +54,7 @@ class _ListingEditRequestScreenState extends State<ListingEditRequestScreen> {
   }
 
   String _error(Object e, String fallback) =>
-      e is PostgrestException && e.message.isNotEmpty ? e.message : fallback;
+      friendlyError(AppLocalizations.of(context), e, null, fallback);
 
   Future<void> _approve() async {
     if (!requireManage(context, StaffModule.marketplace)) return;
@@ -359,11 +359,14 @@ class EditRequestComparison extends StatelessWidget {
             current: r.shownDescription ?? '',
             proposed: descChanged ? r.proposedDescription : null,
           ),
-          _PhotoRow(
-            label: l.editListingFieldPhoto,
-            current: r.shownPhotoUrl,
-            proposed: r.proposedPhotoUrl,
-          ),
+          // The photo is not editable (it follows the Crop Roster photo); this row
+          // only appears for an older request that carried one.
+          if (r.changesPhoto)
+            _PhotoRow(
+              label: l.editListingFieldPhoto,
+              current: r.shownPhotoUrl,
+              proposed: r.proposedPhotoUrl,
+            ),
         ],
       ),
     );

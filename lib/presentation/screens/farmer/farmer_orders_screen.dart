@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/quantity_utils.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
-import '../../../data/models/buyer_order_model.dart';
+import '../../../data/models/consumer_order_row.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
+import '../../../data/repositories/cooperative_order_repository.dart';
+import '../../widgets/order_payment_widgets.dart' show OrderSourceBadge;
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
@@ -38,9 +40,10 @@ const List<String?> _kStatuses = [null, ...kOrderStatuses];
 
 class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   final _repo = BuyerOrderRepository();
+  final _coopRepo = CooperativeOrderRepository();
   final _searchCtrl = TextEditingController();
 
-  List<BuyerOrderModel> _allOrders = [];
+  List<ConsumerOrderRow> _allOrders = [];
   String? _statusFilter;
   String _searchQuery = '';
   bool _isLoading = true;
@@ -61,7 +64,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
     _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
     _load();
     _orderWatcher = TableChangeWatcher(
-      tables: const ['orders'],
+      tables: const ['orders', 'program_product_purchases'],
       onChange: () {
         if (mounted) _load(silent: true);
       },
@@ -77,23 +80,24 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _isLoading = true);
-    final orders = await _repo.fetchMyOrders();
+    final market = await _repo.fetchMyOrders();
+    final coop = await _coopRepo.fetchMyOrders();
     if (!mounted) return;
     setState(() {
-      _allOrders = orders;
+      _allOrders = mergeConsumerOrders(market, coop);
       _isLoading = false;
     });
   }
 
-  List<BuyerOrderModel> get _filtered {
+  List<ConsumerOrderRow> get _filtered {
     var list = _statusFilter == null
         ? _allOrders
         : _allOrders.where((o) => o.status == _statusFilter);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((o) =>
-          o.displayName.toLowerCase().contains(q) ||
-          o.orderReference.toLowerCase().contains(q));
+          o.title.toLowerCase().contains(q) ||
+          o.reference.toLowerCase().contains(q));
     }
     return list.toList();
   }
@@ -108,8 +112,8 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   // "ready for pickup/delivery" notice a buyer in the identical
   // situation sees. Title/body branch on the actual mix of fulfillment
   // methods among the approved orders, same as Buyer's version.
-  Widget _buildApprovedBanner(AppLocalizations l10n, List<BuyerOrderModel> approved) {
-    final pickupCount = approved.where((o) => o.isPickupChoice).length;
+  Widget _buildApprovedBanner(AppLocalizations l10n, List<ConsumerOrderRow> approved) {
+    final pickupCount = approved.where((o) => o.isPickup).length;
     final deliveryCount = approved.where((o) => o.isDelivery).length;
     final count = approved.length;
 
@@ -172,7 +176,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
     final visible = _filtered;
     // Orders the consumer can now collect or has been sent (the banner's subject).
     final approved = _allOrders
-        .where((o) => o.isReadyForPickup || o.isOutForDelivery || o.isDelivered)
+        .where((o) => o.status == 'ready_for_pickup' || o.status == 'out_for_delivery' || o.status == 'delivered')
         .toList();
 
     return Scaffold(
@@ -269,13 +273,16 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _OrderCard extends StatelessWidget {
-  final BuyerOrderModel order;
+  final ConsumerOrderRow order;
   const _OrderCard({required this.order});
 
   Color get _statusColor => orderStatusColor(order.status);
 
   void _openDetail(BuildContext context) {
-    context.pushRoute(AppRoutes.farmerOrderDetail, extra: order.id);
+    context.pushRoute(
+      order.isCooperative ? AppRoutes.farmerProgramOrderDetail : AppRoutes.farmerOrderDetail,
+      extra: order.id,
+    );
   }
 
   @override
@@ -305,8 +312,8 @@ class _OrderCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                    child: order.listingPhotoUrl != null
-                        ? Image.network(order.listingPhotoUrl!, width: 52, height: 52, fit: BoxFit.cover)
+                    child: order.photoUrl != null
+                        ? Image.network(order.photoUrl!, width: 52, height: 52, fit: BoxFit.cover)
                         : Container(width: 52, height: 52, color: AppConstants.limeGreen,
                             child: const Icon(Icons.eco_rounded, size: 22, color: AppConstants.primaryGreen)),
                   ),
@@ -319,7 +326,7 @@ class _OrderCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Text(order.displayName,
+                              child: Text(order.title,
                                   style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700)),
                             ),
                             const SizedBox(width: 8),
@@ -332,8 +339,15 @@ class _OrderCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 3),
-                        Text('${order.orderReference} · ${_formatDate(order.createdAt)}',
-                            style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant, letterSpacing: 0.3)),
+                        Wrap(
+                          spacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text('${order.reference} · ${_formatDate(order.createdAt)}',
+                                style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant, letterSpacing: 0.3)),
+                            if (order.isCooperative) const OrderSourceBadge(source: kOrderSourceCooperative),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -346,12 +360,12 @@ class _OrderCard extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      order.isPickupChoice ? Icons.storefront_rounded : Icons.local_shipping_outlined,
+                      order.isPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
                       size: 13, color: AppConstants.primaryGreen,
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      order.isPickupChoice ? l10n.checkoutFulfillmentPickup : l10n.checkoutFulfillmentDelivery,
+                      order.isPickup ? l10n.checkoutFulfillmentPickup : l10n.checkoutFulfillmentDelivery,
                       style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
                     ),
                   ],
@@ -372,14 +386,14 @@ class _OrderCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(l10n.buyerOrdersQuantityLabel, style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-                          Text(formatQuantityUnit(order.quantityKg, order.unit), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                          Text(order.quantityLabel, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(l10n.buyerOrdersTotalLabel, style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-                          Text('₱${order.totalPrice.toStringAsFixed(2)}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                          Text('₱${order.total.toStringAsFixed(2)}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
                         ],
                       ),
                     ],
@@ -408,13 +422,17 @@ class _OrderCard extends StatelessWidget {
       case 'out_for_delivery':
       case 'delivered':
         return PrimaryButton(
-          label: order.canConfirmReceipt ? l10n.buyerOrderReceivedAction : l10n.buyerOrdersViewDetails,
+          label: order.canConfirmReceipt
+              ? l10n.buyerOrderReceivedAction
+              : (order.isWaitingForPayment ? l10n.uoWaitingPaymentTitle : l10n.buyerOrdersViewDetails),
           height: 40,
           onPressed: () => _openDetail(context),
         );
       case 'completed':
         return OutlinedButton(
-          onPressed: () => context.pushRoute(AppRoutes.farmerMarketplaceListingDetail, extra: order.listingId),
+          onPressed: order.listingId == null
+              ? () => context.goTab(AppRoutes.myListings)
+              : () => context.pushRoute(AppRoutes.farmerMarketplaceListingDetail, extra: order.listingId),
           child: Text(l10n.buyerOrdersReorder),
         );
       case 'cancelled':
@@ -437,8 +455,5 @@ class _OrderCard extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime d) {
-    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${m[d.month - 1]} ${d.day}';
-  }
+  String _formatDate(DateTime d) => AppUtils.formatListingDate(d);
 }

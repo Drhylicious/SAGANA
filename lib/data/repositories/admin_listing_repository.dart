@@ -5,6 +5,7 @@ import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
 import '../models/admin_log_message.dart';
 import '../models/listing_edit_request_model.dart';
+import '../../core/utils/app_utils.dart';
 import '../../core/utils/quantity_utils.dart';
 
 // ─── Admin Listing Model ──────────────────────────────────────────────────────
@@ -152,21 +153,7 @@ class AdminListingModel {
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays == 1) return 'Yesterday';
-    const m = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${m[createdAt.month - 1]} ${createdAt.day}';
+    return AppUtils.formatListingDate(createdAt);
   }
 
   factory AdminListingModel.fromMap(Map<String, dynamic> map) {
@@ -632,6 +619,11 @@ class AdminListingRepository {
       return [];
     }
   }
+
+  /// Edited listings waiting for a decision, counted by the database. A failed read is an
+  /// error (the caller keeps the figure it already has), never a silent 0.
+  Future<int> fetchPendingEditCount() =>
+      _client.from('listing_edit_requests').count().eq('status', 'pending');
 
   Future<ListingEditRequest?> fetchEditRequestById(String requestId) async {
     try {

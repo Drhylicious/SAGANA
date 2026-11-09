@@ -48,6 +48,9 @@ class AppNavigationDrawer extends StatelessWidget {
   // changes at all; they simply never pass it, same as they already omit
   // onEditFarmDetails.
   final VoidCallback? onMyAddresses;
+  // Manager and Officer only: the cooperative's own details (name, pickup address, location,
+  // contact number). Same optional pattern: the Farmer and Buyer drawers never pass it.
+  final VoidCallback? onCooperativeDetails;
   final VoidCallback onSignOut;
   final VoidCallback onAboutSagana;
   final VoidCallback onAboutOrganization;
@@ -63,6 +66,7 @@ class AppNavigationDrawer extends StatelessWidget {
     required this.onEditProfile,
     this.onEditFarmDetails,
     this.onMyAddresses,
+    this.onCooperativeDetails,
     required this.onSignOut,
     required this.onAboutSagana,
     required this.onAboutOrganization,
@@ -232,6 +236,16 @@ class AppNavigationDrawer extends StatelessWidget {
                                         iconColor: AppConstants.buyerBlue,
                                         title: l10n.buyerAddressesTitle,
                                         onTap: onMyAddresses!,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                      ),
+                                    ],
+                                    if (onCooperativeDetails != null) ...[
+                                      const SettingsDivider(),
+                                      SettingsRow(
+                                        icon: Icons.apartment_rounded,
+                                        iconColor: AppConstants.programPurple,
+                                        title: l10n.cdTitle,
+                                        onTap: onCooperativeDetails!,
                                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                       ),
                                     ],

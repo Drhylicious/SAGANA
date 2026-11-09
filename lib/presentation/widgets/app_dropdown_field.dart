@@ -51,6 +51,9 @@ class AppDropdownField<T> extends FormField<T> {
     Future<T?> Function()? onAddNew,
     // False for a compact "+ Unit"-style label that already carries its own plus.
     bool addNewShowIcon = true,
+    // True shows a long option in full over as many lines as it needs, in the closed field and in the
+    // opened list, instead of cutting it off with "…".
+    bool wrapText = false,
   }) : super(
           initialValue: value,
           validator: validator,
@@ -67,6 +70,7 @@ class AppDropdownField<T> extends FormField<T> {
               addNewLabel: addNewLabel,
               onAddNew: onAddNew,
               addNewShowIcon: addNewShowIcon,
+              wrapText: wrapText,
               onChanged: (v) {
                 field.didChange(v);
                 onChanged(v);
@@ -105,6 +109,7 @@ class _DropdownFieldBody<T> extends StatefulWidget {
   final String? addNewLabel;
   final Future<T?> Function()? onAddNew;
   final bool addNewShowIcon;
+  final bool wrapText;
 
   const _DropdownFieldBody({
     super.key,
@@ -120,6 +125,7 @@ class _DropdownFieldBody<T> extends StatefulWidget {
     this.addNewLabel,
     this.onAddNew,
     this.addNewShowIcon = true,
+    this.wrapText = false,
   });
 
   @override
@@ -247,8 +253,8 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                                               horizontal: 14, vertical: 12),
                                           child: Text(
                                             widget.itemLabel(item),
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
+                                            overflow: widget.wrapText ? TextOverflow.visible : TextOverflow.ellipsis,
+                                            maxLines: widget.wrapText ? null : 1,
                                             style: GoogleFonts.inter(
                                               fontSize: 14,
                                               fontWeight: selected
@@ -318,6 +324,13 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
     setState(() => _isOpen = true);
   }
 
+  /// The closed field's row. With wrapped text it grows with the text and the arrow box grows with it.
+  Widget _fieldRow({required List<Widget> children}) => widget.wrapText
+      ? IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+        )
+      : Row(children: children);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -350,15 +363,15 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: borderColor, width: _isOpen ? 1.5 : 1),
               ),
-              child: Row(
+              child: _fieldRow(
                 children: [
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                       child: Text(
                         hasValue ? widget.itemLabel(widget.value as T) : widget.hintText,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                        overflow: widget.wrapText ? TextOverflow.visible : TextOverflow.ellipsis,
+                        maxLines: widget.wrapText ? null : 1,
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: hasValue
@@ -373,7 +386,8 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                   // reads as one continuous field with two zones.
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    height: 48,
+                    height: widget.wrapText ? null : 48,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
                       border: Border(left: BorderSide(color: borderColor)),

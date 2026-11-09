@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,8 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cart_eligibility.dart';
 import '../../../data/models/cart_item_model.dart';
+import '../../../data/models/cooperative_product_model.dart';
+import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/market_types_service.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
@@ -16,6 +19,7 @@ import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/quantity_stepper.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -33,6 +37,7 @@ class CartScreen extends StatefulWidget {
 class _CartScreenState extends State<CartScreen> {
   final _cartService = CartService();
   final _marketRepo = BuyerMarketplaceRepository();
+  final _programRepo = FarmerProgramRepository();
 
   bool _isLoading = true;
   bool _isCheckingOut = false;
@@ -55,9 +60,20 @@ class _CartScreenState extends State<CartScreen> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
-    final items = await _cartService.getItems();
+  /// [silent] reloads in the background and keeps the list on screen. Only the
+  /// first load shows the skeleton; reloading after a change (a removal, a
+  /// stock adjustment) must not blank the whole cart.
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
+    var items = await _cartService.getItems();
+    // Cooperative Products are for Farmers only. A Buyer's cart never shows one (a Buyer cannot
+    // add one, and the database refuses to place it), so any such line is dropped, never shown.
+    if (!widget.isFarmerContext && items.any((i) => i.isCooperative)) {
+      for (final i in items.where((i) => i.isCooperative)) {
+        await _cartService.removeItem(i.listingId);
+      }
+      items = items.where((i) => !i.isCooperative).toList();
+    }
     final issues = await _evaluate(items);
     if (!mounted) return;
     setState(() {
@@ -76,13 +92,34 @@ class _CartScreenState extends State<CartScreen> {
   /// database still refuses an ineligible order at checkout.
   Future<Map<String, CartIssue>> _evaluate(List<CartItemModel> items) async {
     if (items.isEmpty || !ConnectivityService.instance.isOnline) return {};
-    final rows = await _marketRepo.fetchCartListingRows(
-      items.map((i) => i.listingId).toList(),
-    );
-    if (rows == null) return {};
-    final uid = AuthService.currentUser?.id;
     final result = <String, CartIssue>{};
-    for (final item in items) {
+
+    // Cooperative lines are checked against the live product (still on sale, stock left).
+    final coop = items.where((i) => i.isCooperative).toList();
+    if (coop.isNotEmpty) {
+      final coopRows = await _programRepo.fetchCooperativeCartRows(coop.map((i) => i.listingId).toList());
+      if (coopRows != null) {
+        for (final item in coop) {
+          switch (evaluateCooperativeCartLine(coopRows[item.listingId])) {
+            case CooperativeCartIssue.none:
+              break;
+            case CooperativeCartIssue.unavailable:
+              result[item.listingId] = CartIssue.unavailable;
+            case CooperativeCartIssue.soldOut:
+              result[item.listingId] = CartIssue.soldOut;
+          }
+        }
+      }
+    }
+
+    final market = items.where((i) => !i.isCooperative).toList();
+    if (market.isEmpty) return result;
+    final rows = await _marketRepo.fetchCartListingRows(
+      market.map((i) => i.listingId).toList(),
+    );
+    if (rows == null) return result;
+    final uid = AuthService.currentUser?.id;
+    for (final item in market) {
       final issue = evaluateCartItem(
         item: item,
         listing: rows[item.listingId],
@@ -121,7 +158,7 @@ class _CartScreenState extends State<CartScreen> {
       await _cartService.removeItem(id);
       _selectedIds.remove(id);
     }
-    _load();
+    _load(silent: true);
   }
 
   double get _selectedTotal => _items
@@ -174,40 +211,50 @@ class _CartScreenState extends State<CartScreen> {
       AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
       return;
     }
-    for (final id in _selectedIds.toList()) {
+    final deleted = _selectedIds.toList();
+    for (final id in deleted) {
       await _cartService.removeItem(id);
     }
+    if (!mounted) return;
     setState(() {
+      _items.removeWhere((i) => deleted.contains(i.listingId));
       _selectedIds.clear();
       _isEditMode = false;
     });
-    _load();
+    _load(silent: true);
   }
 
-  Future<void> _updateQuantity(CartItemModel item, double delta) async {
-    if (!ConnectivityService.instance.isOnline) {
-      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
-      return;
-    }
-    // Lower bound must never exceed availableKgSnapshot — a hardcoded 1.0
-    // floor would throw (ArgumentError: lowerLimit > upperLimit) for any
-    // listing with under 1kg remaining, which is a real, valid state now
-    // that fractional kg is properly supported end-to-end.
-    final upper = item.availableKgSnapshot;
-    final lower = upper > 0 ? (upper < 0.01 ? upper : 0.01) : 0.0;
-    final newQty = (item.quantityKg + delta).clamp(lower, upper);
-    await _cartService.updateQuantity(item.listingId, newQty);
-    _load();
+  /// A new quantity for one line (from the - / + buttons or typed). Only that
+  /// line changes: it is updated in place and saved, so the cart does not
+  /// reload, show the skeleton or re-check every listing for a quantity change.
+  /// The stepper has already limited it to 0.01 .. the stock left, and refuses
+  /// the change while offline (see [_changesAllowed]).
+  void _setQuantity(CartItemModel item, double quantity) {
+    setState(() => item.quantityKg = quantity);
+    unawaited(_cartService.updateQuantity(item.listingId, quantity));
   }
+
+  // The cart is only changed while online (as before): offline the quantity
+  // control puts the old number back and says why.
+  bool _changesAllowed() => ConnectivityService.instance.isOnline;
+
+  void _changesBlocked() =>
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
 
   Future<void> _removeItem(CartItemModel item) async {
     if (!ConnectivityService.instance.isOnline) {
       AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      // A swiped-away line comes back: it was not removed.
+      if (mounted) setState(() {});
       return;
     }
+    // Out of the list at once: a swiped line must not stay in the tree.
+    setState(() {
+      _items.removeWhere((i) => i.listingId == item.listingId);
+      _selectedIds.remove(item.listingId);
+    });
     await _cartService.removeItem(item.listingId);
-    _selectedIds.remove(item.listingId);
-    _load();
+    _load(silent: true);
   }
 
   // Phase 8, item 1: fetchCurrentRemainingKg() has existed since an
@@ -263,8 +310,18 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     final liveStock = await _marketRepo.fetchCurrentRemainingKg(
-      selectedItems.map((i) => i.listingId).toList(),
+      selectedItems.where((i) => !i.isCooperative).map((i) => i.listingId).toList(),
     );
+    // Cooperative lines: what is left of the stock set aside for the program.
+    final coopLines = selectedItems.where((i) => i.isCooperative).toList();
+    if (coopLines.isNotEmpty) {
+      final rows = await _programRepo.fetchCooperativeCartRows(coopLines.map((i) => i.listingId).toList());
+      for (final i in coopLines) {
+        final p = rows == null ? null : CooperativeProduct.fromRow(rows[i.listingId] ?? const {}, isMember: false);
+        // When the lookup fails the saved figure stands: the database still decides at checkout.
+        liveStock[i.listingId] = rows == null ? i.availableKgSnapshot : (p?.availableToSell ?? 0);
+      }
+    }
 
     final adjustments = <String>[];
     for (final item in List<CartItemModel>.from(selectedItems)) {
@@ -385,8 +442,10 @@ class _CartScreenState extends State<CartScreen> {
                                 _isEditMode || !_blocked(_items[i].listingId),
                             onToggleSelect: () =>
                                 _toggleItem(_items[i].listingId),
-                            onIncrement: () => _updateQuantity(_items[i], 1),
-                            onDecrement: () => _updateQuantity(_items[i], -1),
+                            onQuantityChanged: (q) =>
+                                _setQuantity(_items[i], q),
+                            allowQuantityChange: _changesAllowed,
+                            onQuantityBlocked: _changesBlocked,
                             onRemove: () => _removeItem(_items[i]),
                           ),
                         ),
@@ -610,8 +669,11 @@ class _CartItemTile extends StatelessWidget {
   final String? issueText;
   final bool selectable;
   final VoidCallback onToggleSelect;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
+  // The quantity is typed or stepped (see QuantityStepper); it is reported as
+  // it changes, and a change can be refused (offline).
+  final ValueChanged<double> onQuantityChanged;
+  final bool Function() allowQuantityChange;
+  final VoidCallback onQuantityBlocked;
   final VoidCallback onRemove;
 
   const _CartItemTile({
@@ -621,8 +683,9 @@ class _CartItemTile extends StatelessWidget {
     required this.issueText,
     required this.selectable,
     required this.onToggleSelect,
-    required this.onIncrement,
-    required this.onDecrement,
+    required this.onQuantityChanged,
+    required this.allowQuantityChange,
+    required this.onQuantityBlocked,
     required this.onRemove,
   });
 
@@ -681,12 +744,28 @@ class _CartItemTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.displayName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.displayName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '₱${item.subtotal.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
                     formatPricePerUnit(item.pricePerKg, item.unit),
@@ -706,7 +785,17 @@ class _CartItemTile extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (item.category != null || item.marketType != null) ...[
+                  if (item.isCooperative) ...[
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _CartTag(AppLocalizations.of(context).cpSourceLabel),
+                        if (item.programName != null) _CartTag(item.programName!),
+                      ],
+                    ),
+                  ] else if (item.category != null || item.marketType != null) ...[
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 6,
@@ -721,70 +810,38 @@ class _CartItemTile extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      _stepperBtn(
-                        context,
-                        Icons.remove,
-                        issueText == null && item.quantityKg > 0.01 ? onDecrement : null,
+                      // Editable: type a quantity or use - / +. A line that
+                      // cannot be bought (issueText) is locked.
+                      QuantityStepper(
+                        key: ValueKey('qty-${item.listingId}'),
+                        compact: true,
+                        value: item.quantityKg,
+                        max: item.availableKgSnapshot,
+                        enabled: issueText == null,
+                        allowChange: allowQuantityChange,
+                        onBlocked: onQuantityBlocked,
+                        onChanged: onQuantityChanged,
                       ),
-                      SizedBox(
-                        width: 64,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            formatQuantityUnit(item.quantityKg, item.unit),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      const SizedBox(width: 8),
+                      // This product's own unit (kg, sack, pack, piece, ...).
+                      Flexible(
+                        child: Text(
+                          unitOrDefault(item.unit),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                      _stepperBtn(
-                        context,
-                        Icons.add,
-                        issueText == null &&
-                                item.quantityKg < item.availableKgSnapshot
-                            ? onIncrement
-                            : null,
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            Text(
-              '₱${item.subtotal.toStringAsFixed(2)}',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _stepperBtn(BuildContext context, IconData icon, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: onTap == null
-              ? AppConstants.outline.withValues(alpha: 0.1)
-              : context.saganaColors.scaffoldBackground,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Icon(
-          icon,
-          size: 14,
-          color: onTap == null
-              ? AppConstants.outline
-              : AppConstants.primaryGreen,
         ),
       ),
     );

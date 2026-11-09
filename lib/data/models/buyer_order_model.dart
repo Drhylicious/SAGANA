@@ -55,6 +55,15 @@ class BuyerOrderModel {
   final String? deliveryPhotoUrl;
   final String? deliveryEvidenceNote;
 
+  /// The cash the cooperative recorded: 'unpaid' | 'paid' | 'not_recorded' (a completed
+  /// order from before payments were recorded). Confirm Receipt waits for 'paid'.
+  final String paymentStatus;
+  final double? amountCollected;
+  final double deliveryFeeCollected;
+  final DateTime? paidAt;
+  final String? completionMethod; // 'consumer' | 'staff'
+  final String? checkoutGroupId;
+
   const BuyerOrderModel({
     required this.id,
     required this.listingId,
@@ -88,7 +97,21 @@ class BuyerOrderModel {
     this.deliveredAt,
     this.deliveryPhotoUrl,
     this.deliveryEvidenceNote,
+    this.paymentStatus = 'unpaid',
+    this.amountCollected,
+    this.deliveryFeeCollected = 0,
+    this.paidAt,
+    this.completionMethod,
+    this.checkoutGroupId,
   });
+
+  bool get isPaymentRecorded => paymentStatus == 'paid';
+
+  /// Ready for Pickup / Delivered, but the cooperative has not recorded the payment yet.
+  bool get isWaitingForPayment =>
+      !isPaymentRecorded &&
+      (isReadyForPickup || isDelivered) &&
+      canConfirmReceiptFor(status, fulfillmentMethod);
 
   bool get hasFulfillmentChoice => fulfillmentMethod != null;
   bool get isDelivery => fulfillmentMethod == 'delivery';
@@ -110,7 +133,8 @@ class BuyerOrderModel {
 
   /// Receipt can be confirmed only when Ready for Pickup (pickup) or Delivered
   /// (delivery); the database refuses it at any other point.
-  bool get canConfirmReceipt => canConfirmReceiptFor(status, fulfillmentMethod);
+  bool get canConfirmReceipt =>
+      canConfirmReceiptFor(status, fulfillmentMethod, paymentRecorded: isPaymentRecorded);
   bool get isCancelled => status == 'cancelled';
 
   /// The stored 'pending' is read as "Pending Order". There is no Disapproved
@@ -193,6 +217,12 @@ class BuyerOrderModel {
       deliveredAt: _dt(map['delivered_at']),
       deliveryPhotoUrl: map['delivery_photo_url'] as String?,
       deliveryEvidenceNote: map['delivery_evidence_note'] as String?,
+      paymentStatus: map['payment_status'] as String? ?? 'unpaid',
+      amountCollected: (map['amount_collected'] as num?)?.toDouble(),
+      deliveryFeeCollected: (map['delivery_fee_collected'] as num?)?.toDouble() ?? 0,
+      paidAt: _dt(map['paid_at']),
+      completionMethod: map['completion_method'] as String?,
+      checkoutGroupId: map['checkout_group_id'] as String?,
     );
   }
 }

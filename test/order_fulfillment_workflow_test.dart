@@ -62,10 +62,17 @@ void main() {
     });
 
     test('the model agrees, for a Buyer or a Farmer consumer alike', () {
-      expect(BuyerOrderModel.fromMap(orderRow('ready_for_pickup')).canConfirmReceipt, isTrue);
-      expect(BuyerOrderModel.fromMap(orderRow('approved')).canConfirmReceipt, isFalse);
+      // Ready for Pickup is not enough: the cooperative must have recorded the cash first.
+      expect(BuyerOrderModel.fromMap(orderRow('ready_for_pickup')).canConfirmReceipt, isFalse);
+      expect(BuyerOrderModel.fromMap(orderRow('ready_for_pickup')).isWaitingForPayment, isTrue);
+      expect(BuyerOrderModel.fromMap({...orderRow('ready_for_pickup'), 'payment_status': 'paid'}).canConfirmReceipt, isTrue);
+      expect(BuyerOrderModel.fromMap({...orderRow('approved'), 'payment_status': 'paid'}).canConfirmReceipt, isFalse);
       expect(BuyerOrderModel.fromMap(orderRow('out_for_delivery', method: 'delivery')).canConfirmReceipt, isFalse);
-      expect(BuyerOrderModel.fromMap(orderRow('delivered', method: 'delivery')).canConfirmReceipt, isTrue);
+      expect(BuyerOrderModel.fromMap(orderRow('delivered', method: 'delivery')).canConfirmReceipt, isFalse); // cash not recorded
+      expect(
+        BuyerOrderModel.fromMap({...orderRow('delivered', method: 'delivery'), 'payment_status': 'paid'}).canConfirmReceipt,
+        isTrue,
+      );
       expect(BuyerOrderModel.fromMap(orderRow('completed')).canConfirmReceipt, isFalse);
     });
   });
@@ -77,12 +84,20 @@ void main() {
       expect(nextStaffOrderAction('approved', null), StaffOrderAction.readyForPickup);
     });
 
-    test('Out for Delivery is followed by Mark as Delivered', () {
-      expect(nextStaffOrderAction('out_for_delivery', 'delivery'), StaffOrderAction.markDelivered);
+    test('Out for Delivery is followed by recording the handover and the cash', () {
+      expect(nextStaffOrderAction('out_for_delivery', 'delivery'), StaffOrderAction.recordHandover);
+    });
+
+    test('a Ready for Pickup / Delivered order needs its cash recorded, then (only if the customer cannot confirm) staff completion', () {
+      for (final s in ['ready_for_pickup', 'delivered']) {
+        expect(nextStaffOrderAction(s, s == 'delivered' ? 'delivery' : 'pickup'), StaffOrderAction.recordPayment, reason: s);
+        expect(nextStaffOrderAction(s, s == 'delivered' ? 'delivery' : 'pickup', paymentStatus: 'paid'),
+            StaffOrderAction.completeForCustomer, reason: s);
+      }
     });
 
     test('nothing else is the Manager\'s to do', () {
-      for (final s in ['pending', 'ready_for_pickup', 'delivered', 'completed', 'cancelled']) {
+      for (final s in ['pending', 'completed', 'cancelled']) {
         expect(nextStaffOrderAction(s, 'pickup'), isNull, reason: s);
         expect(nextStaffOrderAction(s, 'delivery'), isNull, reason: s);
       }
@@ -91,7 +106,11 @@ void main() {
     test('the admin model exposes it', () {
       final o = AdminOrderModel.fromMap({...orderRow('approved', method: 'delivery')});
       expect(o.nextAction, StaffOrderAction.outForDelivery);
-      expect(AdminOrderModel.fromMap(orderRow('ready_for_pickup')).nextAction, isNull);
+      expect(AdminOrderModel.fromMap(orderRow('ready_for_pickup')).nextAction, StaffOrderAction.recordPayment);
+      expect(
+        AdminOrderModel.fromMap({...orderRow('ready_for_pickup'), 'payment_status': 'paid'}).nextAction,
+        StaffOrderAction.completeForCustomer,
+      );
     });
   });
 
@@ -122,11 +141,18 @@ void main() {
       }
     });
 
-    test('orders waiting only for the consumer are left out', () {
+    test('orders that are paid and wait only for the consumer are left out', () {
       expect(orderNeedsStaffAction('ready_for_pickup'), isFalse);
       expect(orderNeedsStaffAction('delivered'), isFalse);
       expect(orderNeedsStaffAction('completed'), isFalse);
       expect(orderNeedsStaffAction('cancelled'), isFalse);
+    });
+
+    test('...but a ready / delivered order whose cash is not recorded needs staff', () {
+      expect(orderNeedsStaffAction('ready_for_pickup', paymentStatus: 'unpaid'), isTrue);
+      expect(orderNeedsStaffAction('delivered', paymentStatus: 'unpaid'), isTrue);
+      expect(orderNeedsStaffAction('ready_for_pickup', paymentStatus: 'paid'), isFalse);
+      expect(orderNeedsStaffAction('completed', paymentStatus: 'unpaid'), isFalse);
     });
 
     test('the dashboard total is the sum of those three statuses', () {
@@ -150,7 +176,7 @@ void main() {
       expect(dash, contains('kOrderNeedsActionFilter'));
       final list = src('lib/presentation/screens/admin/order_management_screen.dart');
       expect(list, contains('kOrderNeedsActionFilter'));
-      expect(list, contains('orderNeedsStaffAction'));
+      expect(src('lib/data/models/staff_order_row.dart'), contains('orderNeedsStaffAction'));
       expect(src('lib/presentation/navigation/app_router.dart'), contains("extra?['filter']"));
     });
   });
@@ -186,16 +212,21 @@ void main() {
       final repo = src('lib/data/repositories/admin_order_repository.dart');
       expect(repo, contains("'mark_order_ready_for_pickup'"));
       expect(repo, contains("'mark_order_out_for_delivery'"));
-      expect(repo, contains("'mark_order_delivered'"));
-      // The photo is uploaded before Delivered is recorded.
-      final fn = repo.substring(repo.indexOf('Future<void> markDelivered'));
-      expect(fn.indexOf('uploadBinary') < fn.indexOf("'mark_order_delivered'"), isTrue);
+      // A delivery is handed over together with the cash: one function records both.
+      expect(repo, contains("'record_order_handover'"));
+      expect(repo, contains("'record_order_payment'"));
+      expect(repo, contains("'staff_complete_order'"));
+      expect(repo.contains("'mark_order_delivered'"), isFalse);
+      // The photo is uploaded before the handover is recorded.
+      final fn = repo.substring(repo.indexOf('Future<void> recordHandover'));
+      expect(fn.indexOf('uploadOrderEvidence') < fn.indexOf("'record_order_handover'"), isTrue);
     });
 
     test('the Manager screen offers the next step and no automatic change', () {
       final s = src('lib/presentation/screens/admin/admin_order_detail_screen.dart');
       expect(s, contains('order.nextAction'));
-      expect(s, contains('_markDelivered'));
+      expect(s, contains('_recordHandover'));
+      expect(s, contains('_completeForCustomer'));
       expect(s, isNot(contains('Timer')));
     });
 

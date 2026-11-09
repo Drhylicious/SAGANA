@@ -45,6 +45,11 @@ class QuantityUnitField extends StatelessWidget {
   final Future<String?> Function()? onAddUnit;
   final String? addUnitLabel;
 
+  /// The two labels (default "Quantity*" / "Unit*"), for a form that says what the
+  /// quantity is, such as "Quantity you measured *".
+  final String quantityLabel;
+  final String unitLabel;
+
   const QuantityUnitField({
     super.key,
     required this.controller,
@@ -54,6 +59,8 @@ class QuantityUnitField extends StatelessWidget {
     required this.onUnitChanged,
     this.onAddUnit,
     this.addUnitLabel,
+    this.quantityLabel = 'Quantity*',
+    this.unitLabel = 'Unit*',
   });
 
   @override
@@ -73,7 +80,7 @@ class QuantityUnitField extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Label('Quantity*'),
+              _Label(quantityLabel),
               const SizedBox(height: 8),
               TextFormField(
                 key: const Key('quantityField'),
@@ -135,7 +142,7 @@ class QuantityUnitField extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Label('Unit*'),
+              _Label(unitLabel),
               const SizedBox(height: 8),
               AppDropdownField<String>(
                 key: const Key('unitField'),
@@ -168,6 +175,8 @@ class _Label extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4),
       child: Text(
         text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: GoogleFonts.poppins(
           fontSize: 13,
           fontWeight: FontWeight.w500,

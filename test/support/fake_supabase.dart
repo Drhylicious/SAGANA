@@ -36,6 +36,14 @@ class FakeError {
   final String code;
 }
 
+/// An exact count, the way PostgREST answers `.count()`: an empty body and the number in the
+/// Content-Range header.
+class FakeCount {
+  const FakeCount(this.n);
+
+  final int n;
+}
+
 /// Stands in for the network under supabase_flutter, so the REAL repositories,
 /// services and screens run and the test can read exactly what they sent.
 /// Pass it to `Supabase.initialize(httpClient: ...)`.
@@ -85,6 +93,11 @@ class FakeSupabaseHttp extends http.BaseClient {
 
     var status = 200;
     Object? payload = result;
+    String? contentRange;
+    if (result is FakeCount) {
+      contentRange = '*/${result.n}';
+      payload = <Object?>[];
+    }
     if (result is FakeError) {
       status = result.status;
       payload = {
@@ -100,7 +113,10 @@ class FakeSupabaseHttp extends http.BaseClient {
       status,
       contentLength: bytes.length,
       request: request,
-      headers: {'content-type': 'application/json; charset=utf-8'},
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        if (contentRange != null) 'content-range': contentRange,
+      },
     );
   }
 }

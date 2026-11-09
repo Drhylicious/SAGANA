@@ -85,7 +85,7 @@ class HarvestRepository {
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
       final response = await _client
           .from('harvest_records')
-          .select('quantity_kg, unit, is_synced, harvest_date')
+          .select('quantity_kg, unit, is_synced, harvest_date').eq('source_type', 'self')
           .eq('farmer_id', farmerId)
           .gte('harvest_date', cutoff.toIso8601String().split('T').first);
 
@@ -143,7 +143,7 @@ class HarvestRepository {
         screen: 'harvest_season_stats_${now.year}',
         fetch: () => _client
             .from('harvest_records')
-            .select('is_synced')
+            .select('is_synced').eq('source_type', 'self')
             .eq('farmer_id', _userId)
             .gte('harvest_date', startOfSeason.toIso8601String()),
       );

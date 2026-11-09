@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/item_type_utils.dart';
 import '../../../data/services/staff_permission_service.dart';
 import '../../widgets/view_only_banner.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -788,7 +789,7 @@ class LoanItemCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    item.category,
+                    '${item.category} • ${itemTypeLabel(AppLocalizations.of(context), item.itemType)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
@@ -959,6 +960,7 @@ class ArchivedLoanItemCard extends StatelessWidget {
                           icon: Icons.archive_outlined,
                         ),
                         chip(item.category, cs.onSurfaceVariant),
+                        chip(itemTypeLabel(l10n, item.itemType), cs.onSurfaceVariant),
                         chip(
                           '₱${item.unitPrice.toStringAsFixed(2)} / ${item.unit}',
                           cs.primary,

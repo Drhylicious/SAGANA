@@ -345,6 +345,8 @@ String staffLogFeatureLabel(AppLocalizations l10n, String key) {
       return l10n.adminNavListings;
     case 'orders':
       return l10n.statOrders;
+    case 'delivery':
+      return l10n.staffLogFeatureDelivery;
     case 'offers':
       return l10n.offerCoopTitle;
     case 'marketLinking':
@@ -357,6 +359,10 @@ String staffLogFeatureLabel(AppLocalizations l10n, String key) {
       return l10n.staffLogFeatureLoanRequests;
     case 'loanPolicy':
       return l10n.staffLogFeatureLoanPolicy;
+    case 'programAssistance':
+      return l10n.staffLogFeatureProgramAssistance;
+    case 'deliverySettings':
+      return l10n.staffLogFeatureDeliverySettings;
     case 'balik':
       return l10n.reportsBalikTangkilikManagement;
     case 'exports':

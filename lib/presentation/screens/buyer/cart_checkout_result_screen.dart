@@ -4,7 +4,9 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cart_item_model.dart';
+import '../../../core/utils/order_reference.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
+import '../../../data/repositories/cooperative_order_repository.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/order_result_pieces.dart';
 import '../../widgets/shared_widgets.dart';
@@ -144,11 +146,20 @@ class _SucceededOrderCardsState extends State<_SucceededOrderCards> {
   @override
   void initState() {
     super.initState();
-    BuyerOrderRepository()
-        .fetchOrderNumbers(widget.succeeded.map((s) => s.$2).toList())
-        .then((n) {
-          if (mounted) setState(() => _numbers = n);
-        });
+    final tokens = widget.succeeded.map((s) => s.$2).toList();
+    Future.wait([
+      BuyerOrderRepository().fetchOrderNumbers(tokens.where((t) => !isProgramOrderToken(t)).toList()),
+      CooperativeOrderRepository().fetchOrderNumbers(
+        tokens.where(isProgramOrderToken).map(programOrderIdOf).toList(),
+      ),
+    ]).then((r) {
+      if (!mounted) return;
+      setState(() => _numbers = {
+            ...r[0],
+            // A Cooperative order is keyed here by its token, like the id the checkout handed over.
+            for (final e in r[1].entries) programOrderToken(e.key): e.value,
+          });
+    });
   }
 
   @override

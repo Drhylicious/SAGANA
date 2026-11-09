@@ -44,7 +44,14 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   String? _channelFilter; // null = All Channels
   SalesReportData _data = SalesReportData.empty();
   SalesReportData _previousData = SalesReportData.empty();
+  ProductSalesReportData _productReport = ProductSalesReportData.empty;
+  ProductSalesSummary _previousProductSales = ProductSalesSummary.empty;
+  List<double> _productTrend = [];
   List<double> _revenueTrend = [];
+  final _pages = PageController();
+  final _productSearch = TextEditingController();
+  int _page = 0;
+  String _productQuery = '';
 
   static final _money0 = NumberFormat.currency(
     locale: 'en_PH',
@@ -68,6 +75,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   @override
   void dispose() {
+    _pages.dispose();
+    _productSearch.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -78,12 +87,18 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       _repo.fetchSalesReport(_period),
       _repo.fetchPreviousSalesReport(_period),
       _repo.fetchSalesTrend(),
+      _repo.fetchProductSalesReport(_period),
+      _repo.fetchPreviousProductSales(_period),
+      _repo.fetchProductSalesTrend(),
     ]);
     if (!mounted) return;
     setState(() {
       _data = results[0] as SalesReportData;
       _previousData = results[1] as SalesReportData;
       _revenueTrend = results[2] as List<double>;
+      _productReport = results[3] as ProductSalesReportData;
+      _previousProductSales = results[4] as ProductSalesSummary;
+      _productTrend = results[5] as List<double>;
       _isLoading = false;
     });
   }
@@ -140,25 +155,39 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             isOnline: _isOnline,
             offlineMessage: l10n.offlineStaffBody,
           ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppConstants.spacingSafeH,
-                  AppConstants.spacingGutter,
-                  AppConstants.spacingSafeH,
-                  32,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.spacingSafeH,
+              AppConstants.spacingGutter,
+              AppConstants.spacingSafeH,
+              0,
+            ),
+            child: Column(
+              children: [
+                ReportPeriodFilter(period: _period, onSelected: _setPeriod),
+                const SizedBox(height: AppConstants.spacingMd),
+                _SalesTabs(
+                  selected: _page,
+                  labels: [l10n.rptTabMarketplaceSales, l10n.rptTabProductSales],
+                  onSelected: (i) => _pages.animateToPage(
+                    i,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                  ),
                 ),
-                children: [
-                  ReportPeriodFilter(period: _period, onSelected: _setPeriod),
-                  const SizedBox(height: AppConstants.spacingGutter),
-                  if (_isLoading)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: SkeletonList(),
-                    )
-                  else ...[
+              ],
+            ),
+          ),
+          // Two screens side by side: swipe left or right, or tap a tab.
+          Expanded(
+            child: PageView(
+              key: const Key('salesPages'),
+              controller: _pages,
+              onPageChanged: (i) => setState(() => _page = i),
+              children: [
+                _pageOf(
+                  key: const Key('salesPage_marketplace'),
+                  children: [
                     _buildOverviewCard(l10n),
                     const SizedBox(height: AppConstants.spacingSectionV),
                     _buildChannelBreakdown(context, l10n, cs),
@@ -171,11 +200,49 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                     const SizedBox(height: AppConstants.spacingSectionV),
                     _buildTransactionsSection(context, l10n, cs),
                   ],
-                ],
-              ),
+                ),
+                _pageOf(
+                  key: const Key('salesPage_product'),
+                  children: [
+                    _buildProductOverview(l10n),
+                    const SizedBox(height: AppConstants.spacingSectionV),
+                    ReportTrendCard(
+                      title: l10n.reportsRevenueTrend,
+                      values: _productTrend,
+                      valueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
+                    ),
+                    const SizedBox(height: AppConstants.spacingSectionV),
+                    _buildProductTransactions(context, l10n, cs),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// One swipeable page: pull to refresh, the content scrolls on its own.
+  Widget _pageOf({required Key key, required List<Widget> children}) {
+    return RefreshIndicator(
+      key: key,
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppConstants.spacingSafeH,
+          AppConstants.spacingGutter,
+          AppConstants.spacingSafeH,
+          32,
+        ),
+        children: _isLoading
+            ? const [
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: SkeletonList(),
+                ),
+              ]
+            : children,
       ),
     );
   }
@@ -200,7 +267,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     return ReportSectionCard(
       title: l10n.reportsSalesOverview,
       icon: Icons.point_of_sale_rounded,
-      subtitle: l10n.rptSalesOverviewHint,
       child: Column(
         children: [
           row(
@@ -238,6 +304,208 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Cooperative Product Sales: the same shape as Sales Overview (two rows of two cards).
+  Widget _buildProductOverview(AppLocalizations l10n) {
+    final summary = _productReport.summary;
+    Widget row(ReportIconStatCard a, ReportIconStatCard b) => SizedBox(
+      height: 140,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: a),
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(child: b),
+        ],
+      ),
+    );
+
+    return ReportSectionCard(
+      key: const Key('productSalesSection'),
+      title: l10n.reportsProductSales,
+      icon: Icons.inventory_2_rounded,
+      child: Column(
+        children: [
+          row(
+            ReportIconStatCard(
+              icon: Icons.payments_rounded,
+              accent: AppConstants.programPurple,
+              label: l10n.reportsProductSales,
+              value: _money0.format(summary.amount),
+              delta: ReportDeltaBadge(
+                current: summary.amount,
+                previous: _previousProductSales.amount,
+                period: _period,
+              ),
+            ),
+            ReportIconStatCard(
+              icon: Icons.receipt_long_rounded,
+              accent: AppConstants.amber,
+              label: l10n.reportsCompletedOrders,
+              value: '${summary.orders}',
+            ),
+          ),
+          const SizedBox(height: AppConstants.spacingSm),
+          row(
+            ReportIconStatCard(
+              icon: Icons.trending_up_rounded,
+              accent: AppConstants.warningAmber,
+              label: l10n.rptAverageOrder,
+              value: _money0.format(summary.averageOrder),
+            ),
+            ReportIconStatCard(
+              icon: Icons.groups_rounded,
+              accent: AppConstants.buyerBlue,
+              label: l10n.rptProductBuyers,
+              value: '${summary.buyers}',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<ProductSaleRow> get _filteredProductSales {
+    final q = _productQuery.trim().toLowerCase();
+    if (q.isEmpty) return _productReport.rows;
+    return _productReport.rows
+        .where(
+          (r) =>
+              r.farmerName.toLowerCase().contains(q) ||
+              r.itemName.toLowerCase().contains(q) ||
+              r.orderNumber.toLowerCase().contains(q) ||
+              (r.programName?.toLowerCase().contains(q) ?? false),
+        )
+        .toList();
+  }
+
+  /// Every completed Cooperative Product order of the period, newest first: its own search and
+  /// its own list, the same look as the Marketplace Sales transactions.
+  Widget _buildProductTransactions(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
+    final all = _productReport.rows;
+    final filtered = _filteredProductSales;
+    return Column(
+      key: const Key('productTransactions'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.receipt_long_rounded,
+              size: 16,
+              color: AppConstants.primaryGreen,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                l10n.reportsTransactionDetails,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            if (all.isNotEmpty)
+              Text(
+                l10n.rptShowingCount(filtered.length, all.length),
+                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingSm),
+        if (all.isNotEmpty) ...[
+          ReportSearchField(
+            controller: _productSearch,
+            hint: l10n.rptSearchProductSales,
+            onChanged: (v) => setState(() => _productQuery = v),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+        ],
+        if (all.isEmpty)
+          ReportEmptyState(message: l10n.rptProductSalesEmpty)
+        else if (filtered.isEmpty)
+          ReportEmptyState(message: l10n.rptNoMatches)
+        else
+          ...filtered.map((r) => _buildProductRow(r, cs, l10n)),
+      ],
+    );
+  }
+
+  Widget _buildProductRow(ProductSaleRow r, ColorScheme cs, AppLocalizations l10n) {
+    return ReportRecordCard(
+      onTap: () => _showProductSaleDetails(context, r, l10n),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${r.itemName} • ${r.farmerName}',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _money2.format(r.amount),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${formatQuantityUnit(r.quantity, r.unit)} • '
+            '${DateFormat('MMM d, yyyy').format(r.saleDate)}'
+            '${r.orderNumber.isNotEmpty ? ' • ${r.orderNumber}' : ''}',
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProductSaleDetails(BuildContext context, ProductSaleRow r, AppLocalizations l10n) {
+    showManagementModal<void>(
+      context: context,
+      builder: (_) => ManagementModalShell(
+        title: r.itemName,
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ReportDetailRow(label: l10n.rptProductSaleMember, value: r.farmerName),
+            if ((r.programName ?? '').isNotEmpty)
+              ReportDetailRow(label: l10n.rptProductSaleProgram, value: r.programName!),
+            ReportDetailRow(label: l10n.rptQuantity, value: formatQuantityUnit(r.quantity, r.unit)),
+            ReportDetailRow(label: l10n.rptAmount, value: _money2.format(r.amount)),
+            ReportDetailRow(
+              label: l10n.rptDate,
+              value: DateFormat('MMM d, yyyy · h:mm a').format(r.saleDate),
+            ),
+            if (r.orderNumber.isNotEmpty)
+              ReportDetailRow(label: l10n.rptProductSaleOrder, value: r.orderNumber),
+          ],
+        ),
       ),
     );
   }
@@ -280,44 +548,36 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     ColorScheme cs,
   ) {
     final totals = _data.channelTotals;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.rptSalesBySellingChannel,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-            color: cs.onSurface,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          l10n.reportsTapCardToFilter,
-          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: AppConstants.spacingMd),
-        // Each row is as tall as its taller card (IntrinsicHeight), so a
-        // two-line channel name never overflows and both cards in a row match.
-        for (var i = 0; i < totals.length; i += 2)
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: i + 2 < totals.length ? AppConstants.spacingSm : 0,
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _channelCard(totals[i], l10n, cs)),
-                  if (i + 1 < totals.length) ...[
-                    const SizedBox(width: AppConstants.spacingSm),
-                    Expanded(child: _channelCard(totals[i + 1], l10n, cs)),
+    // In a container, the same as Sales Overview, so the page reads as one set of sections.
+    return ReportSectionCard(
+      key: const Key('channelSection'),
+      title: l10n.rptSalesBySellingChannel,
+      icon: Icons.hub_rounded,
+      subtitle: l10n.reportsTapCardToFilter,
+      // Each row is as tall as its taller card (IntrinsicHeight), so a two-line channel name
+      // never overflows and both cards in a row match. Every channel stays tappable.
+      child: Column(
+        children: [
+          for (var i = 0; i < totals.length; i += 2)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: i + 2 < totals.length ? AppConstants.spacingSm : 0,
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: _channelCard(totals[i], l10n, cs)),
+                    if (i + 1 < totals.length) ...[
+                      const SizedBox(width: AppConstants.spacingSm),
+                      Expanded(child: _channelCard(totals[i + 1], l10n, cs)),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -652,6 +912,58 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           ],
 
         ),
+      ),
+    );
+  }
+}
+
+/// The two sections of the Sales Report: tap a tab or swipe the page.
+class _SalesTabs extends StatelessWidget {
+  const _SalesTabs({required this.selected, required this.labels, required this.onSelected});
+
+  final int selected;
+  final List<String> labels;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd + 2),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < labels.length; i++)
+            Expanded(
+              child: GestureDetector(
+                key: Key('salesTab_$i'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onSelected(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: selected == i ? cs.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  child: Text(
+                    labels[i],
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: selected == i ? cs.onPrimary : cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -134,19 +134,18 @@ class ListingRepository {
   }
 
   // ─── Edit own listing ──────────────────────────────────────────────────────
-  // Quantity, asking price, description and (optionally) the product photo of a
+  // Quantity, asking price and description of a
   // Pending Approval or Available listing. The crop and the unit never change.
   // update_my_listing() does the work in one transaction: it re-reserves or
   // releases the difference on the harvest batch, moves remaining_kg by the same
   // amount, and leaves existing orders (their own quantity and price) alone. See
-  // supabase_schema_farmer_listing_edit.sql. [refreshPhoto] asks the database to
-  // copy the crop's CURRENT roster photo onto the listing.
+  // supabase_schema_farmer_listing_edit.sql. The photo is never part of an
+  // edit: a listing always shows the Farmer's Crop Roster photo.
   Future<void> updateListing({
     required String listingId,
     required double quantity,
     required double pricePerUnit,
     required String description,
-    bool refreshPhoto = false,
   }) async {
     await ServerOnly.ensureOnline();
     await _client.rpc(
@@ -156,7 +155,6 @@ class ListingRepository {
         'p_quantity': roundQuantity(quantity),
         'p_price_per_kg': roundQuantity(pricePerUnit),
         'p_description': description.trim(),
-        'p_refresh_photo': refreshPhoto,
       },
     );
     AppEventService.instance.notify();
@@ -167,14 +165,13 @@ class ListingRepository {
   // Officer approves (the change is applied) or disapproves with a reason (only
   // the request is rejected). See supabase_schema_listing_edit_approval.sql.
 
-  /// Sends the proposed values for approval. [photoUrl] is a photo this Farmer
-  /// already uploaded to the listing photo bucket (null keeps the photo).
+  /// Submits the edited quantity, asking price and description for the Manager /
+  /// Officer to approve. The live listing is not touched until they do.
   Future<void> requestEdit({
     required String listingId,
     required double quantity,
     required double pricePerUnit,
     required String description,
-    String? photoUrl,
   }) async {
     await ServerOnly.ensureOnline();
     await _client.rpc(
@@ -184,7 +181,6 @@ class ListingRepository {
         'p_quantity': roundQuantity(quantity),
         'p_price_per_kg': roundQuantity(pricePerUnit),
         'p_description': description.trim(),
-        'p_photo_url': photoUrl,
       },
     );
     AppEventService.instance.notify();

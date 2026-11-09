@@ -98,7 +98,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get adminDashModuleSupplyChainSubtitle =>
-      'Daloy ng trabaho ng kooperatiba';
+      'Subaybayan ang produkto mula pinagmulan hanggang mamimili';
 
   @override
   String get adminDashModulePricesSubtitle =>
@@ -1618,7 +1618,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String priceMarketReferenceTitle(String market) {
-    return '$market — Reperensiyang Presyo';
+    return '$market — Mga Retail Price';
   }
 
   @override
@@ -1647,23 +1647,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get supplyChainTitle => 'Pamamahala ng Supply Chain';
-
-  @override
-  String get supplyChainFlow => 'Daloy ng Kooperatiba';
-
-  @override
-  String get supplyChainPlannedOps => 'Nakaplanong Operasyon';
-
-  @override
-  String get supplyChainPlannedOpsDesc =>
-      'Ang iskedyul ng pagkolekta, pagsubaybay sa galaw ng bodega, at logistics ng paghahatid ay lalabas dito kapag nakumpirma na ang aktwal na proseso ng kooperatiba sa personal na pagbisita.';
-
-  @override
-  String get supplyChainMapSection => 'Lokasyon ng mga Magsasaka';
-
-  @override
-  String get supplyChainAllMapped =>
-      'May lokasyon ng bukid na ang bawat aktibong miyembro';
 
   @override
   String get priceMarketTrends => 'Mga Trend sa Market';
@@ -1890,10 +1873,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminDashStatFarmerStock => 'Stock ng Magsasaka';
 
   @override
-  String get adminDashStatListings => 'Mga Available na Listahan';
+  String get adminDashStatListings => 'Mga Listing';
 
   @override
-  String get adminDashStatSalesAllTime => 'Benta (all-time)';
+  String get adminDashStatSalesAllTime => 'Benta';
 
   @override
   String get adminDashMemberParticipationPrefix =>
@@ -2149,11 +2132,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get offlineEnrollment =>
-      'Offline ka — baka luma na ang status ng enrollment mo.';
+      'Offline ka — maaaring hindi napapanahon ang iyong katayuan sa pagsali.';
 
   @override
   String get offlinePrograms =>
-      'Offline ka — baka luma na ang detalye ng programa mo.';
+      'Offline ka — maaaring hindi napapanahon ang mga detalye ng iyong programa.';
 
   @override
   String get offlinePurchaseRequests =>
@@ -2431,7 +2414,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get buyerPriceHeaderSubtitle =>
-      'Mga reperensiyang presyong itinakda ng kooperatiba. I-tap ang pananim para makita ang takbo ng presyo.';
+      'Mga retail price na itinakda ng kooperatiba. I-tap ang pananim para makita ang takbo ng presyo.';
 
   @override
   String buyerPriceCropCount(int count) {
@@ -4285,6 +4268,12 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminInvItemNameLabel => 'Pangalan ng Item *';
 
   @override
+  String get adminInvItemNameHint => 'Ilagay ang pangalan ng item';
+
+  @override
+  String get invItemTypeHint => 'Pumili ng uri ng item';
+
+  @override
   String get adminInvItemNameRequired => 'Kinakailangan ang pangalan ng item';
 
   @override
@@ -4832,14 +4821,14 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get cropMgmtArchivedInfo =>
-      'Hindi mapipili ang mga naka-archive na pananim para sa bagong reference price o bagong crop request hangga\'t hindi naibabalik. Hindi apektado ang mga umiiral na presyo at talaan.';
+      'Hindi mapipili ang mga naka-archive na pananim para sa bagong retail price o bagong crop request hangga\'t hindi naibabalik. Hindi apektado ang mga umiiral na presyo at talaan.';
 
   @override
   String get cropMgmtArchiveCropAction => 'I-archive ang Pananim';
 
   @override
   String get cropMgmtArchiveHint =>
-      'Ang pag-archive ay itatago ang pananim na ito sa mga bagong reference price at bagong crop request. Maaari itong ibalik mamaya.';
+      'Ang pag-archive ay itatago ang pananim na ito sa mga bagong retail price at bagong crop request. Maaari itong ibalik mamaya.';
 
   @override
   String cropMgmtArchiveTitle(String name) {
@@ -4848,7 +4837,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get cropMgmtArchiveBody =>
-      'Hindi na iaalok ang pananim na ito sa paggawa ng bagong reference price o kapag humiling ng pananim ang isang Magsasaka.\n\nHindi apektado ang mga umiiral na presyo at talaan, at maaari pa rin itong i-edit. Maaari mo itong ibalik anumang oras mula sa Mga Naka-archive na Pananim.';
+      'Hindi na iaalok ang pananim na ito sa paggawa ng bagong retail price o kapag humiling ng pananim ang isang Magsasaka.\n\nHindi apektado ang mga umiiral na presyo at talaan, at maaari pa rin itong i-edit. Maaari mo itong ibalik anumang oras mula sa Mga Naka-archive na Pananim.';
 
   @override
   String get cropMgmtArchiveConfirm => 'I-archive';
@@ -5120,7 +5109,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get marketDashLinkingNote =>
-      'Isinasagawa ang mga pagpapatala sa Market Linking';
+      'Mga kahilingang sumali sa Market Linking na isinasagawa';
 
   @override
   String get marketDashOverviewTitle => 'Overview ng Marketplace';
@@ -5311,96 +5300,10 @@ class AppLocalizationsTl extends AppLocalizations {
       'Walang listahan na hinihintay suriin.';
 
   @override
-  String get supplyChainMembersWithoutLocationTitle =>
-      'Mga Miyembrong Walang Lokasyon ng Bukid';
-
-  @override
-  String supplyChainMemberCount(int count) {
-    return '$count miyembro';
-  }
-
-  @override
-  String get supplyChainViewFullMap => 'Tingnan ang Buong Mapa';
-
-  @override
   String get orderDetailViewFullMap => 'Tingnan ang Buong Mapa';
 
   @override
   String get orderDetailDeliveryPinTitle => 'Pinpoint ng Paghahatid';
-
-  @override
-  String supplyChainMappedCount(int mapped, int total) {
-    return '$mapped sa $total na miyembro ang na-mapa';
-  }
-
-  @override
-  String supplyChainUnmappedCount(int count) {
-    return '$count ang walang lokasyon ng bukid';
-  }
-
-  @override
-  String get supplyChainViewList => 'Tingnan ang Listahan';
-
-  @override
-  String get supplyChainLogistics => 'Logistics';
-
-  @override
-  String get supplyChainPlanned => 'Nakaplano';
-
-  @override
-  String get supplyChainLayers => 'Mga Layer';
-
-  @override
-  String get supplyChainMapLayers => 'MGA LAYER NG MAPA';
-
-  @override
-  String get supplyChainCropTypes => 'Mga Uri ng Pananim';
-
-  @override
-  String get supplyChainNoCropsRecorded => 'Wala pang naitalang pananim';
-
-  @override
-  String get supplyChainOperationalStatus => 'Katayuan sa Operasyon';
-
-  @override
-  String get supplyChainWillActivate =>
-      'Ma-a-activate kapag magagamit na ang pag-collect at pagsubaybay sa logistics.';
-
-  @override
-  String get supplyChainCurrentlyPlanted => 'Kasalukuyang Tanim';
-
-  @override
-  String get supplyChainNotRecorded => 'Walang naitala';
-
-  @override
-  String get supplyChainFarmCoordinates => 'Coordinates ng Bukid';
-
-  @override
-  String get supplyChainViewProfile => 'Tingnan ang Profile';
-
-  @override
-  String get supplyChainSendNotice => 'Magpadala ng Abiso';
-
-  @override
-  String get supplyChainOfficeTitle => 'Opisina ng SP3 Cooperative';
-
-  @override
-  String get supplyChainBodMeetingSchedule =>
-      'Pulong ng BOD: Tuwing unang Sabado ng buwan';
-
-  @override
-  String get supplyChainActiveMembersLine =>
-      'Mga rehistradong magsasaka ng kooperatiba';
-
-  @override
-  String get supplyChainAddressLine =>
-      'Payanas, Torrijos, Marinduque, Philippines';
-
-  @override
-  String get supplyChainFlowFarm => 'Bukid';
-
-  @override
-  String get supplyChainFlowInventory => 'Imbakan';
 
   @override
   String get buyerDetailsTitle => 'Detalye ng Buyer';
@@ -5508,10 +5411,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get listingReviewFarmersAsking => 'Presyong Hiniling ng Magsasaka';
 
   @override
-  String get listingReviewMarketRefDA => 'Market Ref (DA)';
+  String get listingReviewMarketRefDA => 'Retail Price (DA)';
 
   @override
-  String get listingReviewNoMarketRef => 'Walang Market Ref';
+  String get listingReviewNoMarketRef => 'Walang Retail Price';
 
   @override
   String get listingReviewWithinMarketRange => 'Nasa loob ng market range';
@@ -5522,7 +5425,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String listingReviewNoMarketRefAvailable(String crop) {
-    return 'Walang available na reference price sa market para sa $crop. Magdagdag ng price record sa Price Management.';
+    return 'Walang available na retail price para sa $crop. Magdagdag ng price record sa Price Management.';
   }
 
   @override
@@ -5576,7 +5479,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get marketLinkTitle => 'Market Linking';
 
   @override
-  String get marketLinkKpiEnrolled => 'Naka-enroll';
+  String get marketLinkKpiEnrolled => 'Sumali na';
 
   @override
   String get marketLinkKpiSubmitted => 'Isinumite';
@@ -5593,7 +5496,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get marketLinkDaAmadBody =>
-      'Direktang idinudugtong ang mga SP3 Ginger farmer sa mga institutional buyer ng DA-AMAD para sa premium export pricing. Ang mga naka-enroll dito ay hindi dumadaan sa bukas na marketplace para sa kanilang ani ng luya.';
+      'Direktang iniuugnay ang mga magsasaka ng Luya ng SP3 sa mga institusyonal na mamimili ng DA-AMAD para sa premium na presyong pang-export. Ang mga magsasakang sumali rito ay lumalampas sa bukas na pamilihan para sa kanilang aning Luya.';
 
   @override
   String marketLinkLinkedToBatch(String number) {
@@ -5631,14 +5534,14 @@ class AppLocalizationsTl extends AppLocalizations {
       'Walang farmer na tumugma sa status na ito';
 
   @override
-  String get marketLinkNoFarmersYet => 'Wala pang naka-enroll na Ginger farmer';
+  String get marketLinkNoFarmersYet => 'Wala pang magsasaka ng Luya na sumali';
 
   @override
   String get marketLinkTryDifferentFilter => 'Subukan ang ibang filter';
 
   @override
   String get marketLinkTapToEnroll =>
-      'I-tap ang + button para mag-enroll ng Ginger farmer';
+      'Lalabas dito ang mga magsasaka ng Luya kapag sumali na sila';
 
   @override
   String get marketLinkVolumeExceedsError =>
@@ -5659,7 +5562,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get marketLinkTitleCompleteSale => 'Tapusin ang Benta';
 
   @override
-  String get marketLinkTitleCancelEnrollment => 'Kanselahin ang Pagpapatala';
+  String get marketLinkTitleCancelEnrollment => 'Kanselahin ang Pakikilahok';
 
   @override
   String get marketLinkTitleUpdate => 'I-update';
@@ -5696,8 +5599,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get marketLinkReasonOptional => 'Dahilan (opsyonal)';
 
   @override
-  String get marketLinkWhyCancelled =>
-      'Bakit kinakansela ang pagpapatalang ito...';
+  String get marketLinkWhyCancelled => 'Bakit ito kinakansela...';
 
   @override
   String get marketLinkAdditionalNotes => 'Karagdagang tala...';
@@ -5841,16 +5743,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programMgmtStatusCompleted => 'TAPOS NA';
 
   @override
-  String get programMgmtStatusSuspended => 'SUSPENDIDO';
-
-  @override
   String get programMgmtStatusActiveTc => 'Aktibo';
 
   @override
   String get programMgmtStatusCompletedTc => 'Tapos Na';
-
-  @override
-  String get programMgmtStatusSuspendedTc => 'Suspendido';
 
   @override
   String programMgmtDeleteTitle(String name) {
@@ -5859,20 +5755,20 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get programMgmtDeleteImpactUnknown =>
-      'Hindi na-verify ang laman ng program na ito — maaaring maalis pa rin ang mga naka-enroll na miyembro at history ng distribusyon kapag binura ito.';
+      'Hindi na-verify kung ano ang laman ng programang ito — maaari pa ring mabura ang mga kasapi at kasaysayan ng distribusyon kapag binura ito.';
 
   @override
   String get programMgmtDeleteImpactSafe =>
-      'Walang naka-enroll na miyembro — ligtas nang burahin ang program na ito.';
+      'Walang sumali na kasapi — ligtas burahin ang programang ito.';
 
   @override
   String programMgmtMemberCountOne(int count) {
-    return '$count naka-enroll na miyembro';
+    return '$count kasapi';
   }
 
   @override
   String programMgmtMemberCountOther(int count) {
-    return '$count naka-enroll na miyembro';
+    return '$count kasapi';
   }
 
   @override
@@ -5922,17 +5818,13 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programMgmtTypeRequired => 'Kinakailangan ang uri ng program';
 
   @override
-  String get programMgmtSelectCategoryHint => 'Pumili ng kategorya';
+  String get programMgmtSelectCategoryHint => 'Pumili ng item sa inventory';
 
   @override
   String get programMgmtDistributesFromLabel => 'Kukunin Mula Sa *';
 
   @override
-  String get programMgmtDistributesFromHelper =>
-      'Ang kategorya ng inventory na pagkukunan ng program na ito. Pinamamahalaan sa Inventory Management.';
-
-  @override
-  String get programMgmtCategoryRequired => 'Kinakailangan ang kategorya';
+  String get programMgmtCategoryRequired => 'Piliin ang item na ipamamahagi';
 
   @override
   String get programMgmtSelectBenefitTypeHint => 'Pumili ng uri ng benepisyo';
@@ -5941,11 +5833,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programMgmtBenefitTypeLabel => 'Uri ng Benepisyo *';
 
   @override
-  String get programMgmtBenefitGrant => 'Grant — walang inaasahang balik';
+  String get programMgmtBenefitGrant => 'Libreng Pamamahagi';
 
   @override
-  String get programMgmtBenefitRevenueShare =>
-      'Revenue Share — magbabalik ang magsasaka ng % sa susunod';
+  String get programMgmtBenefitRevenueShare => 'Pagbabalik ng Ani';
 
   @override
   String get programMgmtBenefitTypeRequired =>
@@ -5962,7 +5853,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programMgmtStatusLabel => 'Status *';
 
   @override
-  String get programMgmtBudgetLabel => 'Budget (₱) — opsyonal';
+  String get programMgmtBudgetLabel => 'Badyet (₱) *';
 
   @override
   String get programMgmtDescOptionalLabel => 'Deskripsiyon (opsyonal)';
@@ -5973,12 +5864,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get programMgmtCreateAction => 'Gumawa ng Program';
-
-  @override
-  String get programMgmtTabMembers => 'Members';
-
-  @override
-  String get programMgmtTabActivities => 'Activities';
 
   @override
   String get programMgmtNoProgramsYet => 'Wala pang program';
@@ -6098,11 +5983,11 @@ class AppLocalizationsTl extends AppLocalizations {
       'Lumago ba/umunlad ang naipamahagi sa miyembrong ito?';
 
   @override
-  String get programMgmtThriving => 'Lumago';
+  String get programMgmtThriving => 'Matagumpay';
 
   @override
   String get programMgmtOutcomeThrivingRecorded =>
-      'Naitala ang kinalabasan: lumago';
+      'Naitala ang resulta: matagumpay';
 
   @override
   String get programMgmtRecordOutcomeFailed =>
@@ -6149,20 +6034,20 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String programMgmtMembersEnrolledCountOne(int count) {
-    return '$count miyembro ang naka-enroll';
+    return '$count kasaping sumali';
   }
 
   @override
   String programMgmtMembersEnrolledCountOther(int count) {
-    return '$count miyembro ang naka-enroll';
+    return '$count kasaping sumali';
   }
 
   @override
-  String get programMgmtNoMembersYet => 'Wala pang naka-enroll na miyembro';
+  String get programMgmtNoMembersYet => 'Wala pang kasapi';
 
   @override
   String programMgmtEnrolledOn(String date) {
-    return 'Naka-enroll $date';
+    return 'Sumali noong $date';
   }
 
   @override
@@ -6182,7 +6067,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String programMgmtOutcomeThrivingLine(String date) {
-    return 'Kinalabasan: Lumago, naitala noong $date';
+    return 'Resulta: Matagumpay, naitala noong $date';
   }
 
   @override
@@ -6201,28 +6086,3555 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programMgmtRemoveAction => 'Alisin';
 
   @override
-  String get programMgmtNewActivityTitle => 'Bagong Aktibidad';
-
-  @override
-  String get programMgmtActivityTitleLabel => 'Pamagat *';
-
-  @override
-  String get programMgmtActivityTitleRequired => 'Kinakailangan ang pamagat';
-
-  @override
-  String programMgmtActivityDateLabel(String date) {
-    return 'Petsa: $date';
+  String programMgmtDuplicateName(String name) {
+    return 'May programang \"$name\" na.';
   }
 
   @override
-  String get programMgmtLocationLabel => 'Lokasyon (opsyonal)';
+  String get programMgmtDescriptionLabel => 'Paglalarawan *';
 
   @override
-  String get programMgmtAddActivityAction => 'Magdagdag ng Aktibidad';
+  String get programMgmtDescRequired => 'Kinakailangan ang paglalarawan';
 
   @override
-  String get programMgmtNoActivitiesYet =>
-      'Wala pang naka-iskedyul na aktibidad';
+  String get programMgmtBudgetRequired => 'Ilagay ang badyet ng programa';
+
+  @override
+  String get programMgmtPhotoLabel => 'Larawan ng Programa *';
+
+  @override
+  String get programMgmtPhotoTap => 'I-tap para mag-upload ng larawan';
+
+  @override
+  String get programMgmtPhotoRequired =>
+      'Kinakailangan ang larawan ng programa';
+
+  @override
+  String get programMgmtPhotoUploadFailed =>
+      'Hindi na-upload ang larawan. Suriin ang koneksyon at subukang muli.';
+
+  @override
+  String get programMgmtNoItemsToDistribute =>
+      'Wala pang aktibong item sa inventory. Magdagdag muna sa Inventory Management.';
+
+  @override
+  String get programMgmtIncompleteFormNote =>
+      'Hindi pa kumpleto ang programang ito. Kailangang mapunan ang lahat ng kinakailangang detalye bago ka makapag-save.';
+
+  @override
+  String get programMgmtIncompleteBadge => 'Hindi Kumpleto';
+
+  @override
+  String programMgmtMissingList(String fields) {
+    return 'Kulang: $fields';
+  }
+
+  @override
+  String get programMgmtCompleteAction => 'Kumpletuhin';
+
+  @override
+  String get programMgmtFieldName => 'Pangalan';
+
+  @override
+  String get programMgmtFieldType => 'Uri';
+
+  @override
+  String get programMgmtFieldPhoto => 'Larawan';
+
+  @override
+  String get programMgmtFieldDescription => 'Paglalarawan';
+
+  @override
+  String get programMgmtFieldBudget => 'Badyet';
+
+  @override
+  String get programMgmtFieldItem => 'Item na ipamamahagi';
+
+  @override
+  String get programMgmtFieldReturnQuantity => 'Dami na ibabalik';
+
+  @override
+  String get programMgmtFieldReturnUnit => 'Yunit ng ibabalik';
+
+  @override
+  String get programMgmtHistoryAction => 'Kasaysayan';
+
+  @override
+  String get programMgmtManageProductsAction => 'Pamahalaan ang Produkto';
+
+  @override
+  String programMgmtDistributesLine(String item) {
+    return 'Ipinamamahagi: $item';
+  }
+
+  @override
+  String get programMgmtNoItemSet => 'Walang item na naitakda';
+
+  @override
+  String programMgmtStockLine(String qty, String unit) {
+    return '$qty $unit ang stock';
+  }
+
+  @override
+  String programMgmtHarvestReturnLine(String qty) {
+    return 'Ibabalik: $qty bawat Magsasaka';
+  }
+
+  @override
+  String get programMgmtBenefitFreeChip => 'Libreng Pamamahagi';
+
+  @override
+  String get programMgmtBenefitReturnChip => 'Pagbabalik ng Ani';
+
+  @override
+  String get programMgmtCompletedMembersNote =>
+      'Tapos na ang programang ito. Hindi na ito tumatanggap ng bagong miyembro o pamamahagi. Maaari pa ring iproseso ang mga kasalukuyang miyembro.';
+
+  @override
+  String get programMgmtCompletedNoDistribution =>
+      'Tapos na ang programang ito at hindi na namamahagi ng item.';
+
+  @override
+  String get programMgmtCompletedNote =>
+      'Ang mga nakumpletong programa ay hindi na tumatanggap ng bagong kasapi, distribusyon o pagbili. Maaari pa ring prosesuhin ang mga kasalukuyang kasapi.';
+
+  @override
+  String get programMgmtCompletedSection => 'Mga Tapos na Programa';
+
+  @override
+  String get programMgmtDeleteBlockedTitle =>
+      'Hindi matatanggal ang programang ito';
+
+  @override
+  String programMgmtDeleteBlockedMembers(int count) {
+    return 'Mga rekord ng miyembro: $count (kasama ang mga umalis)';
+  }
+
+  @override
+  String programMgmtDeleteBlockedDistributions(int count) {
+    return 'Mga naitalang pamamahagi: $count';
+  }
+
+  @override
+  String programMgmtDeleteBlockedPurchases(int count) {
+    return 'Mga pagbili ng produkto: $count';
+  }
+
+  @override
+  String get programMgmtDeleteBlockedAdvice =>
+      'Mabubura ang mga tala ng pagkakasapi, distribusyon at transaksyon kapag binura. Para tapusin ang programa, markahan itong Nakumpleto.';
+
+  @override
+  String get programMgmtDeleteBlockedClose => 'Isara';
+
+  @override
+  String get programMgmtMarkCompletedAction => 'Markahang Tapos na';
+
+  @override
+  String get programMgmtMarkedCompleted => 'Namarkahang Tapos na ang programa';
+
+  @override
+  String get adminDashOverviewTitle => 'Pangkalahatang-tanaw';
+
+  @override
+  String get adminDashModInventory => 'Imbentaryo';
+
+  @override
+  String get adminDashModInventorySub => 'item';
+
+  @override
+  String get adminDashModCrops => 'Mga Pananim';
+
+  @override
+  String get adminDashModCropsSub => 'pananim';
+
+  @override
+  String get adminDashModPrograms => 'Mga Program';
+
+  @override
+  String get adminDashModProgramsSub => 'program';
+
+  @override
+  String get adminDashModLoanItems => 'Mga Loan Item';
+
+  @override
+  String get adminDashModLoanItemsSub => 'utang na naibigay';
+
+  @override
+  String get adminDashModSupplyChain => 'Kabuuang Suplay';
+
+  @override
+  String adminDashModSupplyChainSub(int incoming, int outgoing) {
+    return '$incoming pasok · $outgoing labas';
+  }
+
+  @override
+  String get adminDashModPrices => 'Mga Presyo';
+
+  @override
+  String get adminDashModPricesSub => 'presyo sa tingi';
+
+  @override
+  String get reportsSnapTotalSales => 'Kabuuang Benta (Mga Magsasaka)';
+
+  @override
+  String get reportsSnapTotalHarvested => 'Kabuuang Naani (Mga Magsasaka)';
+
+  @override
+  String get reportsSnapActiveLoans => 'Aktibong Utang (Mga Magsasaka)';
+
+  @override
+  String get reportsSnapTotalExpenses => 'Kabuuang Gastos (Mga Magsasaka)';
+
+  @override
+  String get reportsSnapParticipation => 'Paglahok ng Miyembro (Mga Magsasaka)';
+
+  @override
+  String get rptTabMarketplaceSales => 'Benta sa Marketplace';
+
+  @override
+  String get rptTabProductSales => 'Benta ng Produkto ng Kooperatiba';
+
+  @override
+  String get rptSearchProductSales =>
+      'Maghanap ng miyembro, produkto, o order number';
+
+  @override
+  String get rptProductSalesEmpty =>
+      'Walang naitalang benta ng Produkto ng Kooperatiba sa panahong ito.';
+
+  @override
+  String get rptProductSaleMember => 'Miyembro';
+
+  @override
+  String get rptProductSaleOrder => 'Order';
+
+  @override
+  String get rptProductSaleProgram => 'Program';
+
+  @override
+  String get reportsProductSales => 'Benta ng Produkto ng Kooperatiba';
+
+  @override
+  String get reportsProductSalesShort => 'Benta ng Produkto';
+
+  @override
+  String get reportsCompletedOrders => 'Mga Natapos na Order';
+
+  @override
+  String get rptAverageOrder => 'Karaniwang Order';
+
+  @override
+  String get rptProductBuyers => 'Mga Bumili';
+
+  @override
+  String get adminDashPulseRevenueSub => 'kasama ang produkto';
+
+  @override
+  String get staffThingCooperativeDetails => 'detalye ng kooperatiba';
+
+  @override
+  String get staffThingDeliverySettings => 'setting sa paghahatid';
+
+  @override
+  String get staffThingDeliveryFeeBands => 'singil sa paghahatid';
+
+  @override
+  String get staffLogFeatureDelivery => 'Delivery at Pickup';
+
+  @override
+  String staffActCoopChanged(String parts) {
+    return 'Binago ang Detalye ng Kooperatiba: $parts';
+  }
+
+  @override
+  String get staffActCoopChangedPlain => 'Binago ang Detalye ng Kooperatiba';
+
+  @override
+  String get staffCoopPartLocation => 'lokasyon';
+
+  @override
+  String get staffCoopPartContact => 'numero ng contact';
+
+  @override
+  String get staffCoopPartVerified => 'pagpapatunay ng numero';
+
+  @override
+  String get staffActDeliveryOn => 'Binuksan ang Delivery';
+
+  @override
+  String get staffActDeliveryOff => 'Pinatay ang Delivery';
+
+  @override
+  String get staffActPickupOn => 'Binuksan ang Pickup';
+
+  @override
+  String get staffActPickupOff => 'Pinatay ang Pickup';
+
+  @override
+  String get staffActDeliverySettingsChanged =>
+      'Binago ang Setting ng Delivery';
+
+  @override
+  String staffActFeeBandAdded(String range, String fee) {
+    return 'Nagtakda ng bayad sa delivery: $range km, $fee';
+  }
+
+  @override
+  String get cpSoldOutBody =>
+      'Bumalik mamaya, o tingnan ang iba pang produkto ng kooperatiba sa ibaba.';
+
+  @override
+  String get cdCompleteAddressTitle => 'Kumpletong Address';
+
+  @override
+  String get cdCompleteAddressNote =>
+      'Ang address na ito rin ang opisyal na pickup location ng kooperatiba.';
+
+  @override
+  String get paFilterTitle => 'I-filter ang mga Aprubal';
+
+  @override
+  String get paFilterSubtitle => 'Ipakita ang bago o in-edit na listing';
+
+  @override
+  String get paFilterType => 'Uri';
+
+  @override
+  String get cdAddressUnavailable =>
+      'Hindi maipakita ang address ng kooperatiba ngayon. Suriin ang koneksyon.';
+
+  @override
+  String get marketDashModListingsSub => 'Lahat ng produktong ibinebenta';
+
+  @override
+  String get marketDashModPendingSub => 'Aprubahan ang mga bagong listing';
+
+  @override
+  String get marketDashModBuyersSub => 'Mga account ng buyer';
+
+  @override
+  String get marketDashModOrdersSub => 'Subaybayan ang mga order';
+
+  @override
+  String get marketDashModLinkingSub => 'Mga kahilingang sumali sa DA-AMAD';
+
+  @override
+  String get marketDashModOffersSub => 'Alok ng magsasaka at negosasyon';
+
+  @override
+  String get marketDashKpiSubListings => 'produktong nakalista';
+
+  @override
+  String get marketDashKpiSubPending => 'naghihintay ng aprubal';
+
+  @override
+  String get marketDashKpiSubBuyers => 'nakarehistro';
+
+  @override
+  String get marketDashKpiSubOrders => 'lahat ng order';
+
+  @override
+  String get marketDashKpiSubLinking => 'kahilingan';
+
+  @override
+  String get marketDashKpiSubOffers => 'naghihintay ng review';
+
+  @override
+  String get dsPickupOnToast => 'Na-on ang Pickup.';
+
+  @override
+  String get dsPickupOffToast => 'Na-off ang Pickup.';
+
+  @override
+  String get cdPinNotSet =>
+      'Wala pang lokasyon. Sinusukat ang bayad sa delivery mula sa puntong ito.';
+
+  @override
+  String get cdPinHelp =>
+      'Ilipat ang pin sa eksaktong lugar ng kooperatiba. Nagsisimula ito sa Barangay Payanas.';
+
+  @override
+  String get errPickupOff =>
+      'Hindi available ang Pickup ngayon. Pumili ng Delivery.';
+
+  @override
+  String get errOneMethodRequired =>
+      'Kailangang manatiling naka-on ang kahit isa sa Pickup at Delivery. I-on muna ang isa pa.';
+
+  @override
+  String get errPersonalNumber =>
+      'Numero iyan ng telepono ng isang Manager o Officer. Ilagay ang sariling numero ng kooperatiba.';
+
+  @override
+  String get omFilterTitle => 'I-filter ang mga Order';
+
+  @override
+  String get omFilterSubtitle =>
+      'Ipakita ang mga order mula sa isang pinagmulan';
+
+  @override
+  String get omFilterSource => 'Pinagmulan';
+
+  @override
+  String get dsPickupTitle => 'Pickup';
+
+  @override
+  String get dsPickupOn =>
+      'NAKA-ON ang Pickup. Maaaring kunin ng mga customer ang kanilang order sa kooperatiba.';
+
+  @override
+  String get dsPickupOff => 'NAKA-OFF ang Pickup.';
+
+  @override
+  String get dsOneMethod =>
+      'Magkahiwalay ang switch ng Pickup at Delivery. Kahit isa ay mananatiling naka-on.';
+
+  @override
+  String get dsCheckAction => 'Kumpletuhin ang Detalye ng Kooperatiba';
+
+  @override
+  String get uoCheckoutPickupOff =>
+      'Hindi available ang Pickup ngayon. Pumili ng Delivery.';
+
+  @override
+  String get cdTitle => 'Detalye ng Kooperatiba';
+
+  @override
+  String get cdViewOnly =>
+      'Maaari mong tingnan ang mga detalyeng ito. Ang Manager lamang ang makakapagbago.';
+
+  @override
+  String get cdNameLabel => 'Pangalan ng kooperatiba';
+
+  @override
+  String get cdPinTitle => 'Lokasyon sa mapa';
+
+  @override
+  String cdPinSet(String lat, String lng) {
+    return 'Naka-pin ($lat, $lng)';
+  }
+
+  @override
+  String get cdSetPin => 'Itakda ang lokasyon sa mapa';
+
+  @override
+  String get cdMovePin => 'Ilipat ang pin';
+
+  @override
+  String get cdContactTitle => 'Kontak';
+
+  @override
+  String get cdContactLabel => 'Contact Number';
+
+  @override
+  String get cdContactPlaceholder =>
+      'Wala pang nakalagay. Hindi pa naipapasok ang opisyal na contact number ng kooperatiba.';
+
+  @override
+  String get cdContactNotVerified =>
+      'Naipasok na ngunit hindi pa napapatunayan';
+
+  @override
+  String get cdContactVerified => 'Napatunayan na';
+
+  @override
+  String get cdVerify => 'Patunayan ang numerong ito';
+
+  @override
+  String get cdVerifyHelp =>
+      'Tiyaking tinawagan o tinext mo ang numerong ito at umaabot ito sa kooperatiba.';
+
+  @override
+  String get cdContactInvalid =>
+      'Maglagay ng wastong numero ng contact (7 hanggang 13 digit).';
+
+  @override
+  String get cdSave => 'I-save ang mga detalye';
+
+  @override
+  String get cdSaved => 'Na-save ang mga detalye ng kooperatiba.';
+
+  @override
+  String get cdUnsaved => 'I-save muna ang numero, saka patunayan.';
+
+  @override
+  String get cdVerifiedToast => 'Napatunayan ang numero ng contact.';
+
+  @override
+  String get cdDeliveryResetNote =>
+      'Kapag binago ang lokasyon sa mapa o ang numero ng contact, mapapatay ang Delivery hanggang masuri ulit.';
+
+  @override
+  String get cdOpenDeliverySettings => 'Mga Setting ng Delivery';
+
+  @override
+  String get dsTitle => 'Mga Setting ng Delivery';
+
+  @override
+  String get dsSwitchTitle => 'Delivery';
+
+  @override
+  String get dsSwitchOn =>
+      'NAKA-ON ang Delivery. Maaaring pumili ng Delivery ang mga customer sa checkout.';
+
+  @override
+  String get dsSwitchOff => 'NAKA-OFF ang Delivery. Pickup ang gamit ng lahat.';
+
+  @override
+  String get dsChecklistTitle => 'Bago ma-on ang Delivery';
+
+  @override
+  String get dsCheckPin => 'Naitakda na ang lokasyon ng kooperatiba sa mapa';
+
+  @override
+  String get dsCheckContact =>
+      'Naipasok at napatunayan na ang numero ng contact ng kooperatiba';
+
+  @override
+  String get dsCheckBands => 'Naitakda na ang mga bayad sa delivery';
+
+  @override
+  String get dsCheckBandsDemo =>
+      'Totoong rate ang mga bayad sa delivery (hindi demo)';
+
+  @override
+  String get dsCoopDetailsLink => 'Buksan ang Detalye ng Kooperatiba';
+
+  @override
+  String get dsBandsTitle => 'Bayad sa delivery ayon sa layo';
+
+  @override
+  String get dsBandsHelp =>
+      'Sumusunod ang bayad sa tuwid na layo mula sa kooperatiba. Isang bayad bawat delivery, hindi bawat item. Kapag nag-save ng bagong bayad, mapapatay ang Delivery hanggang i-on ulit.';
+
+  @override
+  String get dsBandsEmpty =>
+      'Wala pang naitakdang bayad sa delivery. Mananatiling naka-off ang Delivery hanggang maitakda ang mga ito.';
+
+  @override
+  String dsBandFrom(String km) {
+    return 'Mula $km km';
+  }
+
+  @override
+  String get dsBandUpTo => 'Hanggang (km)';
+
+  @override
+  String get dsBandFee => 'Bayad';
+
+  @override
+  String get dsAddBand => 'Magdagdag ng distance band';
+
+  @override
+  String get dsRemoveBand => 'Alisin ang huling band';
+
+  @override
+  String get dsSaveBands => 'I-save ang mga bayad sa delivery';
+
+  @override
+  String get dsBandsSaved =>
+      'Na-save ang mga bayad sa delivery. Napatay ang Delivery: suriin at i-on ulit.';
+
+  @override
+  String dsFarthest(String km) {
+    return 'Pinakamalayong delivery: $km km';
+  }
+
+  @override
+  String get dsBandsProblemEmpty => 'Magdagdag ng kahit isang band.';
+
+  @override
+  String get dsBandsProblemRow =>
+      'Bawat band ay dapat may dulo na mas malayo kaysa simula, at bayad na zero o higit pa.';
+
+  @override
+  String get dsBandsProblemZero => 'Dapat magsimula sa 0 km ang unang band.';
+
+  @override
+  String get dsBandsProblemGap =>
+      'Dapat magkasunod ang mga band nang walang puwang o overlap.';
+
+  @override
+  String get dsEnabledToast => 'Na-on ang Delivery.';
+
+  @override
+  String get dsDisabledToast => 'Na-off ang Delivery.';
+
+  @override
+  String get dsDemoWarning =>
+      'Mga demo rate ito. Hindi magagamit ng Delivery ang mga ito.';
+
+  @override
+  String get uoFarmerCancelBody =>
+      'Kanselahin ang order na ito? Ilalabas ang dami na naka-reserba para sa iyo. Maaari kang magbigay ng dahilan.';
+
+  @override
+  String get uoMyOrdersShortcut => 'Aking mga Order';
+
+  @override
+  String get uoCheckoutDeliveryOff =>
+      'Hindi available ang Delivery ngayon. Pumili ng Pickup.';
+
+  @override
+  String get uoCheckoutQuoteLoading => 'Kinukwenta ang bayad sa delivery...';
+
+  @override
+  String uoCheckoutFeeNote(String km) {
+    return 'Bayad sa delivery para sa $km km mula sa kooperatiba. Isang beses lang sa buong delivery, bayad na cash sa delivery.';
+  }
+
+  @override
+  String get uoCheckoutEditAddress => 'Magdagdag ng lokasyon sa mapa';
+
+  @override
+  String get uoCheckoutCashNote =>
+      'Magbabayad ka ng cash kapag kinuha mo ang iyong order sa counter.';
+
+  @override
+  String get cpTitle => 'Produkto ng Kooperatiba';
+
+  @override
+  String cpFromProgram(String program) {
+    return 'Mula sa $program';
+  }
+
+  @override
+  String cpYouPayMember(String percent) {
+    return 'Ang bayad mo ay presyo ng miyembro ($percent% diskwento).';
+  }
+
+  @override
+  String cpMembersPay(String price, String percent, String program) {
+    return 'Ang mga miyembro ay magbabayad ng $price ($percent% diskwento). Sumali sa $program para makuha ang presyo ng miyembro.';
+  }
+
+  @override
+  String get cpOrderNote =>
+      'Aaprubahan muna ng kooperatiba ang iyong order. Magbabayad ka ng cash, sa counter kapag kinuha mo o sa delivery.';
+
+  @override
+  String get cpSourceLabel => 'Produkto ng Kooperatiba';
+
+  @override
+  String get cpFilterAll => 'Lahat';
+
+  @override
+  String get cpFilterMarketplace => 'Marketplace';
+
+  @override
+  String get cpFilterCooperative => 'Mga Produkto ng Kooperatiba';
+
+  @override
+  String cpMemberPriceHint(String price) {
+    return 'Presyo ng miyembro $price';
+  }
+
+  @override
+  String get cpNoProductsNote => 'Walang Produkto ng Kooperatiba sa ngayon.';
+
+  @override
+  String get uoProductsInMarketplace =>
+      'Ang mga produkto ng programang ito ay ibinebenta sa Marketplace.';
+
+  @override
+  String get prodStockForProgram => 'Stock para sa programang ito';
+
+  @override
+  String get prodStockForProgramHelp =>
+      'Nakalaan ang dami na ito para i-order ng mga miyembro. Walang ibang gamit sa kooperatiba (utang, distribusyon, ibang programa) ang makakagamit nito.';
+
+  @override
+  String prodStockOnHandHelp(String onHand, String unit) {
+    return '$onHand $unit ang nasa kooperatiba. Nananatili ang naka-reserba sa mga bukas na order.';
+  }
+
+  @override
+  String get prodStockInvalid =>
+      'Maglagay ng dami na higit sa zero (hanggang 2 decimal).';
+
+  @override
+  String prodStockAvailable(String available, String unit) {
+    return '$available $unit na ibinebenta';
+  }
+
+  @override
+  String prodStockReserved(String reserved, String unit) {
+    return '$reserved $unit ang naka-reserba sa mga bukas na order';
+  }
+
+  @override
+  String get prodReleaseStock => 'Ibalik ang hindi nabentang stock';
+
+  @override
+  String get prodStockReleased =>
+      'Naibalik sa stock ng kooperatiba ang hindi nabentang stock.';
+
+  @override
+  String programMgmtBlockedOpenOrders(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count order ang bukas pa. Tapusin o kanselahin muna ang mga ito.',
+      zero: 'Walang bukas na order',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String programMgmtBlockedAllocated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count produkto ang may nakalaang stock pa. Ibenta ito o ibalik sa shared stock.',
+      zero: 'Walang nakalaang stock',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get uoCoopOrderTitle => 'Order sa Kooperatiba';
+
+  @override
+  String get uoProgram => 'Programa';
+
+  @override
+  String uoMemberPriceLine(String percent) {
+    return 'Presyo ng miyembro ($percent% diskwento)';
+  }
+
+  @override
+  String get uoRegularPrice => 'Karaniwang presyo';
+
+  @override
+  String get uoUnitPrice => 'Presyo bawat isa';
+
+  @override
+  String get uoQuantity => 'Dami';
+
+  @override
+  String get uoApproveBody =>
+      'I-approve ang order na ito? Mananatiling naka-reserba ang dami para sa miyembro.';
+
+  @override
+  String get uoReadyBody =>
+      'Markahan ang order na Handa na para sa Pickup? Hihilingin sa miyembro na kunin ito at magbayad sa counter.';
+
+  @override
+  String get uoOutBody =>
+      'Markahan ang order na Papunta na para sa Delivery? Kokolektahin ang cash sa delivery.';
+
+  @override
+  String get uoCancelOrder => 'Kanselahin ang Order';
+
+  @override
+  String get uoCancelTitle => 'Kanselahin ang order na ito?';
+
+  @override
+  String get uoCancelBody =>
+      'Ilalabas ang naka-reserbang stock at ipapaalam sa miyembro ang dahilan. Isulat ang dahilan.';
+
+  @override
+  String get uoCancelReasonLabel => 'Dahilan';
+
+  @override
+  String get uoOrderNotFound => 'Hindi nahanap ang order';
+
+  @override
+  String get uoLegacyNote =>
+      'Naitala ang order na ito bago nagkaroon ng pagsubaybay sa order.';
+
+  @override
+  String get uoMemberLabel => 'Miyembro';
+
+  @override
+  String get uoDeliveryFeeLine =>
+      'Bayad sa delivery (isang beses sa buong delivery)';
+
+  @override
+  String get uoOrderDetailsTitle => 'Detalye ng order';
+
+  @override
+  String get uoSourceMarketplace => 'Marketplace';
+
+  @override
+  String get uoSourceCooperative => 'Kooperatiba';
+
+  @override
+  String get uoSourceAll => 'Lahat ng pinagmulan';
+
+  @override
+  String get uoHandedOver => 'Naibigay na, hinihintay ang kumpirmasyon';
+
+  @override
+  String get uoWaitingPaymentTitle => 'Hinihintay na maitala ang bayad';
+
+  @override
+  String get uoWaitingPaymentBody =>
+      'Itatala muna ng kooperatiba ang iyong bayad na cash. Pagkatapos, maaari mong kumpirmahin na natanggap mo ang iyong order.';
+
+  @override
+  String get uoPaymentTitle => 'Bayad';
+
+  @override
+  String get uoPaymentCash => 'Cash na nakolekta';
+
+  @override
+  String get uoPaymentItems => 'Mga item';
+
+  @override
+  String get uoPaymentDeliveryFee => 'Bayad sa delivery';
+
+  @override
+  String uoPaymentRecordedOn(String date) {
+    return 'Naitala noong $date';
+  }
+
+  @override
+  String uoPaymentRecordedBy(String name, String role) {
+    return 'Itinala ni $name ($role)';
+  }
+
+  @override
+  String get uoPaymentUnpaid =>
+      'Hindi pa bayad. Ang cash ay kinokolekta sa counter (Pickup) o sa delivery.';
+
+  @override
+  String get uoPaymentNotRecorded =>
+      'Walang naitalang bayad sa order na ito (nakumpleto ito bago itala ang mga bayad).';
+
+  @override
+  String get uoCompletedByStaffTitle => 'Kinumpleto ng staff para sa customer';
+
+  @override
+  String uoCompletedByStaffBy(String name, String role, String date) {
+    return 'Ni $name ($role), $date';
+  }
+
+  @override
+  String get uoReasonLabel => 'Dahilan';
+
+  @override
+  String get uoActionRecordPayment => 'Itala ang Bayad';
+
+  @override
+  String get uoActionRecordHandover => 'Itala ang Pagbibigay at Cash';
+
+  @override
+  String get uoActionCompleteForCustomer => 'Kumpletuhin para sa Customer';
+
+  @override
+  String get uoPaymentDialogTitle => 'Itala ang Bayad na Cash';
+
+  @override
+  String get uoPaymentDialogBody =>
+      'Tanggapin ang cash sa counter, saka itala. Kolektahin ang eksaktong halagang nakasaad.';
+
+  @override
+  String get uoHandoverDialogTitle => 'Itala ang Pagbibigay at Cash';
+
+  @override
+  String get uoHandoverDialogBody =>
+      'Ibigay ang order, kumuha ng litrato bilang patunay, at kolektahin ang cash sa delivery.';
+
+  @override
+  String get uoCashToCollect => 'Cash na kokolektahin';
+
+  @override
+  String get uoCashItemsLine => 'Mga item';
+
+  @override
+  String get uoCashFeeLine =>
+      'Bayad sa delivery (isang beses sa buong delivery)';
+
+  @override
+  String get uoCashReceived => 'Natanggap na cash (₱)';
+
+  @override
+  String uoCashMismatch(String amount) {
+    return 'Ilagay ang eksaktong $amount.';
+  }
+
+  @override
+  String get uoCashRecord => 'Itala';
+
+  @override
+  String get uoAssistTitle => 'Kumpletuhin para sa Customer';
+
+  @override
+  String get uoAssistBody =>
+      'Gamitin lamang kung hindi makapagkumpirma ang customer. Dapat nailabas at nabayaran na ang order. Kailangan ng dahilan at litrato, at itatala ang iyong pangalan at oras.';
+
+  @override
+  String get uoAssistReasonLabel => 'Bakit mo kinukumpleto ang order na ito?';
+
+  @override
+  String get uoAssistReasonRequired =>
+      'Isulat ang dahilan (hindi bababa sa 5 character).';
+
+  @override
+  String get uoAssistConfirm => 'Kumpletuhin ang Order';
+
+  @override
+  String get uoToastPaymentRecorded => 'Naitala ang bayad.';
+
+  @override
+  String get uoToastHandoverRecorded => 'Naitala ang pagbibigay at cash.';
+
+  @override
+  String get uoToastAssistedDone => 'Nakumpleto ang order.';
+
+  @override
+  String get uoToastApproved => 'Naaprubahan ang order.';
+
+  @override
+  String get uoToastReady => 'Minarkahang Handa na para sa Pickup.';
+
+  @override
+  String get uoToastOut => 'Minarkahang Papunta na para sa Delivery.';
+
+  @override
+  String get uoToastCancelled => 'Nakansela ang order.';
+
+  @override
+  String get errPaymentNotRecorded => 'Hindi pa naitala ang bayad.';
+
+  @override
+  String get errAmountMismatch =>
+      'Hindi tugma ang halaga sa dapat bayaran. Suriin ang natanggap na cash.';
+
+  @override
+  String get errReasonRequired => 'Isulat muna ang dahilan.';
+
+  @override
+  String get errPhotoRequired => 'Magdagdag muna ng litrato.';
+
+  @override
+  String get errFarmersOnly =>
+      'Para lamang sa mga miyembro ng kooperatiba ang Mga Produkto ng Kooperatiba.';
+
+  @override
+  String get errOutOfStock =>
+      'Hindi sapat ang natitirang stock para sa dami na iyon.';
+
+  @override
+  String get errTooManyDecimals =>
+      'Hanggang 2 decimal place lamang ang puwede.';
+
+  @override
+  String get errGroupRequired =>
+      'Pumili muna ng naka-save na address para sa delivery.';
+
+  @override
+  String get errDeliveryOff =>
+      'Hindi available ang delivery ngayon. Pumili ng Pickup.';
+
+  @override
+  String get errOutsideArea =>
+      'Sa loob lamang ng Barangay Payanas kami nagde-deliver. Pumili ng Pickup.';
+
+  @override
+  String get errNoPin => 'Idagdag muna ang lokasyon ng address na ito sa mapa.';
+
+  @override
+  String get errTooFar =>
+      'Masyadong malayo ang address na ito para sa delivery. Pumili ng Pickup.';
+
+  @override
+  String get errNoBand =>
+      'Walang nakatakdang bayad sa delivery para sa layong ito. Pumili ng Pickup.';
+
+  @override
+  String get errOverAllocated =>
+      'Mas marami iyon kaysa sa stock na hindi pa nakalaan sa ibang produkto.';
+
+  @override
+  String get errBelowReserved =>
+      'Mas marami na ang naka-reserba sa mga bukas na order.';
+
+  @override
+  String get errStockAllocated =>
+      'Nakalaan ang stock na iyon para sa mga order ng Produkto ng Kooperatiba at hindi magagamit sa iba.';
+
+  @override
+  String get errUpdateRequired => 'I-update ang app para magpatuloy.';
+
+  @override
+  String get errDeliveryNotReady => 'Hindi pa handa ang delivery.';
+
+  @override
+  String get errBandsInvalid =>
+      'Suriin ang mga distance band: dapat magsimula sa 0 km at magkasunod nang walang puwang o overlap.';
+
+  @override
+  String get memDetailsEmail => 'Email (na-verify)';
+
+  @override
+  String get prodAddNothingLeft =>
+      'Naidagdag na bilang produkto ang lahat ng item sa mga kategorya ng programang ito. Magdagdag ng stock sa Imbentaryo, o pumili ng ibang kategorya para sa programa, para makapagbenta pa.';
+
+  @override
+  String memWaitingToReceive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Naghihintay na tumanggap · $count araw mula nang sumali',
+      zero: 'Sumali ngayon · naghihintay na tumanggap',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String memFinalSuccessful(String date) {
+    return 'Matagumpay · $date';
+  }
+
+  @override
+  String memFinalSuccessfulVerified(String date, String qty) {
+    return 'Matagumpay · $date · na-verify na ani $qty';
+  }
+
+  @override
+  String memFinalFailed(String date) {
+    return 'Nabigo · $date';
+  }
+
+  @override
+  String memFinalFailedCause(String date, String cause) {
+    return 'Nabigo · $date · $cause';
+  }
+
+  @override
+  String prodMembersGetOff(String percent) {
+    return 'May $percent% Diskwento ang mga Kasapi';
+  }
+
+  @override
+  String get prodOutOfStock => 'Walang stock';
+
+  @override
+  String get prodOffHidden => 'Naka-archive · nakatago sa katalogo';
+
+  @override
+  String prodBuyers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mamimili',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String prodSoldLine(String qty, String unit) {
+    return '$qty $unit ang nabenta';
+  }
+
+  @override
+  String get prodNoSalesYet => 'Wala pang benta';
+
+  @override
+  String get prodKpiSales => 'Kabuuang Benta';
+
+  @override
+  String get prodKpiBuyers => 'Mga Mamimili';
+
+  @override
+  String get prodKpiSavings => 'Natipid ng mga Kasapi';
+
+  @override
+  String get prodKpiPending => 'Nakabinbin';
+
+  @override
+  String get prodChipAll => 'Lahat';
+
+  @override
+  String get prodChipOnSale => 'Naibebenta';
+
+  @override
+  String get prodChipOutOfStock => 'Walang Stock';
+
+  @override
+  String get prodChipOff => 'Naka-archive';
+
+  @override
+  String get prodSearchHint => 'Maghanap ng produkto';
+
+  @override
+  String get prodNoMatch => 'Walang katugmang produkto.';
+
+  @override
+  String get prodCompletedBanner =>
+      'Nakumpleto na ang programang ito. Hindi na maaaring baguhin ang mga produkto.';
+
+  @override
+  String get memRemindAction => 'Paalalahanan';
+
+  @override
+  String get memRemindedToday => 'Napaalalahanan na ngayon';
+
+  @override
+  String memLastReminded(String date) {
+    return 'Huling pinaalalahanan noong $date';
+  }
+
+  @override
+  String memRemindSent(String name) {
+    return 'Naipadala ang paalala kay $name.';
+  }
+
+  @override
+  String get errReminderToday =>
+      'May naipadala nang paalala ngayon para sa item na ito. Subukan muli bukas.';
+
+  @override
+  String get errReminderNotNeeded =>
+      'Hindi naghihintay ng ulat ng kinalabasan ang Magsasaka.';
+
+  @override
+  String farmerProgReportPending(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Nakabinbin ang ulat ng kinalabasan · Natanggap $count araw na ang nakalipas',
+      zero: 'Nakabinbin ang ulat ng kinalabasan · Natanggap ngayon',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String memGivenLine(String what, String date) {
+    return '$what · ibinigay noong $date';
+  }
+
+  @override
+  String memWaitingDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Hinihintay ang ulat ng Magsasaka · $count araw mula nang matanggap',
+      zero: 'Natanggap ngayon · hinihintay ang ulat ng Magsasaka',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get memTickEvidence => 'Ebidensya';
+
+  @override
+  String get memTickField => 'Bukid';
+
+  @override
+  String memStatOrders(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count order',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String memStatSpent(String amount) {
+    return '$amount ang nagastos';
+  }
+
+  @override
+  String memStatSaved(String amount) {
+    return '$amount ang natipid';
+  }
+
+  @override
+  String memStatPending(int count) {
+    return '$count nakabinbin';
+  }
+
+  @override
+  String get joinRequestDeclinedTryAgain =>
+      'Isinara ang kahilingan — i-tap para humiling muli';
+
+  @override
+  String get joinRequestPendingShort => 'Nakabinbin ang kahilingan';
+
+  @override
+  String get joinRequested => 'Hiniling na';
+
+  @override
+  String get joinRequestAgain => 'Humiling Muling Sumali';
+
+  @override
+  String get joinLastClosed => 'Isinara ang huli mong kahilingang sumali.';
+
+  @override
+  String joinLastClosedWhy(String reason) {
+    return 'Isinara ang huli mong kahilingang sumali: $reason';
+  }
+
+  @override
+  String get programMgmtReturnQtyLabel => 'Dami ng ibabalik *';
+
+  @override
+  String get programMgmtBenefitLocked =>
+      'Hindi na mababago kapag nagawa na ang programa. Nakadepende rito ang mga kinalabasan, pagbabalik at tala ng mga kasapi.';
+
+  @override
+  String get errBenefitLocked =>
+      'Hindi na mababago ang Uri ng Benepisyo kapag nagawa na ang programa.';
+
+  @override
+  String get errDeclineNotAllowed =>
+      'Inaaprubahan ang kahilingang sumali, hindi tinatanggihan.';
+
+  @override
+  String get outcMeasuredLabel => 'Nasukat na dami *';
+
+  @override
+  String get outcReturnQtyLabel => 'Dami na isasauli *';
+
+  @override
+  String get outcMeasuredHint =>
+      'Bilangin o timbangin mo mismo ang naprodyus sa bukid.';
+
+  @override
+  String get joinTapDetailsJoined => 'Sumali na — i-tap para sa detalye';
+
+  @override
+  String get joinTapDetailsRequest =>
+      'I-tap para makita ang detalye at humiling na sumali';
+
+  @override
+  String get joinRequestSent => 'Naipadala ang kahilingang sumali.';
+
+  @override
+  String get joinStatusTitle => 'Pagkakasapi';
+
+  @override
+  String get joinSectionTitle => 'Sumali';
+
+  @override
+  String get joinNotYet => 'Hindi ka pa sumasali sa programang ito.';
+
+  @override
+  String get joinRequestAction => 'Humiling na Sumali';
+
+  @override
+  String get joinRequestPending =>
+      'Naghihintay ng pag-apruba ang iyong kahilingang sumali.';
+
+  @override
+  String get joinSending => 'Ipinapadala...';
+
+  @override
+  String get memDetailsTitle => 'Mga detalye ng kasapi';
+
+  @override
+  String get memDetailsTapHint => 'I-tap para sa detalye';
+
+  @override
+  String get memDetailsJoining => 'Pagsali';
+
+  @override
+  String get memDetailsRequestedOn => 'Hiniling noong';
+
+  @override
+  String get memDetailsApprovedBy => 'Inaprubahan ni';
+
+  @override
+  String memDetailsByLine(String name, String role, String date) {
+    return '$name ($role) · $date';
+  }
+
+  @override
+  String get memDetailsContact => 'Numero ng contact';
+
+  @override
+  String get memDetailsFarm => 'Address ng sakahan';
+
+  @override
+  String get memDetailsNone => 'Hindi nakalagay';
+
+  @override
+  String get memDetailsDistribution => 'Distribusyon';
+
+  @override
+  String get memDetailsReceived => 'Natanggap';
+
+  @override
+  String get memDetailsNotYetReceived => 'Wala pang naipamahagi.';
+
+  @override
+  String get memDetailsOutcome => 'Kinalabasan';
+
+  @override
+  String get memDetailsNoReport =>
+      'Hindi pa nag-uulat ng kinalabasan ang Magsasaka.';
+
+  @override
+  String get memDetailsReported => 'Ulat ng Magsasaka';
+
+  @override
+  String get memDetailsOutcomeSuccessful => 'Matagumpay';
+
+  @override
+  String get memDetailsOutcomeFailed => 'Nabigo';
+
+  @override
+  String get memDetailsEvidence => 'Pagsusuri ng ebidensya';
+
+  @override
+  String get memDetailsFieldCheck => 'Beripikasyon sa bukid';
+
+  @override
+  String get memDetailsPending => 'Nakabinbin';
+
+  @override
+  String memDetailsDoneBy(String name, String date) {
+    return '$name · $date';
+  }
+
+  @override
+  String get memDetailsHarvestReturn => 'Pagbabalik ng ani';
+
+  @override
+  String memDetailsReturnLine(String received, String due) {
+    return '$received sa $due ang natanggap';
+  }
+
+  @override
+  String get memDetailsDecision => 'Pasya ng kooperatiba';
+
+  @override
+  String get memDetailsPurchases => 'Mga Pagbili';
+
+  @override
+  String get memDetailsOrders => 'Mga order';
+
+  @override
+  String get memDetailsSpent => 'Kabuuang nagastos';
+
+  @override
+  String get memDetailsSaved => 'Natipid sa diskwentong pangkasapi';
+
+  @override
+  String get memDetailsLastPurchase => 'Huling pagbili';
+
+  @override
+  String get memDetailsNoPurchases => 'Wala pang pagbili.';
+
+  @override
+  String get memDetailsRecent => 'Mga huling pagbili';
+
+  @override
+  String get memDetailsViewProfile => 'Tingnan ang buong profile ng Magsasaka';
+
+  @override
+  String get programTypeAddNew => '+ Magdagdag ng Bagong Uri ng Programa';
+
+  @override
+  String get programTypeAddTitle => 'Magdagdag ng Bagong Uri ng Programa';
+
+  @override
+  String get programTypeAddHint => 'hal. Aquaculture';
+
+  @override
+  String get programTypeSelectHint => 'Pumili ng uri';
+
+  @override
+  String adminLogProgramTypeAdded(String name) {
+    return 'Idinagdag ang \"$name\" bilang uri ng programa.';
+  }
+
+  @override
+  String get programMgmtFieldReturnCrop =>
+      'Pananim na ibabalik (dating setting)';
+
+  @override
+  String get errReturnItem => 'Wala na sa Imbentaryo ang item na ibinigay.';
+
+  @override
+  String get errReturnUnit =>
+      'Dapat kapareho ng yunit ng ibinigay na item ang ibabalik.';
+
+  @override
+  String get outcReturnItemUnit => 'Yunit ng ibinigay na item';
+
+  @override
+  String get errNeedsDbUpdate =>
+      'Kailangan nito ng update sa database na hindi pa nailalapat. Patakbuhin ang pinakabagong SQL scripts, saka subukan muli.';
+
+  @override
+  String get reqEnrolledDirect => 'Idinagdag ng kooperatiba';
+
+  @override
+  String reqEnrolledSummary(String date) {
+    return 'Sumali noong $date';
+  }
+
+  @override
+  String programMgmtDistributesFromLine(String categories) {
+    return 'Ipinamamahagi mula sa: $categories';
+  }
+
+  @override
+  String get programMgmtNoSourceSet => 'Walang kategoryang naitakda';
+
+  @override
+  String get programMgmtChooseItemToGive => 'Item na ibibigay';
+
+  @override
+  String get programMgmtChooseItemToGiveHint => 'Pumili ng item';
+
+  @override
+  String programMgmtNoItemsInCategories(String categories) {
+    return 'Walang item na may stock sa $categories. Magdagdag muna ng stock sa Imbentaryo.';
+  }
+
+  @override
+  String get programMgmtSourcesHint => 'Pumili ng mga kategorya';
+
+  @override
+  String get programMgmtFieldSources => 'Pinagkukunan ng ipamamahagi';
+
+  @override
+  String get programMgmtSourcesLabel => 'Pinagkukunan ng ipamamahagi *';
+
+  @override
+  String get programMgmtSourcesRequired => 'Pumili ng kahit isang kategorya.';
+
+  @override
+  String get programMgmtSourcesNone =>
+      'Walang nakitang kategorya ng imbentaryo.';
+
+  @override
+  String get prodNoSources =>
+      'Wala pang \"Pinagkukunan ng ipamamahagi\" ang programang ito. I-edit ang programa at pumili ng kahit isa bago magdagdag ng produkto.';
+
+  @override
+  String prodNoItemsInSources(String sources) {
+    return 'Walang available na item sa $sources. Magdagdag ng stock sa Imbentaryo o pumili ng ibang kategorya sa programa.';
+  }
+
+  @override
+  String get prodAddTitle => 'Magdagdag ng produkto';
+
+  @override
+  String get errProductNotInSource =>
+      'Wala ang item na ito sa kategoryang pinagkukunan ng programa.';
+
+  @override
+  String get errNoStaffCancel =>
+      'Ang Magsasakang gumawa ng hiling lang ang maaaring magkansela nito.';
+
+  @override
+  String get purchStaffNoCancelNote =>
+      'Ang Magsasaka lang ang maaaring magkansela ng hiling na pagbili.';
+
+  @override
+  String catBuyers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mamimili',
+      one: '1 mamimili',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get catProductsTitle => 'Mga produktong ibinebenta';
+
+  @override
+  String get catShopNote =>
+      'Hindi mo kailangang maging kasapi para bumili. Ang mga kasapi ay may presyong pangkasapi.';
+
+  @override
+  String get catViewProducts => 'Tingnan ang mga Produkto';
+
+  @override
+  String get catShopChip => 'Mamili';
+
+  @override
+  String get outcReturnSection => 'Ibabalik sa kooperatiba';
+
+  @override
+  String outcReturnSectionHelp(String crop) {
+    return 'Ito ang dami ng $crop na dapat isauli ng Magsasaka. Madaragdag ito sa Imbentaryo kapag naitala mo na ang pagtanggap sa ilalim ng Pamahalaan ang return.';
+  }
+
+  @override
+  String get outcReturnQtyRequired => 'Ilagay ang dami at yunit na ibabalik.';
+
+  @override
+  String get outcDecisionSection => 'Desisyon ng kooperatiba';
+
+  @override
+  String get outcDecisionHelp =>
+      'Pagkatapos ng field verification, piliin ang desisyon para sa Nabigong resultang ito. Hindi ito lumilikha o nagbibigay ng pautang.';
+
+  @override
+  String get outcDecisionRequired => 'Pumili ng isa sa mga desisyon.';
+
+  @override
+  String get outcDecisionNoteLabel => 'Paliwanag para sa desisyong ito';
+
+  @override
+  String get outcDecisionNoteRequired =>
+      'Magsulat ng tala na nagpapaliwanag sa desisyong ito.';
+
+  @override
+  String get errReturnQuantity =>
+      'Ilagay ang dami at yunit na dapat ibalik ng Magsasaka.';
+
+  @override
+  String get receivedItemsTitle => 'Mga Natanggap na Item';
+
+  @override
+  String receivedItemsRowSubtitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count item ang natanggap',
+      one: '1 item ang natanggap',
+      zero: 'Walang natanggap na item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get receivedItemsEmptyTitle => 'Wala pang natanggap na item';
+
+  @override
+  String get receivedItemsEmptyBody =>
+      'Dito nakalista ang mga gamit, hayop, pataba at iba pang suplay na natanggap mo mula sa isang programa. Ang mga pananim at ani ay nasa iyong Harvest tab.';
+
+  @override
+  String get receivedItemsFilterAll => 'Lahat';
+
+  @override
+  String get receivedItemsFilterKeep => 'Sa iyo na';
+
+  @override
+  String get receivedItemsFilterReturn => 'Ibabalik';
+
+  @override
+  String get receivedItemsStatTotal => 'Natanggap na item';
+
+  @override
+  String get receivedItemsStatReturn => 'Ibabalik';
+
+  @override
+  String get receivedItemsKeep => 'Sa iyo na';
+
+  @override
+  String get receivedItemsReturnExpected => 'May ibabalik';
+
+  @override
+  String receivedItemsReturnDue(String qty) {
+    return 'Dapat ibalik: $qty';
+  }
+
+  @override
+  String receivedItemsReturnPartial(String received, String due) {
+    return 'Naibalik $received sa $due';
+  }
+
+  @override
+  String get receivedItemsReturned => 'Naibalik na';
+
+  @override
+  String get receivedItemsReturnClosed => 'Sarado na ang pagbabalik';
+
+  @override
+  String get receivedItemsProgram => 'Programa';
+
+  @override
+  String get receivedItemsReceived => 'Natanggap';
+
+  @override
+  String get receivedItemsOutcome => 'Kinalabasan';
+
+  @override
+  String get receivedItemsOutcomePending => 'Hindi pa naiulat';
+
+  @override
+  String get receivedItemsOutcomeSuccessful => 'Matagumpay';
+
+  @override
+  String get receivedItemsOutcomeFailed => 'Nabigo';
+
+  @override
+  String get receivedItemsNoMatch => 'Walang laman ang view na ito.';
+
+  @override
+  String get receivedItemsSearchHint => 'Maghanap ng mga natanggap na item';
+
+  @override
+  String get receivedItemsFilterTitle => 'I-filter ang mga Programa';
+
+  @override
+  String get receivedItemsFilterProgram => 'Programa';
+
+  @override
+  String get receivedItemsAllPrograms => 'Lahat ng programa';
+
+  @override
+  String get receivedItemsFilterReturned => 'Naibalik na';
+
+  @override
+  String get receivedItemsDetailQuantity => 'Dami';
+
+  @override
+  String get receivedItemsDetailArrangement => 'Kasunduan';
+
+  @override
+  String get receivedItemsBenefitFree => 'Libreng Pamamahagi';
+
+  @override
+  String get receivedItemsBenefitReturn => 'Pagbabalik ng Ani';
+
+  @override
+  String get receivedItemsDetailExpected => 'Inaasahang ibabalik';
+
+  @override
+  String get receivedItemsDetailReceivedBack => 'Natanggap nang pabalik';
+
+  @override
+  String get receivedItemsViewProgram => 'Tingnan ang programa';
+
+  @override
+  String get farmerProgFreeOwned => 'Ibinigay sa iyo. Sa iyo na ito.';
+
+  @override
+  String get joinRequestApproved =>
+      'Naaprubahan ang iyong kahilingan. Kasapi ka na ng programang ito.';
+
+  @override
+  String get itemTypeNonCrop => 'Hindi Pananim';
+
+  @override
+  String get itemTypeSeeds => 'Binhi at Punla';
+
+  @override
+  String get itemTypeProduce => 'Inaning Produkto';
+
+  @override
+  String get invItemNameCropHint => 'Pumili ng pananim';
+
+  @override
+  String get errReturnQuantityRequired =>
+      'Ilagay ang dami na inaasahang isasauli ng Magsasaka bago mag-distribute.';
+
+  @override
+  String programMgmtReturnsItem(String item) {
+    return 'Isasauli ng Magsasaka: $item';
+  }
+
+  @override
+  String get errItemCropRequired =>
+      'Piliin ang pananim ng item na ito mula sa Pamamahala ng Pananim.';
+
+  @override
+  String get errItemCropInactive =>
+      'Hindi available ang pananim na iyon sa Pamamahala ng Pananim.';
+
+  @override
+  String get errCropNotAvailable =>
+      'Hindi available sa Pamamahala ng Pananim ang pananim ng item na ito. I-link muna ang item sa aktibong pananim sa Imbentaryo.';
+
+  @override
+  String get cropFromProgram => 'Mula sa Programa ng Kooperatiba';
+
+  @override
+  String get harvestReceivedChip => 'Natanggap mula sa programa';
+
+  @override
+  String get harvestSourceLabel => 'Pinagmulan';
+
+  @override
+  String get harvestSourceProgram => 'Programa';
+
+  @override
+  String get harvestSourceReceived => 'Natanggap mula sa programa';
+
+  @override
+  String get programMgmtReturnItemLabel => 'Ibinabalik ng Magsasaka';
+
+  @override
+  String get programMgmtReturnItemSame => 'Kapareho ng ibinigay na item';
+
+  @override
+  String programMgmtReturnQtyWithUnit(String unit) {
+    return 'Dami na ibabalik ($unit) *';
+  }
+
+  @override
+  String get programMgmtDistReturnTitle =>
+      'Napagkasunduang ibabalik ng Magsasakang ito';
+
+  @override
+  String get outcStageClosed => 'Sarado: hindi na kailangan';
+
+  @override
+  String get itemTypeNonCropOption => 'Hindi Pananim (hayop, gamit, suplay)';
+
+  @override
+  String get invItemTypeLabel => 'Uri ng Item';
+
+  @override
+  String get invItemTypeRequired => 'Piliin ang uri ng item';
+
+  @override
+  String get receivedCropTitle => 'Mga Item ng Pananim mula sa Programa';
+
+  @override
+  String get receivedCropEmptyTitle => 'Wala pang item ng pananim';
+
+  @override
+  String get receivedCropEmptyBody =>
+      'Dito nakalista ang binhi, punla at ani na natanggap mo mula sa isang programa. Ang mga gamit, hayop at suplay ay nasa Mga Natanggap na Item sa iyong profile.';
+
+  @override
+  String get errAssistPending =>
+      'May hiling para sa programang ito na naghihintay pa ng review.';
+
+  @override
+  String get outcDateRequired => 'Pumili ng petsa';
+
+  @override
+  String get programMgmtMemberDiscountRequired =>
+      'Ilagay ang diskwento ng miyembro (0 kung wala).';
+
+  @override
+  String get programMgmtFillRequired =>
+      'May kulang na kinakailangang detalye. Kumpletuhin ang mga field na may pulang marka.';
+
+  @override
+  String programHistReturnOpened(String name, String qty) {
+    return 'Binuksan ang harvest return para kay $name: $qty';
+  }
+
+  @override
+  String programHistReturnAdjusted(String name) {
+    return 'Binago ang dami ng return ni $name';
+  }
+
+  @override
+  String programHistReturnReceipt(String qty, String name) {
+    return 'Natanggap ang $qty mula kay $name';
+  }
+
+  @override
+  String programHistReturnClosed(String name) {
+    return 'Isinara ang return ni $name';
+  }
+
+  @override
+  String programHistQtyChange(String from, String to, String unit) {
+    return 'Dami: $from → $to $unit';
+  }
+
+  @override
+  String programHistReceivedOfDue(String received, String due, String unit) {
+    return 'Natanggap ang $received sa $due $unit';
+  }
+
+  @override
+  String programHistResolution(String name, String resolution) {
+    return 'Resolusyon para kay $name: $resolution';
+  }
+
+  @override
+  String programHistResolutionDefault(String name, String resolution) {
+    return '$name: $resolution (awtomatikong itinakda nang mabigo ang resulta)';
+  }
+
+  @override
+  String programHistAssistRequested(String name, String number) {
+    return 'Humiling ng tulong si $name ($number)';
+  }
+
+  @override
+  String programHistAssistApproved(String name, String reference) {
+    return 'Naaprubahan ang tulong para kay $name ($reference)';
+  }
+
+  @override
+  String programHistAssistRejected(String name) {
+    return 'Hindi naaprubahan ang hiling na tulong ni $name';
+  }
+
+  @override
+  String programHistAssistCancelled(String name) {
+    return 'Kinansela ni $name ang hiling na tulong';
+  }
+
+  @override
+  String get assistTitle => 'Humiling ng tulong';
+
+  @override
+  String get assistInfo =>
+      'Hindi naging matagumpay ang resulta ng iyong programa. Maaari kang humiling sa kooperatiba ng mga item mula sa katalogo ng pautang. Hindi ito pautang: walang utang at walang babayarang muli. Susuriin ito ng staff.';
+
+  @override
+  String get assistChooseItems => 'Pumili ng mga item';
+
+  @override
+  String get assistNoItems =>
+      'Walang item na available para sa tulong sa ngayon.';
+
+  @override
+  String assistInStock(String qty, String unit) {
+    return '$qty $unit ang stock';
+  }
+
+  @override
+  String get assistOutOfStock => 'Wala nang stock';
+
+  @override
+  String get assistMessageLabel => 'Mensahe sa kooperatiba (opsyonal)';
+
+  @override
+  String get assistSend => 'Ipadala ang hiling';
+
+  @override
+  String get assistSent => 'Naipadala ang hiling. Susuriin ito ng kooperatiba.';
+
+  @override
+  String get assistPickItems => 'Pumili ng kahit isang item.';
+
+  @override
+  String get assistLoadFailed =>
+      'Hindi ma-load ang mga item. Suriin ang koneksyon at subukan muli.';
+
+  @override
+  String get assistRequestAction => 'Humiling ng tulong';
+
+  @override
+  String assistStatusLine(String number) {
+    return 'Hiling na tulong $number';
+  }
+
+  @override
+  String get assistStatusPending => 'Naghihintay ng review';
+
+  @override
+  String get assistStatusApproved => 'Naaprubahan';
+
+  @override
+  String get assistStatusRejected => 'Hindi naaprubahan';
+
+  @override
+  String get assistStatusCancelled => 'Kinansela';
+
+  @override
+  String get assistCancel => 'Kanselahin ang hiling';
+
+  @override
+  String get assistCancelled => 'Nakansela ang hiling.';
+
+  @override
+  String assistFarmerRef(String ref) {
+    return 'Reperensya $ref';
+  }
+
+  @override
+  String get assistStaffTitle => 'Tulong sa nabigong programa';
+
+  @override
+  String get assistStaffEntry => 'Tulong sa nabigong programa';
+
+  @override
+  String assistStaffEntryCount(int count) {
+    return '$count ang naghihintay ng review';
+  }
+
+  @override
+  String get assistStaffEmpty => 'Walang hiling na tulong dito.';
+
+  @override
+  String get assistBadge => 'Tulong sa nabigong programa · hindi pautang';
+
+  @override
+  String assistAfterProgram(String program) {
+    return 'Pagkatapos ng: $program';
+  }
+
+  @override
+  String assistFilterPending(int count) {
+    return 'Nakabinbin ($count)';
+  }
+
+  @override
+  String assistFilterApproved(int count) {
+    return 'Naaprubahan ($count)';
+  }
+
+  @override
+  String assistFilterRejected(int count) {
+    return 'Hindi naaprubahan ($count)';
+  }
+
+  @override
+  String assistFilterAll(int count) {
+    return 'Lahat ($count)';
+  }
+
+  @override
+  String get assistApprove => 'Aprubahan';
+
+  @override
+  String get assistReject => 'Tanggihan';
+
+  @override
+  String get assistApproveTitle => 'Aprubahan ang hiling na ito?';
+
+  @override
+  String assistApproveBody(String items) {
+    return 'Ibabawas na ngayon ang stock ng mga item na ito: $items. Hindi ito pautang.';
+  }
+
+  @override
+  String assistApproved(String ref) {
+    return 'Naaprubahan. Reperensya $ref.';
+  }
+
+  @override
+  String get assistRejectTitle => 'Tanggihan ang hiling na ito?';
+
+  @override
+  String get assistRejectReason => 'Dahilan (makikita ito ng Magsasaka)';
+
+  @override
+  String get assistRejected => 'Tinanggihan ang hiling.';
+
+  @override
+  String get retStatusPending => 'Naghihintay ang harvest return';
+
+  @override
+  String get retStatusPartial => 'Bahagyang natanggap';
+
+  @override
+  String get retStatusReceived => 'Buong natanggap';
+
+  @override
+  String get retStatusClosedShort =>
+      'Sarado: mas kaunti ang natanggap kaysa dapat';
+
+  @override
+  String retDueLine(String received, String due, String unit, String crop) {
+    return '$received sa $due $unit $crop ang natanggap';
+  }
+
+  @override
+  String get retManage => 'Pamahalaan ang return';
+
+  @override
+  String get farmerProgRoundSecond => 'Pangalawang distribusyon';
+
+  @override
+  String farmerProgRound(int n) {
+    return 'Distribusyon blg. $n';
+  }
+
+  @override
+  String get farmerRedistEligibleTitle =>
+      'Karapat-dapat ka sa panibagong distribusyon';
+
+  @override
+  String get farmerRedistEligibleBody =>
+      'Sinuri ng kooperatiba ang naunang resulta mo sa programang ito. Maaari kang humiling ng panibagong distribusyon; hindi mo na kailangang sumali muli.';
+
+  @override
+  String get farmerRedistRequestButton => 'Humiling ng panibagong distribusyon';
+
+  @override
+  String get farmerRedistPending =>
+      'Naipadala na ang hiling. Hinihintay ang kooperatiba.';
+
+  @override
+  String get farmerRedistApproved =>
+      'Aprubado. Makikita ang bago mong distribusyon bilang hiwalay na card.';
+
+  @override
+  String get farmerRedistSheetTitle => 'Humiling ng panibagong distribusyon';
+
+  @override
+  String get farmerRedistSheetInfo =>
+      'Tingnan ang iniulat mo, saka sabihin sa kooperatiba kung bakit gusto mong sumali muli. Mapupunta ito sa kooperatiba, na aaprubahan ito.';
+
+  @override
+  String get farmerRedistReported => 'Ang iniulat mo';
+
+  @override
+  String get farmerRedistItemGiven => 'Item na natanggap mo';
+
+  @override
+  String get farmerRedistReportedOutcome => 'Ang ulat mo';
+
+  @override
+  String get farmerRedistReportedOn => 'Iniulat noong';
+
+  @override
+  String get farmerRedistConfirmedOn => 'Kinumpirma ang resulta noong';
+
+  @override
+  String get farmerRedistNoteLabel => 'Bakit gusto mong sumali muli? *';
+
+  @override
+  String get farmerRedistNoteRequired => 'Magsulat ng tala para sa hiling mo.';
+
+  @override
+  String get farmerRedistSubmit => 'Ipadala ang hiling';
+
+  @override
+  String get farmerRedistSent =>
+      'Naipadala ang hiling. Tutugon ang kooperatiba.';
+
+  @override
+  String memRedistRequestTitle(String name) {
+    return 'Humiling si $name ng panibagong distribusyon';
+  }
+
+  @override
+  String get memRedistApprove => 'Aprubahan';
+
+  @override
+  String staffActRedistApproved(String name) {
+    return 'Inaprubahan ang hiling ni $name para sa panibagong distribusyon';
+  }
+
+  @override
+  String get retSheetTitle => 'Harvest return';
+
+  @override
+  String get memRedistributeAction => 'Magbigay ng panibagong item';
+
+  @override
+  String get memRedistributeTitle => 'Magbigay ng panibagong item';
+
+  @override
+  String get memRedistributeInfo =>
+      'Magsisimula ng BAGONG distribusyon para sa Magsasakang ito pagkatapos ng hindi matagumpay, nang hindi na siya humihiling. Mananatili sa kasaysayan ang nabigong distribusyon. Walang kukunin sa Imbentaryo hangga\'t hindi mo talaga naipamamahagi ang bagong item.';
+
+  @override
+  String get memRedistributeNoteLabel => 'Tala *';
+
+  @override
+  String get memRedistributeNoteRequired =>
+      'Magsulat ng tala para sa bagong distribusyong ito.';
+
+  @override
+  String get memRedistributeConfirm => 'Simulan ang bagong distribusyon';
+
+  @override
+  String memRedistributeDone(String name) {
+    return 'Nasimulan ang bagong distribusyon para kay $name. Makikita ito sa To Distribute.';
+  }
+
+  @override
+  String memRoundNote(int n) {
+    return 'Distribusyon blg. $n, pagkatapos ng naunang hindi matagumpay';
+  }
+
+  @override
+  String get errRedistributeNotAllowed =>
+      'Makapagbibigay lang ng panibagong item pagkatapos ng hindi matagumpay na resulta na ang pinakahuling desisyon ay Eligible for Reassessment, sa programang aktibo pa.';
+
+  @override
+  String get adminLogProgramRedistributed =>
+      'Nagsimula ng panibagong distribusyon para sa miyembro pagkatapos ng hindi matagumpay na resulta.';
+
+  @override
+  String staffActNewRound(String name, int n) {
+    return 'Sinimulan ang distribusyon blg. $n para kay $name';
+  }
+
+  @override
+  String staffActRoundClosed(String name) {
+    return 'Isinara ang naunang distribusyon ni $name';
+  }
+
+  @override
+  String get invReturnSectionTitle => 'Harvest Return';
+
+  @override
+  String get invReturnSectionHelp =>
+      'Ginagamit lang kapag ibinigay ang item na ito sa programang Harvest Return. Piliin ang item na tatanggapin ng kooperatiba kapag isinauli ng Magsasaka ang item na ito. Iwanang \"Parehong item\" kung ang ibinalik na item ay ang mismong ibinigay.';
+
+  @override
+  String get invReturnMenu => 'Harvest Return';
+
+  @override
+  String invReturnSaved(String name) {
+    return 'Nai-save ang setting ng Harvest Return para sa \"$name\".';
+  }
+
+  @override
+  String get invReturnItemLabel => 'Kapag isinauli, babalik ito bilang';
+
+  @override
+  String get invReturnItemSame => 'Parehong item';
+
+  @override
+  String get invReturnItemHelp =>
+      'Ang tatanggapin ng kooperatiba kapag isinauli ng Magsasaka ang item na ito sa programang Harvest Return. Karaniwang inaani ang isinasauli sa binhi; ang hayop ay parehong hayop.';
+
+  @override
+  String programMgmtBlockedDecisions(int count) {
+    return '$count na hindi matagumpay na resulta ang may nakabinbing desisyon ng kooperatiba';
+  }
+
+  @override
+  String get resFarmerReferredNote =>
+      'Hindi pa ito utang. Maaari kang humiling ng mga item na utang mula sa Katalogo ng Item sa Utang, at susuriin ang hiling mo gaya ng dati. Iba ang hiling na tulong: walang bayarin.';
+
+  @override
+  String get resFarmerRequestLoan => 'Humiling ng utang';
+
+  @override
+  String staffActDecisionRecorded(String name, String decision) {
+    return 'Itinala ang desisyon para kay $name: $decision';
+  }
+
+  @override
+  String get retStatDue => 'Dapat';
+
+  @override
+  String get retStatReceived => 'Natanggap';
+
+  @override
+  String get retStatRemaining => 'Natitira';
+
+  @override
+  String retProgressLine(String received, String due, String unit) {
+    return '$received sa $due $unit ang natanggap';
+  }
+
+  @override
+  String retReceiveInfo(String item) {
+    return 'Ang dami na itatala mo ay idaragdag sa $item sa Imbentaryo ng Kooperatiba.';
+  }
+
+  @override
+  String retOriginallyDue(String qty, String unit) {
+    return 'Orihinal na dapat $qty $unit';
+  }
+
+  @override
+  String retRemaining(String qty, String unit) {
+    return 'Natitira $qty $unit';
+  }
+
+  @override
+  String get retActionReceive => 'Itala ang natanggap';
+
+  @override
+  String get retActionAdjust => 'Ayusin ang dami';
+
+  @override
+  String get retActionClose => 'Isara ang return';
+
+  @override
+  String retQtyReceived(String unit) {
+    return 'Dami na natanggap ($unit)';
+  }
+
+  @override
+  String retNewQtyDue(String unit) {
+    return 'Bagong dami na dapat ($unit)';
+  }
+
+  @override
+  String get retNoteOptional => 'Tala (opsyonal)';
+
+  @override
+  String get retAdjustInfo =>
+      'Binabago nito ang dami na utang ng Magsasaka. Hindi nito itinatala ang mga dumating: gamitin ang Record receipt para doon. Walang idinadagdag sa Imbentaryo.';
+
+  @override
+  String get retNoteLabel => 'Tala *';
+
+  @override
+  String get retNoteRequired => 'Magsulat ng tala para sa pagtanggap na ito.';
+
+  @override
+  String get retReasonLabel => 'Dahilan *';
+
+  @override
+  String get retReasonRequired => 'Kailangan ng dahilan.';
+
+  @override
+  String get retQtyInvalid => 'Maglagay ng wastong dami.';
+
+  @override
+  String get retQtyTooMuch => 'Mas marami iyan kaysa sa natitirang dapat.';
+
+  @override
+  String get retQtyBelowReceived =>
+      'Hindi maaaring mas mababa ang dapat kaysa sa natanggap na.';
+
+  @override
+  String get retCloseInfo =>
+      'Tinatapos nito ang return gamit ang natanggap na hanggang ngayon. Gamitin lang ito kung hindi na maibabalik ang natitira. Itatago ang dahilan sa tala. Walang parusa o bawas na susunod.';
+
+  @override
+  String get retReceiptSaved =>
+      'Naitala ang natanggap at naidagdag sa Imbentaryo ng Kooperatiba.';
+
+  @override
+  String get retAdjustSaved => 'Na-update ang dami.';
+
+  @override
+  String get retClosedSaved => 'Naisara ang return.';
+
+  @override
+  String get retHistory => 'Kasaysayan';
+
+  @override
+  String get retNoHistory => 'Wala pang kasaysayan.';
+
+  @override
+  String retEventCreated(String qty, String unit) {
+    return 'Binuksan ang return para sa $qty $unit';
+  }
+
+  @override
+  String retEventAdjusted(String from, String to, String unit) {
+    return 'Pinalitan ang dami mula $from patungong $to $unit';
+  }
+
+  @override
+  String retEventReceipt(String qty, String unit) {
+    return 'Natanggap ang $qty $unit';
+  }
+
+  @override
+  String retEventClosed(String received, String due, String unit) {
+    return 'Isinara na $received sa $due $unit ang natanggap';
+  }
+
+  @override
+  String retBy(String name) {
+    return 'ni $name';
+  }
+
+  @override
+  String get retCancel => 'Kanselahin';
+
+  @override
+  String get retConfirm => 'Kumpirmahin';
+
+  @override
+  String get resTitle => 'Resolusyon ng nabigong resulta';
+
+  @override
+  String get resInfo =>
+      'Tala lamang ang resolusyon. Hindi nito binabago ang ibang tala at hindi nito pinipigilan ang Magsasaka na humiling ng tulong.';
+
+  @override
+  String get resPending => 'Naghihintay ng Desisyon ng Kooperatiba';
+
+  @override
+  String get resClosed => 'Sarado: Wala nang Obligasyon';
+
+  @override
+  String get resReassess => 'Maaaring Suriing Muli';
+
+  @override
+  String get resReferred => 'Inirefer para sa Pagsusuri ng Pautang';
+
+  @override
+  String get resSet => 'Itakda ang resolusyon';
+
+  @override
+  String get resChange => 'Baguhin';
+
+  @override
+  String get resNoteLabel => 'Tala (kailangan)';
+
+  @override
+  String get resNoteRequired => 'Kailangan ng tala.';
+
+  @override
+  String get resSave => 'I-save ang resolusyon';
+
+  @override
+  String get resSaved => 'Naitala ang resolusyon.';
+
+  @override
+  String retFarmerLine(String received, String due, String unit, String crop) {
+    return 'Harvest return: $received sa $due $unit $crop ang natanggap';
+  }
+
+  @override
+  String get resFarmerPending => 'Sinusuri ng kooperatiba';
+
+  @override
+  String get resFarmerClosed => 'Nasuri: wala nang obligasyon';
+
+  @override
+  String get resFarmerReassess => 'Nasuri: maaaring suriing muli';
+
+  @override
+  String get resFarmerReferred => 'Nasuri: inirefer para sa pagsusuri';
+
+  @override
+  String get catTabProducts => 'Mga Produkto';
+
+  @override
+  String get catTabPurchases => 'Aking mga Binili';
+
+  @override
+  String get catSearchHint => 'Maghanap ng produkto';
+
+  @override
+  String get catAllCategories => 'Lahat';
+
+  @override
+  String get catSortName => 'Pangalan';
+
+  @override
+  String get catSortPriceLow => 'Presyo: mababa hanggang mataas';
+
+  @override
+  String get catSortPriceHigh => 'Presyo: mataas hanggang mababa';
+
+  @override
+  String get catNoMatches => 'Walang produktong tugma sa hinahanap mo.';
+
+  @override
+  String get catEmptyProducts => 'Walang available na produkto ngayon.';
+
+  @override
+  String catBannerMember(String percent) {
+    return 'Kasapi ka. Ang mga kasapi ay may $percent% diskwento sa bawat produkto rito.';
+  }
+
+  @override
+  String catBannerNonMember(String percent) {
+    return 'Ang mga kasapi ay may $percent% diskwento. Humiling na sumali mula sa mga detalye ng programa para maging kwalipikado.';
+  }
+
+  @override
+  String catSave(String amount) {
+    return 'Tipid $amount';
+  }
+
+  @override
+  String catMemberPriceHint(String price) {
+    return 'Presyo sa miyembro $price';
+  }
+
+  @override
+  String catInStock(String qty, String unit) {
+    return '$qty $unit ang stock';
+  }
+
+  @override
+  String get catOutOfStock => 'Wala nang stock';
+
+  @override
+  String get catRegularPriceLabel => 'Karaniwang presyo';
+
+  @override
+  String get catMemberBenefitTitle => 'Benepisyo ng pagiging miyembro';
+
+  @override
+  String catMemberBenefitEnrolled(String percent) {
+    return '$percent% na mas mura ang binabayaran mo kaysa sa karaniwang presyo sa bawat produkto ng programang ito.';
+  }
+
+  @override
+  String catMemberBenefitNotEnrolled(String percent) {
+    return 'Ang mga kasapi ay nagbabayad ng $percent% na mas mababa sa karaniwang presyo. Humiling na sumali sa ibaba para maging kasapi.';
+  }
+
+  @override
+  String get errGeneric => 'May nangyaring mali. Pakisubukan muli.';
+
+  @override
+  String get errOffline =>
+      'Offline ka. Kailangan ng internet para sa aksyong ito.';
+
+  @override
+  String get errNetwork =>
+      'Hindi maabot ang server. Suriin ang koneksyon at subukan muli.';
+
+  @override
+  String get errNotAllowed => 'Wala kang pahintulot para dito.';
+
+  @override
+  String get errViewOnly => 'View Only lang ang access mo sa module na ito.';
+
+  @override
+  String get errProgramNotReady =>
+      'May mga nakabinbin pa sa programang ito. Tapusin muna bago ito markahang Tapos na.';
+
+  @override
+  String get errProgramCompleted => 'Tapos na ang programang ito.';
+
+  @override
+  String get errProgramStatusLocked =>
+      'Maaari lang tapusin ang programa gamit ang Mark as Completed at hindi na ito mabubuksan muli.';
+
+  @override
+  String get errProgramNoDelete =>
+      'Hindi maaaring burahin ang mga programa. Iniingatan bilang tala ang mga natapos.';
+
+  @override
+  String get errNoWithdraw => 'Hindi maaaring alisin ng staff ang mga kasapi.';
+
+  @override
+  String get errNoProductDelete =>
+      'Hindi maaaring burahin ang produkto. I-off na lang ito.';
+
+  @override
+  String get errAlreadyDistributed =>
+      'Nakatanggap na ng ipinamahagi ang magsasakang ito sa programang ito.';
+
+  @override
+  String get errNoStock => 'Kulang ang stock para dito.';
+
+  @override
+  String get errReportExists =>
+      'May naitala nang ulat ng resulta para sa magsasakang ito.';
+
+  @override
+  String get errPhotoMin =>
+      'Magdagdag pa ng larawan. Hindi pa naaabot ang minimum.';
+
+  @override
+  String get errPhotoMax =>
+      'Sobra ang larawan. Magtanggal ng ilan at subukan muli.';
+
+  @override
+  String get errProgramCompletedAction =>
+      'Tapos na ang programang ito at hindi na tumatanggap ng pagbabago.';
+
+  @override
+  String get errNoItem =>
+      'Hindi pa naitatakda ang ipapamahaging item ng programang ito.';
+
+  @override
+  String get errNotAvailable => 'Hindi available ang item na ito ngayon.';
+
+  @override
+  String get errFixFields =>
+      'Pakisuri ang mga detalyeng inilagay at subukan muli.';
+
+  @override
+  String get errPhoneUsed => 'Ginagamit na ng ibang account ang numerong ito.';
+
+  @override
+  String get errDuplicate => 'Mayroon na nito.';
+
+  @override
+  String get errReturnClosed => 'Sarado na ang harvest return na ito.';
+
+  @override
+  String get errReturnOverReceipt =>
+      'Mas marami ang natanggap kaysa sa natitirang dapat ibalik.';
+
+  @override
+  String get errReturnReason => 'Kailangan ng dahilan para sa pagbabagong ito.';
+
+  @override
+  String get errAssistNotEligible =>
+      'Hindi kwalipikado sa tulong ang magsasakang ito para sa programang ito.';
+
+  @override
+  String get errAssistItems => 'Pumili ng kahit isang available na item.';
+
+  @override
+  String get prodTitle => 'Pamahalaan ang Produkto';
+
+  @override
+  String get prodAddAction => 'Magdagdag ng produkto';
+
+  @override
+  String get prodAddButton => 'Idagdag sa programa';
+
+  @override
+  String get prodChooseItem => 'Pumili ng item';
+
+  @override
+  String get prodItemLabel => 'Item sa imbentaryo';
+
+  @override
+  String get prodPriceLabel => 'Karaniwang presyo (₱)';
+
+  @override
+  String get prodPriceInvalid => 'Maglagay ng presyong higit sa zero.';
+
+  @override
+  String get prodAdded => 'Naidagdag ang produkto';
+
+  @override
+  String get prodSaved => 'Na-update ang produkto';
+
+  @override
+  String get prodTurnedOn => 'Ibinebenta na ang produkto';
+
+  @override
+  String get prodTurnedOff => 'Na-archive ang produkto';
+
+  @override
+  String get prodOnSale => 'Ibinebenta';
+
+  @override
+  String get prodOff => 'Naka-off';
+
+  @override
+  String get prodEditPrice => 'I-edit ang presyo';
+
+  @override
+  String get prodSave => 'I-save';
+
+  @override
+  String prodStock(String qty, String unit) {
+    return '$qty $unit ang stock';
+  }
+
+  @override
+  String prodRegularPrice(String price) {
+    return 'Karaniwan $price';
+  }
+
+  @override
+  String prodMemberPrice(String price) {
+    return 'Miyembro $price';
+  }
+
+  @override
+  String prodMemberDiscountInfo(String percent) {
+    return 'Ang mga kasapi ay may $percent% diskwento.';
+  }
+
+  @override
+  String get prodOffNote =>
+      'Nakatago sa katalogo ang mga naka-off na produkto.';
+
+  @override
+  String get prodNoItems => 'Walang ibang item sa imbentaryo na maidaragdag.';
+
+  @override
+  String get prodEmpty => 'Wala pang produkto';
+
+  @override
+  String get prodEmptyHint =>
+      'Magdagdag ng unang produkto para makabili ang mga magsasaka.';
+
+  @override
+  String get prodJustCreated =>
+      'Nagawa na ang programa. Magdagdag na ng unang produkto.';
+
+  @override
+  String memTabToDistribute(int count) {
+    return 'Ipamahagi ($count)';
+  }
+
+  @override
+  String memTabDistributed(int count) {
+    return 'Naipamahagi ($count)';
+  }
+
+  @override
+  String memTabSuccessful(int count) {
+    return 'Matagumpay ($count)';
+  }
+
+  @override
+  String memTabFailed(int count) {
+    return 'Nabigo ($count)';
+  }
+
+  @override
+  String get memEmptyToDistribute =>
+      'Natanggap na ng bawat kasapi ang kanilang mga item.';
+
+  @override
+  String get memEmptyDistributed =>
+      'Walang naipamahaging magsasaka na naghihintay ng resulta.';
+
+  @override
+  String get memEmptySuccessful => 'Wala pang matagumpay na resulta.';
+
+  @override
+  String get memEmptyFailed => 'Walang nabigong resulta.';
+
+  @override
+  String get memEmptySales => 'Wala pang kasapi.';
+
+  @override
+  String memReceivedLine(String what, String date) {
+    return 'Natanggap ang $what noong $date';
+  }
+
+  @override
+  String programMgmtBlockedAwaiting(int count) {
+    return '$count magsasaka ang kailangan pa ng pinal na resulta';
+  }
+
+  @override
+  String programMgmtBlockedReturns(int count) {
+    return '$count harvest return ang bukas pa';
+  }
+
+  @override
+  String get programMgmtBlockedUnknown =>
+      'Hindi pa handang tapusin ang programang ito.';
+
+  @override
+  String get programMgmtCompleteBlockedTitle => 'Hindi pa handang tapusin';
+
+  @override
+  String get programMgmtCompleteBlockedIntro => 'Tapusin muna ang mga ito:';
+
+  @override
+  String programMgmtCompleteTitle(String name) {
+    return 'Markahang Tapos na ang \"$name\"?';
+  }
+
+  @override
+  String get programMgmtCompleteBody =>
+      'Hindi na ito maibabalik. Isasara ang mga nakabinbing kahilingang sumali at aabisuhan ang mga magsasaka. Pananatilihin ang lahat ng tala.';
+
+  @override
+  String programMgmtCompletedDeclined(int count) {
+    return 'Tapos na ang programa. $count nakabinbing hiling ang tinanggihan.';
+  }
+
+  @override
+  String get programMgmtCompleteReady => 'Markahang Tapos na';
+
+  @override
+  String get programMgmtCompleteNotReady => 'Hindi pa handa: may nakabinbin pa';
+
+  @override
+  String get programMgmtMenuTooltip => 'Mga hiling at review';
+
+  @override
+  String get adminLogProgramCompleted => 'Minarkahang Tapos na ang programa.';
+
+  @override
+  String get reqEnrollTitle => 'Mga Kahilingang Sumali';
+
+  @override
+  String reqTabPending(int count) {
+    return 'Nakabinbin ($count)';
+  }
+
+  @override
+  String reqTabEnrolled(int count) {
+    return 'Sumali na ($count)';
+  }
+
+  @override
+  String reqFilterEnrolled(int count) {
+    return 'Sumali na ($count)';
+  }
+
+  @override
+  String reqFilterDeclined(int count) {
+    return 'Tinanggihan ($count)';
+  }
+
+  @override
+  String get reqEmptyPending => 'Walang nakabinbing kahilingan.';
+
+  @override
+  String get reqEmptyEnrolled => 'Wala pang kasapi.';
+
+  @override
+  String get reqEmptyDeclined => 'Walang tinanggihang kahilingan.';
+
+  @override
+  String get reqLoadFailed => 'Hindi ma-load ang mga kahilingan.';
+
+  @override
+  String get reqStatusPending => 'Nakabinbin';
+
+  @override
+  String get reqStatusEnrolled => 'Sumali na';
+
+  @override
+  String get reqStatusDeclined => 'Tinanggihan';
+
+  @override
+  String reqRequestedOn(String date) {
+    return 'Hiniling noong $date';
+  }
+
+  @override
+  String reqDecidedOn(String date) {
+    return 'Napagpasyahan noong $date';
+  }
+
+  @override
+  String get reqFarmer => 'Magsasaka';
+
+  @override
+  String get reqFarmerFallback => 'Magsasaka';
+
+  @override
+  String get reqProgram => 'Programa';
+
+  @override
+  String get reqProgramType => 'Uri ng programa';
+
+  @override
+  String get reqRequested => 'Hiniling';
+
+  @override
+  String get reqDecided => 'Napagpasyahan';
+
+  @override
+  String get reqMembership => 'Pagiging miyembro';
+
+  @override
+  String get reqMemberActive => 'Aktibo';
+
+  @override
+  String get reqMemberWithdrawn => 'Umalis na';
+
+  @override
+  String get reqMemberCompleted => 'Tapos na';
+
+  @override
+  String get reqMemberUnknown => 'Wala na sa programa';
+
+  @override
+  String get reqEnrolledOn => 'Sumali noong';
+
+  @override
+  String get reqReceived => 'Natanggap';
+
+  @override
+  String get reqNoDistributionYet => 'Wala pang pamamahagi';
+
+  @override
+  String get reqNote => 'Tala';
+
+  @override
+  String get reqApproveNote =>
+      'Idaragdag agad ang magsasakang ito sa programa kapag inaprubahan.';
+
+  @override
+  String get reqApprove => 'Aprubahan';
+
+  @override
+  String get reqApproved => 'Naaprubahan ang kahilingan.';
+
+  @override
+  String get reqFailed => 'May nangyaring mali. Subukang muli.';
+
+  @override
+  String get purchTitle => 'Mga Kahilingan sa Pagbili';
+
+  @override
+  String get purchTabPast => 'Mga Nakaraang Kahilingan';
+
+  @override
+  String purchFilterAll(int count) {
+    return 'Lahat ($count)';
+  }
+
+  @override
+  String purchFilterPaid(int count) {
+    return 'Bayad ($count)';
+  }
+
+  @override
+  String purchFilterCancelled(int count) {
+    return 'Kinansela ($count)';
+  }
+
+  @override
+  String get purchEmptyPending => 'Walang nakabinbing kahilingan sa pagbili.';
+
+  @override
+  String get purchEmptyPast => 'Walang nakaraang kahilingan sa pagbili.';
+
+  @override
+  String get purchStatusPending => 'Nakabinbin';
+
+  @override
+  String get purchStatusPaid => 'Bayad na';
+
+  @override
+  String get purchStatusCancelled => 'Kinansela';
+
+  @override
+  String get purchQuantity => 'Dami';
+
+  @override
+  String get purchPriceType => 'Uri ng presyo';
+
+  @override
+  String get purchMemberPrice => 'Presyong miyembro';
+
+  @override
+  String get purchRegularPriceBadge => 'Karaniwang presyo';
+
+  @override
+  String get purchRegularPrice => 'Karaniwang presyo (bawat isa)';
+
+  @override
+  String get purchRegularTotal => 'Kabuuang karaniwang presyo';
+
+  @override
+  String purchDiscount(String percent) {
+    return 'Diskwento ng miyembro ($percent%)';
+  }
+
+  @override
+  String get purchUnitPrice => 'Presyo bawat isa';
+
+  @override
+  String get purchNetAmount => 'Netong babayaran';
+
+  @override
+  String get purchRequestedOn => 'Hiniling';
+
+  @override
+  String get purchConfirmedOn => 'Nakumpirma';
+
+  @override
+  String get purchCancelledOn => 'Kinansela';
+
+  @override
+  String get purchCancelReason => 'Dahilan ng pagkansela';
+
+  @override
+  String get purchConfirmNote =>
+      'Ang pagkumpirma ay magmamarka nito bilang bayad at ibabawas ang stock. Kumpirmahin lamang kapag natanggap na ang bayad.';
+
+  @override
+  String get purchConfirmPayment => 'Kumpirmahin ang Bayad';
+
+  @override
+  String get purchPaidOk => 'Nakumpirma ang bayad — na-update ang stock.';
+
+  @override
+  String get purchPaidFail => 'Hindi makumpirma ang pagbiling ito.';
+
+  @override
+  String get outcStatusPending => 'Naghihintay ng Beripikasyon';
+
+  @override
+  String get outcStatusReturned => 'Ibinalik';
+
+  @override
+  String get outcStatusSuccessful => 'Matagumpay';
+
+  @override
+  String get outcStatusFailed => 'Nabigo';
+
+  @override
+  String get outcPendingShort => 'Nakabinbin';
+
+  @override
+  String get outcReportTitle => 'Iulat ang Resulta';
+
+  @override
+  String get outcReportAction => 'Iulat ang Resulta';
+
+  @override
+  String get outcSubmitNewReport => 'Magsumite ng bagong ulat';
+
+  @override
+  String outcReceivedLine(String what) {
+    return 'Natanggap: $what';
+  }
+
+  @override
+  String get outcReturnedBanner => 'Ibinalik ng kooperatiba ang huli mong ulat';
+
+  @override
+  String get outcReturnedNoNote =>
+      'Ibinalik ang huli mong ulat. Magsumite ng bago na may mas malinaw na ebidensya.';
+
+  @override
+  String get outcWhatHappened => 'Ano ang nangyari?';
+
+  @override
+  String get outcSuccessful => 'Matagumpay';
+
+  @override
+  String get outcSuccessfulHint => 'Naging maayos at may naging resulta';
+
+  @override
+  String get outcFailed => 'Nabigo';
+
+  @override
+  String get outcFailedHint => 'Hindi nagtagumpay o nawala';
+
+  @override
+  String get outcPickOutcome => 'Piliin ang Matagumpay o Nabigo.';
+
+  @override
+  String get outcProduction => 'Mga detalye ng resulta';
+
+  @override
+  String get outcQtyHarvested => 'Dami ng naprodyus *';
+
+  @override
+  String get outcQtyRequired => 'Ilagay ang dami ng naprodyus';
+
+  @override
+  String get outcUnit => 'Yunit *';
+
+  @override
+  String get outcUnitRequired => 'Pumili ng yunit';
+
+  @override
+  String get outcHarvestDate => 'Petsa ng pagkumpleto *';
+
+  @override
+  String get outcPlantedDate => 'Petsa ng pagsisimula *';
+
+  @override
+  String get outcFailureCause => 'Ano ang sanhi ng pagkabigo? *';
+
+  @override
+  String get outcFailureCauseHint => 'hal. sakit, baha, pagnanakaw, tagtuyot';
+
+  @override
+  String get outcCauseRequired => 'Ilarawan ang sanhi ng pagkabigo';
+
+  @override
+  String get outcFailureDate => 'Petsa ng pagkabigo *';
+
+  @override
+  String get outcAreaPlanted => 'Lawak na ginamit';
+
+  @override
+  String get outcAreaUnitSqm => 'sq. m';
+
+  @override
+  String get outcAreaUnitHa => 'ektarya';
+
+  @override
+  String get outcExplanation => 'Iyong paliwanag *';
+
+  @override
+  String get outcExplanationHintSuccess =>
+      'Ikuwento kung paano nangyari: ano ang natanggap mo, paano ito nangyari, at ano ang naprodyus.';
+
+  @override
+  String get outcExplanationHintFail =>
+      'Ikuwento ang nangyari at kailan mo ito napansin.';
+
+  @override
+  String get outcExplanationRequired => 'Isulat ang iyong paliwanag';
+
+  @override
+  String get outcEvidence => 'Mga larawan (ebidensya) *';
+
+  @override
+  String get outcEvidenceHelp =>
+      'Magdagdag ng 1 hanggang 5 larawang nagpapakita ng resulta — kunan gamit ang camera o pumili sa gallery.';
+
+  @override
+  String get outcPhotoCamera => 'Camera';
+
+  @override
+  String get outcPhotoGallery => 'Gallery';
+
+  @override
+  String outcPhotoCount(int n, int max) {
+    return '$n sa $max larawan';
+  }
+
+  @override
+  String outcPhotoMax(int max) {
+    return 'Hanggang $max larawan lamang ang maidaragdag.';
+  }
+
+  @override
+  String get outcPhotoPickFailed =>
+      'Hindi naidagdag ang larawan. Payagan ang camera o gallery at subukang muli.';
+
+  @override
+  String get outcPhotoRequired => 'Magdagdag ng kahit isang larawan';
+
+  @override
+  String get outcHarvestBeforePlanting =>
+      'Hindi maaaring mauna ang petsa ng pagkumpleto sa petsa ng pagsisimula.';
+
+  @override
+  String get outcSubmit => 'Isumite ang Ulat';
+
+  @override
+  String get outcWhatNext =>
+      'Susuriin ng kooperatiba ang iyong ebidensya at ibeberipika ito sa bukid.';
+
+  @override
+  String get outcSubmitted => 'Naisumite ang ulat.';
+
+  @override
+  String get outcSubmitFailed => 'Hindi naisumite ang ulat. Subukang muli.';
+
+  @override
+  String get outcOffline => 'Kailangan ng internet para magawa ito.';
+
+  @override
+  String outcPendingLine(String date) {
+    return 'Naisumite noong $date. Sinusuri ng kooperatiba ang iyong ebidensya at beberipikahin ito sa bukid.';
+  }
+
+  @override
+  String get outcCheckEvidence => 'Nasuri ang ebidensya';
+
+  @override
+  String get outcCheckField => 'Naberipika sa bukid';
+
+  @override
+  String get outcReviewsTitle => 'Mga Pagsusuri ng Resulta';
+
+  @override
+  String outcFilterPending(int count) {
+    return 'Nakabinbin ($count)';
+  }
+
+  @override
+  String outcFilterFinalized(int count) {
+    return 'Natapos ($count)';
+  }
+
+  @override
+  String outcFilterReturned(int count) {
+    return 'Ibinalik ($count)';
+  }
+
+  @override
+  String get outcEmpty => 'Walang ulat ng resulta dito.';
+
+  @override
+  String get outcLoadFailed => 'Hindi ma-load ang mga ulat ng resulta.';
+
+  @override
+  String get outcOpenReview => 'Buksan ang pagsusuri';
+
+  @override
+  String get outcOpenAction => 'Buksan';
+
+  @override
+  String get outcViewAction => 'Tingnan';
+
+  @override
+  String outcPhotoCountShort(int count) {
+    return '$count larawan';
+  }
+
+  @override
+  String get outcReportedSuccessful => 'Iniulat: Matagumpay';
+
+  @override
+  String get outcReportedFailed => 'Iniulat: Nabigo';
+
+  @override
+  String get outcAwaitingFarmerReport =>
+      'Naghihintay na iulat ng Magsasaka ang resulta.';
+
+  @override
+  String get outcStageAwaitingBoth =>
+      'Naghihintay ng pagsusuri at beripikasyon sa bukid';
+
+  @override
+  String get outcStageAwaitingVerification =>
+      'Napatunayan ang ebidensya · naghihintay ng beripikasyon sa bukid';
+
+  @override
+  String get outcStageAwaitingReview =>
+      'Naberipika sa bukid · naghihintay ng pagsusuri ng ebidensya';
+
+  @override
+  String get outcStageReady => 'Handa na para sa pinal na desisyon';
+
+  @override
+  String get outcStageReturned => 'Ibinalik sa Magsasaka';
+
+  @override
+  String get outcStageFinalizedSuccessful => 'Matagumpay (naberipika)';
+
+  @override
+  String get outcStageFinalizedFailed => 'Nabigo (naberipika)';
+
+  @override
+  String get outcStageAwaitingVerificationShort =>
+      'Kailangan ng beripikasyon sa bukid';
+
+  @override
+  String get outcStageAwaitingReviewShort =>
+      'Kailangan ng pagsusuri ng ebidensya';
+
+  @override
+  String get outcStageReadyShort => 'Handa nang tapusin';
+
+  @override
+  String get outcDetailTitle => 'Ulat ng Resulta';
+
+  @override
+  String get outcFarmerReport => 'Ulat ng Magsasaka';
+
+  @override
+  String get outcReportedOutcome => 'Iniulat na resulta';
+
+  @override
+  String get outcSubmittedOn => 'Naisumite';
+
+  @override
+  String get outcStepReview => '1. Pagsusuri ng ebidensya';
+
+  @override
+  String get outcStepVerify => '2. Beripikasyon sa bukid';
+
+  @override
+  String get outcStepFinal => '3. Pinal na desisyon';
+
+  @override
+  String get outcNotAvailable =>
+      'Hindi naaangkop: ibinalik ang ulat sa Magsasaka.';
+
+  @override
+  String get outcDecision => 'Desisyon';
+
+  @override
+  String get outcDecisionValidated => 'Napatunayan ang ebidensya';
+
+  @override
+  String get outcDecisionReturned => 'Ibinalik sa Magsasaka';
+
+  @override
+  String get outcDoneBy => 'Ginawa ni';
+
+  @override
+  String get outcReviewHelp =>
+      'Suriin ang paliwanag at mga larawan ng Magsasaka. Patunayan ang mga ito, o ibalik ang ulat kung kulang ang ebidensya.';
+
+  @override
+  String get outcValidate => 'Patunayan';
+
+  @override
+  String get outcReturnToFarmer => 'Ibalik sa Magsasaka';
+
+  @override
+  String get outcReturnNoteLabel => 'Ano ang dapat ayusin ng Magsasaka? *';
+
+  @override
+  String get outcNoteOptional => 'Tala (opsyonal)';
+
+  @override
+  String get outcReviewNoteLabel => 'Tala sa pagsusuri *';
+
+  @override
+  String get outcReviewNoteRequired =>
+      'Magsulat ng tala para sa pagsusuring ito.';
+
+  @override
+  String get outcFieldPhotosRequired =>
+      'Magdagdag ng kahit isang larawan sa bukid.';
+
+  @override
+  String get outcChooseDecision =>
+      'Piliin ang Patunayan o Ibalik sa Magsasaka.';
+
+  @override
+  String get outcReturnNoteRequired =>
+      'Ipaliwanag kung ano ang dapat ayusin ng Magsasaka.';
+
+  @override
+  String get outcSaveReview => 'I-save ang Pagsusuri';
+
+  @override
+  String get outcReviewValidated => 'Napatunayan ang ebidensya.';
+
+  @override
+  String get outcReviewReturned => 'Naibalik ang ulat sa Magsasaka.';
+
+  @override
+  String get outcVerifyHelp =>
+      'Bisitahin ang bukid at itala ang aktwal na nakita mo. Sukatin mo mismo ang naprodyus; huwag umasa sa bilang ng Magsasaka.';
+
+  @override
+  String get outcFinding => 'Natuklasan';
+
+  @override
+  String get outcFindingConfirms => 'Kinukumpirma ang ulat';
+
+  @override
+  String get outcFindingDisputes => 'Sinasalungat ang ulat';
+
+  @override
+  String get outcVisitDate => 'Petsa ng pagbisita sa bukid';
+
+  @override
+  String get outcMeasured => 'Na-verify na dami';
+
+  @override
+  String get outcFarmerReported => 'Iniulat ng Magsasaka';
+
+  @override
+  String outcFarmerReportedLine(String what) {
+    return 'Iniulat ng Magsasaka ang $what.';
+  }
+
+  @override
+  String get outcVerifyNoteLabel => 'Ano ang natuklasan mo? *';
+
+  @override
+  String get outcFieldPhotos => 'Mga larawan sa bukid *';
+
+  @override
+  String get outcChooseFinding => 'Piliin ang Kinukumpirma o Sinasalungat.';
+
+  @override
+  String get outcMeasuredRequired =>
+      'Ilagay ang dami na sinukat mo at ang yunit.';
+
+  @override
+  String get outcVerifyNoteRequired => 'Isulat ang natuklasan mo.';
+
+  @override
+  String get outcSaveVerification => 'I-save ang Beripikasyon sa Bukid';
+
+  @override
+  String get outcVerified => 'Na-save ang beripikasyon sa bukid.';
+
+  @override
+  String get outcFinalOutcome => 'Pinal na resulta';
+
+  @override
+  String get outcFinalWaiting =>
+      'Magagamit kapag napatunayan na ang ebidensya at natapos na ang beripikasyon sa bukid.';
+
+  @override
+  String get outcReturnedInfo =>
+      'Ibinalik ang ulat na ito. Dapat magsumite ng bago ang Magsasaka.';
+
+  @override
+  String get outcDisputedInfo =>
+      'Sinalungat ng beripikasyon sa bukid ang ulat ng Magsasaka. Ipaliwanag ang desisyon mo.';
+
+  @override
+  String get outcFinalLockedConfirmed =>
+      'Kinumpirma ng field verification ang ulat ng Magsasaka, kaya ang resulta ay ayon sa ulat.';
+
+  @override
+  String get outcFinalLockedDisputed =>
+      'Tinutulan ng field verification ang iniulat na pagkabigo, kaya Matagumpay ang resulta.';
+
+  @override
+  String get errOutcomeLocked =>
+      'Sumusunod ang pinal na resulta sa field verification at hindi ito mababago rito.';
+
+  @override
+  String get outcFinalNoteLabel => 'Pangwakas na tala *';
+
+  @override
+  String get outcFinalNoteRequired => 'Isulat ang pangwakas na tala.';
+
+  @override
+  String get outcFinalNoLoan =>
+      'Ang pagtatapos ay nagtatala lamang ng resulta. Hindi ito lumilikha ng utang, bayarin o multa.';
+
+  @override
+  String get outcFinalize => 'Tapusin ang Resulta';
+
+  @override
+  String get outcFinalized => 'Natapos ang resulta.';
+
+  @override
+  String get outcFinalizedReturnDue =>
+      'Natapos ang resulta. Itala ang pagsasauli sa ilalim ng Pamahalaan ang return kapag naiabot na ito ng Magsasaka.';
+
+  @override
+  String get outcActionFailed => 'Hindi nagawa ang aksyon. Subukang muli.';
+
+  @override
+  String programHistOutcomeSubmitted(String name, String outcome) {
+    return 'Nag-ulat si $name ng resultang $outcome';
+  }
+
+  @override
+  String programHistOutcomeValidated(String name) {
+    return 'Napatunayan ang ebidensya ni $name';
+  }
+
+  @override
+  String programHistOutcomeReturned(String name) {
+    return 'Ibinalik ang ulat ni $name para sa karagdagang ebidensya';
+  }
+
+  @override
+  String programHistOutcomeVerified(String name, String finding) {
+    return 'Beripikasyon sa bukid para kay $name: $finding';
+  }
+
+  @override
+  String programHistOutcomeFinalized(String name, String outcome) {
+    return 'Natapos ang resulta ni $name bilang $outcome';
+  }
+
+  @override
+  String programHistMeasured(String what) {
+    return 'Sinukat sa bukid: $what';
+  }
+
+  @override
+  String get programMgmtMemberDiscountLabel => 'Diskwento ng miyembro (%) *';
+
+  @override
+  String get programMgmtMemberDiscountInvalid =>
+      'Maglagay ng numero mula 0 hanggang 100';
+
+  @override
+  String programMgmtMemberDiscountChip(String percent) {
+    return 'Presyong miyembro $percent% diskwento';
+  }
+
+  @override
+  String programMgmtMemberPriceShort(String price) {
+    return 'miyembro $price';
+  }
+
+  @override
+  String catMemberPriceBadge(String percent) {
+    return 'Presyong miyembro · $percent% diskwento';
+  }
+
+  @override
+  String catMembersPay(String price, String percent) {
+    return 'Ang mga miyembro ay magbabayad ng $price ($percent% diskwento)';
+  }
+
+  @override
+  String catEnrollHint(String percent) {
+    return 'Sumali sa programang ito para makuha ang presyong pangkasapi ($percent% diskwento).';
+  }
+
+  @override
+  String get programMgmtDistributionPaused =>
+      'Naka-pause ang bagong pamamahagi hangga\'t walang item ang programang ito. I-edit ang programa para itakda ito.';
+
+  @override
+  String programMgmtMembersSummary(String enrolled, String distributed) {
+    return '$enrolled kasapi · $distributed nakatanggap';
+  }
+
+  @override
+  String get programMgmtStageAwaiting => 'Naghihintay ng pamamahagi';
+
+  @override
+  String get programMgmtStageDistributed => 'Naipamahagi';
+
+  @override
+  String get programMgmtStageFailed => 'Nabigo';
+
+  @override
+  String get programMgmtItemFixedHelper =>
+      'Itinakda ng programa. Baguhin sa pag-edit ng programa.';
+
+  @override
+  String get programMgmtItemNotSetForDistribute =>
+      'Itakda muna ang item ng pamamahagi sa programa.';
+
+  @override
+  String get programHistoryTitle => 'Kasaysayan ng Programa';
+
+  @override
+  String get programHistoryEmpty => 'Wala pang naitala para sa programang ito.';
+
+  @override
+  String get programHistoryLoadFailed => 'Hindi ma-load ang kasaysayan.';
+
+  @override
+  String get programHistoryRetry => 'Subukang muli';
+
+  @override
+  String get programHistoryNote => 'Makikita lamang ng mga Manager at Officer.';
+
+  @override
+  String get programHistCreated => 'Nagawa ang programa';
+
+  @override
+  String get programHistUpdated => 'Na-edit ang detalye ng programa';
+
+  @override
+  String programHistEnrollRequested(String name) {
+    return 'Humiling si $name na sumali';
+  }
+
+  @override
+  String programHistEnrollDeclined(String name) {
+    return 'Tinanggihan ang kahilingan ni $name';
+  }
+
+  @override
+  String programHistEnrolled(String name) {
+    return 'Sumali si $name';
+  }
+
+  @override
+  String programHistReEnrolled(String name) {
+    return 'Sumali muli si $name';
+  }
+
+  @override
+  String programHistRemoved(String name) {
+    return 'Inalis si $name';
+  }
+
+  @override
+  String programHistDistributed(String what, String name) {
+    return '$what ang naibigay kay $name';
+  }
+
+  @override
+  String programHistDistributedPlain(String name) {
+    return 'Naipamahagi ang benepisyo kay $name';
+  }
+
+  @override
+  String programHistOutcome(String name, String outcome) {
+    return 'Resulta para kay $name: $outcome';
+  }
+
+  @override
+  String programHistReturnConfirmed(String name) {
+    return 'Nakumpirma ang ibinalik ni $name';
+  }
+
+  @override
+  String programHistConverted(String name) {
+    return 'Ang nabigong pamamahagi ni $name ay ginawang utang';
+  }
+
+  @override
+  String programHistActivityCreated(String title) {
+    return 'Naidagdag ang aktibidad: $title';
+  }
+
+  @override
+  String programHistActivityUpdated(String title) {
+    return 'Na-edit ang aktibidad: $title';
+  }
+
+  @override
+  String programHistActivityDeleted(String title) {
+    return 'Natanggal ang aktibidad: $title';
+  }
+
+  @override
+  String programHistBy(String name, String role) {
+    return 'Ni $name$role';
+  }
+
+  @override
+  String get programHistActorUnrecorded => 'Hindi naitala kung sino ang gumawa';
+
+  @override
+  String get programHistRoleManager => 'Manager';
+
+  @override
+  String get programHistRoleOfficer => 'Officer';
+
+  @override
+  String get programHistRoleFarmer => 'Magsasaka';
+
+  @override
+  String get programHistFieldStatus => 'Katayuan';
+
+  @override
+  String get programHistFieldBenefit => 'Uri ng benepisyo';
+
+  @override
+  String programHistChanged(String field, String from, String to) {
+    return '$field: $from → $to';
+  }
+
+  @override
+  String get programHistValueEmpty => 'wala';
+
+  @override
+  String get programHistValueSet => 'binago';
+
+  @override
+  String get farmerProgSalesProgram => 'Programa sa Pagbebenta';
+
+  @override
+  String get farmerProgDistributionProgram => 'Programa sa Pamamahagi';
+
+  @override
+  String get farmerProgEmptyTitle => 'Wala pang programa';
+
+  @override
+  String get farmerProgEmptyBody =>
+      'Mag-browse ng mga programa at humiling na sumali. Lalabas dito ang mga programang sinalihan mo.';
+
+  @override
+  String farmerProgEnrolledOn(String date) {
+    return 'Sumali noong $date';
+  }
+
+  @override
+  String get farmerProgStageEnrolled => 'Sumali na';
+
+  @override
+  String get farmerProgStageReceived => 'Natanggap';
+
+  @override
+  String get farmerProgStageOutcome => 'Resulta';
+
+  @override
+  String get farmerProgAwaiting =>
+      'Naghihintay na ibigay sa iyo ng kooperatiba ang item.';
+
+  @override
+  String farmerProgReceivedLine(String what, String date) {
+    return 'Natanggap ang $what noong $date';
+  }
+
+  @override
+  String get farmerProgOutcomeThriving => 'Matagumpay';
+
+  @override
+  String get farmerProgOutcomeFailed => 'Nabigo';
+
+  @override
+  String get farmerProgOutcomePending => 'Hindi pa naitala ang resulta';
+
+  @override
+  String farmerProgHarvestReturn(String what) {
+    return 'Pagbabalik ng ani: $what';
+  }
+
+  @override
+  String get farmerProgHarvestReturnNote =>
+      'Itinatakda ng kooperatiba ang kinakailangang ito para sa programa. Mabibilang lamang ito kapag natanggap na ng kooperatiba ang produkto.';
+
+  @override
+  String farmerProgReturnedMoney(String amount, String date) {
+    return 'Nagbalik ng ₱$amount noong $date';
+  }
+
+  @override
+  String get farmerProgSalesHint =>
+      'I-tap para sa detalye ng programa at mga available na produkto';
+
+  @override
+  String get farmerProgStatusActive => 'Aktibo';
+
+  @override
+  String get farmerProgStatusCompleted => 'Tapos na';
+
+  @override
+  String get farmerProgStatusWithdrawn => 'Umalis';
 
   @override
   String adminInvLastRestocked(String date) {
@@ -6877,11 +10289,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get adminLogEnrollmentApproved =>
-      'Inaprubahan ang enrollment ng magsasaka sa DA-AMAD Market Linking.';
+      'Inaprubahan ang kahilingan ng magsasaka na sumali sa Market Linking.';
 
   @override
   String get adminLogEnrollmentDeclined =>
-      'Tinanggihan ang enrollment ng magsasaka sa DA-AMAD Market Linking.';
+      'Tinanggihan ang kahilingan ng magsasaka na sumali sa Market Linking.';
 
   @override
   String adminLogPriceRecorded(
@@ -6918,11 +10330,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get adminLogProgramEnrollmentApproved =>
-      'Inaprubahan ang request ng magsasaka na sumali sa programa.';
+      'Inaprubahan ang kahilingan ng magsasaka na sumali sa isang programa.';
 
   @override
   String get adminLogProgramEnrollmentDeclined =>
-      'Tinanggihan ang request ng magsasaka na sumali sa programa.';
+      'Tinanggihan ang kahilingan ng magsasaka na sumali sa isang programa.';
 
   @override
   String get adminLogProgramMemberRemoved =>
@@ -6959,7 +10371,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get adminLogProgramOutcomeThriving =>
-      'Nairekord ang resulta ng pamamahagi bilang maunlad.';
+      'Naitala ang resulta ng pamamahagi bilang matagumpay.';
 
   @override
   String get adminLogProgramConvertedToLoan =>
@@ -7103,7 +10515,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get activityMarketLinkingSubmitted =>
-      'Naisumite ang Enrollment sa Market Linking';
+      'Humiling na Sumali sa Market Linking';
 
   @override
   String get activityGingerMarketLinking => 'Ginger Market Linking (DA-AMAD)';
@@ -7126,7 +10538,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get activityProgramEnrollmentRequested =>
-      'Humiling ng Pagsali sa Programa';
+      'Humiling na Sumali sa isang Programa';
 
   @override
   String get activityProgramPurchaseRequested =>
@@ -7244,7 +10656,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get marketLinkCelebrationBody =>
-      'Naaprubahan ang iyong enrollment sa DA-AMAD Ginger Market Linking program. Maaari ka nang magsumite ng iyong ani ng luya para ibenta sa pamamagitan ng Market Linking.';
+      'Naaprubahan ang iyong kahilingang sumali sa programang DA-AMAD Ginger Market Linking. Maaari mo nang isumite ang iyong aning Luya para ibenta sa pamamagitan ng Market Linking.';
 
   @override
   String get marketLinkCelebrationContinue => 'Magpatuloy';
@@ -7681,6 +11093,68 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get loanFormNotes => 'Tala';
+
+  @override
+  String get rptHubSalesSub => 'Benta ayon sa paraan ng pagbebenta';
+
+  @override
+  String get rptHubHarvestSub => 'Ani, batches at stock';
+
+  @override
+  String get rptHubStockSub => 'Antas ng stock ng kooperatiba';
+
+  @override
+  String get rptHubLoanSub => 'Mga naipautang at balanse';
+
+  @override
+  String get rptHubExpenseSub => 'Gastos ng magsasaka ayon sa kategorya';
+
+  @override
+  String get rptHubPatronageSub => 'Benta ng miyembro at patronage';
+
+  @override
+  String get rptHubAnalyticsSub => 'Partisipasyon, presyo at forecast';
+
+  @override
+  String get rptHubBalikSub => 'Taunang payout ng patronage';
+
+  @override
+  String get rptHubExportSub => 'I-download o ibahagi ang mga ulat';
+
+  @override
+  String rptHubBadgeLowStock(int count) {
+    return '$count paubos na';
+  }
+
+  @override
+  String get rptHubBadgeStockOk => 'Sapat ang stock';
+
+  @override
+  String rptHubBadgeOwed(String amount) {
+    return '$amount utang';
+  }
+
+  @override
+  String rptHubBadgeActive(String percent) {
+    return '$percent% aktibo';
+  }
+
+  @override
+  String rptHubBadgeNoActivity(int count) {
+    return '$count walang aktibidad';
+  }
+
+  @override
+  String rptHubBadgeExports(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count export',
+      one: '1 export',
+      zero: 'Walang export',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get rptAllDates => 'Lahat ng petsa';
@@ -8259,7 +11733,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get mlkInProgress => 'Kasalukuyan';
 
   @override
-  String get mlkManageEnrollments => 'Pamahalaan ang mga Enrollment';
+  String get mlkManageEnrollments => 'Mga Kahilingang Sumali';
 
   @override
   String get mlkReceivedSoFar => 'Natanggap na';
@@ -8638,7 +12112,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get orderMgmtChipPending => 'Mga Nakabinbing Order';
 
   @override
-  String get mlEnrollTitle => 'Mga Enrollment sa Market Linking';
+  String get mlEnrollTitle => 'Mga Kahilingang Sumali sa Market Linking';
 
   @override
   String get mlEnrollPending => 'Nakabinbin';
@@ -8650,14 +12124,14 @@ class AppLocalizationsTl extends AppLocalizations {
   String get mlEnrollStatusDeclined => 'Tinanggihan';
 
   @override
-  String get mlEnrollStatusEnrolled => 'Naka-enroll';
+  String get mlEnrollStatusEnrolled => 'Sumali na';
 
   @override
   String get mlEnrollProgram => 'Luya · DA-AMAD Market Linking';
 
   @override
   String mlEnrollApplied(String date) {
-    return 'Nag-apply noong $date';
+    return 'Hiniling noong $date';
   }
 
   @override
@@ -8677,11 +12151,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get mlEnrollEarlier =>
-      'Naunang aplikasyon. Nag-apply muli ang magsasakang ito.';
+      'Naunang kahilingan. Humiling muli ang magsasakang ito.';
 
   @override
   String get mlEnrollEnrolledNote =>
-      'Nasa Market Linking na. Sumali bago kinailangang suriin ang enrollment.';
+      'Nasa Market Linking na. Sumali bago kinailangan ng pagsusuri ang mga kahilingang sumali.';
 
   @override
   String mlEnrollReason(String reason) {
@@ -8694,49 +12168,39 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
-  String get mlEnrollEmptyPending => 'Walang nakabinbing enrollment.';
+  String get mlEnrollEmptyPending => 'Walang nakabinbing kahilingang sumali.';
 
   @override
   String get mlEnrollLoadFailed =>
-      'Hindi ma-load ang mga enrollment. I-pull down para subukan muli.';
+      'Hindi ma-load ang mga kahilingang sumali. I-pull down para subukan muli.';
 
   @override
   String get mlEnrollModalProgram => 'DA-AMAD Ginger Market Linking';
 
   @override
   String get mlEnrollModalBody =>
-      'Kapag inaprubahan, maaari nang magsumite ang magsasakang ito ng ani ng Luya para ibenta sa Market Linking. May Luya na ang magsasakang ito sa kanyang Crop Roster, na na-verify noong nag-apply siya.';
+      'Kapag inaprubahan, makakapagsumite ang magsasakang ito ng aning Luya para ibenta sa Market Linking. May pananim nang Luya ang magsasaka sa kanilang Crop Roster, na na-verify nang humiling siyang sumali.';
 
   @override
-  String get mlEnrollNotesLabel => 'Tala (kailangan kapag tatanggihan)';
+  String get mlEnrollNotesLabel => 'Tala (opsyonal)';
 
   @override
-  String get mlEnrollNotesHint =>
-      'Dahilang makikita ng magsasaka kung tinanggihan';
-
-  @override
-  String get mlEnrollReasonRequired => 'Maglagay ng dahilan.';
+  String get mlEnrollNotesHint => 'Ipapakita sa magsasaka kasama ng pag-apruba';
 
   @override
   String get mlEnrollApprove => 'Aprubahan';
 
   @override
-  String get mlEnrollDecline => 'Tanggihan';
+  String get mlEnrollApprovedToast => 'Naaprubahan ang kahilingang sumali.';
 
   @override
-  String get mlEnrollApprovedToast => 'Naaprubahan ang enrollment.';
+  String get mlEnrollReviewAction => 'Suriin ang kahilingan';
 
   @override
-  String get mlEnrollDeclinedToast => 'Tinanggihan ang enrollment.';
+  String get mlEnrollEnrolled => 'Sumali na';
 
   @override
-  String get mlEnrollReviewAction => 'Suriin ang aplikasyon';
-
-  @override
-  String get mlEnrollEnrolled => 'Naka-enroll';
-
-  @override
-  String get mlEnrollEmptyEnrolled => 'Wala pang naka-enroll na magsasaka.';
+  String get mlEnrollEmptyEnrolled => 'Wala pang magsasakang sumali.';
 
   @override
   String mlEnrollApprovedOn(String date) {
@@ -9224,6 +12688,49 @@ class AppLocalizationsTl extends AppLocalizations {
   String get coopInvShowActive => 'Ipakita ang mga aktibong item';
 
   @override
+  String get coopInvArchivedTitle => 'Mga Naka-archive na Item';
+
+  @override
+  String coopInvArchivedCount(int count) {
+    return '$count naka-archive';
+  }
+
+  @override
+  String get coopInvNoArchived => 'Walang naka-archive na item';
+
+  @override
+  String get coopInvNoArchivedBody =>
+      'Dito lalabas ang mga item na ina-archive mo.';
+
+  @override
+  String get coopInvArchivedInfo =>
+      'Itinatago ang mga naka-archive na item para sa tala. Hindi na ito iaalok sa bagong distribusyon, listahan o utang, at hindi apektado ang kasaysayan nito. Ibalik ang item para magamit itong muli.';
+
+  @override
+  String get coopInvArchivedChip => 'Naka-archive';
+
+  @override
+  String coopInvArchivedOn(String date) {
+    return 'Na-archive noong $date';
+  }
+
+  @override
+  String get coopInvRestore => 'Ibalik';
+
+  @override
+  String coopInvItemRestored(String name) {
+    return 'Naibalik sa Imbentaryo ang \"$name\".';
+  }
+
+  @override
+  String get errRestoreConflict =>
+      'May aktibong item na na may parehong pangalan o pananim, uri at yunit. I-archive o palitan muna ang pangalan niyon, saka ibalik ang item na ito.';
+
+  @override
+  String get adminLogInventoryItemRestored =>
+      'Ibinalik ang naka-archive na item sa imbentaryo.';
+
+  @override
   String get coopInvViewingArchived =>
       'Tinitingnan ang mga naka-archive / hindi aktibong item';
 
@@ -9436,7 +12943,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get editListingApprovedNote =>
-      'Nakalathala ang listing na ito. Ipapadala sa Manager o Officer ang iyong mga pagbabago para sa pag-apruba. Hangga\'t hindi pa ito naaprubahan, mananatili ang iyong listing at hindi maaapektuhan ang mga order na nailagay na.';
+      'Nakalathala ang listing na ito. Isusumite sa Manager o Officer ang iyong mga pagbabago para sa pag-apruba at hindi ito magiging aktibo hangga\'t hindi naaprubahan. Hanggang noon, makikita pa rin ng mga mamimili ang listing gaya ng dati.';
 
   @override
   String get editListingPendingNote =>
@@ -9465,17 +12972,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get editListingNoChanges => 'Wala ka pang binabago.';
-
-  @override
-  String get editListingRetakePhoto => 'Kumuha Muli ng Larawan';
-
-  @override
-  String get editListingPhotoPending =>
-      'Ise-save ang bagong larawan kasabay ng iyong mga pagbabago.';
-
-  @override
-  String get editListingPhotoNote =>
-      'Papalitan ng bagong larawan ang larawan ng iyong pananim sa Crop Roster.';
 
   @override
   String get editListingOffline =>
@@ -9518,47 +13014,41 @@ class AppLocalizationsTl extends AppLocalizations {
       'Maglagay ng paglalarawan para sa listing na ito.';
 
   @override
-  String get leRequestTitle => 'Humiling ng Pagbabago';
+  String get leRequestTitle => 'I-edit ang Listing';
 
   @override
-  String get leSubmitRequest => 'Ipadala para sa Pag-apruba';
+  String get leSubmitRequest => 'Isumite para sa Pag-apruba';
 
   @override
   String get leRequestSent =>
-      'Naipadala para sa pag-apruba. Mananatili ang iyong listing hanggang maaprubahan ito.';
+      'Naisumite para sa pag-apruba. Mananatili ang iyong listing hanggang maaprubahan ng kooperatiba ang iyong mga pagbabago.';
 
   @override
-  String get leCancelRequest => 'Kanselahin ang Kahilingan';
+  String get leCancelRequest => 'Kanselahin ang Pag-edit';
 
   @override
-  String get leCancelRequestTitle => 'Kanselahin ang kahilingang ito?';
+  String get leCancelRequestTitle => 'Kanselahin ang pag-edit na ito?';
 
   @override
   String get leCancelRequestBody =>
-      'Mananatiling nakalathala ang iyong listing. Maaari kang magpadala ng bagong kahilingan anumang oras.';
+      'Mananatiling nakalathala ang iyong listing. Maaari mo itong i-edit muli anumang oras.';
 
   @override
-  String get leRequestCancelled => 'Nakansela ang kahilingan.';
+  String get leRequestCancelled => 'Nakansela ang pag-edit.';
 
   @override
   String get leRequestFailed =>
-      'Hindi maipadala ang iyong kahilingan. Pakisubukan muli.';
+      'Hindi maisumite ang iyong pag-edit. Pakisubukan muli.';
 
   @override
-  String get lePhotoUploadFailed =>
-      'Hindi ma-upload ang larawan. Suriin ang koneksyon at subukan muli.';
-
-  @override
-  String get lePendingBannerTitle =>
-      'Naghihintay ng pag-apruba ang mga pagbabago';
+  String get lePendingBannerTitle => 'Naghihintay ng pag-apruba ang pag-edit';
 
   @override
   String get lePendingBannerBody =>
-      'Nakalathala pa rin ang iyong listing gaya ng dati. Maaari kang magpadala ng bagong kahilingan kapag nakapagpasya na ang Manager o Officer.';
+      'Nakalathala pa rin ang iyong listing gaya ng dati. Maaari mo itong i-edit muli kapag nakapagpasya na ang Manager o Officer.';
 
   @override
-  String get leRejectedBannerTitle =>
-      'Hindi naaprubahan ang huli mong mga pagbabago';
+  String get leRejectedBannerTitle => 'Hindi naaprubahan ang iyong pag-edit';
 
   @override
   String leRejectedReason(String reason) {
@@ -9596,13 +13086,13 @@ class AppLocalizationsTl extends AppLocalizations {
   String get lePendingTabNew => 'Mga Bagong Listing';
 
   @override
-  String get lePendingTabEdits => 'Mga Kahilingan sa Pag-edit';
+  String get lePendingTabEdits => 'Mga In-edit na Listing';
 
   @override
-  String get leEditRequestTitle => 'Kahilingan sa Pag-edit ng Listing';
+  String get leEditRequestTitle => 'Pagsusuri ng In-edit na Listing';
 
   @override
-  String get leEditRequestBadge => 'Kahilingan sa pag-edit';
+  String get leEditRequestBadge => 'In-edit na Listing';
 
   @override
   String get leStaysPublished =>
@@ -9622,8 +13112,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get leDisapproveAction => 'Hindi Aprubahan';
 
   @override
-  String get leDisapproveTitle =>
-      'Hindi aprubahan ang kahilingang ito sa pag-edit';
+  String get leDisapproveTitle => 'Hindi aprubahan ang pag-edit na ito';
 
   @override
   String get leDisapproveHint => 'Dahilan para sa Magsasaka (kailangan)';
@@ -9659,7 +13148,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get leStatusCancelled => 'Kinansela';
 
   @override
-  String get leEmptyEdits => 'Walang kahilingan sa pag-edit.';
+  String get leEmptyEdits => 'Walang in-edit na listing.';
 
   @override
   String leRequestedOn(String date) {
@@ -9706,7 +13195,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get wfActEdited => 'Na-edit ang detalye';
 
   @override
-  String get wfActEditRequested => 'Hiniling ang pag-edit';
+  String get wfActEditRequested => 'Naisumite ang pag-edit';
 
   @override
   String get wfActEditApproved => 'Naaprubahan ang pag-edit';
@@ -9715,7 +13204,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get wfActEditRejected => 'Hindi naaprubahan ang pag-edit';
 
   @override
-  String get wfActEditCancelled => 'Kinansela ang kahilingan sa pag-edit';
+  String get wfActEditCancelled => 'Kinansela ang pag-edit';
 
   @override
   String get wfActSoldOut => 'Naubos na';
@@ -9858,27 +13347,27 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get profileMlkSubtitlePending =>
-      'Sinusuri ng SP3 ang inyong enrollment';
+      'Sinusuri ng SP3 ang iyong kahilingang sumali';
 
   @override
   String get profileMlkSubtitleDeclined =>
-      'Hindi naaprubahan ang enrollment · pindutin para makita ang dahilan at mag-apply muli';
+      'Hindi naaprubahan ang kahilingan · i-tap para makita kung bakit at humiling muli';
 
   @override
   String get profileMlkSubtitleApproved =>
-      'Naaprubahan ang enrollment · pindutin para magpatuloy';
+      'Naaprubahan ang kahilingang sumali · i-tap para magpatuloy';
 
   @override
   String get profileMlkSubtitleEnrolled =>
-      'Naka-enroll · magsumite ng ani ng Luya para makahanap ng mamimili';
+      'Sumali na · magsumite ng aning Luya para makahanap ng mamimili';
 
   @override
   String profileMlkSubtitleActive(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Naka-enroll · $count aktibong kahilingan',
-      one: 'Naka-enroll · 1 aktibong kahilingan',
+      other: 'Sumali na · $count aktibong kahilingan',
+      one: 'Sumali na · 1 aktibong kahilingan',
     );
     return '$_temp0';
   }
@@ -10699,7 +14188,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get staffThingProgramEnrollmentRequests =>
-      'kahilingan sa pag-enroll sa programa';
+      'kahilingang sumali sa programa';
 
   @override
   String get staffThingPriceRecords => 'presyo';
@@ -10755,7 +14244,8 @@ class AppLocalizationsTl extends AppLocalizations {
   String get staffThingMarketLinkingSales => 'benta sa market linking';
 
   @override
-  String get staffThingDaAmadEnrollments => 'enrollment sa DA-AMAD';
+  String get staffThingDaAmadEnrollments =>
+      'kahilingang sumali sa Market Linking';
 
   @override
   String get staffThingFarmerLoans => 'pautang';
@@ -10778,6 +14268,28 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get staffThingBroadcastLogs => 'broadcast';
+
+  @override
+  String get staffLogFeatureProgramAssistance => 'Tulong sa programa';
+
+  @override
+  String get staffLogFeatureDeliverySettings => 'Kooperatiba at paghahatid';
+
+  @override
+  String get staffThingProgramOutcomeReports => 'ulat ng resulta ng programa';
+
+  @override
+  String get staffThingProgramReturns => 'balik ng programa';
+
+  @override
+  String get staffThingProgramFailureResolutions =>
+      'desisyon sa nabigong programa';
+
+  @override
+  String get staffThingProgramReportReminders => 'paalala sa ulat';
+
+  @override
+  String get staffThingProgramAssistanceRequests => 'kahilingan sa tulong';
 
   @override
   String get staffAccountabilityTitle => 'Pananagutan ng Staff';
@@ -10882,6 +14394,21 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
+  String staffActReturnSet(String name, String qty) {
+    return 'Itinakda ang inaasahang isasauli ni $name: $qty';
+  }
+
+  @override
+  String staffActReturnChanged(String name, String from, String to) {
+    return 'Binago ang inaasahang isasauli ni $name mula $from patungong $to';
+  }
+
+  @override
+  String staffActGaveItem(String what, String name) {
+    return 'Binigyan si $name ng $what';
+  }
+
+  @override
   String staffActNote(String note) {
     return 'Tala: $note';
   }
@@ -10931,4 +14458,367 @@ class AppLocalizationsTl extends AppLocalizations {
   String farmerDetailsHistoryBy(String name, String role) {
     return 'Ni $name ($role)';
   }
+
+  @override
+  String get leFieldPhotoLocked =>
+      'Ang larawan ng listing ay ang larawan mo sa Crop Roster. Sumusunod ito roon at hindi maaaring baguhin dito.';
+
+  @override
+  String get leRejectedBannerBody =>
+      'Walang nagbago sa iyong nakalathalang listing. Maaari mo itong i-edit muli anumang oras.';
+
+  @override
+  String get leStatusPendingEdit => 'Naghihintay';
+
+  @override
+  String get lePendingTabAll => 'Lahat';
+
+  @override
+  String get lhTitleSubmitted => 'Naisumite ang listing';
+
+  @override
+  String get lhDescSubmitted => 'Ipinadala sa kooperatiba para suriin.';
+
+  @override
+  String get lhTitleApproved => 'Naaprubahan ang listing';
+
+  @override
+  String get lhDescApproved => 'Nakalathala na sa Marketplace.';
+
+  @override
+  String get lhTitleDisapproved => 'Hindi naaprubahan ang listing';
+
+  @override
+  String get lhDescDisapproved => 'Hindi nailathala sa Marketplace.';
+
+  @override
+  String get lhTitleWithdrawn => 'Binawi ang listing';
+
+  @override
+  String get lhDescWithdrawn => 'Inalis bago pa maaprubahan.';
+
+  @override
+  String get lhTitleEdited => 'Na-update ang detalye';
+
+  @override
+  String get lhDescEdited => 'Binago ang mga detalye ng listing.';
+
+  @override
+  String get lhTitleEditSubmitted => 'Naisumite ang pag-edit';
+
+  @override
+  String get lhDescEditSubmitted =>
+      'Ipinadala para sa pag-apruba. Mananatili ang nakalathalang listing.';
+
+  @override
+  String get lhTitleEditApproved => 'Naaprubahan ang pag-edit';
+
+  @override
+  String get lhDescEditApproved =>
+      'Aktibo na ang mga pagbabago sa Marketplace.';
+
+  @override
+  String get lhTitleEditRejected => 'Hindi naaprubahan ang pag-edit';
+
+  @override
+  String get lhDescEditRejected => 'Walang nagbago sa nakalathalang listing.';
+
+  @override
+  String get lhTitleEditCancelled => 'Kinansela ang pag-edit';
+
+  @override
+  String get lhDescEditCancelled =>
+      'Binawi ang pag-edit bago ito napagpasyahan.';
+
+  @override
+  String get lhTitleSoldOut => 'Naubos na';
+
+  @override
+  String get lhDescSoldOut => 'Na-order na ang lahat ng nakalista.';
+
+  @override
+  String get lhTitleReopened => 'Available muli';
+
+  @override
+  String get lhDescReopened =>
+      'Nagkaroon muli ng available na dami kaya bukas na muli ang listing para sa order.';
+
+  @override
+  String get lhTitleStatus => 'Nagbago ang katayuan';
+
+  @override
+  String get lhDescStatus => 'Na-update ang katayuan ng listing.';
+
+  @override
+  String get lhReason => 'Dahilan';
+
+  @override
+  String get lhToday => 'Ngayon';
+
+  @override
+  String get lhYesterday => 'Kahapon';
+
+  @override
+  String get lhFilterAll => 'Lahat';
+
+  @override
+  String get lhFilterDecisions => 'Mga Desisyon';
+
+  @override
+  String get lhFilterEdits => 'Mga Pag-edit';
+
+  @override
+  String get lhEmptyFilter => 'Walang tugma sa filter na ito.';
+
+  @override
+  String get lhCurrentStatus => 'Kasalukuyang katayuan';
+
+  @override
+  String lhListedSince(String date) {
+    return 'Nailista noong $date';
+  }
+
+  @override
+  String get lhEditWaiting => 'May pag-edit na naghihintay ng pag-apruba';
+
+  @override
+  String get lhQuantity => 'Dami';
+
+  @override
+  String get lhBefore => 'Dati';
+
+  @override
+  String get lhAfter => 'Ngayon';
+
+  @override
+  String lhEventsCount(String count) {
+    return '$count update';
+  }
+
+  @override
+  String get scmKpiTotal => 'Kabuuang Suplay';
+
+  @override
+  String get scmKpiIncoming => 'Pumasok';
+
+  @override
+  String get scmKpiOutgoing => 'Lumabas';
+
+  @override
+  String get scmKpiInProgress => 'Isinasagawa';
+
+  @override
+  String get scmSearchHint =>
+      'Maghanap ng aytem, magsasaka, supplier, mamimili, reference…';
+
+  @override
+  String get scmStepSource => 'Pinagmulan';
+
+  @override
+  String get scmStepProgram => 'Programa';
+
+  @override
+  String get scmStepPurchase => 'Pagbili';
+
+  @override
+  String get scmStepConsumer => 'Mamimili';
+
+  @override
+  String get scmFlowAll => 'Lahat ng Galaw';
+
+  @override
+  String get scmFlowIncoming => 'Pumasok';
+
+  @override
+  String get scmFlowOutgoing => 'Lumabas';
+
+  @override
+  String get scmPeriodThisYear => 'Ngayong Taon';
+
+  @override
+  String get scmPeriodAllTime => 'Lahat ng Panahon';
+
+  @override
+  String get scmViewCards => 'Mga Card';
+
+  @override
+  String get scmViewTable => 'Talaan';
+
+  @override
+  String get scmTypeRestock => 'Muling pag-stock mula sa supplier';
+
+  @override
+  String get scmTypeDistribution => 'Pamamahagi ng programa';
+
+  @override
+  String get scmTypeReturn => 'Balik-ani';
+
+  @override
+  String get scmTypePurchase => 'Pagbili ng kooperatiba';
+
+  @override
+  String get scmTypeCoopSale => 'Benta ng produkto ng kooperatiba';
+
+  @override
+  String get scmTypeMarketSale => 'Benta sa Marketplace';
+
+  @override
+  String get scmTypeLoan => 'Inilabas na utang';
+
+  @override
+  String get scmPartySupplier => 'Supplier';
+
+  @override
+  String get scmPartyFarmer => 'Magsasaka';
+
+  @override
+  String get scmPartyBuyer => 'Mamimili';
+
+  @override
+  String get scmPartyCooperative => 'Imbentaryo ng Kooperatiba';
+
+  @override
+  String get scmPartyNotRecorded => 'Hindi naitala';
+
+  @override
+  String get scmLabelFrom => 'Mula kay';
+
+  @override
+  String get scmLabelTo => 'Para kay';
+
+  @override
+  String get scmLabelItem => 'Aytem';
+
+  @override
+  String get scmLabelCategory => 'Kategorya';
+
+  @override
+  String get scmLabelCrop => 'Pananim';
+
+  @override
+  String get scmLabelQuantity => 'Dami';
+
+  @override
+  String get scmLabelDate => 'Petsa';
+
+  @override
+  String get scmLabelStage => 'Yugto';
+
+  @override
+  String get scmLabelType => 'Galaw';
+
+  @override
+  String get scmLabelInventory => 'Aytem sa imbentaryo';
+
+  @override
+  String get scmLabelItemSource => 'Pinagmulan ng aytem';
+
+  @override
+  String get scmLabelFarmer => 'Magsasaka';
+
+  @override
+  String get scmLabelProgram => 'Programa';
+
+  @override
+  String get scmLabelReference => 'Reference';
+
+  @override
+  String get scmLabelBatch => 'Batch';
+
+  @override
+  String get scmLabelFulfillment => 'Pagtupad';
+
+  @override
+  String get scmLabelStatus => 'Katayuan';
+
+  @override
+  String get scmPickup => 'Pick-up';
+
+  @override
+  String get scmDelivery => 'Paghahatid';
+
+  @override
+  String get scmStateMoved => 'Tapos na';
+
+  @override
+  String get scmStateInProgress => 'Isinasagawa';
+
+  @override
+  String get scmDetailsTitle => 'Mga detalye';
+
+  @override
+  String get scmJourneyTitle => 'Paglalakbay ng suplay';
+
+  @override
+  String get scmRouteTitle => 'Ruta';
+
+  @override
+  String get scmMovementTitle => 'Galaw sa imbentaryo';
+
+  @override
+  String get scmMovementSubtitle =>
+      'Iba pang talaan ng parehong stock, pinakamatanda muna';
+
+  @override
+  String get scmMovementEmpty =>
+      'Walang ibang galaw na naitala para sa stock na ito.';
+
+  @override
+  String get scmThisRecord => 'Ang talaang ito';
+
+  @override
+  String get scmEmptyTitle => 'Walang nakitang talaan ng suplay';
+
+  @override
+  String get scmEmptyFiltered => 'Subukan ang ibang paghahanap o filter.';
+
+  @override
+  String get scmEmptyNone =>
+      'Wala pang naitalang galaw ng suplay sa panahong ito.';
+
+  @override
+  String get scmLoadError =>
+      'Hindi ma-load ang mga talaan ng suplay. Suriin ang koneksyon at subukan muli.';
+
+  @override
+  String get scmRetry => 'Subukan muli';
+
+  @override
+  String get scmPeriodThisMonth => 'Ngayong Buwan';
+
+  @override
+  String get scmPeriodThisQuarter => 'Ngayong Quarter';
+
+  @override
+  String get scmFilterTitle => 'Mga Filter';
+
+  @override
+  String get scmFilterDateRange => 'Saklaw ng Petsa';
+
+  @override
+  String get scmFilterStage => 'Yugto ng Supply Chain';
+
+  @override
+  String get scmStageFilterAll => 'Lahat ng Yugto';
+
+  @override
+  String get scmStageFilterInventory => 'Imbentaryo';
+
+  @override
+  String get scmStageFilterPrograms => 'Mga Programa';
+
+  @override
+  String get scmStageFilterPurchases => 'Mga Pagbili ng Kooperatiba';
+
+  @override
+  String get scmStageFilterFarmers => 'Mga Miyembrong Magsasaka';
+
+  @override
+  String get scmStageFilterBuyers => 'Mga Mamimili';
+
+  @override
+  String get scmStageFilterLoans => 'Mga Utang';
+
+  @override
+  String get scmInventoryFarmerStock => 'Imbak na ani ng magsasaka';
 }

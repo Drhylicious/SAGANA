@@ -222,17 +222,6 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                                   entry: entry,
                                   request: request,
                                   onTap: () => _openDetails(program),
-                                  onViewProducts: (entry != null &&
-                                          program.isSalesProgram &&
-                                          entry.enrollmentStatus == 'active')
-                                      ? () => context.push(
-                                            AppRoutes.programProductCatalog,
-                                            extra: {
-                                              'programId': program.id,
-                                              'programName': program.programName,
-                                            },
-                                          )
-                                      : null,
                                 );
                               },
                             ),
@@ -296,14 +285,12 @@ class _AvailableProgramCard extends StatelessWidget {
   final MyProgramEntry? entry;
   final ProgramEnrollmentRequest? request;
   final VoidCallback onTap;
-  final VoidCallback? onViewProducts;
 
   const _AvailableProgramCard({
     required this.program,
     required this.entry,
     required this.request,
     required this.onTap,
-    required this.onViewProducts,
   });
 
   @override
@@ -380,25 +367,12 @@ class _AvailableProgramCard extends StatelessWidget {
                               style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
                           Text(
-                            _stateLabel,
+                            _stateLabel(AppLocalizations.of(context)),
                             style: GoogleFonts.inter(fontSize: 11, color: _stateColor),
                           ),
                         ],
                       ),
                     ),
-                    if (onViewProducts != null)
-                      GestureDetector(
-                        onTap: onViewProducts,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: AppConstants.successGreen.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                          ),
-                          child: const Icon(Icons.storefront_rounded, size: 16, color: AppConstants.successGreen),
-                        ),
-                      ),
                     const Icon(Icons.chevron_right_rounded, color: AppConstants.outline),
                   ],
                 ),
@@ -410,12 +384,12 @@ class _AvailableProgramCard extends StatelessWidget {
     );
   }
 
-  String get _stateLabel {
-    if (entry != null) return 'Enrolled — tap for details';
-    if (request == null) return 'Tap to view details and request enrollment';
-    if (request!.isPending) return 'Request pending review';
-    if (request!.isRejected) return 'Request declined — tap to try again';
-    return 'Requested';
+  String _stateLabel(AppLocalizations l10n) {
+    if (entry != null) return l10n.joinTapDetailsJoined;
+    if (request == null) return l10n.joinTapDetailsRequest;
+    if (request!.isPending) return l10n.joinRequestPendingShort;
+    if (request!.isRejected) return l10n.joinRequestDeclinedTryAgain;
+    return l10n.joinRequested;
   }
 
   Color get _stateColor {

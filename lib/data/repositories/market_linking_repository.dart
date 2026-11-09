@@ -1136,26 +1136,20 @@ class MarketLinkingRepository {
   /// respond_to_da_amad_enrollment() (SECURITY DEFINER) — notifying the
   /// farmer of the outcome requires writing to another user's
   /// notifications row, which no plain admin-session policy allows.
-  Future<bool> respondToEnrollment({
-    required String id,
-    required bool approve,
-    String? notes,
-  }) async {
+  Future<bool> approveEnrollment({required String id, String? notes}) async {
     try {
       await _client.rpc(
         'respond_to_da_amad_enrollment',
         params: {
           'p_enrollment_id': id,
-          'p_approve': approve,
+          'p_approve': true,
           if (notes != null && notes.isNotEmpty) 'p_notes': notes,
         },
       );
       AdminActivityRepository().log(
         module: 'market_linking',
-        actionType: approve ? 'approved' : 'rejected',
-        message: approve
-? const AdminLogMessage('adminLogEnrollmentApproved')
-: const AdminLogMessage('adminLogEnrollmentDeclined'),
+        actionType: 'approved',
+        message: const AdminLogMessage('adminLogEnrollmentApproved'),
         referenceId: id,
       );
       return true;

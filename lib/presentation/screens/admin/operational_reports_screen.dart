@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/dashboard_cards.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
@@ -122,12 +123,17 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   _buildPeriodChips(context, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
                   _buildExecutiveSnapshot(context, l10n, cs),
-                  const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildQuickInsights(context, l10n, cs, sagana),
+                  // Quick Insights only appear once there is data. Its gap is
+                  // part of it, so with no insights the Snapshot is followed
+                  // by exactly one gap, not two stacked ones.
+                  if (_hasInsights) ...[
+                    const SizedBox(height: AppConstants.spacingSectionV),
+                    _buildQuickInsights(context, l10n, cs, sagana),
+                  ],
                   const SizedBox(height: AppConstants.spacingSectionV),
                   _buildSectionTitle(l10n.reportsDetailedReports, cs),
-                  const SizedBox(height: AppConstants.spacingSm),
-                  _buildDetailedReportsGrid(context, l10n, cs, sagana),
+                  const SizedBox(height: AppConstants.spacingMd),
+                  _buildDetailedReportsGrid(context, l10n),
                   const SizedBox(height: AppConstants.spacingSectionV),
                   // Renamed from "Reporting Tools" (Phase 14) — that name
                   // didn't fit a section containing Analytics, Balik-
@@ -136,8 +142,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   // already had both English and Tagalog strings defined
                   // but was never wired up to any screen.
                   _buildSectionTitle(l10n.reportsManagementTools, cs),
-                  const SizedBox(height: AppConstants.spacingSm),
-                  _buildReportingToolsRow(context, l10n, cs, sagana),
+                  const SizedBox(height: AppConstants.spacingMd),
+                  _buildManagementToolsGrid(context, l10n),
                 ],
               ),
             ),
@@ -197,13 +203,18 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       symbol: '₱',
       decimalDigits: 0,
     );
+    // Two connected metrics in every row (a two-column grid, so each pair shares a row):
+    //   Total Sales (Farmers)   | Total Harvested (Farmers)
+    //   Marketplace Revenue     | Cooperative Product Sales
+    //   Completed Orders        | Active Loans (Farmers)
+    //   Total Expenses (Farmers)| Member Participation (Farmers)
     return ReportHeroCard(
       title: l10n.reportsExecutiveSnapshot,
       period: _period,
       isLoading: _isLoading,
       primaryStats: [
         ReportHeroStat(
-          label: l10n.reportsCoopSales,
+          label: l10n.reportsSnapTotalSales,
           value: currency.format(_summary.totalSalesAmount),
           current: _summary.totalSalesAmount,
           previous: _previousSummary.totalSalesAmount,
@@ -211,7 +222,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           accent: AppConstants.primaryGreen,
         ),
         ReportHeroStat(
-          label: l10n.reportsTotalHarvest,
+          label: l10n.reportsSnapTotalHarvested,
           value: formatKgTotal(_summary.totalHarvestKg),
           current: _summary.totalHarvestKg,
           previous: _previousSummary.totalHarvestKg,
@@ -229,7 +240,23 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           accent: AppConstants.buyerBlue,
         ),
         ReportHeroStat(
-          label: l10n.reportsActiveLoans,
+          label: l10n.reportsProductSales,
+          value: currency.format(_summary.productSalesAmount),
+          current: _summary.productSalesAmount,
+          previous: _previousSummary.productSalesAmount,
+          icon: Icons.inventory_2_rounded,
+          accent: AppConstants.programPurple,
+        ),
+        ReportHeroStat(
+          label: l10n.reportsCompletedOrders,
+          value: '${_summary.completedOrders}',
+          current: _summary.completedOrders.toDouble(),
+          previous: _previousSummary.completedOrders.toDouble(),
+          icon: Icons.task_alt_rounded,
+          accent: AppConstants.midGreen,
+        ),
+        ReportHeroStat(
+          label: l10n.reportsSnapActiveLoans,
           value: currency.format(_summary.activeLoanOutstanding),
           current: _summary.activeLoanOutstanding,
           previous: _previousSummary.activeLoanOutstanding,
@@ -237,7 +264,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           accent: AppConstants.errorRed,
         ),
         ReportHeroStat(
-          label: l10n.reportsTotalExpenses,
+          label: l10n.reportsSnapTotalExpenses,
           value: currency.format(_summary.totalExpenses),
           current: _summary.totalExpenses,
           previous: _previousSummary.totalExpenses,
@@ -245,7 +272,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           accent: AppConstants.amber,
         ),
         ReportHeroStat(
-          label: l10n.reportsMemberParticipation,
+          label: l10n.reportsSnapParticipation,
           value: '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
           current: _summary.memberParticipationPercent,
           previous: _previousSummary.memberParticipationPercent,
@@ -255,6 +282,11 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       ],
     );
   }
+
+  bool get _hasInsights =>
+      _insights.topCropName != null ||
+      _insights.topFarmerName != null ||
+      _insights.topExpenseCategory != null;
 
   Widget _buildQuickInsights(
     BuildContext context,
@@ -377,210 +409,106 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     );
   }
 
+  /// A peso amount that fits a small badge: whole pesos, or 1.2M style once
+  /// it gets long.
+  static String _peso(double v) => v >= 100000
+      ? '₱${NumberFormat.compact().format(v)}'
+      : NumberFormat.currency(
+          locale: 'en_PH',
+          symbol: '₱',
+          decimalDigits: 0,
+        ).format(v);
+
+  /// Detailed Reports: the same two-column cards as the Dashboard's Management
+  /// Modules and the Marketplace's Management section. The badge is the
+  /// report's headline figure for the period chosen above.
   Widget _buildDetailedReportsGrid(
     BuildContext context,
     AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
   ) {
-    final reports = <_ReportCardData>[
-      _ReportCardData(
-        l10n.reportsSalesReport,
-        Icons.point_of_sale_rounded,
-        AppRoutes.salesReport,
-        previewLabel: l10n.reportsCoopSales,
-        previewValue: '₱${_summary.totalSalesAmount.toStringAsFixed(0)}',
-        accent: AppConstants.primaryGreen,
-      ),
-      _ReportCardData(
-        l10n.reportsHarvestManagement,
-        Icons.agriculture_rounded,
-        AppRoutes.harvestReport,
-        previewLabel: l10n.reportsTotalHarvest,
-        previewValue: formatKgTotal(_summary.totalHarvestKg),
-        accent: AppConstants.successGreen,
-      ),
-      _ReportCardData(
-        l10n.reportsCoopStockReport,
-        Icons.inventory_2_rounded,
-        AppRoutes.coopStockReport,
-        previewLabel: l10n.reportsLowStockItems,
-        previewValue: '$_lowStockCount',
-        accent: _lowStockCount > 0
-            ? AppConstants.errorRed
-            : AppConstants.buyerBlue,
-      ),
-      _ReportCardData(
-        l10n.reportsLoanReport,
-        Icons.request_page_rounded,
-        AppRoutes.loanReport,
-        previewLabel: l10n.reportsActiveLoans,
-        previewValue: '₱${_summary.activeLoanOutstanding.toStringAsFixed(0)}',
-        accent: _summary.activeLoanOutstanding > 0
-            ? AppConstants.errorRed
-            : AppConstants.successGreen,
-      ),
-      _ReportCardData(
-        l10n.reportsExpenseReport,
-        Icons.receipt_long_rounded,
-        AppRoutes.expenseReport,
-        previewLabel: l10n.reportsTotalExpenses,
-        previewValue: '₱${_summary.totalExpenses.toStringAsFixed(0)}',
-        accent: AppConstants.amber,
-      ),
-      _ReportCardData(
-        l10n.reportsMemberContributionReport,
-        Icons.groups_rounded,
-        AppRoutes.memberContributionReport,
-        previewLabel: l10n.reportsMemberParticipation,
-        previewValue:
-            '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
-        accent: AppConstants.buyerBlue,
-      ),
+    return DashboardModuleGrid(
+      items: [
+        DashboardModuleItem(
+          icon: Icons.point_of_sale_rounded,
+          title: l10n.reportsSalesReport,
+          subtitle: l10n.rptHubSalesSub,
+          badge: _peso(_summary.totalSalesAmount),
+          onTap: () => context.push(AppRoutes.salesReport),
+        ),
+        DashboardModuleItem(
+          icon: Icons.agriculture_rounded,
+          title: l10n.reportsHarvestManagement,
+          subtitle: l10n.rptHubHarvestSub,
+          badge: formatKgTotal(_summary.totalHarvestKg),
+          onTap: () => context.push(AppRoutes.harvestReport),
+        ),
+        DashboardModuleItem(
+          icon: Icons.inventory_2_rounded,
+          title: l10n.reportsCoopStockReport,
+          subtitle: l10n.rptHubStockSub,
+          badge: _lowStockCount > 0
+              ? l10n.rptHubBadgeLowStock(_lowStockCount)
+              : l10n.rptHubBadgeStockOk,
+          onTap: () => context.push(AppRoutes.coopStockReport),
+        ),
+        DashboardModuleItem(
+          icon: Icons.request_page_rounded,
+          title: l10n.reportsLoanReport,
+          subtitle: l10n.rptHubLoanSub,
+          badge: l10n.rptHubBadgeOwed(_peso(_summary.activeLoanOutstanding)),
+          onTap: () => context.push(AppRoutes.loanReport),
+        ),
+        DashboardModuleItem(
+          icon: Icons.receipt_long_rounded,
+          title: l10n.reportsExpenseReport,
+          subtitle: l10n.rptHubExpenseSub,
+          badge: _peso(_summary.totalExpenses),
+          onTap: () => context.push(AppRoutes.expenseReport),
+        ),
+        DashboardModuleItem(
+          icon: Icons.groups_rounded,
+          title: l10n.reportsMemberContributionReport,
+          subtitle: l10n.rptHubPatronageSub,
+          badge: l10n.rptHubBadgeActive(
+            _summary.memberParticipationPercent.toStringAsFixed(0),
+          ),
+          onTap: () => context.push(AppRoutes.memberContributionReport),
+        ),
+      ],
+    );
+  }
+
+  /// Management Tools: the same cards again. The yearly payout is Manager-only,
+  /// so an Officer sees neither the card nor anything behind it. The Manager's
+  /// three tools scroll sideways in one row (three cards would leave a lone
+  /// card on a second row); the Officer's two fill a fixed row.
+  Widget _buildManagementToolsGrid(BuildContext context, AppLocalizations l10n) {
+    final items = [
+        DashboardModuleItem(
+          icon: Icons.insights_rounded,
+          title: l10n.reportsAnalyticsDashboard,
+          subtitle: l10n.rptHubAnalyticsSub,
+          badge: l10n.rptHubBadgeNoActivity(_participation.inactiveCount),
+          onTap: () => context.push(AppRoutes.adminAnalytics),
+        ),
+        if (!HiveService.isOfficer)
+          DashboardModuleItem(
+            icon: Icons.volunteer_activism_rounded,
+            title: l10n.reportsBalikTangkilikManagement,
+            subtitle: l10n.rptHubBalikSub,
+            badge: '${DateTime.now().year}',
+            onTap: () => context.push(AppRoutes.balikTangkilikManagement),
+          ),
+        DashboardModuleItem(
+          icon: Icons.file_download_rounded,
+          title: l10n.reportsExportCenter,
+          subtitle: l10n.rptHubExportSub,
+          badge: l10n.rptHubBadgeExports(_recentExports.length),
+          onTap: () => context.push(AppRoutes.exportCenter),
+        ),
     ];
-
-    return _reportGrid(
-      reports.map((r) => _reportCard(context, r, cs, sagana)).toList(),
-    );
+    return HiveService.isOfficer
+        ? DashboardModuleGrid(items: items)
+        : DashboardModuleStrip(items: items);
   }
-
-  // The two-column card grid of Detailed Reports.
-  Widget _reportGrid(List<Widget> cards) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      // No automatic status-bar padding: this list sits inside a bigger scroll view.
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: AppConstants.spacingMd,
-      crossAxisSpacing: AppConstants.spacingMd,
-      childAspectRatio: 1.05,
-      children: cards,
-    );
-  }
-
-  Widget _reportCard(
-    BuildContext context,
-    _ReportCardData data,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return GestureDetector(
-      onTap: () => context.push(data.route),
-      child: Container(
-        padding: const EdgeInsets.all(AppConstants.spacingMd),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(data.icon, color: AppConstants.primaryGreen, size: 22),
-            const SizedBox(height: AppConstants.spacingSm),
-            Text(
-              data.label,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: cs.onSurface,
-              ),
-            ),
-            if (data.previewLabel != null && data.previewValue != null) ...[
-              const SizedBox(height: AppConstants.spacingSm),
-              Text(
-                data.previewLabel!,
-                style: GoogleFonts.inter(
-                  fontSize: 9,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              Text(
-                data.previewValue!,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: data.accent ?? AppConstants.primaryGreen,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReportingToolsRow(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    final tools = <_ReportCardData>[
-      _ReportCardData(
-        l10n.reportsAnalyticsDashboard,
-        Icons.insights_rounded,
-        AppRoutes.adminAnalytics,
-        previewLabel: l10n.reportsInactiveMembers,
-        previewValue: '${_participation.inactiveCount}',
-        accent: _participation.inactiveCount > 0
-            ? AppConstants.warningAmber
-            : AppConstants.successGreen,
-      ),
-      // The yearly payout is Manager-only: an Officer sees neither the card nor
-      // anything behind it.
-      if (!HiveService.isOfficer)
-        _ReportCardData(
-          l10n.reportsBalikTangkilikManagement,
-          Icons.volunteer_activism_rounded,
-          AppRoutes.balikTangkilikManagement,
-        ),
-      _ReportCardData(
-        l10n.reportsExportCenter,
-        Icons.file_download_rounded,
-        AppRoutes.exportCenter,
-        // A simple export count instead of a long "No exports yet..."
-        // sentence when empty — the card is small, and Export Center's
-        // own screen already shows the fuller history/date detail.
-        previewLabel: l10n.reportsExportCount,
-        previewValue: '${_recentExports.length}',
-      ),
-    ];
-
-    // One row that fills the width for both roles: the Manager's three cards
-    // sit side by side, the Officer's two line up with the two columns of
-    // Detailed Reports above (same gap), with no empty slot.
-    final gap = tools.length == 2
-        ? AppConstants.spacingMd
-        : AppConstants.spacingSm;
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < tools.length; i++) ...[
-            if (i > 0) SizedBox(width: gap),
-            Expanded(child: _reportCard(context, tools[i], cs, sagana)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportCardData {
-  final String label;
-  final IconData icon;
-  final String route;
-  final String? previewLabel;
-  final String? previewValue;
-  final Color? accent;
-  const _ReportCardData(
-    this.label,
-    this.icon,
-    this.route, {
-    this.previewLabel,
-    this.previewValue,
-    this.accent,
-  });
 }

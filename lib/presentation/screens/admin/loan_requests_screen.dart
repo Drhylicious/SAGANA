@@ -14,6 +14,8 @@ import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/loan_request_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/repositories/program_assistance_repository.dart';
+import '../../../routes/app_routes.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/table_change_watcher.dart';
 import '../../widgets/app_toast.dart';
@@ -52,10 +54,22 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
   bool _loading = true;
   bool _failed = false;
   bool _isOnline = true;
+  // Failed-program assistance waiting for review (a separate list, not loans).
+  int _assistancePending = 0;
+
+  Future<void> _loadAssistanceCount() async {
+    try {
+      final rows = await ProgramAssistanceRepository().fetchAll(status: 'pending');
+      if (mounted) setState(() => _assistancePending = rows.length);
+    } catch (_) {
+      // The entry simply shows no count.
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadAssistanceCount();
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
@@ -213,6 +227,46 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
                   ),
                 );
               },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              onTap: () => context.push(AppRoutes.assistanceRequests).then((_) => _loadAssistanceCount()),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppConstants.programPurple.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  border: Border.all(color: AppConstants.programPurple.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.volunteer_activism_rounded, size: 18, color: AppConstants.programPurple),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.assistStaffEntry,
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
+                      ),
+                    ),
+                    if (_assistancePending > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppConstants.errorRed,
+                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        ),
+                        child: Text(
+                          '$_assistancePending',
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                      ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
+              ),
             ),
           ),
           if (!_isOnline)

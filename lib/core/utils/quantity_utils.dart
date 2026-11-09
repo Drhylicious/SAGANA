@@ -173,6 +173,13 @@ String formatQuantitiesByUnit(Iterable<({double quantity, String? unit})> lines)
 /// An amount in pesos, always 2 decimals: `₱12.50`.
 String formatPesos(num value) => '₱${value.toStringAsFixed(2)}';
 
+/// An amount for a small summary card: exact to the centavo below ₱1,000
+/// (`₱156.98`, never rounded to a whole peso), shortened from ₱1,000 up
+/// (`₱1.2k`).
+String formatPesosCompact(num value) => value >= 1000
+    ? '₱${(value / 1000).toStringAsFixed(1)}k'
+    : formatPesos(value);
+
 /// A price per unit: `₱12.50/kg`.
 String formatPricePerUnit(num value, String? unit) =>
     '${formatPesos(value)}/${unitOrDefault(unit)}';

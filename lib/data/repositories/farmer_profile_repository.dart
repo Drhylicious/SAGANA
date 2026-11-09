@@ -709,7 +709,8 @@ class FarmerProfileRepository {
       final rows = await _client
           .from('harvest_records')
           .select('id')
-          .eq('farmer_id', _userId);
+          .eq('farmer_id', _userId)
+          .eq('source_type', 'self');
       syncedCount = rows.length;
     } catch (_) {
       // Falls through to the pending-only count below — an offline
@@ -725,24 +726,71 @@ class FarmerProfileRepository {
 
   Future<List<MyProgramEntry>> fetchMyPrograms() async {
     try {
+      const memberCols =
+          'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
+          'amount_returned, settled_at, distributed_item_name, distributed_unit, '
+          'distribution_outcome, outcome_recorded_at, converted_loan_id, return_quantity, ';
+      const programCols =
+          'program_name, program_type, description, benefit_type, program_purpose, status, expected_return_percent, distribution_category, image_url';
+      // The item's type (Crop Item / Non-Crop Item) comes from Inventory Management and decides
+      // whether it is listed under the Harvest tab or under Received Items.
+      // program_members has TWO links to Inventory (the item given and the agreed return item), so the
+      // join names the one it means: the item the Farmer was GIVEN. Without it the whole query is refused
+      // as ambiguous and My Programs, Browse Programs and Received Items all load empty.
+      const itemJoin =
+          'cooperative_inventory!inventory_item_id(item_name, unit, image_url, item_type)';
+      const itemJoinOld = 'cooperative_inventory!inventory_item_id(item_name, unit, image_url)';
+      const returnCols =
+          'return_quantity, return_unit, return_crop:crop_master!return_crop_id(crop_name)';
       final rows = await OfflineCache.load(
         screen: 'my_programs',
-        fetch: () => _client
-            .from('program_members')
-            .select(
-              'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
-              'amount_returned, settled_at, distributed_item_name, '
-              'distribution_outcome, outcome_recorded_at, converted_loan_id, '
-              'cooperative_programs(program_name, program_type, description, benefit_type, program_purpose, status, expected_return_percent, distribution_category, image_url), '
-              'cooperative_inventory(item_name, unit, image_url)',
-            )
-            .eq('farmer_id', _userId)
-            .order('enrolled_at', ascending: false),
+        fetch: () async {
+          Future<List<Map<String, dynamic>>> read(String select) async =>
+              List<Map<String, dynamic>>.from(
+                await _client
+                    .from('program_members')
+                    .select(select)
+                    .eq('farmer_id', _userId)
+                    .order('enrolled_at', ascending: false),
+              );
+          try {
+            return await read(
+              '${memberCols}round_no, cooperative_programs($programCols, $returnCols), $itemJoin, '
+              'return_item:cooperative_inventory!return_item_id(item_name, unit)',
+            );
+          } catch (_) {
+            try {
+              // The Item Type column is not in the database yet.
+              return await read(
+                '${memberCols}cooperative_programs($programCols, $returnCols), $itemJoinOld',
+              );
+            } catch (_) {
+              // Phase 5A SQL not applied yet: the Harvest Return columns do not
+              // exist, so load the program without them.
+              return await read(
+                '${memberCols}cooperative_programs($programCols), $itemJoinOld',
+              );
+            }
+          }
+        },
       );
       return rows.map((r) => MyProgramEntry.fromMap(r)).toList();
     } catch (_) {
       return [];
     }
+  }
+
+  /// What the cooperative has given this Farmer, from the same program records as My Programs
+  /// (nothing is stored a second time), split by the item's type in Inventory Management:
+  /// Non-Crop Items (tools, livestock, supplies) are the Farmer's Received Items; Crop Items
+  /// (seeds, seedlings, produce) belong to the Harvest tab ([cropItems] true). Newest first.
+  Future<List<MyProgramEntry>> fetchMyReceivedItems({bool cropItems = false}) async {
+    final all = await fetchMyPrograms();
+    final items = all
+        .where((p) => p.isDistributed && !p.isSalesProgram && p.isCropItem == cropItems)
+        .toList()
+      ..sort((a, b) => b.distributedAt!.compareTo(a.distributedAt!));
+    return items;
   }
 
   Future<int> fetchMyProgramCount() async {

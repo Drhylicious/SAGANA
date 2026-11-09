@@ -555,7 +555,7 @@ class AdminLoanRepository {
           .from('loan_items_master')
           .select(
             'id, unit_price, '
-            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url, source)',
+            'cooperative_inventory!inner(id, item_name, category, item_type, unit, quantity_on_hand, image_url, source)',
           )
           .eq('is_loan_eligible', true)
           .eq('cooperative_inventory.is_active', true);
@@ -575,7 +575,7 @@ class AdminLoanRepository {
           .from('loan_items_master')
           .select(
             'id, unit_price, is_loan_eligible, notes, '
-            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url, source)',
+            'cooperative_inventory!inner(id, item_name, category, item_type, unit, quantity_on_hand, image_url, source)',
           )
           .eq('cooperative_inventory.is_active', true);
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();

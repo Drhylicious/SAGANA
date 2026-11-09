@@ -100,11 +100,18 @@ class CsvExportService implements ReportExportService {
 
     switch (module) {
       case ReportModuleType.sales:
-        final data = await _reportsRepo.fetchSalesReport(period);
-        return withHeader(serializeSalesReportCsv(data), [
-          ('Total Revenue (PHP)', data.totalRevenue.toStringAsFixed(2)),
-          ('Total Quantity (kg)', data.totalQuantityKg.toStringAsFixed(2)),
-          ('Transactions', '${data.transactionCount}'),
+        final sales = await Future.wait([
+          _reportsRepo.fetchSalesReport(period),
+          _reportsRepo.fetchProductSalesReport(period),
+        ]);
+        final data = sales[0] as SalesReportData;
+        final products = sales[1] as ProductSalesReportData;
+        return withHeader(serializeSalesReportCsv(data, products), [
+          ('Marketplace Sales - Total Revenue (PHP)', data.totalRevenue.toStringAsFixed(2)),
+          ('Marketplace Sales - Total Quantity (kg)', data.totalQuantityKg.toStringAsFixed(2)),
+          ('Marketplace Sales - Transactions', '${data.transactionCount}'),
+          ('Cooperative Product Sales (PHP)', products.summary.amount.toStringAsFixed(2)),
+          ('Cooperative Product Sales - Completed Orders', '${products.summary.orders}'),
         ]);
       case ReportModuleType.harvest:
         final results = await Future.wait([

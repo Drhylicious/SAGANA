@@ -38,6 +38,90 @@ class FixedFarmerAddressFields extends StatelessWidget {
   final TextEditingController buildingController;
   final TextEditingController houseNoController;
 
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    String required(String label) => '$label *';
+    bool allBlank() =>
+        streetController.text.trim().isEmpty &&
+        buildingController.text.trim().isEmpty &&
+        houseNoController.text.trim().isEmpty;
+    String? requiredValidator(String? v) {
+      if (allowAllBlank && allBlank()) return null;
+      return (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Text(
+            note ?? l10n.registerAddressFixedNote,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.5,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const LockedAreaFields(),
+        TextFormField(
+          controller: streetController,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: authFieldDecoration(
+            label: required(l10n.registerStreetLabel),
+            icon: Icons.signpost_outlined,
+          ),
+          validator: requiredValidator,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: buildingController,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: authFieldDecoration(
+            label: l10n.registerBuildingLabel,
+            icon: Icons.apartment_outlined,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: houseNoController,
+          textInputAction: TextInputAction.done,
+          decoration: authFieldDecoration(
+            label: required(l10n.registerHouseNoLabel),
+            icon: Icons.home_outlined,
+          ),
+          validator: requiredValidator,
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+/// The five locked area fields: Region, Province, City / Municipality, Barangay and Postal Code.
+/// One widget, used by My Addresses, Farmer registration and the Pending Applicant details, and by
+/// Cooperative Details, so the fixed address looks the same everywhere. Pass values to show what
+/// the database holds (Cooperative Details); by default they are the fixed Payanas service area.
+class LockedAreaFields extends StatelessWidget {
+  const LockedAreaFields({
+    super.key,
+    this.region = FarmerRegistrationAddress.regionName,
+    this.province = FarmerRegistrationAddress.provinceName,
+    this.city = FarmerRegistrationAddress.cityName,
+    this.barangay = FarmerRegistrationAddress.barangayName,
+    this.postalCode = FarmerRegistrationAddress.postalCode,
+  });
+
+  final String region;
+  final String province;
+  final String city;
+  final String barangay;
+  final String postalCode;
+
   Widget _locked({
     required String fieldKey,
     required String label,
@@ -72,96 +156,14 @@ class FixedFarmerAddressFields extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    String required(String label) => '$label *';
-    bool allBlank() =>
-        streetController.text.trim().isEmpty &&
-        buildingController.text.trim().isEmpty &&
-        houseNoController.text.trim().isEmpty;
-    String? requiredValidator(String? v) {
-      if (allowAllBlank && allBlank()) return null;
-      return (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null;
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Text(
-            note ?? l10n.registerAddressFixedNote,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              height: 1.5,
-              color: AppConstants.onSurfaceVariant,
-            ),
-          ),
-        ),
-        _locked(
-          fieldKey: 'region',
-          label: l10n.registerRegionLabel,
-          value: FarmerRegistrationAddress.regionName,
-          icon: Icons.public_outlined,
-          cs: cs,
-        ),
-        _locked(
-          fieldKey: 'province',
-          label: l10n.registerProvinceLabel,
-          value: FarmerRegistrationAddress.provinceName,
-          icon: Icons.map_outlined,
-          cs: cs,
-        ),
-        _locked(
-          fieldKey: 'city',
-          label: l10n.registerCityLabel,
-          value: FarmerRegistrationAddress.cityName,
-          icon: Icons.location_city_outlined,
-          cs: cs,
-        ),
-        _locked(
-          fieldKey: 'barangay',
-          label: l10n.registerBarangayLabel,
-          value: FarmerRegistrationAddress.barangayName,
-          icon: Icons.holiday_village_outlined,
-          cs: cs,
-        ),
-        _locked(
-          fieldKey: 'postal',
-          label: l10n.registerPostalLabel,
-          value: FarmerRegistrationAddress.postalCode,
-          icon: Icons.markunread_mailbox_outlined,
-          cs: cs,
-        ),
-        TextFormField(
-          controller: streetController,
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.next,
-          decoration: authFieldDecoration(
-            label: required(l10n.registerStreetLabel),
-            icon: Icons.signpost_outlined,
-          ),
-          validator: requiredValidator,
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: buildingController,
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.next,
-          decoration: authFieldDecoration(
-            label: l10n.registerBuildingLabel,
-            icon: Icons.apartment_outlined,
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: houseNoController,
-          textInputAction: TextInputAction.done,
-          decoration: authFieldDecoration(
-            label: required(l10n.registerHouseNoLabel),
-            icon: Icons.home_outlined,
-          ),
-          validator: requiredValidator,
-        ),
-        const SizedBox(height: 12),
+        _locked(fieldKey: 'region', label: l10n.registerRegionLabel, value: region, icon: Icons.public_outlined, cs: cs),
+        _locked(fieldKey: 'province', label: l10n.registerProvinceLabel, value: province, icon: Icons.map_outlined, cs: cs),
+        _locked(fieldKey: 'city', label: l10n.registerCityLabel, value: city, icon: Icons.location_city_outlined, cs: cs),
+        _locked(fieldKey: 'barangay', label: l10n.registerBarangayLabel, value: barangay, icon: Icons.holiday_village_outlined, cs: cs),
+        _locked(fieldKey: 'postal', label: l10n.registerPostalLabel, value: postalCode, icon: Icons.markunread_mailbox_outlined, cs: cs),
       ],
     );
   }

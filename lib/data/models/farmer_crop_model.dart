@@ -31,6 +31,8 @@ class FarmerCropModel {
   final String?
   requestStatus; // 'pending' | 'approved' | 'rejected' | null (added directly from catalog, no request involved)
   final String? requestNotes;  // admin's reason, shown to farmer when rejected
+  // The program that put this crop in the Roster (null: the Farmer added or requested it themselves).
+  final String? sourceProgramId;
 
   const FarmerCropModel({
     required this.id,
@@ -46,9 +48,12 @@ class FarmerCropModel {
     this.updatedAt,
     this.requestStatus,
     this.requestNotes,
+    this.sourceProgramId,
   });
 
   bool get hasHarvests => harvestCount > 0;
+  bool get isFromProgram => sourceProgramId != null;
+
   bool get hasPhoto => photoUrl != null && photoUrl!.isNotEmpty;
 
   /// Selling through the Marketplace, to the Cooperative or via Market Linking
@@ -114,6 +119,7 @@ class FarmerCropModel {
           : null,
       requestStatus: map['request_status'] as String?,
       requestNotes: map['request_notes'] as String?,
+      sourceProgramId: map['source_program_id'] as String?,
     );
   }
 

@@ -311,6 +311,8 @@ class LoanCatalogItem {
   final String inventoryItemId;
   final String itemName;
   final String category;
+  // Read from the inventory item (never stored in the catalog): 'crop' or 'non_crop'.
+  final String itemType;
   final String unit;
   final double quantityOnHand;
   final double unitPrice;
@@ -328,6 +330,7 @@ class LoanCatalogItem {
     required this.inventoryItemId,
     required this.itemName,
     required this.category,
+    this.itemType = 'non_crop',
     required this.unit,
     required this.quantityOnHand,
     required this.unitPrice,
@@ -344,6 +347,7 @@ class LoanCatalogItem {
       inventoryItemId: inv['id'] as String,
       itemName: inv['item_name'] as String,
       category: inv['category'] as String,
+      itemType: inv['item_type'] as String? ?? 'non_crop',
       unit: inv['unit'] as String,
       quantityOnHand: (inv['quantity_on_hand'] as num).toDouble(),
       unitPrice: (map['unit_price'] as num).toDouble(),

@@ -60,6 +60,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   int _unsyncedCount = 0;
   int _unreadCount = 0;
   int _programCount = 0;
+  // Non-crop items the cooperative gave this Farmer (tools, livestock, supplies).
+  int _receivedItemCount = 0;
   int _marketLinkingCount = 0;
   // DA-AMAD Market Linking row: where this farmer stands, for its subtitle.
   DaAmadEnrollmentStatus? _enrollmentStatus;
@@ -111,9 +113,11 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _loanRepo.fetchMyLoanRequests(),
       _marketLinkingRepo.fetchMyEnrollment(),
       _marketLinkingRepo.fetchMyActiveRequestCount(),
+      _repo.fetchMyReceivedItems(),
     ]);
     if (!mounted) return;
     setState(() {
+      _receivedItemCount = (results[11] as List).length;
       _profile = results[0] as FarmerProfileModel?;
       _outstandingLoans = results[1] as double;
       _monthExpenses = results[2] as double;
@@ -331,6 +335,19 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                         '$_programCount active program${_programCount == 1 ? '' : 's'}',
                                     onTap: () =>
                                         context.pushRoute(AppRoutes.myPrograms),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _RecordRow(
+                                    icon: Icons.inventory_2_outlined,
+                                    title: AppLocalizations.of(
+                                      context,
+                                    ).receivedItemsTitle,
+                                    subtitle: AppLocalizations.of(
+                                      context,
+                                    ).receivedItemsRowSubtitle(_receivedItemCount),
+                                    onTap: () => context.pushRoute(
+                                      AppRoutes.receivedItems,
+                                    ),
                                   ),
                                   if (_marketLinkingCount > 0) ...[
                                     const SizedBox(height: 8),

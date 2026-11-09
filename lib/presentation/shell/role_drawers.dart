@@ -74,6 +74,11 @@ class AdminShellDrawer extends StatelessWidget {
             Navigator.pop(context);
             context.pushRoute(AppRoutes.adminEditProfile);
           },
+          // The Manager edits it, an Officer can open it to read.
+          onCooperativeDetails: () {
+            Navigator.pop(context);
+            context.pushRoute(AppRoutes.adminCooperativeDetails);
+          },
           onSignOut: () => confirmAdminSignOut(context),
           onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
           onAboutOrganization: () =>

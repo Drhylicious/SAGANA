@@ -17,7 +17,7 @@ import '../../widgets/sub_page_top_bar.dart';
 /// Manager / Officer > Marketplace > Market Linking > Manage Enrollments.
 ///
 /// A farmer applies once to join the DA-AMAD Ginger Market Linking program and
-/// the Manager approves or declines. Two sections, switched by tapping their
+/// a Manager or Officer approves it (never declines). Two sections, switched by tapping their
 /// headers or by swiping left / right:
 /// - **Pending (n)**: applications waiting for a decision.
 /// - **Enrolled (n)**: farmers approved into Market Linking, including farmers
@@ -99,15 +99,11 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
         return StatefulBuilder(
           builder: (ctx, setSheet) {
             final l10n = AppLocalizations.of(ctx);
-            Future<void> respond(bool approve) async {
-              if (!approve && notesCtrl.text.trim().isEmpty) {
-                AppToast.show(ctx, l10n.mlEnrollReasonRequired, isError: true);
-                return;
-              }
+            // Approve only: a join request is never declined.
+            Future<void> approve() async {
               setSheet(() => isSaving = true);
-              final ok = await _repo.respondToEnrollment(
+              final ok = await _repo.approveEnrollment(
                 id: item.id,
-                approve: approve,
                 notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
               );
               if (!ctx.mounted) return;
@@ -117,7 +113,7 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
               AppToast.show(
                 context,
                 ok
-                    ? (approve ? l10n.mlEnrollApprovedToast : l10n.mlEnrollDeclinedToast)
+                    ? l10n.mlEnrollApprovedToast
                     : l10n.adminOrderDetailFailedTryAgain,
                 isError: !ok,
               );
@@ -160,19 +156,15 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: isSaving ? null : () => respond(false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppConstants.errorRed,
-                        side: const BorderSide(color: AppConstants.errorRed),
-                      ),
-                      child: Text(l10n.mlEnrollDecline),
+                      onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                      child: Text(l10n.cancel),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: isSaving ? null : () => respond(true),
+                      onPressed: isSaving ? null : approve,
                       child: isSaving
                           ? const SizedBox(
                               width: 18,
@@ -428,8 +420,15 @@ class EnrollmentCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Flexible(child: _StatusPill(view: view)),
+                              const SizedBox(width: 10),
+                              // Not flexible: the name takes what is left and
+                              // the pill sits at the far right, a card
+                              // padding (14) away from the edge. Capped so a
+                              // long Tagalog label still leaves room for the name.
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 140),
+                                child: _StatusPill(view: view),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 10),

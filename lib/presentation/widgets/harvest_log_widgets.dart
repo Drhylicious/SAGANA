@@ -300,6 +300,32 @@ class HarvestLogEntry extends StatelessWidget {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
+                // Produce a program gave the Farmer is marked: it was received, not harvested.
+                if (harvest.isReceivedFromProgram) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppConstants.buyerBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.volunteer_activism_rounded, size: 11, color: AppConstants.buyerBlue),
+                        const SizedBox(width: 4),
+                        Text(
+                          l10n.harvestReceivedChip,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppConstants.buyerBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

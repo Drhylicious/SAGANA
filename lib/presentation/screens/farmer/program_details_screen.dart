@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import '../../../core/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/app_error_message.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/program_model.dart';
 import '../../../data/models/program_enrollment_request_model.dart';
@@ -38,10 +40,26 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   bool _isRequesting = false;
   ProgramEnrollmentRequest? _existingRequest;
 
+  // The program's member discount (Product Sales only), for the benefit card.
+  double _memberDiscount = 0;
+
   @override
   void initState() {
     super.initState();
     _existingRequest = widget.existingRequest;
+    _loadDiscount();
+  }
+
+  Future<void> _loadDiscount() async {
+    if (!_isSalesProgram) return;
+    final id = widget.entry?.programId ?? widget.program?.id;
+    if (id == null) return;
+    try {
+      final info = await _repo.fetchPricingInfo(id);
+      if (mounted) setState(() => _memberDiscount = info.discountPercent);
+    } catch (_) {
+      // The card is a nicety; the page works without it.
+    }
   }
 
   bool get _isEnrolled => widget.entry != null;
@@ -77,7 +95,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
     try {
       await _repo.requestEnrollment(programId);
       if (!mounted) return;
-      AppToast.show(context, 'Enrollment request submitted.');
+      AppToast.show(context, AppLocalizations.of(context).joinRequestSent);
       setState(() {
         _existingRequest = ProgramEnrollmentRequest(
           id: 'pending-local',
@@ -87,9 +105,14 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
           submittedAt: DateTime.now(),
         );
       });
-    } catch (e) {
+    } catch (e, st) {
       if (!mounted) return;
-      AppToast.show(context, e.toString().replaceFirst('Exception: ', ''), isError: true);
+      // The database's own sentence (for example: you already have a request), not the raw exception.
+      AppToast.show(
+        context,
+        friendlyError(AppLocalizations.of(context), e, st, AppLocalizations.of(context).adminInvFailedTryAgain),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isRequesting = false);
     }
@@ -157,6 +180,31 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                     ),
                     const SizedBox(height: 16),
 
+                    if (_isSalesProgram && _memberDiscount > 0) ...[
+                      _SectionCard(
+                        icon: Icons.local_offer_outlined,
+                        title: AppLocalizations.of(context).catMemberBenefitTitle,
+                        child: Text(
+                          _isEnrolled
+                              ? AppLocalizations.of(context).catMemberBenefitEnrolled(
+                                  _memberDiscount == _memberDiscount.roundToDouble()
+                                      ? _memberDiscount.toStringAsFixed(0)
+                                      : _memberDiscount.toStringAsFixed(1))
+                              : AppLocalizations.of(context).catMemberBenefitNotEnrolled(
+                                  _memberDiscount == _memberDiscount.roundToDouble()
+                                      ? _memberDiscount.toStringAsFixed(0)
+                                      : _memberDiscount.toStringAsFixed(1)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppConstants.successGreen,
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     _SectionCard(
                       icon: Icons.description_outlined,
                       title: 'About This Program',
@@ -203,13 +251,13 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
     return [
       _SectionCard(
         icon: Icons.how_to_reg_rounded,
-        title: 'Enrollment Status',
+        title: AppLocalizations.of(context).joinStatusTitle,
         child: Row(
           children: [
             _StatusChip(label: _enrollmentStatusLabel(entry.enrollmentStatus)),
             const SizedBox(width: 8),
             Text(
-              'Enrolled ${_formatDate(entry.enrolledAt)}',
+              AppLocalizations.of(context).farmerProgEnrolledOn(_formatDate(entry.enrolledAt)),
               style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
             ),
           ],
@@ -228,20 +276,12 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                 'This program lets you purchase cooperative-stocked products.',
                 style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
               ),
-              if (entry.enrollmentStatus == 'active') ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: PrimaryButton(
-                    label: 'View Available Products',
-                    icon: Icons.storefront_rounded,
-                    onPressed: () => context.push(
-                      AppRoutes.programProductCatalog,
-                      extra: {'programId': entry.programId, 'programName': entry.programName},
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 8),
+              Text(
+                AppLocalizations.of(context).uoProductsInMarketplace,
+                key: const Key('productsInMarketplace'),
+                style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant),
+              ),
             ],
           ),
         )
@@ -258,10 +298,14 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Received ${entry.quantityGiven?.toStringAsFixed(1)}'
-                      '${entry.itemUnit != null ? ' ${entry.itemUnit}' : ''}'
-                      '${entry.itemName != null ? ' ${entry.itemName}' : ''} '
-                      'on ${_formatDate(entry.distributedAt!)}',
+                      // The unit is the Inventory item's, the same everywhere it is shown.
+                      AppLocalizations.of(context).farmerProgReceivedLine(
+                        '${entry.quantityGiven != null ? formatQuantity(entry.quantityGiven!) : ''}'
+                                '${entry.itemUnit != null ? ' ${entry.itemUnit}' : ''}'
+                                '${entry.itemName != null ? ' ${entry.itemName}' : ''}'
+                            .trim(),
+                        _formatDate(entry.distributedAt!),
+                      ),
                       style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface),
                     ),
                     if (_isRevenueShare) ...[
@@ -277,9 +321,9 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                         )
                       else
                         Text(
-                          entry.expectedReturnPercent != null
-                              ? 'A ${entry.expectedReturnPercent}% return is due to the cooperative once sold.'
-                              : 'A return is due to the cooperative once sold.',
+                          entry.returnQuantity != null
+                              ? 'Harvest return: ${formatQuantity(entry.returnQuantity!)} ${entry.returnUnitShown ?? ''} ${entry.returnName ?? ''}'.trim()
+                              : 'A harvest return is expected by the cooperative.',
                           style: GoogleFonts.inter(fontSize: 13, color: AppConstants.warningAmber),
                         ),
                     ],
@@ -300,25 +344,56 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
     ];
   }
 
+  // Every Farmer can open a Product Sales program's products, enrolled or not;
+  // enrollment only decides the price.
+  Widget _productsCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return _SectionCard(
+      icon: Icons.storefront_rounded,
+      title: l10n.catProductsTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.catShopNote,
+            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.uoProductsInMarketplace,
+            key: const Key('productsInMarketplace'),
+            style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _buildNotEnrolledSections(BuildContext context) {
     final request = _existingRequest;
     return [
+      if (_isSalesProgram) ...[
+        _productsCard(context),
+        const SizedBox(height: 16),
+      ],
       _SectionCard(
         icon: Icons.assignment_turned_in_outlined,
-        title: 'Enrollment',
+        title: AppLocalizations.of(context).joinSectionTitle,
         child: request == null
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'You are not enrolled in this program yet.',
+                    AppLocalizations.of(context).joinNotYet,
                     style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: PrimaryButton(
-                      label: _isRequesting ? 'Submitting...' : 'Request Enrollment',
+                      label: _isRequesting
+                          ? AppLocalizations.of(context).joinSending
+                          : AppLocalizations.of(context).joinRequestAction,
                       isLoading: _isRequesting,
                       icon: Icons.send_rounded,
                       onPressed: _isRequesting ? null : _requestEnrollment,
@@ -334,8 +409,22 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Your enrollment request is pending Manager review.',
+                          AppLocalizations.of(context).joinRequestPending,
                           style: GoogleFonts.inter(fontSize: 13, color: AppConstants.warningAmber),
+                        ),
+                      ),
+                    ],
+                  )
+                : request.isApproved
+                ? Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded,
+                          size: 18, color: AppConstants.successGreen),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          AppLocalizations.of(context).joinRequestApproved,
+                          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.successGreen),
                         ),
                       ),
                     ],
@@ -350,8 +439,9 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Your last request was declined'
-                              '${request.adminNotes != null && request.adminNotes!.isNotEmpty ? ': ${request.adminNotes}' : '.'}',
+                              request.adminNotes != null && request.adminNotes!.isNotEmpty
+                                  ? AppLocalizations.of(context).joinLastClosedWhy(request.adminNotes!)
+                                  : AppLocalizations.of(context).joinLastClosed,
                               style: GoogleFonts.inter(fontSize: 13, color: AppConstants.errorRed),
                             ),
                           ),
@@ -361,7 +451,9 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: PrimaryButton(
-                          label: _isRequesting ? 'Submitting...' : 'Request Again',
+                          label: _isRequesting
+                              ? AppLocalizations.of(context).joinSending
+                              : AppLocalizations.of(context).joinRequestAgain,
                           isLoading: _isRequesting,
                           icon: Icons.send_rounded,
                           onPressed: _isRequesting ? null : _requestEnrollment,
@@ -398,7 +490,7 @@ class _OutcomeBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This distribution did not succeed and was converted into a loan obligation.',
+            'This distribution did not succeed.',
             style: GoogleFonts.inter(fontSize: 13, color: AppConstants.errorRed),
           ),
           if (entry.hasConvertedLoan) ...[
@@ -422,7 +514,7 @@ class _OutcomeBody extends StatelessWidget {
     }
     if (entry.isOutcomeThriving) {
       return Text(
-        'This distribution is thriving — a return is expected once sold.',
+        'This distribution was successful.',
         style: GoogleFonts.inter(fontSize: 13, color: AppConstants.successGreen),
       );
     }

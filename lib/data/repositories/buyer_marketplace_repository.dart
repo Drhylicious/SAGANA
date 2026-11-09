@@ -75,6 +75,45 @@ class BuyerMarketplaceRepository {
     }
   }
 
+  // ─── Sales figures per listing ──────────────────────────────────────────────
+  // Quantity sold and number of different buyers (completed orders only), from
+  // the marketplace_listing_units_sold view. Returns listing id -> {sold_kg,
+  // buyers}; a listing with no completed order has no entry.
+  //
+  // The `buyers` column comes from supabase_schema_marketplace_listing_buyers.sql.
+  // Until that script is run the first query is refused, so the lookup retries
+  // without it: the sold quantity must keep showing and the buyer count simply
+  // reads 0. Never throws, so a sales-figure problem cannot empty the browse list.
+  Future<Map<String, Map<String, dynamic>>> _fetchSoldStats(
+    List<String> listingIds,
+  ) async {
+    if (listingIds.isEmpty) return {};
+    Future<Map<String, Map<String, dynamic>>> load(String columns) async {
+      final rows = await _client
+          .from('marketplace_listing_units_sold')
+          .select(columns)
+          .inFilter('listing_id', listingIds);
+      return {
+        for (final s in rows)
+          s['listing_id'] as String: Map<String, dynamic>.from(s),
+      };
+    }
+
+    try {
+      return await load('listing_id, sold_kg, buyers');
+    } catch (_) {
+      try {
+        return await load('listing_id, sold_kg');
+      } catch (e) {
+        debugPrint(
+          'BuyerMarketplaceRepository: sales lookup failed ($e) — '
+          'sold_kg and buyers will default to 0',
+        );
+        return {};
+      }
+    }
+  }
+
   // offset added for real pagination (Buyer review finding 2.2) — previously
   // `limit` alone could only ever return the first N rows; there was no way
   // to fetch page 2+. `.range()` supports both in one call and is fully
@@ -225,22 +264,9 @@ class BuyerMarketplaceRepository {
       // a missing/broken view degrades to 0 rather than failing the whole
       // listings fetch (this method's outer catch returns [] on any
       // uncaught exception).
-      final soldMap = <String, double>{};
-      try {
-        final listingIds = rows.map((r) => r['id'] as String).toList();
-        final soldRows = await _client
-            .from('marketplace_listing_units_sold')
-            .select('listing_id, sold_kg')
-            .inFilter('listing_id', listingIds);
-        for (final s in soldRows) {
-          soldMap[s['listing_id'] as String] = (s['sold_kg'] as num).toDouble();
-        }
-      } catch (e) {
-        debugPrint(
-          'BuyerMarketplaceRepository.fetchApprovedListings: '
-          'units-sold lookup failed ($e) — sold_kg will default to 0',
-        );
-      }
+      final soldStats = await _fetchSoldStats(
+        rows.map((r) => r['id'] as String).toList(),
+      );
 
       return rows.map((r) {
         final batchId = r['inventory_batch_id'] as String?;
@@ -266,7 +292,8 @@ class BuyerMarketplaceRepository {
           'canonical_crop_name': cropId != null
               ? canonicalCropNames[cropId]
               : null,
-          'sold_kg': soldMap[r['id'] as String],
+          'sold_kg': soldStats[r['id'] as String]?['sold_kg'],
+          'buyers': soldStats[r['id'] as String]?['buyers'],
         });
       }).toList();
     } catch (e) {
@@ -367,20 +394,7 @@ class BuyerMarketplaceRepository {
       final marketRefPrice =
           priceMap[(row['crop_name'] as String).toLowerCase()];
 
-      double soldKg = 0;
-      try {
-        final soldRow = await _client
-            .from('marketplace_listing_units_sold')
-            .select('sold_kg')
-            .eq('listing_id', listingId)
-            .maybeSingle();
-        soldKg = (soldRow?['sold_kg'] as num?)?.toDouble() ?? 0;
-      } catch (e) {
-        debugPrint(
-          'BuyerMarketplaceRepository.fetchListingById: '
-          'units-sold lookup failed ($e) — sold_kg will default to 0',
-        );
-      }
+      final soldStats = (await _fetchSoldStats([listingId]))[listingId];
 
       return BuyerListingModel.fromMap({
         ...row,
@@ -392,7 +406,8 @@ class BuyerMarketplaceRepository {
         // persisted crop_type over the batch join.
         'market_type': row['crop_type'] ?? batch?['crop_type'],
         'market_ref_price': marketRefPrice,
-        'sold_kg': soldKg,
+        'sold_kg': soldStats?['sold_kg'],
+        'buyers': soldStats?['buyers'],
       });
     } catch (e) {
       debugPrint('BuyerMarketplaceRepository.fetchListingById failed: $e');
@@ -506,6 +521,12 @@ class BuyerMarketplaceRepository {
     String? deliveryNotes,
     String? deliveryRecipientName,
     String? deliveryLabel,
+    // A retry of the same checkout line sends the same request id, and the database then returns
+    // the order it already made instead of placing a second one.
+    String? requestId,
+    // The delivery group of this checkout (one delivery fee for the whole delivery). Needed once
+    // the cooperative has switched the delivery rules on.
+    String? groupId,
   }) async {
     await ServerOnly.ensureOnline();
     await AuthService.requireActiveMembership();
@@ -525,6 +546,8 @@ class BuyerMarketplaceRepository {
           'p_delivery_notes': deliveryNotes,
           'p_delivery_recipient_name': deliveryRecipientName,
           'p_delivery_label': deliveryLabel,
+          if (requestId != null) 'p_request_id': requestId,
+          if (groupId != null) 'p_group_id': groupId,
         },
       );
       return result as String;

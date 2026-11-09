@@ -237,6 +237,19 @@ class MyProgramEntry {
   final String? distributionOutcome;
   final DateTime? outcomeRecordedAt;
   final String? convertedLoanId;
+  // Harvest Return requirement the cooperative set for the program (shown to
+  // the Farmer as the program's requirement — never a staff detail).
+  final String? returnCropName;
+  final double? returnQuantity;
+  final String? returnUnit;
+  // The item's type from Inventory Management ('crop' or 'non_crop'). A Crop Item is listed under the
+  // Harvest tab; any other item stays under My Programs / Received Items.
+  final String? itemType;
+  // What this Farmer gives back when it differs from the item given (the produce for seeds).
+  final String? returnItemName;
+  final String? returnItemUnit;
+  // 1 for the first distribution; 2 for the second, and so on (another round after a failed outcome).
+  final int roundNo;
 
   const MyProgramEntry({
     required this.id,
@@ -262,9 +275,23 @@ class MyProgramEntry {
     this.distributionOutcome,
     this.outcomeRecordedAt,
     this.convertedLoanId,
+    this.returnCropName,
+    this.returnQuantity,
+    this.returnUnit,
+    this.itemType,
+    this.returnItemName,
+    this.returnItemUnit,
+    this.roundNo = 1,
   });
 
+  /// The name and unit shown for the return: the produce for seeds, else the item given.
+  String? get returnName => returnItemName ?? itemName;
+  String? get returnUnitShown => returnItemUnit ?? itemUnit;
+
   bool get isRevenueShare => benefitType == 'revenue_share';
+  bool get isHarvestReturn => isRevenueShare;
+  /// Seeds & Seedlings or Harvested Produce (a Crop Master crop); everything else is a Non-Crop Item.
+  bool get isCropItem => itemType == 'seeds_seedlings' || itemType == 'harvested_produce';
   bool get isDistributed => distributedAt != null;
   bool get isSettled => settledAt != null;
   bool get isSalesProgram => programPurpose == 'sales';
@@ -294,7 +321,7 @@ class MyProgramEntry {
       itemName:
           item?['item_name'] as String? ??
           m['distributed_item_name'] as String?,
-      itemUnit: item?['unit'] as String?,
+      itemUnit: item?['unit'] as String? ?? m['distributed_unit'] as String?,
       quantityGiven: m['quantity_given'] != null
           ? (m['quantity_given'] as num).toDouble()
           : null,
@@ -317,6 +344,15 @@ class MyProgramEntry {
           ? DateTime.parse(m['outcome_recorded_at'] as String)
           : null,
       convertedLoanId: m['converted_loan_id'] as String?,
+      returnCropName:
+          (program['return_crop'] as Map?)?['crop_name'] as String?,
+      // The quantity agreed for THIS Farmer when the item was given; an older program's default otherwise.
+      returnQuantity: ((m['return_quantity'] ?? program['return_quantity']) as num?)?.toDouble(),
+      returnUnit: program['return_unit'] as String?,
+      itemType: item?['item_type'] as String?,
+      returnItemName: (m['return_item'] as Map?)?['item_name'] as String?,
+      returnItemUnit: (m['return_item'] as Map?)?['unit'] as String?,
+      roundNo: (m['round_no'] as num?)?.toInt() ?? 1,
     );
   }
 }

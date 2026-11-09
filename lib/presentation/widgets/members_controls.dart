@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
+import 'filter_icon_button.dart';
 
 /// One status filter chip: label, live count, and whether it is the selected one.
 class MembersStatusChip {
@@ -105,7 +106,13 @@ class MembersControls extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            _FilterButton(onTap: onFilterTap, active: filterActive),
+            // The one shared filter button (same look in every list).
+            FilterIconButton(
+              buttonKey: const ValueKey('members-filter'),
+              dotKey: const ValueKey('members-filter-dot'),
+              onTap: onFilterTap,
+              active: filterActive,
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -231,68 +238,6 @@ class _SearchField extends StatelessWidget {
                 : null,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final bool active;
-
-  const _FilterButton({required this.onTap, required this.active});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    return Semantics(
-      button: true,
-      label: 'Filter',
-      child: GestureDetector(
-        key: const ValueKey('members-filter'),
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: MembersControls.fieldHeight,
-              height: MembersControls.fieldHeight,
-              decoration: BoxDecoration(
-                color: active
-                    ? cs.primary.withValues(alpha: 0.10)
-                    : sagana.cardBackground,
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(
-                  color: active
-                      ? cs.primary.withValues(alpha: 0.55)
-                      : cs.outline.withValues(alpha: 0.25),
-                ),
-              ),
-              child: Icon(
-                Icons.tune_rounded,
-                size: 22,
-                color: active ? cs.primary : cs.onSurfaceVariant,
-              ),
-            ),
-            if (active)
-              Positioned(
-                top: -3,
-                right: -3,
-                child: Container(
-                  key: const ValueKey('members-filter-dot'),
-                  width: 11,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    color: cs.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: sagana.cardBackground, width: 1.5),
-                  ),
-                ),
-              ),
-          ],
         ),
       ),
     );

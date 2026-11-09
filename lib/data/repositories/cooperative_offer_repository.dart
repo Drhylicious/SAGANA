@@ -227,6 +227,11 @@ class CooperativeOfferRepository {
   /// How many offers are waiting for the Cooperative — the same offers as
   /// [fetchOffersAwaitingCooperative], counted by the database without
   /// downloading each one. A failed read is an error, not a silent 0.
+  /// Every offer ever made to the cooperative, whatever its status: the same set the Offer to
+  /// Cooperative screen lists under "All". Counted by the database.
+  Future<int> fetchTotalCount() =>
+      _client.from('cooperative_purchase_offers').count();
+
   Future<int> fetchAwaitingCooperativeCount() async {
     final results = await Future.wait([
       _client

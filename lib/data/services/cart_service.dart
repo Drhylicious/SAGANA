@@ -27,13 +27,16 @@ class CartService {
 
   Future<List<CartItemModel>> getItems() async {
     final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
-    return _ownKeys(box)
-        .map(
-          (k) => CartItemModel.fromMap(
-            Map<String, dynamic>.from(box.get(k) as Map),
-          ),
-        )
-        .toList();
+    final items = <CartItemModel>[];
+    for (final k in _ownKeys(box).toList()) {
+      final raw = Map<String, dynamic>.from(box.get(k) as Map);
+      final item = CartItemModel.fromMap(raw);
+      // A line saved before request ids existed gets one now and keeps it, so a retried
+      // checkout of the same line is recognized by the database and never placed twice.
+      if (raw['request_id'] == null) await box.put(k, item.toMap());
+      items.add(item);
+    }
+    return items;
   }
 
   Future<int> itemCount() async {
@@ -52,6 +55,10 @@ class CartService {
     String? marketType,
     required double availableKgSnapshot,
     required double quantityKg,
+    String source = kCartSourceMarketplace,
+    String? programId,
+    String? programName,
+    double? regularPrice,
   }) async {
     final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
     final key = _key(listingId);
@@ -77,6 +84,10 @@ class CartService {
         marketType: marketType,
         availableKgSnapshot: availableKgSnapshot,
         quantityKg: quantityKg,
+        source: source,
+        programId: programId,
+        programName: programName,
+        regularPrice: regularPrice,
       );
       await box.put(key, item.toMap());
     }

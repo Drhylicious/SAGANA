@@ -7,7 +7,9 @@ import 'completed_order_dates.dart';
 import 'crop_lookup.dart';
 import 'farmer_lookup.dart';
 import '../models/expense_model.dart';
+import '../models/supply_chain_model.dart' show SupplyChainTotals;
 import 'member_sales_aggregation.dart';
+import 'supply_chain_repository.dart';
 import '../services/market_types_service.dart';
 
 /// Repository for the Operational Reports hub and five of its six
@@ -64,7 +66,10 @@ class AdminReportsRepository {
         // (fetchSalesReportForRange) rather than re-deriving it — see
         // PerformanceSummary.totalSalesAmount's own note.
         fetchSalesReportForRange(startDate, endDate),
+        fetchProductSalesForRange(startDate, endDate),
+        _fetchMarketplaceCompletedCount(startDate, endDate),
       ]);
+      final productSales = results[7] as ProductSalesSummary;
 
       return PerformanceSummary(
         totalHarvestKg: results[0] as double,
@@ -74,6 +79,8 @@ class AdminReportsRepository {
         totalExpenses: results[4] as double,
         memberParticipationPercent: results[5] as double,
         totalSalesAmount: (results[6] as SalesReportData).totalRevenue,
+        productSalesAmount: productSales.amount,
+        completedOrders: (results[8] as int) + productSales.orders,
       );
     } catch (_) {
       return PerformanceSummary.empty();
@@ -85,7 +92,7 @@ class AdminReportsRepository {
     DateTime? endDate,
   }) async {
     try {
-      var query = _client.from('harvest_records').select('quantity_kg, unit');
+      var query = _client.from('harvest_records').select('quantity_kg, unit').eq('source_type', 'self');
       if (startDate != null) {
         query = query.gte('harvest_date', _dateOnly(startDate));
       }
@@ -140,6 +147,30 @@ class AdminReportsRepository {
     DateTime? endDate,
   }) async {
     try {
+      final rows = await _marketplaceCompletedRows(startDate, endDate);
+      return rows.fold<double>(
+        0,
+        (sum, r) => sum + (r['total_price'] as num).toDouble(),
+      );
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> _fetchMarketplaceCompletedCount(DateTime? startDate, DateTime? endDate) async {
+    try {
+      return (await _marketplaceCompletedRows(startDate, endDate)).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// The completed Marketplace orders of the period (throws when they cannot be read).
+  Future<List<Map<String, dynamic>>> _marketplaceCompletedRows(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    {
       // A completed order counts on the day the buyer confirmed receipt (see
       // CompletedOrderDates), the same day the Sales Report and every Farmer's
       // own history use for it.
@@ -166,13 +197,196 @@ class AdminReportsRepository {
           return query;
         }),
       );
-      return rows.fold<double>(
-        0,
-        (sum, r) => sum + (r['total_price'] as num).toDouble(),
+      return rows;
+    }
+  }
+
+  // ─── Cooperative Product sales ──────────────────────────────────────────
+
+  /// Completed Product Sales orders of [period], counted on the day they were completed (the
+  /// same day idea as a Marketplace order: when the customer confirmed receipt, or staff
+  /// completed it). Its own figure, never mixed into the selling channels.
+  Future<ProductSalesSummary> fetchProductSales(ReportPeriod period) {
+    final window = period.range();
+    return fetchProductSalesForRange(window.startDate, window.endDate);
+  }
+
+  Future<ProductSalesSummary> fetchPreviousProductSales(ReportPeriod period) {
+    final previous = period.previousRange();
+    if (previous == null) return Future.value(ProductSalesSummary.empty);
+    return fetchProductSalesForRange(previous.startDate, previous.endDate);
+  }
+
+  Future<ProductSalesSummary> fetchProductSalesForRange(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    try {
+      final lower = startDate == null ? null : DateTime.parse(_dateOnly(startDate));
+      final upper = endDate == null ? null : DateTime.parse(_exclusiveUpperBound(endDate));
+      final rows = await OfflineCache.load(
+        screen:
+            'perf_product_sales_${startDate?.toIso8601String() ?? 'any'}_${endDate?.toIso8601String() ?? 'any'}',
+        fetch: () {
+          var query = _client
+              .from('program_product_purchases')
+              .select('total_amount, farmer_id')
+              .eq('status', 'completed');
+          if (lower != null) query = query.gte('completed_at', lower.toUtc().toIso8601String());
+          if (upper != null) query = query.lt('completed_at', upper.toUtc().toIso8601String());
+          return query;
+        },
+      );
+      var amount = 0.0;
+      final buyers = <String>{};
+      for (final r in rows) {
+        amount += (r['total_amount'] as num).toDouble();
+        final farmer = r['farmer_id'];
+        if (farmer is String) buyers.add(farmer);
+      }
+      return ProductSalesSummary(amount: amount, orders: rows.length, buyers: buyers.length);
+    } catch (_) {
+      return ProductSalesSummary.empty;
+    }
+  }
+
+  /// Every completed Cooperative Product order of [period], newest first, with the Farmer's name.
+  Future<ProductSalesReportData> fetchProductSalesReport(ReportPeriod period) {
+    final window = period.range();
+    return fetchProductSalesReportForRange(window.startDate, window.endDate);
+  }
+
+  Future<ProductSalesReportData> fetchProductSalesReportForRange(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    try {
+      final lower = startDate == null ? null : DateTime.parse(_dateOnly(startDate));
+      final upper = endDate == null ? null : DateTime.parse(_exclusiveUpperBound(endDate));
+      final rows = await OfflineCache.load(
+        screen:
+            'sales_product_rows_${startDate?.toIso8601String() ?? 'any'}_${endDate?.toIso8601String() ?? 'any'}',
+        fetch: () {
+          var query = _client
+              .from('program_product_purchases')
+              .select(
+                'id, order_number, farmer_id, item_name, program_name, unit, quantity, total_amount, completed_at',
+              )
+              .eq('status', 'completed');
+          if (lower != null) query = query.gte('completed_at', lower.toUtc().toIso8601String());
+          if (upper != null) query = query.lt('completed_at', upper.toUtc().toIso8601String());
+          return query.order('completed_at', ascending: false);
+        },
+      );
+      final names = await fetchFarmerInfoMap(_client, {
+        for (final r in rows)
+          if (r['farmer_id'] is String) r['farmer_id'] as String,
+      }.toList());
+      final sales = [
+        for (final r in rows)
+          if (r['completed_at'] is String)
+            ProductSaleRow(
+              id: r['id'] as String,
+              orderNumber: (r['order_number'] as String?) ?? '',
+              farmerName: names[r['farmer_id']]?.fullName ?? '',
+              itemName: (r['item_name'] as String?) ?? '',
+              programName: r['program_name'] as String?,
+              quantity: (r['quantity'] as num).toDouble(),
+              unit: (r['unit'] as String?) ?? '',
+              amount: (r['total_amount'] as num).toDouble(),
+              saleDate: DateTime.parse(r['completed_at'] as String).toLocal(),
+            ),
+      ];
+      final buyers = {for (final r in rows) r['farmer_id']}.whereType<String>().length;
+      return ProductSalesReportData(
+        summary: ProductSalesSummary(
+          amount: sales.fold<double>(0, (s, r) => s + r.amount),
+          orders: sales.length,
+          buyers: buyers,
+        ),
+        rows: sales,
       );
     } catch (_) {
-      return 0;
+      return ProductSalesReportData.empty;
     }
+  }
+
+  /// Cooperative Product sales per calendar month for the last [months] months (oldest first,
+  /// zero-filled), for the Revenue Trend of that report. Independent of the period chip, like
+  /// [fetchSalesTrend].
+  Future<List<double>> fetchProductSalesTrend({int months = 6}) async {
+    try {
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month - (months - 1), 1);
+      final rows = await OfflineCache.load(
+        screen: 'sales_product_trend_$months',
+        fetch: () => _client
+            .from('program_product_purchases')
+            .select('total_amount, completed_at')
+            .eq('status', 'completed')
+            .gte('completed_at', cutoff.toUtc().toIso8601String()),
+      );
+      if (rows.isEmpty) return [];
+      final buckets = <String, double>{};
+      for (final r in rows) {
+        final at = r['completed_at'];
+        if (at is! String) continue;
+        final d = DateTime.parse(at).toLocal();
+        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+        buckets[key] = (buckets[key] ?? 0) + (r['total_amount'] as num).toDouble();
+      }
+      return List.generate(months, (i) {
+        final date = DateTime(now.year, now.month - (months - 1 - i), 1);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        return buckets[key] ?? 0.0;
+      });
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// The Dashboard Overview figures. Every one follows the current calendar year and starts again
+  /// in January. A figure that cannot be read counts as zero.
+  Future<DashboardOverview> fetchDashboardOverview() async {
+    final window = ReportPeriod.thisYear.range();
+    final yearStart = DateTime(DateTime.now().year, 1, 1);
+    final since = yearStart.toUtc().toIso8601String();
+
+    Future<int> count(Future<int> Function() run) async {
+      try {
+        return await run();
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    final results = await Future.wait<Object>([
+      count(() => _client.from('cooperative_inventory').count().eq('is_active', true)),
+      count(() => _client.from('crop_master').count().eq('is_active', true)),
+      count(() => _client.from('cooperative_programs').count().eq('season_year', yearStart.year)),
+      _fetchMarketplaceRevenue(startDate: window.startDate, endDate: window.endDate),
+      fetchProductSalesForRange(window.startDate, window.endDate),
+      // Supply Chain Management: supplies tracked this year, incoming + outgoing.
+      SupplyChainRepository(client: _client).fetchYearTotals(),
+      // Retail prices: the Public Market and the Cooperative Market (not the DA-AMAD price).
+      count(
+        () => _client
+            .from('price_records')
+            .count()
+            .inFilter('price_type', ['open_market', 'sp3_cooperative'])
+            .gte('recorded_at', since),
+      ),
+    ]);
+    final product = results[4] as ProductSalesSummary;
+    return DashboardOverview(
+      inventoryItems: results[0] as int,
+      crops: results[1] as int,
+      programs: results[2] as int,
+      revenue: (results[3] as double) + product.amount,
+      suppliesIncoming: (results[5] as SupplyChainTotals).incoming,
+      suppliesOutgoing: (results[5] as SupplyChainTotals).outgoing,
+      retailPrices: results[6] as int,
+    );
   }
 
   Future<double> _fetchActiveLoanOutstanding() async {
@@ -339,7 +553,7 @@ class AdminReportsRepository {
 
       final activeIds = <String>{};
 
-      var harvestQuery = _client.from('harvest_records').select('farmer_id');
+      var harvestQuery = _client.from('harvest_records').select('farmer_id').eq('source_type', 'self');
       if (startDate != null) {
         harvestQuery = harvestQuery.gte('harvest_date', _dateOnly(startDate));
       }
@@ -1055,7 +1269,7 @@ class AdminReportsRepository {
             'harvest_report_${window.startDate?.toIso8601String() ?? 'any'}_'
             '${window.endDate?.toIso8601String() ?? 'any'}',
         fetch: () async {
-          var query = _client.from('harvest_records').select('*');
+          var query = _client.from('harvest_records').select('*').eq('source_type', 'self');
           if (window.startDate != null) {
             query = query.gte('harvest_date', _dateOnly(window.startDate!));
           }
@@ -1220,7 +1434,7 @@ class AdminReportsRepository {
         screen: 'yield_trend_$months',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg, unit, harvest_date')
+            .select('quantity_kg, unit, harvest_date').eq('source_type', 'self')
             .gte('harvest_date', _dateOnly(cutoff)),
       );
       if (rows.isEmpty) return [];
@@ -1471,9 +1685,12 @@ class AdminReportsRepository {
           final results = await Future.wait([
             fetchMemberSalesTotals(_client, year),
             fetchMemberProgramPurchaseTotals(_client, year),
+            fetchMemberProgramPurchaseBreakdown(_client, year),
           ]);
           final salesTotals = results[0] as Map<String, MemberSalesTotals>;
           final purchaseTotals = results[1] as Map<String, double>;
+          final purchaseBreakdown =
+              results[2] as Map<String, ProgramPurchaseBreakdown>;
 
           // Active members only — see BalikTangkilikRepository.
           // fetchDistributionPreview() for the full reasoning; this method
@@ -1521,6 +1738,8 @@ class AdminReportsRepository {
               'other_crops_qty_kg': totals.otherCropsQtyKg,
               'other_crops_amount': totals.otherCropsAmount,
               'purchases_amount': purchaseTotals[farmerId] ?? 0,
+              'purchases_regular': purchaseBreakdown[farmerId]?.regular ?? 0,
+              'purchases_discount': purchaseBreakdown[farmerId]?.discount ?? 0,
               '_total_coop_sales': totalCoopSales,
               '_total_program_purchases': totalProgramPurchases,
             };
@@ -1559,6 +1778,10 @@ class AdminReportsRepository {
               otherCropsQtyKg: (row['other_crops_qty_kg'] as num).toDouble(),
               otherCropsAmount: (row['other_crops_amount'] as num).toDouble(),
               programPurchasesAmount: purchasesAmount,
+              programRegularAmount:
+                  (row['purchases_regular'] as num?)?.toDouble() ?? 0,
+              programDiscountAmount:
+                  (row['purchases_discount'] as num?)?.toDouble() ?? 0,
               purchaseSharePercent: purchaseSharePercent,
             );
           }).toList()..sort(
@@ -1610,6 +1833,7 @@ class AdminReportsRepository {
             id: row['id'] as String,
             itemName: row['item_name'] as String,
             category: category,
+            itemType: row['item_type'] as String? ?? 'non_crop',
             unit: row['unit'] as String,
             quantityOnHand: onHand,
             reorderLevel: reorder,
@@ -1628,6 +1852,9 @@ class AdminReportsRepository {
         lowStockCount: lowStockCount,
         categoryCounts: categoryTotals,
         items: items,
+        seedsItemCount: items.where((i) => i.itemType == 'seeds_seedlings').length,
+        produceItemCount: items.where((i) => i.itemType == 'harvested_produce').length,
+        nonCropItemCount: items.where((i) => i.itemType == 'non_crop').length,
       );
     } catch (_) {
       return CoopStockReportData.empty;

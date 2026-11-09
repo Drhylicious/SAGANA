@@ -454,6 +454,23 @@ class _CropCard extends StatelessWidget {
                       if (crop.cropMasterId != null)
                         _MarketTypeBadge(cropType: crop.cropType),
                       ChannelOnlyBadge(channel: crop.exclusiveChannel),
+                      // A crop a cooperative program put in the Roster says so.
+                      if (crop.isFromProgram)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppConstants.buyerBlue.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          ),
+                          child: Text(
+                            AppLocalizations.of(context).cropFromProgram,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppConstants.buyerBlue,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 6),

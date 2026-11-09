@@ -15,6 +15,21 @@ class ProgramEnrollmentRequest {
   // Only present on the Admin-facing fetch (joined from user_information);
   // null on the farmer-facing fetch, which has no reason to know its own name.
   final String? farmerName;
+  // Admin-facing extras, shown when a request card is opened.
+  final String? programType;
+  final String? programPurpose;
+  // The farmer's CURRENT membership in the program (only for an approved
+  // request): 'active' | 'withdrawn' | 'completed', when they enrolled, and
+  // what they received, if anything.
+  final String? memberStatus;
+  final DateTime? enrolledAt;
+  final DateTime? distributedAt;
+  final double? quantityGiven;
+  final String? distributedItemName;
+  // False for a member who is enrolled but has no enrollment request on record
+  // (enrolled directly by the cooperative, or before requests existed). Such a
+  // member is real; there is just no request to show.
+  final bool hasRequest;
 
   const ProgramEnrollmentRequest({
     required this.id,
@@ -26,6 +41,14 @@ class ProgramEnrollmentRequest {
     required this.submittedAt,
     this.reviewedAt,
     this.farmerName,
+    this.programType,
+    this.programPurpose,
+    this.memberStatus,
+    this.enrolledAt,
+    this.distributedAt,
+    this.quantityGiven,
+    this.distributedItemName,
+    this.hasRequest = true,
   });
 
   bool get isPending => status == 'pending';
@@ -35,6 +58,7 @@ class ProgramEnrollmentRequest {
   factory ProgramEnrollmentRequest.fromMap(Map<String, dynamic> map) {
     final program = map['cooperative_programs'] as Map<String, dynamic>?;
     final userInfo = map['user_information'] as Map<String, dynamic>?;
+    final member = map['member'] as Map<String, dynamic>?;
     return ProgramEnrollmentRequest(
       id: map['id'] as String,
       programId: map['program_id'] as String,
@@ -47,6 +71,18 @@ class ProgramEnrollmentRequest {
           ? DateTime.parse(map['reviewed_at'] as String)
           : null,
       farmerName: userInfo?['full_name'] as String?,
+      programType: program?['program_type'] as String?,
+      programPurpose: program?['program_purpose'] as String?,
+      memberStatus: member?['status'] as String?,
+      enrolledAt: member?['enrolled_at'] != null
+          ? DateTime.parse(member!['enrolled_at'] as String)
+          : null,
+      distributedAt: member?['distributed_at'] != null
+          ? DateTime.parse(member!['distributed_at'] as String)
+          : null,
+      quantityGiven: (member?['quantity_given'] as num?)?.toDouble(),
+      distributedItemName: member?['distributed_item_name'] as String?,
+      hasRequest: map['has_request'] as bool? ?? true,
     );
   }
 }

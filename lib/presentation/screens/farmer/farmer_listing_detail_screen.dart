@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
@@ -521,7 +522,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                   _DetailRow(
                     label: 'Submitted',
                     value:
-                        '${listing.submittedAt!.month}/${listing.submittedAt!.day}/${listing.submittedAt!.year}',
+                        AppUtils.formatListingDate(listing.submittedAt!),
                   ),
                 ],
               ],
@@ -646,7 +647,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Removed on ${listing.updatedAt!.month}/${listing.updatedAt!.day}/${listing.updatedAt!.year}',
+                  'Removed on ${AppUtils.formatListingDate(listing.updatedAt!)}',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: AppConstants.outline,
@@ -756,6 +757,11 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l.leRejectedBannerBody,
+            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
           ),
           if ((r.reviewReason ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 6),

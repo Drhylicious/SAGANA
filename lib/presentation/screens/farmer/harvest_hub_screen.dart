@@ -8,6 +8,7 @@ import '../../../data/models/harvest_model.dart';
 import '../../../data/models/farmer_crop_model.dart' hide HarvestFilter;
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_repository.dart';
+import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -41,6 +42,9 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   Map<String, int> _inventoryStats = {'total': 0, 'low_stock': 0};
   int _seasonHarvestCount = 0;
   int _cropCount = 0;
+  // Crop Items (seeds, seedlings, produce) a program gave this Farmer; listed from here, not under
+  // Received Items.
+  int _programCropItemCount = 0;
   int _unreadCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
@@ -101,6 +105,10 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         _notifRepo.fetchUnreadCount(),
         _harvestRepo.fetchStats(),
         _cropRepo.fetchCrops(),
+        FarmerProfileRepository()
+            .fetchMyReceivedItems(cropItems: true)
+            .then((l) => l.length)
+            .catchError((_) => 0),
       ]);
       await _profileState.refresh();
       if (!mounted) return;
@@ -111,6 +119,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         _unreadCount = results[2] as int;
         _seasonHarvestCount = (results[3] as HarvestStats).seasonCount;
         _cropCount = crops.length;
+        _programCropItemCount = results[5] as int;
         _cropsById = {for (final c in crops) c.id: c};
         _isLoading = false;
       });
@@ -197,6 +206,21 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                                       ),
                               ),
                               const SizedBox(height: 16),
+
+                              // ── Crop Items from Programs ──────────────────
+                              // Seeds, seedlings and produce a program gave the Farmer (their
+                              // Item Type in Inventory is Crop Item). Tools and livestock stay
+                              // under Received Items in the profile.
+                              if (_programCropItemCount > 0 &&
+                                  !GuestModeService.active) ...[
+                                _ProgramCropTile(
+                                  count: _programCropItemCount,
+                                  onTap: () => context.pushRoute(
+                                    AppRoutes.receivedCropItems,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
 
                               // Season/Records stats moved to Harvest
                               // History as part of its 3-card consolidation
@@ -719,3 +743,84 @@ class _HarvestTile extends StatelessWidget {
 // flatCardDecoration container while loading (replaces the old
 // individually-carded shimmer block, consistent with the tile-based list).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Crop Items from Programs — a row under the hero cards, shown only when a program
+// has given the Farmer a Crop Item (seeds, seedlings, produce).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProgramCropTile extends StatelessWidget {
+  const _ProgramCropTile({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(
+            color: AppConstants.outline.withValues(alpha: 0.10),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF455A64).withValues(alpha: 0.06),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.volunteer_activism_rounded,
+                color: AppConstants.primaryGreen,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.receivedCropTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.onSurface,
+                    ),
+                  ),
+                  Text(
+                    l10n.receivedItemsRowSubtitle(count),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: AppConstants.outline,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
