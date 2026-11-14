@@ -97,7 +97,9 @@ class _CartScreenState extends State<CartScreen> {
     // Cooperative lines are checked against the live product (still on sale, stock left).
     final coop = items.where((i) => i.isCooperative).toList();
     if (coop.isNotEmpty) {
-      final coopRows = await _programRepo.fetchCooperativeCartRows(coop.map((i) => i.listingId).toList());
+      final coopRows = await _programRepo.fetchCooperativeCartRows(
+        coop.map((i) => i.listingId).toList(),
+      );
       if (coopRows != null) {
         for (final item in coop) {
           switch (evaluateCooperativeCartLine(coopRows[item.listingId])) {
@@ -310,16 +312,28 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     final liveStock = await _marketRepo.fetchCurrentRemainingKg(
-      selectedItems.where((i) => !i.isCooperative).map((i) => i.listingId).toList(),
+      selectedItems
+          .where((i) => !i.isCooperative)
+          .map((i) => i.listingId)
+          .toList(),
     );
     // Cooperative lines: what is left of the stock set aside for the program.
     final coopLines = selectedItems.where((i) => i.isCooperative).toList();
     if (coopLines.isNotEmpty) {
-      final rows = await _programRepo.fetchCooperativeCartRows(coopLines.map((i) => i.listingId).toList());
+      final rows = await _programRepo.fetchCooperativeCartRows(
+        coopLines.map((i) => i.listingId).toList(),
+      );
       for (final i in coopLines) {
-        final p = rows == null ? null : CooperativeProduct.fromRow(rows[i.listingId] ?? const {}, isMember: false);
+        final p = rows == null
+            ? null
+            : CooperativeProduct.fromRow(
+                rows[i.listingId] ?? const {},
+                isMember: false,
+              );
         // When the lookup fails the saved figure stands: the database still decides at checkout.
-        liveStock[i.listingId] = rows == null ? i.availableKgSnapshot : (p?.availableToSell ?? 0);
+        liveStock[i.listingId] = rows == null
+            ? i.availableKgSnapshot
+            : (p?.availableToSell ?? 0);
       }
     }
 
@@ -370,7 +384,7 @@ class _CartScreenState extends State<CartScreen> {
       widget.isFarmerContext
           ? AppRoutes.farmerMarketplaceCheckout
           : AppRoutes.checkout,
-      extra: {'items': finalItems, 'isCartCheckout': true},
+      extra: {"items": finalItems, 'isCartCheckout': true},
     );
   }
 
@@ -397,7 +411,7 @@ class _CartScreenState extends State<CartScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   )
@@ -436,7 +450,10 @@ class _CartScreenState extends State<CartScreen> {
                             ),
                             swipeToDeleteEnabled: !_isEditMode,
                             issueText: _blocked(_items[i].listingId)
-                                ? _issueText(l10n, _issues[_items[i].listingId]!)
+                                ? _issueText(
+                                    l10n,
+                                    _issues[_items[i].listingId]!,
+                                  )
                                 : null,
                             selectable:
                                 _isEditMode || !_blocked(_items[i].listingId),
@@ -472,7 +489,9 @@ class _CartScreenState extends State<CartScreen> {
       decoration: BoxDecoration(
         color: AppConstants.errorRed.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         children: [
@@ -518,7 +537,9 @@ class _CartScreenState extends State<CartScreen> {
             Icon(
               Icons.shopping_cart_outlined,
               size: 56,
-              color: AppConstants.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -534,7 +555,7 @@ class _CartScreenState extends State<CartScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 16),
@@ -557,7 +578,11 @@ class _CartScreenState extends State<CartScreen> {
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
         border: Border(
-          top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10)),
+          top: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.10),
+          ),
         ),
         boxShadow: [
           BoxShadow(
@@ -606,7 +631,9 @@ class _CartScreenState extends State<CartScreen> {
                   foregroundColor: AppConstants.errorRed,
                   side: BorderSide(
                     color: _selectedIds.isEmpty
-                        ? AppConstants.outline.withValues(alpha: 0.3)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.3)
                         : AppConstants.errorRed,
                   ),
                   // The app-wide OutlinedButtonThemeData forces minimumSize
@@ -632,7 +659,7 @@ class _CartScreenState extends State<CartScreen> {
                     l10n.buyerCartTotalLabel,
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   Text(
@@ -640,7 +667,7 @@ class _CartScreenState extends State<CartScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
@@ -762,7 +789,7 @@ class _CartItemTile extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -771,7 +798,7 @@ class _CartItemTile extends StatelessWidget {
                     formatPricePerUnit(item.pricePerKg, item.unit),
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   if (issueText != null) ...[
@@ -792,10 +819,12 @@ class _CartItemTile extends StatelessWidget {
                       runSpacing: 4,
                       children: [
                         _CartTag(AppLocalizations.of(context).cpSourceLabel),
-                        if (item.programName != null) _CartTag(item.programName!),
+                        if (item.programName != null)
+                          _CartTag(item.programName!),
                       ],
                     ),
-                  ] else if (item.category != null || item.marketType != null) ...[
+                  ] else if (item.category != null ||
+                      item.marketType != null) ...[
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 6,
@@ -832,7 +861,9 @@ class _CartItemTile extends StatelessWidget {
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppConstants.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -860,7 +891,9 @@ class _CartTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: AppConstants.infoBlueBg.withValues(alpha: 0.5),
+        color: context
+            .adaptiveSurface(AppConstants.infoBlueBg)
+            .withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppConstants.radiusSm),
       ),
       child: Text(
@@ -868,7 +901,7 @@ class _CartTag extends StatelessWidget {
         style: GoogleFonts.inter(
           fontSize: 9.5,
           fontWeight: FontWeight.w600,
-          color: AppConstants.infoBlueFg,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -918,7 +951,7 @@ class _NoItemsSelectedDialog extends StatelessWidget {
               l10n.buyerCartNoSelectionBody,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 20),
@@ -981,7 +1014,7 @@ class _StockChangedDialog extends StatelessWidget {
               l10n.buyerCartStockChangedBody,
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
@@ -1065,7 +1098,7 @@ class _CartBlockedDialog extends StatelessWidget {
               l10n.buyerCartCannotCheckoutBody,
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),

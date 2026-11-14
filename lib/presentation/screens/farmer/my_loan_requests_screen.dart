@@ -63,12 +63,29 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
     });
   }
 
-  List<LoanRequestModel> get _visible => _statusFilter == null
-      ? _requests
-      : _requests.where((r) => r.status == _statusFilter).toList();
+  // Searched by request number, loan reference or item name.
+  String _query = '';
 
-  int _count(String? status) =>
-      status == null ? _requests.length : _requests.where((r) => r.status == status).length;
+  bool _matchesQuery(LoanRequestModel r) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return r.requestNo.toLowerCase().contains(q) ||
+        (r.loanReference ?? '').toLowerCase().contains(q) ||
+        r.items.any((i) => i.itemName.toLowerCase().contains(q));
+  }
+
+  List<LoanRequestModel> get _visible => _requests
+      .where(
+        (r) =>
+            (_statusFilter == null || r.status == _statusFilter) &&
+            _matchesQuery(r),
+      )
+      .toList();
+
+  // Each chip counts the requests it would show for the current search.
+  int _count(String? status) => _requests
+      .where((r) => (status == null || r.status == status) && _matchesQuery(r))
+      .length;
 
   Future<void> _open(LoanRequestModel request) async {
     final changed = await showManagementModal<bool>(
@@ -84,10 +101,22 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
     final visible = _visible;
     final options = <({String? status, String label})>[
       (status: null, label: '${l10n.loanReqAll} (${_count(null)})'),
-      (status: 'pending', label: '${l10n.loanReqStatusPending} (${_count('pending')})'),
-      (status: 'approved', label: '${l10n.loanReqStatusApproved} (${_count('approved')})'),
-      (status: 'disapproved', label: '${l10n.loanReqStatusDisapproved} (${_count('disapproved')})'),
-      (status: 'cancelled', label: '${l10n.loanReqStatusCancelled} (${_count('cancelled')})'),
+      (
+        status: 'pending',
+        label: '${l10n.loanReqStatusPending} (${_count('pending')})',
+      ),
+      (
+        status: 'approved',
+        label: '${l10n.loanReqStatusApproved} (${_count('approved')})',
+      ),
+      (
+        status: 'disapproved',
+        label: '${l10n.loanReqStatusDisapproved} (${_count('disapproved')})',
+      ),
+      (
+        status: 'cancelled',
+        label: '${l10n.loanReqStatusCancelled} (${_count('cancelled')})',
+      ),
     ];
 
     return Scaffold(
@@ -103,6 +132,16 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
                 offlineMessage: l10n.offlineLoans,
               ),
               Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: InputDecoration(
+                    hintText: l10n.loanReqMineSearchHint,
+                    prefixIcon: const Icon(Icons.search_rounded),
+                  ),
+                ),
+              ),
+              Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: SizedBox(
                   height: 38,
@@ -114,8 +153,9 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
                       child: LoanChoiceChip(
                         label: options[i].label,
                         selected: _statusFilter == options[i].status,
-                        selectedColor: AppConstants.buyerBlue,
-                        onTap: () => setState(() => _statusFilter = options[i].status),
+                        selectedColor: AppConstants.primaryGreen,
+                        onTap: () =>
+                            setState(() => _statusFilter = options[i].status),
                       ),
                     ),
                   ),
@@ -126,7 +166,10 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(20), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(20),
+                          child: SkeletonList(),
+                        )
                       : visible.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -136,7 +179,9 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
                             Icon(
                               Icons.assignment_outlined,
                               size: 44,
-                              color: AppConstants.outline.withValues(alpha: 0.7),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withValues(alpha: 0.7),
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -147,7 +192,9 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 height: 1.4,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -156,7 +203,8 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                           itemCount: visible.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (_, i) => LoanRequestCard(
                             request: visible[i],
                             onTap: () => _open(visible[i]),

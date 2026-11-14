@@ -13,8 +13,12 @@ import 'data/services/auth_service.dart';
 import 'data/services/connectivity_service.dart';
 import 'data/services/hive_service.dart';
 import 'data/services/market_types_service.dart';
+import 'data/services/notification_badge_service.dart';
 import 'data/services/profile_state_service.dart';
+import 'data/services/push_notification_service.dart';
 import 'data/services/staff_permission_service.dart';
+import 'data/services/sync_service.dart';
+import 'presentation/widgets/connectivity_overlay.dart';
 import 'presentation/navigation/app_router.dart';
 import 'presentation/widgets/suspension_dialogs.dart';
 import 'routes/app_routes.dart';
@@ -35,6 +39,10 @@ Future<void> main() async {
   // loads that specific user's preferences, not just the device default.
   await AppSettingsService.instance.init(userId: AuthService.currentUser?.id);
   await ConnectivityService.instance.init();
+  // Native phone notifications; a no-op until Firebase is configured.
+  await PushNotificationService.instance.init();
+  // The red dot on the notification icon, shared by every primary screen.
+  NotificationBadgeService.instance.start();
 
   if (AuthService.isLoggedIn) {
     await MarketTypes.instance.refresh();
@@ -48,8 +56,8 @@ Future<void> main() async {
     AuthService.touchLastActive();
   }
 
-
   runApp(const SAGANAApp());
+  SyncService.start();
 }
 
 class SAGANAApp extends StatefulWidget {
@@ -72,6 +80,8 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
     _suspensionSub = AccountStatusWatcher.instance.suspensions.listen(
       _onSuspended,
     );
+    // Lets a tapped phone notification open its screen, even from a closed app.
+    unawaited(PushNotificationService.instance.attachRouter(_router));
   }
 
   @override
@@ -88,7 +98,13 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      unawaited(
+        ConnectivityService.instance.checkConnectivity().then((online) {
+          if (online) unawaited(SyncService.syncPending());
+        }),
+      );
       unawaited(AccountStatusWatcher.instance.checkNow());
+      unawaited(NotificationBadgeService.instance.refresh());
       if (AuthService.isLoggedIn) {
         unawaited(MarketTypes.instance.refresh());
         unawaited(StaffPermissions.instance.refresh());
@@ -135,6 +151,10 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: _router,
+      builder: (context, child) => ConnectivityOverlay(
+        router: _router,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

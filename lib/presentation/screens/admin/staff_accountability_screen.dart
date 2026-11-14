@@ -298,8 +298,8 @@ class _StaffAccountabilityScreenState extends State<StaffAccountabilityScreen> {
 String _roleLabel(AppLocalizations l10n, String? role) => role == 'admin'
     ? l10n.staffRoleManager
     : role == 'system'
-        ? l10n.staffLogSystem
-        : l10n.staffRoleOfficer;
+    ? l10n.staffLogSystem
+    : l10n.staffRoleOfficer;
 
 /// The name of a tab (or Broadcast / System) as the filter chip shows it.
 String staffLogGroupLabel(AppLocalizations l10n, String key) {
@@ -382,7 +382,11 @@ class _ChipRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(
-        dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse, PointerDeviceKind.trackpad},
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+        },
         scrollbars: false,
       ),
       child: SingleChildScrollView(
@@ -428,14 +432,19 @@ class _FilterPill extends StatelessWidget {
         color: selected ? AppConstants.primaryGreen : Colors.transparent,
         shape: StadiumBorder(
           side: BorderSide(
-            color: selected ? AppConstants.primaryGreen : cs.outline.withValues(alpha: 0.35),
+            color: selected
+                ? Theme.of(context).colorScheme.primary
+                : cs.outline.withValues(alpha: 0.35),
           ),
         ),
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: small ? 12 : 14, vertical: small ? 6 : 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: small ? 12 : 14,
+              vertical: small ? 6 : 8,
+            ),
             child: Text(
               label,
               style: GoogleFonts.inter(
@@ -481,12 +490,12 @@ class _EntryCardState extends State<_EntryCard> {
     final sagana = context.saganaColors;
     final e = widget.entry;
     final accent = moduleColor(e.module, cs);
-    final when = MaterialLocalizations.of(context).formatMediumDate(
-      e.timestamp.toLocal(),
-    );
-    final time = MaterialLocalizations.of(context).formatTimeOfDay(
-      TimeOfDay.fromDateTime(e.timestamp.toLocal()),
-    );
+    final when = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(e.timestamp.toLocal());
+    final time = MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(e.timestamp.toLocal()));
 
     return Container(
       decoration: BoxDecoration(
@@ -593,8 +602,10 @@ class _EntryCardState extends State<_EntryCard> {
         ),
         if ((e.reference ?? e.recordId) != null) ...[
           const SizedBox(height: 6),
-          Text('${l10n.staffAccountabilityRecord}: ${e.reference ?? e.recordId}',
-              style: style),
+          Text(
+            '${l10n.staffAccountabilityRecord}: ${e.reference ?? e.recordId}',
+            style: style,
+          ),
         ],
         const SizedBox(height: 8),
         for (final c in e.changes)
@@ -611,8 +622,10 @@ class _EntryCardState extends State<_EntryCard> {
                     style: style,
                   )
                 else
-                  Text(_show(e.operation == 'deleted' ? c.before : c.after),
-                      style: style),
+                  Text(
+                    _show(e.operation == 'deleted' ? c.before : c.after),
+                    style: style,
+                  ),
               ],
             ),
           ),

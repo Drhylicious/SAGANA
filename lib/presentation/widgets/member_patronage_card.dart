@@ -67,15 +67,17 @@ class MemberPatronageCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.paid_rounded,
                 size: 18,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Member Patronage ($year)',
+                  AppLocalizations.of(
+                    context,
+                  ).enhMemberPatronage((year).toString()),
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
@@ -127,7 +129,9 @@ class MemberPatronageCard extends StatelessWidget {
 
           if (r == null || !r.hasAnyActivity)
             Text(
-              'No patronage activity recorded for $year.',
+              AppLocalizations.of(
+                context,
+              ).enhNoPatronageActivityRecordedFor((year).toString()),
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: cs.onSurfaceVariant,
@@ -151,7 +155,7 @@ class MemberPatronageCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Total Patronage',
+                  AppLocalizations.of(context).enhTotalPatronage,
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     color: cs.onSurfaceVariant,
@@ -164,7 +168,7 @@ class MemberPatronageCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _sourceShareChip(
-                    label: 'Sold to Co-op',
+                    label: AppLocalizations.of(context).enhSoldToCoOp,
                     percent: r.sharePercent,
                     color: AppConstants.primaryGreen,
                   ),
@@ -172,7 +176,7 @@ class MemberPatronageCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _sourceShareChip(
-                    label: 'Bought from Co-op',
+                    label: AppLocalizations.of(context).enhBoughtFromCoOp,
                     percent: r.purchaseSharePercent,
                     color: AppConstants.buyerBlue,
                   ),
@@ -181,19 +185,22 @@ class MemberPatronageCard extends StatelessWidget {
             ),
             if (r.hasContributed) ...[
               const SizedBox(height: 10),
-              _groupLabel('Selling to Cooperative', cs),
+              _groupLabel(
+                AppLocalizations.of(context).enhSellingToCooperative,
+                cs,
+              ),
               const SizedBox(height: 4),
               Row(
                 children: [
                   _patronageStat(
-                    'Palay',
+                    AppLocalizations.of(context).reportsPalay,
                     '${formatKgTotal(r.palayQtyKg)} (${currency.format(r.palayAmount)})',
                     AppConstants.primaryGreen,
                     cs,
                   ),
                   const SizedBox(width: 16),
                   _patronageStat(
-                    'Peanut',
+                    AppLocalizations.of(context).reportsPeanut,
                     '${formatKgTotal(r.peanutQtyKg)} (${currency.format(r.peanutAmount)})',
                     AppConstants.amber,
                     cs,
@@ -207,7 +214,7 @@ class MemberPatronageCard extends StatelessWidget {
                 Row(
                   children: [
                     _patronageStat(
-                      'Other Crops',
+                      AppLocalizations.of(context).enhOtherCrops,
                       '${formatKgTotal(r.otherCropsQtyKg)} (${currency.format(r.otherCropsAmount)})',
                       AppConstants.buyerBlue,
                       cs,
@@ -218,12 +225,15 @@ class MemberPatronageCard extends StatelessWidget {
             ],
             if (r.programPurchasesAmount > 0) ...[
               const SizedBox(height: 10),
-              _groupLabel('Buying from Cooperative', cs),
+              _groupLabel(
+                AppLocalizations.of(context).enhBuyingFromCooperative,
+                cs,
+              ),
               const SizedBox(height: 4),
               Row(
                 children: [
                   _patronageStat(
-                    'Purchases',
+                    AppLocalizations.of(context).memDetailsPurchases,
                     currency.format(r.programPurchasesAmount),
                     AppConstants.buyerBlue,
                     cs,
@@ -235,10 +245,15 @@ class MemberPatronageCard extends StatelessWidget {
               if (r.programDiscountAmount > 0) ...[
                 const SizedBox(height: 4),
                 Text(
-                  'Regular price ${currency.format(r.programRegularAmount)} − '
-                  'member discount ${currency.format(r.programDiscountAmount)} = '
-                  'net ${currency.format(r.programPurchasesAmount)}',
-                  style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant),
+                  AppLocalizations.of(context).enhRegularPriceMemberDiscountNet(
+                    (currency.format(r.programRegularAmount)).toString(),
+                    (currency.format(r.programDiscountAmount)).toString(),
+                    (currency.format(r.programPurchasesAmount)).toString(),
+                  ),
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ],

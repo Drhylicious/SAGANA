@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
@@ -184,7 +183,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
         router.push(
           checkoutRoute,
           extra: {
-            'items': [item],
+            "items": [item],
             'isCartCheckout': false,
           },
         );
@@ -245,10 +244,10 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       return Scaffold(
         body: Stack(
           children: [
-            Column(
+            const Column(
               children: [
-                const SkeletonBlock(height: 260, radius: 0),
-                const Expanded(
+                SkeletonBlock(height: 260, radius: 0),
+                Expanded(
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: SkeletonList(),
@@ -376,15 +375,17 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                 fontSize: 26,
                                 fontWeight: FontWeight.w800,
                                 color: listing.isSoldOut
-                                    ? AppConstants.outline
-                                    : AppConstants.primaryGreen,
+                                    ? Theme.of(context).colorScheme.outline
+                                    : Theme.of(context).colorScheme.primary,
                               ),
                             ),
                             Text(
                               '/${unitOrDefault(listing.unit)}',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -393,10 +394,12 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.sell_outlined,
                                 size: 14,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -408,7 +411,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                 ),
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: AppConstants.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -422,7 +427,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     if (listing.category != null) ...[
@@ -431,7 +436,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                         listing.category!,
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -475,7 +480,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                     CooperativeAddressText(
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
-                                        color: AppConstants.onSurfaceVariant,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ],
@@ -490,7 +497,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                               listing.description!,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 height: 1.5,
                               ),
                             ),
@@ -512,7 +521,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -582,7 +591,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                             style: GoogleFonts.poppins(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w700,
-                                              color: AppConstants.primaryGreen,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
                                             ),
                                           ),
                                         ],
@@ -632,8 +643,8 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppConstants.primaryGreen,
-                          side: const BorderSide(
-                            color: AppConstants.primaryGreen,
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
@@ -688,9 +699,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.storefront_rounded,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -698,7 +709,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
               l10n.buyerListingOwnListingNotice,
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -738,10 +749,12 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Check back later, or browse similar listings below.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhCheckBackLaterOrBrowseSimilarListingsBelow,
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

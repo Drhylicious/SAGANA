@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "105727616340",
+    "project_id": "sagana-f73c8",
+    "storage_bucket": "sagana-f73c8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:105727616340:android:0116230e90ef7a1f90d4c1",
+        "android_client_info": {
+          "package_name": "com.sp3cooperative.sagana"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzzmRw87ppBUnQSsnkWt8LxIyK_CDCK2U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

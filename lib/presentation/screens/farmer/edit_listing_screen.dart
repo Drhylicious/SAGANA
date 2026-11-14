@@ -1,5 +1,9 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../data/models/shelf_life_model.dart';
+import '../../../data/repositories/shelf_life_repository.dart';
+import '../../widgets/shelf_life_widgets.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/db_error_utils.dart';
@@ -52,6 +56,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   final _priceFocus = FocusNode();
 
   InventoryBatchModel? _batch;
+  ListingPriceRule? _priceRule;
 
   /// The open edit request for this listing, if there is one (approved listings only).
   ListingEditRequest? _pending;
@@ -62,7 +67,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
   String get _unit => unitOrDefault(_listing.unit);
 
   /// What buyers have already ordered. The new quantity must stay above it.
-  double get _ordered => roundQuantity(_listing.volumeKg - _listing.remainingKg);
+  double get _ordered =>
+      roundQuantity(_listing.volumeKg - _listing.remainingKg);
 
   /// The most the listing can become: today's quantity plus what the batch still
   /// has free. Null until the batch has loaded (the database decides then).
@@ -124,7 +130,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
     final fresh = await _listingRepo.fetchListing(widget.listing.id);
     ListingEditRequest? pending;
     if ((fresh ?? widget.listing).isLive) {
-      final requests = await _listingRepo.fetchMyEditRequests(widget.listing.id);
+      final requests = await _listingRepo.fetchMyEditRequests(
+        widget.listing.id,
+      );
       for (final r in requests) {
         if (r.isPending) pending = r;
       }
@@ -132,8 +140,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
     InventoryBatchModel? batch;
     final batchId = (fresh ?? widget.listing).inventoryBatchId;
     if (batchId != null) batch = await _inventoryRepo.fetchBatchById(batchId);
+    // The price rule from Price Management (and, for a listing carrying the
+    // shelf-life discount, the lower limit that goes with it).
+    final rule = batchId == null
+        ? null
+        : await ShelfLifeRepository().fetchPriceRule(
+            batchId,
+            listingId: widget.listing.id,
+          );
     if (!mounted) return;
     setState(() {
+      _priceRule = rule;
       if (fresh != null) {
         _listing = fresh;
         _fillFrom(fresh);
@@ -151,14 +168,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
               _quantityController.text,
               max: _maxQuantity ?? kMaxQuantity,
               unit: _unit,
-              label: 'Quantity',
+              label: AppLocalizations.of(context).issueLoanQuantity,
             ) ??
-            'Enter a valid quantity.';
+            AppLocalizations.of(context).retQtyInvalid;
       case ListingEditProblem.quantityNotAboveOrdered:
         return l.editListingQtyTooLow(formatQuantityUnit(_ordered, _unit));
       case ListingEditProblem.price:
-        return priceErrorText(_priceController.text, label: 'Asking price') ??
-            'Enter a valid asking price.';
+        return priceErrorText(
+              _priceController.text,
+              label: AppLocalizations.of(context).enhAskingPrice,
+            ) ??
+            AppLocalizations.of(context).enhEnterAValidAskingPrice;
       case ListingEditProblem.description:
         return l.editListingDescriptionRequired;
     }
@@ -194,6 +214,15 @@ class _EditListingScreenState extends State<EditListingScreen> {
       AppToast.show(context, l.editListingNoChanges);
       return;
     }
+    // A changed price must follow the Price Management rule (the database
+    // refuses it too). An unchanged price is never re-checked.
+    final rule = _priceRule;
+    final priceChanged =
+        (result.price! * 100).round() != (_listing.pricePerKg * 100).round();
+    if (rule != null && priceChanged && !rule.allows(result.price!)) {
+      AppToast.show(context, listingPriceRuleText(context, rule), isError: true);
+      return;
+    }
 
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
@@ -227,7 +256,10 @@ class _EditListingScreenState extends State<EditListingScreen> {
 
   /// A published listing: the edit is submitted to the Manager / Officer. The
   /// live listing is not changed and no stock moves until they approve it.
-  Future<void> _sendRequest(AppLocalizations l, ListingEditResult result) async {
+  Future<void> _sendRequest(
+    AppLocalizations l,
+    ListingEditResult result,
+  ) async {
     try {
       await _listingRepo.requestEdit(
         listingId: _listing.id,
@@ -245,7 +277,11 @@ class _EditListingScreenState extends State<EditListingScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      AppToast.show(context, readableDatabaseMessage(e) ?? l.leRequestFailed, isError: true);
+      AppToast.show(
+        context,
+        readableDatabaseMessage(e) ?? l.leRequestFailed,
+        isError: true,
+      );
     }
   }
 
@@ -253,13 +289,13 @@ class _EditListingScreenState extends State<EditListingScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 72),
+              const TopBarSpacer(height: 72),
               if (!_isOnline) OfflineStatusCard(message: l.editListingOffline),
               Expanded(
                 child: _loading
@@ -298,7 +334,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
 
   Widget _notice(AppLocalizations l) {
     final approved = _listing.isLive;
-    final color = approved ? AppConstants.successGreen : AppConstants.warningAmber;
+    final color = approved
+        ? AppConstants.successGreen
+        : AppConstants.warningAmber;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -310,7 +348,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            approved ? Icons.check_circle_outline_rounded : Icons.hourglass_top_rounded,
+            approved
+                ? Icons.check_circle_outline_rounded
+                : Icons.hourglass_top_rounded,
             color: color,
             size: 20,
           ),
@@ -321,7 +361,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 height: 1.4,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -342,7 +382,10 @@ class _EditListingScreenState extends State<EditListingScreen> {
       decoration: flatCardDecoration(context),
       child: Text(
         l.editListingNotEditable,
-        style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+        style: GoogleFonts.inter(
+          fontSize: 13,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -363,7 +406,10 @@ class _EditListingScreenState extends State<EditListingScreen> {
           const SizedBox(height: 6),
           Text(
             l.editListingCropLocked,
-            style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
           const SizedBox(height: 18),
           Row(
@@ -379,9 +425,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
                       controller: _quantityController,
                       focusNode: _quantityFocus,
                       onChanged: (_) => setState(() {}),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: [DecimalInputFormatter(max: max)],
-                      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       decoration: _decoration(hint: '0.00', suffix: _unit),
                     ),
                     const SizedBox(height: 4),
@@ -392,7 +443,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
                       ),
                     if (_ordered > 0)
                       Text(
-                        l.editListingOrdered(formatQuantityUnit(_ordered, _unit)),
+                        l.editListingOrdered(
+                          formatQuantityUnit(_ordered, _unit),
+                        ),
                         style: _hint,
                       ),
                   ],
@@ -408,12 +461,30 @@ class _EditListingScreenState extends State<EditListingScreen> {
                     TextField(
                       controller: _priceController,
                       focusNode: _priceFocus,
+                      // A Fixed Price (Price Management) cannot be typed over.
+                      readOnly: _priceRule?.isLocked ?? false,
                       onChanged: (_) => setState(() {}),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: const [DecimalInputFormatter()],
-                      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                      decoration: _decoration(hint: '0.00', prefix: '₱', suffix: '/$_unit'),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: (_priceRule?.isLocked ?? false)
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                            : Theme.of(context).colorScheme.onSurface,
+                      ),
+                      decoration: _decoration(
+                        hint: '0.00',
+                        prefix: '₱',
+                        suffix: '/$_unit',
+                      ),
                     ),
+                    if (_priceRule != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 2),
+                        child: ListingPriceRuleNote(rule: _priceRule!),
+                      ),
                   ],
                 ),
               ),
@@ -432,14 +503,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
               children: [
                 Text(
                   l.editListingEstimatedTotal,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 Text(
                   formatPesos(moneyOf(qty, price)),
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ],
@@ -467,12 +541,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
             minLines: 3,
             maxLines: 5,
             maxLength: 300,
-            style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-            decoration: _decoration(
-              hint: l.editListingDescriptionHint,
-            ).copyWith(
-              counterStyle: GoogleFonts.inter(fontSize: 10, color: AppConstants.outline),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
+            decoration: _decoration(hint: l.editListingDescriptionHint)
+                .copyWith(
+                  counterStyle: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
           ),
           const SizedBox(height: 8),
           _label(l.editListingFieldPhoto),
@@ -496,11 +575,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
                   ? const SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : Text(
                       _requestMode ? l.leSubmitRequest : l.editListingSave,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
             ),
           ),
@@ -513,7 +598,11 @@ class _EditListingScreenState extends State<EditListingScreen> {
   Widget _photo(AppLocalizations l) {
     final url = _listing.photoUrl;
     final image = (url != null && url.isNotEmpty)
-        ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
+        ? Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          )
         : _placeholder();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,7 +615,11 @@ class _EditListingScreenState extends State<EditListingScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.lock_outline_rounded, size: 13, color: AppConstants.outline),
+            Icon(
+              Icons.lock_outline_rounded,
+              size: 13,
+              color: Theme.of(context).colorScheme.outline,
+            ),
             const SizedBox(width: 6),
             Expanded(child: Text(l.leFieldPhotoLocked, style: _hint)),
           ],
@@ -536,15 +629,19 @@ class _EditListingScreenState extends State<EditListingScreen> {
   }
 
   Widget _placeholder() => Container(
-    color: AppConstants.infoBlueBg,
+    color: context.adaptiveSurface(AppConstants.infoBlueBg),
     alignment: Alignment.center,
-    child: const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 32),
+    child: Icon(
+      Icons.eco_rounded,
+      color: Theme.of(context).colorScheme.primary,
+      size: 32,
+    ),
   );
 
   TextStyle get _hint => GoogleFonts.inter(
     fontSize: 10.5,
     fontWeight: FontWeight.w600,
-    color: AppConstants.outline,
+    color: Theme.of(context).colorScheme.outline,
   );
 
   Widget _label(String text) => Text(
@@ -552,7 +649,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
     style: GoogleFonts.poppins(
       fontSize: 13,
       fontWeight: FontWeight.w500,
-      color: AppConstants.onSurfaceVariant,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
     ),
   );
 
@@ -560,18 +657,27 @@ class _EditListingScreenState extends State<EditListingScreen> {
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     decoration: BoxDecoration(
-      color: AppConstants.outline.withValues(alpha: 0.08),
+      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+      border: Border.all(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+      ),
     ),
     child: Row(
       children: [
-        const Icon(Icons.lock_outline_rounded, size: 16, color: AppConstants.outline),
+        Icon(
+          Icons.lock_outline_rounded,
+          size: 16,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -585,7 +691,11 @@ class _EditListingScreenState extends State<EditListingScreen> {
     ),
   );
 
-  InputDecoration _decoration({required String hint, String? prefix, String? suffix}) {
+  InputDecoration _decoration({
+    required String hint,
+    String? prefix,
+    String? suffix,
+  }) {
     OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       borderSide: BorderSide(color: c, width: w),
@@ -594,16 +704,26 @@ class _EditListingScreenState extends State<EditListingScreen> {
       hintText: hint,
       hintStyle: GoogleFonts.inter(
         fontSize: 14,
-        color: AppConstants.outline.withValues(alpha: 0.50),
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.50),
       ),
       prefixText: prefix,
-      prefixStyle: GoogleFonts.inter(fontSize: 13, color: AppConstants.outline),
+      prefixStyle: GoogleFonts.inter(
+        fontSize: 13,
+        color: Theme.of(context).colorScheme.outline,
+      ),
       suffixText: suffix,
-      suffixStyle: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
+      suffixStyle: GoogleFonts.inter(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.outline,
+      ),
       filled: true,
-      fillColor: Colors.white,
-      border: border(AppConstants.outline.withValues(alpha: 0.20)),
-      enabledBorder: border(AppConstants.outline.withValues(alpha: 0.20)),
+      fillColor: context.saganaColors.cardBackground,
+      border: border(
+        Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+      ),
+      enabledBorder: border(
+        Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+      ),
       focusedBorder: border(AppConstants.primaryGreen, 2),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     );

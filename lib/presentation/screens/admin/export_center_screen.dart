@@ -472,9 +472,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: enabled
-                      ? () => _download(_lastExportPaths)
-                      : null,
+                  onPressed: enabled ? () => _download(_lastExportPaths) : null,
                   icon: _isDownloading
                       ? const SizedBox(
                           width: 16,
@@ -497,7 +495,9 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(44),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                     ),
                   ),
                 ),
@@ -516,12 +516,14 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     foregroundColor: AppConstants.primaryGreen,
                     side: BorderSide(
                       color: enabled
-                          ? AppConstants.primaryGreen
+                          ? Theme.of(context).colorScheme.primary
                           : cs.outline.withValues(alpha: 0.3),
                     ),
                     minimumSize: const Size.fromHeight(44),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                     ),
                   ),
                 ),
@@ -601,10 +603,10 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                   ),
                 ),
                 if (active)
-                  const Icon(
+                  Icon(
                     Icons.check_circle_rounded,
                     size: 16,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
               ],
             ),
@@ -657,7 +659,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -707,7 +709,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 ),
                 child: Icon(
                   module.icon,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   size: 20,
                 ),
               ),
@@ -737,7 +739,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ],
@@ -749,7 +751,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
                 color: selected
-                    ? AppConstants.primaryGreen
+                    ? Theme.of(context).colorScheme.primary
                     : cs.outline.withValues(alpha: 0.5),
                 size: 22,
               ),
@@ -883,15 +885,15 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                   icon,
                   size: 22,
                   color: active
-                      ? AppConstants.primaryGreen
+                      ? Theme.of(context).colorScheme.primary
                       : cs.onSurfaceVariant,
                 ),
                 const Spacer(),
                 if (active)
-                  const Icon(
+                  Icon(
                     Icons.check_circle_rounded,
                     size: 18,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
               ],
             ),
@@ -1037,7 +1039,9 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         if (_history.isEmpty)
           ReportEmptyState(message: l10n.exportNoHistoryYet)
         else
-          ..._history.map((e) => _buildHistoryRow(e, l10n, cs, sagana, canManage)),
+          ..._history.map(
+            (e) => _buildHistoryRow(e, l10n, cs, sagana, canManage),
+          ),
       ],
     );
   }
@@ -1080,7 +1084,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 isPdf
                     ? Icons.picture_as_pdf_rounded
                     : Icons.table_chart_rounded,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
                 size: 22,
               ),
               const SizedBox(width: AppConstants.spacingMd),

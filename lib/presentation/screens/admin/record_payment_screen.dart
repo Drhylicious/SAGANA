@@ -168,8 +168,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
   double _defaultAmountFor(AdminLoanSummary loan) =>
       loan.monthlyPayment > loan.remainingBalance
-          ? loan.remainingBalance
-          : loan.monthlyPayment;
+      ? loan.remainingBalance
+      : loan.monthlyPayment;
 
   Future<void> _resolveDirectLoan() async {
     AdminLoanSummary? loan;
@@ -332,8 +332,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         recordedAmount,
         loan,
         synced: result.sentToServer,
-        confirmedFullyPaid:
-            result.sentToServer ? result.isFullyPaid : null,
+        confirmedFullyPaid: result.sentToServer ? result.isFullyPaid : null,
       );
     } catch (_) {
       if (!mounted) return;
@@ -386,11 +385,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   void _showSnack(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-      content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
+        content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
             : AppConstants.midGreen,
-      behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
@@ -420,10 +419,13 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             if (!_isOnline) const OfflineStatusCard(),
             Expanded(
               child: _isLoadingData
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : _selectedFarmer == null
-                      ? _buildSearchStep(context, l10n, cs, sagana)
-                      : _buildPaymentStep(context, l10n, cs, sagana),
+                  ? _buildSearchStep(context, l10n, cs, sagana)
+                  : _buildPaymentStep(context, l10n, cs, sagana),
             ),
           ],
         ),
@@ -481,18 +483,19 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     // Each matching farmer with what they owe. Farmers who owe something come
     // first, overdue ones at the top (they are who the Manager is collecting
     // from), then by the amount; farmers with nothing to pay follow by name.
-    final rows = <({FarmerPickerResult farmer, int loans, int overdue, double balance})>[
-      for (final f in _searchableFarmers)
-        if (query.isEmpty || f.fullName.toLowerCase().contains(query))
-          (
-            farmer: f,
-            loans: _allActiveLoans.where((l) => l.farmerId == f.id).length,
-            overdue: _allActiveLoans
-                .where((l) => l.farmerId == f.id && l.isOverdue)
-                .length,
-            balance: _outstandingFor(f),
-          ),
-    ];
+    final rows =
+        <({FarmerPickerResult farmer, int loans, int overdue, double balance})>[
+          for (final f in _searchableFarmers)
+            if (query.isEmpty || f.fullName.toLowerCase().contains(query))
+              (
+                farmer: f,
+                loans: _allActiveLoans.where((l) => l.farmerId == f.id).length,
+                overdue: _allActiveLoans
+                    .where((l) => l.farmerId == f.id && l.isOverdue)
+                    .length,
+                balance: _outstandingFor(f),
+              ),
+        ];
     final owing = rows.where((r) => r.balance > 0).toList()
       ..sort((a, b) {
         if ((a.overdue > 0) != (b.overdue > 0)) return a.overdue > 0 ? -1 : 1;
@@ -592,7 +595,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                                   fontSize: 13,
                                   color: r.overdue > 0
                                       ? AppConstants.errorRed
-                                      : AppConstants.primaryGreen,
+                                      : Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                               Icon(
@@ -735,29 +738,29 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               .take(3)
               .map(
                 (p) => Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Row(
-                  children: [
-                    Icon(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      Icon(
                         p.fullyPaid
                             ? Icons.celebration_rounded
                             : Icons.check_circle_outline_rounded,
-                      size: 14,
-                      color: AppConstants.successGreen,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        '${p.farmerName} — ${currency.format(p.amount)}${p.synced ? '' : ' (${l10n.paymentQueuedTag})'}',
+                        size: 14,
+                        color: AppConstants.successGreen,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${p.farmerName} — ${currency.format(p.amount)}${p.synced ? '' : ' (${l10n.paymentQueuedTag})'}',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             color: cs.onSurfaceVariant,
                           ),
-                        overflow: TextOverflow.ellipsis,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ),
               ),
         ],
@@ -1017,10 +1020,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   /// Loan banner: reference, status, balance, repayment progress and the four
   /// facts a Manager needs while taking a payment. Same gradients as Loan
   /// Details (green; red when overdue).
-  Widget _buildLoanSummaryCard(
-    AppLocalizations l10n,
-    AdminLoanSummary loan,
-  ) {
+  Widget _buildLoanSummaryCard(AppLocalizations l10n, AdminLoanSummary loan) {
     final money = NumberFormat.currency(
       locale: 'en_PH',
       symbol: '₱',
@@ -1096,7 +1096,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             child: LinearProgressIndicator(
               value: loan.repaidPercent,
               minHeight: 6,
-              backgroundColor: Colors.white.withValues(alpha: 0.25),
+              backgroundColor: context.saganaColors.cardBackground.withValues(
+                alpha: 0.25,
+              ),
               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
@@ -1220,8 +1222,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       showCheckmark: true,
                       selectedColor: AppConstants.primaryGreen,
                       onTap: () => setState(() {
-                        _amountController.text = value
-                            .toStringAsFixed(value % 1 == 0 ? 0 : 2);
+                        _amountController.text = value.toStringAsFixed(
+                          value % 1 == 0 ? 0 : 2,
+                        );
                       }),
                     ),
                 ],
@@ -1408,7 +1411,7 @@ class _OverpaymentDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(
             l10n.paymentOverpaymentConfirm,
-            style: const TextStyle(color: AppConstants.primaryGreen),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
         ),
       ],

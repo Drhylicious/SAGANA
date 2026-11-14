@@ -1,5 +1,5 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/quantity_utils.dart';
@@ -40,7 +40,8 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
   String? _outcome; // 'successful' | 'failed'
   // The unit is not asked: it is the unit of what the Farmer returns (the produce for seeds), else the
   // unit of the item they were given, so the quantity is always in the unit the cooperative expects.
-  late final String? _unit = widget.entry.returnUnitShown ?? widget.entry.itemUnit;
+  late final String? _unit =
+      widget.entry.returnUnitShown ?? widget.entry.itemUnit;
   DateTime? _plantedDate;
   DateTime? _harvestDate;
   DateTime? _failureDate;
@@ -58,9 +59,19 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
   }
 
   String _fmt(DateTime d) {
-    const m = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    final m = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${m[d.month - 1]} ${d.day}, ${d.year}';
   }
@@ -136,12 +147,12 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
         '${e.itemName != null ? ' ${e.itemName}' : ''}';
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               Expanded(
                 child: Form(
                   key: _formKey,
@@ -162,7 +173,9 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
                             l10n.outcReceivedLine(received.trim()),
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: AppConstants.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -173,10 +186,16 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppConstants.errorRed.withValues(alpha: 0.07),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                            color: AppConstants.errorRed.withValues(
+                              alpha: 0.07,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusMd,
+                            ),
                             border: Border.all(
-                              color: AppConstants.errorRed.withValues(alpha: 0.3),
+                              color: AppConstants.errorRed.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                           child: Column(
@@ -204,36 +223,36 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
                       const SizedBox(height: 8),
                       IntrinsicHeight(
                         child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: _OutcomeOption(
-                              icon: Icons.trending_up_rounded,
-                              title: l10n.outcSuccessful,
-                              hint: l10n.outcSuccessfulHint,
-                              color: AppConstants.successGreen,
-                              selected: _outcome == 'successful',
-                              onTap: () => setState(() {
-                                _outcome = 'successful';
-                                _outcomeError = false;
-                              }),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _OutcomeOption(
+                                icon: Icons.trending_up_rounded,
+                                title: l10n.outcSuccessful,
+                                hint: l10n.outcSuccessfulHint,
+                                color: AppConstants.successGreen,
+                                selected: _outcome == 'successful',
+                                onTap: () => setState(() {
+                                  _outcome = 'successful';
+                                  _outcomeError = false;
+                                }),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _OutcomeOption(
-                              icon: Icons.trending_down_rounded,
-                              title: l10n.outcFailed,
-                              hint: l10n.outcFailedHint,
-                              color: AppConstants.errorRed,
-                              selected: _outcome == 'failed',
-                              onTap: () => setState(() {
-                                _outcome = 'failed';
-                                _outcomeError = false;
-                              }),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _OutcomeOption(
+                                icon: Icons.trending_down_rounded,
+                                title: l10n.outcFailed,
+                                hint: l10n.outcFailedHint,
+                                color: AppConstants.errorRed,
+                                selected: _outcome == 'failed',
+                                onTap: () => setState(() {
+                                  _outcome = 'failed';
+                                  _outcomeError = false;
+                                }),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
                         ),
                       ),
                       if (_outcomeError)
@@ -258,14 +277,18 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
                             label: l10n.outcQtyHarvested,
                             child: TextFormField(
                               controller: _quantityCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                               inputFormatters: const [DecimalInputFormatter()],
                               decoration: InputDecoration(
                                 hintText: '0.00',
                                 suffixText: _unit,
                               ),
-                              validator: (v) =>
-                                  (v ?? '').trim().isEmpty ? l10n.outcQtyRequired : quantityErrorText(v),
+                              validator: (v) => (v ?? '').trim().isEmpty
+                                  ? l10n.outcQtyRequired
+                                  : quantityErrorText(v),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -286,7 +309,9 @@ class _ReportOutcomeScreenState extends State<ReportOutcomeScreen> {
                               controller: _causeCtrl,
                               maxLines: 2,
                               textCapitalization: TextCapitalization.sentences,
-                              decoration: InputDecoration(hintText: l10n.outcFailureCauseHint),
+                              decoration: InputDecoration(
+                                hintText: l10n.outcFailureCauseHint,
+                              ),
                               validator: (v) => (v ?? '').trim().isEmpty
                                   ? l10n.outcCauseRequired
                                   : null,
@@ -444,10 +469,14 @@ class _OutcomeOption extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.10) : Colors.white,
+          color: selected
+              ? color.withValues(alpha: 0.10)
+              : context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
           border: Border.all(
-            color: selected ? color : AppConstants.outline.withValues(alpha: 0.25),
+            color: selected
+                ? color
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
             width: selected ? 2 : 1,
           ),
         ),
@@ -461,7 +490,9 @@ class _OutcomeOption extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: selected ? color : AppConstants.onSurface,
+                color: selected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 2),
@@ -470,7 +501,7 @@ class _OutcomeOption extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 11,
                 height: 1.35,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -498,7 +529,7 @@ class _Labeled extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -530,7 +561,7 @@ class _DateFormField extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return FormField<DateTime>(
       // Rebuilds with the chosen value, so the message clears once a date is set.
-      key: ValueKey('date-${label}-${value?.millisecondsSinceEpoch}'),
+      key: ValueKey('date-$label-${value?.millisecondsSinceEpoch}'),
       initialValue: value,
       validator: (_) => value == null ? requiredMessage : null,
       builder: (state) => _Labeled(

@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -6,7 +7,8 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../data/models/workflow_event_model.dart';
 import 'listing_status_badge.dart';
-import 'workflow_timeline.dart' show workflowActorLabel, workflowActionColor, workflowActionIcon;
+import 'workflow_timeline.dart'
+    show workflowActorLabel, workflowActionColor, workflowActionIcon;
 
 /// What the history screen shows at the top: the listing as it is NOW.
 class ListingHistoryHeader {
@@ -63,11 +65,14 @@ bool listingHistoryMatches(ListingHistoryFilter filter, WorkflowEvent e) {
 /// True while the latest edit submission has no answer yet (approved, disapproved
 /// or cancelled): an edit is waiting for the Manager / Officer.
 bool listingHistoryHasOpenEdit(List<WorkflowEvent> events) {
-  final sorted = [...events]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  final sorted = [...events]
+    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   var open = false;
   for (final e in sorted) {
     if (e.action == 'edit_requested') open = true;
-    if (e.action == 'edit_approved' || e.action == 'edit_rejected' || e.action == 'edit_cancelled') {
+    if (e.action == 'edit_approved' ||
+        e.action == 'edit_rejected' ||
+        e.action == 'edit_cancelled') {
       open = false;
     }
   }
@@ -75,7 +80,10 @@ bool listingHistoryHasOpenEdit(List<WorkflowEvent> events) {
 }
 
 /// The plain-language title and one-line explanation of a listing event.
-({String title, String description}) listingHistoryText(AppLocalizations l, String action) {
+({String title, String description}) listingHistoryText(
+  AppLocalizations l,
+  String action,
+) {
   switch (action) {
     case 'submitted':
       return (title: l.lhTitleSubmitted, description: l.lhDescSubmitted);
@@ -88,13 +96,19 @@ bool listingHistoryHasOpenEdit(List<WorkflowEvent> events) {
     case 'edited':
       return (title: l.lhTitleEdited, description: l.lhDescEdited);
     case 'edit_requested':
-      return (title: l.lhTitleEditSubmitted, description: l.lhDescEditSubmitted);
+      return (
+        title: l.lhTitleEditSubmitted,
+        description: l.lhDescEditSubmitted,
+      );
     case 'edit_approved':
       return (title: l.lhTitleEditApproved, description: l.lhDescEditApproved);
     case 'edit_rejected':
       return (title: l.lhTitleEditRejected, description: l.lhDescEditRejected);
     case 'edit_cancelled':
-      return (title: l.lhTitleEditCancelled, description: l.lhDescEditCancelled);
+      return (
+        title: l.lhTitleEditCancelled,
+        description: l.lhDescEditCancelled,
+      );
     case 'sold_out':
       return (title: l.lhTitleSoldOut, description: l.lhDescSoldOut);
     case 'reopened':
@@ -105,14 +119,20 @@ bool listingHistoryHasOpenEdit(List<WorkflowEvent> events) {
 }
 
 bool _isNegative(String action) =>
-    action == 'disapproved' || action == 'edit_rejected' || action == 'withdrawn';
+    action == 'disapproved' ||
+    action == 'edit_rejected' ||
+    action == 'withdrawn';
 
 // ─── Header: the listing as it is now ───────────────────────────────────────
 
 class ListingHistoryHeaderCard extends StatelessWidget {
   final ListingHistoryHeader header;
   final bool editWaiting;
-  const ListingHistoryHeaderCard({super.key, required this.header, required this.editWaiting});
+  const ListingHistoryHeaderCard({
+    super.key,
+    required this.header,
+    required this.editWaiting,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -135,15 +155,25 @@ class ListingHistoryHeaderCard extends StatelessWidget {
                   height: 56,
                   child: (photo == null || photo.isEmpty)
                       ? Container(
-                          color: AppConstants.infoBlueBg,
-                          child: const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen),
+                          color: context.adaptiveSurface(
+                            AppConstants.infoBlueBg,
+                          ),
+                          child: Icon(
+                            Icons.eco_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         )
                       : Image.network(
                           photo,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                            color: AppConstants.infoBlueBg,
-                            child: const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen),
+                            color: context.adaptiveSurface(
+                              AppConstants.infoBlueBg,
+                            ),
+                            child: Icon(
+                              Icons.eco_rounded,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
                         ),
                 ),
@@ -157,12 +187,21 @@ class ListingHistoryHeaderCard extends StatelessWidget {
                       header.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
                     ),
                     if (header.createdAt != null)
                       Text(
-                        l.lhListedSince(DateFormat.yMMMd(locale).format(header.createdAt!)),
-                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                        l.lhListedSince(
+                          DateFormat.yMMMd(locale).format(header.createdAt!),
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                   ],
                 ),
@@ -174,7 +213,10 @@ class ListingHistoryHeaderCard extends StatelessWidget {
             children: [
               Text(
                 l.lhCurrentStatus,
-                style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
               const SizedBox(width: 8),
               ListingStatusBadge.forListing(
@@ -189,8 +231,16 @@ class ListingHistoryHeaderCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _chip(context, Icons.scale_outlined, formatQuantityUnit(header.volumeKg, header.unit)),
-              _chip(context, Icons.payments_outlined, formatPricePerUnit(header.pricePerUnit, header.unit)),
+              _chip(
+                context,
+                Icons.scale_outlined,
+                formatQuantityUnit(header.volumeKg, header.unit),
+              ),
+              _chip(
+                context,
+                Icons.payments_outlined,
+                formatPricePerUnit(header.pricePerUnit, header.unit),
+              ),
             ],
           ),
           if (editWaiting) ...[
@@ -201,16 +251,26 @@ class ListingHistoryHeaderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppConstants.buyerBlue.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.30)),
+                border: Border.all(
+                  color: AppConstants.buyerBlue.withValues(alpha: 0.30),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.hourglass_top_rounded, size: 16, color: AppConstants.buyerBlue),
+                  const Icon(
+                    Icons.hourglass_top_rounded,
+                    size: 16,
+                    color: AppConstants.buyerBlue,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       l.lhEditWaiting,
-                      style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppConstants.buyerBlue),
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.buyerBlue,
+                      ),
                     ),
                   ),
                 ],
@@ -235,7 +295,14 @@ class ListingHistoryHeaderCard extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: cs.onSurfaceVariant),
           const SizedBox(width: 4),
-          Text(text, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface)),
+          Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
         ],
       ),
     );
@@ -246,7 +313,9 @@ BoxDecoration _cardDecoration(ColorScheme cs) => BoxDecoration(
   color: cs.surface,
   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
   border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
-  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+  boxShadow: [
+    BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+  ],
 );
 
 // ─── Filter chips ───────────────────────────────────────────────────────────
@@ -280,12 +349,17 @@ class ListingHistoryFilterBar extends StatelessWidget {
               onTap: () => onSelected(f),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: selected == f ? cs.primary : cs.surface,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   border: Border.all(
-                    color: selected == f ? cs.primary : cs.outline.withValues(alpha: 0.25),
+                    color: selected == f
+                        ? cs.primary
+                        : cs.outline.withValues(alpha: 0.25),
                   ),
                 ),
                 child: Text(
@@ -311,12 +385,18 @@ class ListingHistoryFilterBar extends StatelessWidget {
 class ListingHistoryTimeline extends StatelessWidget {
   final List<WorkflowEvent> events;
   final bool staffView;
-  const ListingHistoryTimeline({super.key, required this.events, required this.staffView});
+  const ListingHistoryTimeline({
+    super.key,
+    required this.events,
+    required this.staffView,
+  });
 
   String _dayLabel(AppLocalizations l, String locale, DateTime day) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final diff = today.difference(DateTime(day.year, day.month, day.day)).inDays;
+    final diff = today
+        .difference(DateTime(day.year, day.month, day.day))
+        .inDays;
     if (diff == 0) return l.lhToday;
     if (diff == 1) return l.lhYesterday;
     return DateFormat.yMMMMd(locale).format(day);
@@ -331,11 +411,15 @@ class ListingHistoryTimeline extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 32),
         child: Center(
-          child: Text(l.lhEmptyFilter, style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
+          child: Text(
+            l.lhEmptyFilter,
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
         ),
       );
     }
-    final sorted = [...events]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final sorted = [...events]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final groups = <DateTime, List<WorkflowEvent>>{};
     for (final e in sorted) {
       final d = DateTime(e.createdAt.year, e.createdAt.month, e.createdAt.day);
@@ -351,10 +435,19 @@ class ListingHistoryTimeline extends StatelessWidget {
               children: [
                 Text(
                   _dayLabel(l, locale, entry.key),
-                  style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(width: 10),
-                Expanded(child: Divider(height: 1, color: cs.outline.withValues(alpha: 0.18))),
+                Expanded(
+                  child: Divider(
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.18),
+                  ),
+                ),
               ],
             ),
           ),
@@ -374,7 +467,11 @@ class _EventRow extends StatelessWidget {
   final WorkflowEvent event;
   final bool staffView;
   final bool isLast;
-  const _EventRow({required this.event, required this.staffView, required this.isLast});
+  const _EventRow({
+    required this.event,
+    required this.staffView,
+    required this.isLast,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -402,9 +499,16 @@ class _EventRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
-                    border: Border.all(color: color.withValues(alpha: 0.45), width: 1.5),
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.45),
+                      width: 1.5,
+                    ),
                   ),
-                  child: Icon(workflowActionIcon(event.action), size: 15, color: color),
+                  child: Icon(
+                    workflowActionIcon(event.action),
+                    size: 15,
+                    color: color,
+                  ),
                 ),
                 if (!isLast)
                   Expanded(
@@ -433,20 +537,37 @@ class _EventRow extends StatelessWidget {
                         Expanded(
                           child: Text(
                             text.title,
-                            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(time, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+                        Text(
+                          time,
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
                       text.description,
-                      style: GoogleFonts.inter(fontSize: 12.5, height: 1.35, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    _ActorPill(label: actor, isYou: !staffView && event.by == 'you'),
+                    _ActorPill(
+                      label: actor,
+                      isYou: !staffView && event.by == 'you',
+                    ),
                     ..._detailBlocks(context, l, cs),
                     if (reason.isNotEmpty) ...[
                       const SizedBox(height: 10),
@@ -454,11 +575,19 @@ class _EventRow extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (negative ? AppConstants.errorRed : cs.onSurfaceVariant).withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                          color:
+                              (negative
+                                      ? AppConstants.errorRed
+                                      : cs.onSurfaceVariant)
+                                  .withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusSm,
+                          ),
                           border: Border(
                             left: BorderSide(
-                              color: negative ? AppConstants.errorRed : cs.outline,
+                              color: negative
+                                  ? AppConstants.errorRed
+                                  : cs.outline,
                               width: 3,
                             ),
                           ),
@@ -472,11 +601,20 @@ class _EventRow extends StatelessWidget {
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.3,
-                                color: negative ? AppConstants.errorRed : cs.onSurfaceVariant,
+                                color: negative
+                                    ? AppConstants.errorRed
+                                    : cs.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(reason, style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurface)),
+                            Text(
+                              reason,
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                height: 1.4,
+                                color: cs.onSurface,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -493,9 +631,13 @@ class _EventRow extends StatelessWidget {
 
   /// What the event carried: the figures a listing was submitted with, or the
   /// before / after of every field an edit changed.
-  List<Widget> _detailBlocks(BuildContext context, AppLocalizations l, ColorScheme cs) {
+  List<Widget> _detailBlocks(
+    BuildContext context,
+    AppLocalizations l,
+    ColorScheme cs,
+  ) {
     final d = event.details;
-    final unit = d['unit'] as String?;
+    final unit = d["unit"] as String?;
     num? n(Object? v) => v is num ? v : null;
     final blocks = <Widget>[];
 
@@ -504,15 +646,38 @@ class _EventRow extends StatelessWidget {
       final rows = <Widget>[];
       final q = changes['quantity'];
       if (q is Map && n(q['from']) != null && n(q['to']) != null) {
-        rows.add(_diffRow(cs, l.lhQuantity, formatQuantityUnit(n(q['from'])!, unit), formatQuantityUnit(n(q['to'])!, unit)));
+        rows.add(
+          _diffRow(
+            context,
+            cs,
+            l.lhQuantity,
+            formatQuantityUnit(n(q['from'])!, unit),
+            formatQuantityUnit(n(q['to'])!, unit),
+          ),
+        );
       }
-      final p = changes['price'];
+      final p = changes["price"];
       if (p is Map && n(p['from']) != null && n(p['to']) != null) {
-        rows.add(_diffRow(cs, l.editListingFieldPrice, formatPricePerUnit(n(p['from'])!, unit), formatPricePerUnit(n(p['to'])!, unit)));
+        rows.add(
+          _diffRow(
+            context,
+            cs,
+            l.editListingFieldPrice,
+            formatPricePerUnit(n(p['from'])!, unit),
+            formatPricePerUnit(n(p['to'])!, unit),
+          ),
+        );
       }
       final desc = changes['description'];
       if (desc is Map) {
-        rows.add(_textDiff(cs, l, (desc['from'] as String?) ?? '', (desc['to'] as String?) ?? ''));
+        rows.add(
+          _textDiff(
+            cs,
+            l,
+            (desc['from'] as String?) ?? '',
+            (desc['to'] as String?) ?? '',
+          ),
+        );
       }
       if (rows.isNotEmpty) {
         blocks.add(const SizedBox(height: 10));
@@ -528,25 +693,46 @@ class _EventRow extends StatelessWidget {
           ),
         );
       }
-    } else if (event.action == 'submitted' && n(d['quantity']) != null && n(d['price']) != null) {
+    } else if (event.action == 'submitted' &&
+        n(d['quantity']) != null &&
+        n(d['price']) != null) {
       blocks.add(const SizedBox(height: 10));
       blocks.add(
         Text(
-          l.wfDetailPlaced(formatQuantityUnit(n(d['quantity'])!, unit), formatPricePerUnit(n(d['price'])!, unit)),
-          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: cs.onSurface),
+          l.wfDetailPlaced(
+            formatQuantityUnit(n(d['quantity'])!, unit),
+            formatPricePerUnit(n(d["price"])!, unit),
+          ),
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
       );
     }
     return blocks;
   }
 
-  Widget _diffRow(ColorScheme cs, String label, String from, String to) => Padding(
+  Widget _diffRow(
+    BuildContext context,
+    ColorScheme cs,
+    String label,
+    String from,
+    String to,
+  ) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       children: [
         SizedBox(
           width: 78,
-          child: Text(label, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
         ),
         Flexible(
           child: Text(
@@ -558,14 +744,22 @@ class _EventRow extends StatelessWidget {
             ),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 6),
-          child: Icon(Icons.arrow_forward_rounded, size: 14, color: AppConstants.primaryGreen),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Icon(
+            Icons.arrow_forward_rounded,
+            size: 14,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
         Flexible(
           child: Text(
             to,
-            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],
@@ -578,15 +772,30 @@ class _EventRow extends StatelessWidget {
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: highlight ? AppConstants.primaryGreen.withValues(alpha: 0.07) : cs.surface,
+        color: highlight
+            ? AppConstants.primaryGreen.withValues(alpha: 0.07)
+            : cs.surface,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(caption, style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant)),
+          Text(
+            caption,
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(text.isEmpty ? '—' : text, style: GoogleFonts.inter(fontSize: 12.5, height: 1.35, color: cs.onSurface)),
+          Text(
+            text.isEmpty ? '—' : text,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              height: 1.35,
+              color: cs.onSurface,
+            ),
+          ),
         ],
       ),
     );
@@ -595,7 +804,13 @@ class _EventRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l.editListingFieldDescription, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+          Text(
+            l.editListingFieldDescription,
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           block(l.lhBefore, from, false),
           block(l.lhAfter, to, true),
         ],
@@ -622,13 +837,21 @@ class _ActorPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(isYou ? Icons.person_rounded : Icons.verified_user_outlined, size: 13, color: color),
+          Icon(
+            isYou ? Icons.person_rounded : Icons.verified_user_outlined,
+            size: 13,
+            color: color,
+          ),
           const SizedBox(width: 5),
           Flexible(
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: color),
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
           ),
         ],

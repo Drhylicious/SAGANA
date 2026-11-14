@@ -9,18 +9,18 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData get lightTheme => _buildTheme(
-        brightness: Brightness.light,
-        colorScheme: _lightColorScheme,
-        saganaColors: SaganaColors.light,
-        overlayStyle: SystemUiOverlayStyle.dark,
-      );
+    brightness: Brightness.light,
+    colorScheme: _lightColorScheme,
+    saganaColors: SaganaColors.light,
+    overlayStyle: SystemUiOverlayStyle.dark,
+  );
 
   static ThemeData get darkTheme => _buildTheme(
-        brightness: Brightness.dark,
-        colorScheme: _darkColorScheme,
-        saganaColors: SaganaColors.dark,
-        overlayStyle: SystemUiOverlayStyle.light,
-      );
+    brightness: Brightness.dark,
+    colorScheme: _darkColorScheme,
+    saganaColors: SaganaColors.dark,
+    overlayStyle: SystemUiOverlayStyle.light,
+  );
 
   static ThemeData _buildTheme({
     required Brightness brightness,
@@ -40,7 +40,7 @@ class AppTheme {
       textTheme: _textTheme(onSurface, onSurfaceVariant),
       appBarTheme: _appBarTheme(colorScheme, overlayStyle, onSurface),
       elevatedButtonTheme: _elevatedButtonTheme,
-      outlinedButtonTheme: _outlinedButtonTheme,
+      outlinedButtonTheme: _outlinedButtonTheme(colorScheme),
       inputDecorationTheme: _inputDecorationTheme(colorScheme, saganaColors),
       cardTheme: _cardTheme(saganaColors, colorScheme),
       dividerTheme: DividerThemeData(
@@ -63,6 +63,30 @@ class AppTheme {
         textStyle: GoogleFonts.inter(fontSize: 14, color: onSurface),
       ),
       canvasColor: saganaColors.cardBackground,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: saganaColors.cardBackground,
+        modalBackgroundColor: saganaColors.cardBackground,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(saganaColors.cardBackground),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: saganaColors.cardBackground,
+        headerForegroundColor: onSurface,
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: saganaColors.cardBackground,
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: colorScheme.primary,
+        selectionColor: colorScheme.primary.withValues(alpha: 0.25),
+        selectionHandleColor: colorScheme.primary,
+      ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -241,22 +265,21 @@ class AppTheme {
     ColorScheme scheme,
     SystemUiOverlayStyle overlayStyle,
     Color onSurface,
-  ) =>
-      AppBarTheme(
-        backgroundColor: scheme.surface,
-        foregroundColor: onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        centerTitle: false,
-        titleTextStyle: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: onSurface,
-        ),
-        systemOverlayStyle: overlayStyle.copyWith(
-          statusBarColor: Colors.transparent,
-        ),
-      );
+  ) => AppBarTheme(
+    backgroundColor: scheme.surface,
+    foregroundColor: onSurface,
+    elevation: 0,
+    scrolledUnderElevation: 1,
+    centerTitle: false,
+    titleTextStyle: GoogleFonts.poppins(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: onSurface,
+    ),
+    systemOverlayStyle: overlayStyle.copyWith(
+      statusBarColor: Colors.transparent,
+    ),
+  );
 
   static ElevatedButtonThemeData get _elevatedButtonTheme =>
       ElevatedButtonThemeData(
@@ -275,12 +298,12 @@ class AppTheme {
         ),
       );
 
-  static OutlinedButtonThemeData get _outlinedButtonTheme =>
+  static OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme scheme) =>
       OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppConstants.primaryGreen,
+          foregroundColor: scheme.primary,
           minimumSize: const Size(double.infinity, 52),
-          side: const BorderSide(color: AppConstants.primaryGreen, width: 1.5),
+          side: BorderSide(color: scheme.primary, width: 1.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
           ),
@@ -294,44 +317,37 @@ class AppTheme {
   static InputDecorationTheme _inputDecorationTheme(
     ColorScheme scheme,
     SaganaColors sagana,
-  ) =>
-      InputDecorationTheme(
-        filled: true,
-        fillColor: sagana.cardBackground,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          borderSide: BorderSide(color: scheme.outline, width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          borderSide:
-              BorderSide(color: scheme.outline.withValues(alpha: 0.5), width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          borderSide:
-              const BorderSide(color: AppConstants.primaryGreen, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          borderSide:
-              const BorderSide(color: AppConstants.errorRed, width: 1),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          borderSide:
-              const BorderSide(color: AppConstants.errorRed, width: 1.5),
-        ),
-        labelStyle: GoogleFonts.inter(
-          fontSize: 14,
-          color: scheme.onSurfaceVariant,
-        ),
-        hintStyle: GoogleFonts.inter(fontSize: 14, color: scheme.outline),
-        errorStyle:
-            GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
-      );
+  ) => InputDecorationTheme(
+    filled: true,
+    fillColor: sagana.cardBackground,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      borderSide: BorderSide(color: scheme.outline, width: 1),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      borderSide: BorderSide(
+        color: scheme.outline.withValues(alpha: 0.5),
+        width: 1,
+      ),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      borderSide: BorderSide(color: scheme.primary, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      borderSide: BorderSide(color: scheme.error, width: 1),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      borderSide: BorderSide(color: scheme.error, width: 1.5),
+    ),
+    labelStyle: GoogleFonts.inter(fontSize: 14, color: scheme.onSurfaceVariant),
+    hintStyle: GoogleFonts.inter(fontSize: 14, color: scheme.outline),
+    errorStyle: GoogleFonts.inter(fontSize: 12, color: scheme.error),
+  );
 
   static CardThemeData _cardTheme(SaganaColors sagana, ColorScheme scheme) =>
       CardThemeData(
@@ -357,19 +373,16 @@ class AppTheme {
   // fill is fixed to charcoal too: Flutter's default (inverseSurface) turns
   // light in Dark Mode, where white text would disappear.
   static SnackBarThemeData get _snackBarTheme => SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppConstants.charcoal,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        contentTextStyle: GoogleFonts.inter(
-          fontSize: 14,
-          color: Colors.white,
-        ),
-        actionTextColor: AppConstants.limeGreen,
-        disabledActionTextColor: Colors.white54,
-        closeIconColor: Colors.white,
-      );
+    behavior: SnackBarBehavior.floating,
+    backgroundColor: AppConstants.charcoal,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+    ),
+    contentTextStyle: GoogleFonts.inter(fontSize: 14, color: Colors.white),
+    actionTextColor: AppConstants.limeGreen,
+    disabledActionTextColor: Colors.white54,
+    closeIconColor: Colors.white,
+  );
 
   /// Applies status bar style based on current theme brightness.
   static void applySystemOverlay(BuildContext context) {

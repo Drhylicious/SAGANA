@@ -1,3 +1,5 @@
+import '../../../core/l10n/localized_labels.dart';
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -46,10 +48,12 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     // The deep link from Crop Roster's "View Harvests" names one specific
     // crop, not a category — pre-filling the search bar (rather than
     // selecting a category chip) keeps that exact-crop result while still
@@ -140,7 +144,7 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -148,19 +152,20 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
+                    const TopBarSpacer(height: 72),
                     CachedDataNotice(
-            screen: 'harvests',
-            isOnline: _isOnline,
-            offlineMessage: AppLocalizations.of(context).offlineHarvestHistory,
-          ),
+                      screen: 'harvests',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineHarvestHistory,
+                    ),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
                         onRefresh: _loadData,
                         child: ListView(
-                          padding:
-                              const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                           children: [
                             // Summary stats — moved before the search bar
                             // and filter chips per the redesign request.
@@ -182,35 +187,47 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
                             CropCategoryChips(
                               categories: _categories,
                               active: _activeCategory,
+                              counts: CropCategoryChips.countBy(
+                                _allHarvests,
+                                (h) => h.cropCategory,
+                              ),
                               onSelected: _setCategory,
                             ),
                             const SizedBox(height: 20),
 
                             // Log entries
                             if (_isLoading)
-                              ...List.generate(4, (_) => Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 10),
-                                    child: SkeletonList(count: 4, rowHeight: 72),
-                                  ))
+                              ...List.generate(
+                                4,
+                                (_) => const Padding(
+                                  padding: EdgeInsets.only(bottom: 10),
+                                  child: SkeletonList(count: 4, rowHeight: 72),
+                                ),
+                              )
                             else if (_filtered.isEmpty)
                               _EmptyState(
-                                hasFilter: _searchQuery.isNotEmpty ||
-                                  _activeCategory != CropCategoryChips.all,
+                                hasFilter:
+                                    _searchQuery.isNotEmpty ||
+                                    _activeCategory != CropCategoryChips.all,
                               )
                             else
-                              ..._filtered.map((h) => Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 10),
-                                    child: GestureDetector(
-                                      onTap: () => _showHarvestDetails(
-                                          context, h, _cropsById[h.cropId]),
-                                      child: HarvestLogEntry(
-                                        harvest: h,
-                                        imageUrl: _cropsById[h.cropId]?.displayImageUrl,
-                                      ),
+                              ..._filtered.map(
+                                (h) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: GestureDetector(
+                                    onTap: () => _showHarvestDetails(
+                                      context,
+                                      h,
+                                      _cropsById[h.cropId],
                                     ),
-                                  )),
+                                    child: HarvestLogEntry(
+                                      harvest: h,
+                                      imageUrl:
+                                          _cropsById[h.cropId]?.displayImageUrl,
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -218,9 +235,13 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
                   ],
                 ),
                 Positioned(
-                  top: 0, left: 0, right: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
                   child: FarmerTopBar(
-                    title: 'Harvest History',
+                    title: AppLocalizations.of(
+                      context,
+                    ).farmerHarvestHistoryTitle,
                     onBack: () => Navigator.of(context).pop(),
                     hideProfileAvatar: true,
                     onProfileTap: () {},
@@ -238,7 +259,10 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
 }
 
 void _showHarvestDetails(
-    BuildContext context, HarvestModel harvest, FarmerCropModel? crop) {
+  BuildContext context,
+  HarvestModel harvest,
+  FarmerCropModel? crop,
+) {
   showManagementModal<void>(
     context: context,
     builder: (_) => _HarvestDetailsSheet(harvest: harvest, crop: crop),
@@ -280,7 +304,7 @@ class _HistoryStatsRow extends StatelessWidget {
           child: ReportIconStatCard(
             icon: Icons.calendar_month_rounded,
             accent: AppConstants.primaryGreen,
-            label: 'Total Harvest',
+            label: AppLocalizations.of(context).reportsTotalHarvest,
             value: isLoading ? '—' : '$totalHarvestCount',
           ),
         ),
@@ -289,21 +313,27 @@ class _HistoryStatsRow extends StatelessWidget {
           child: ReportIconStatCard(
             icon: Icons.eco_rounded,
             accent: AppConstants.successGreen,
-            label: "This Year's Yield",
+            label: AppLocalizations.of(context).enhThisYearSYield,
             value: isLoading ? '—' : '$yieldLabel kg',
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: ReportIconStatCard(
-            icon: hasUnsynced ? Icons.sync_rounded : Icons.check_circle_outline_rounded,
-            accent: hasUnsynced ? AppConstants.warningAmber : AppConstants.successGreen,
-            label: 'Sync Status',
+            icon: hasUnsynced
+                ? Icons.sync_rounded
+                : Icons.check_circle_outline_rounded,
+            accent: hasUnsynced
+                ? AppConstants.warningAmber
+                : AppConstants.successGreen,
+            label: AppLocalizations.of(context).enhSyncStatus,
             value: isLoading
                 ? '—'
                 : hasUnsynced
-                    ? '$unsyncedCount Unsynced'
-                    : 'Synced',
+                ? AppLocalizations.of(
+                    context,
+                  ).enhUnsynced((unsyncedCount).toString())
+                : AppLocalizations.of(context).reportsSynced,
           ),
         ),
       ],
@@ -325,12 +355,16 @@ class _HarvestDetailsSheet extends StatelessWidget {
   // Was omitted entirely when no crop photo existed — the sheet jumped
   // straight from the title to "Quantity" with no image area at all.
   // Shows the same default crop icon the list row falls back to instead.
-  Widget _imagePlaceholder() {
+  Widget _imagePlaceholder(BuildContext context) {
     return Container(
       width: double.infinity,
       height: 140,
       color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-      child: const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 40),
+      child: Icon(
+        Icons.eco_rounded,
+        color: Theme.of(context).colorScheme.primary,
+        size: 40,
+      ),
     );
   }
 
@@ -353,37 +387,41 @@ class _HarvestDetailsSheet extends StatelessWidget {
                     width: double.infinity,
                     height: 140,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                    errorBuilder: (_, __, ___) => _imagePlaceholder(context),
                   )
-                : _imagePlaceholder(),
+                : _imagePlaceholder(context),
           ),
           const SizedBox(height: 14),
           _DetailRow(
-            label: 'Quantity',
+            label: AppLocalizations.of(context).issueLoanQuantity,
             value: formatQuantityUnit(harvest.quantityKg, harvest.unit),
           ),
-          _DetailRow(label: 'Category', value: harvest.cropCategory),
-          _DetailRow(label: 'Batch Number', value: harvest.displayBatch),
-          // Produce a program gave the Farmer: its source and the program it came from.
-          if (harvest.isReceivedFromProgram) ...[
-            _DetailRow(
-              label: AppLocalizations.of(context).harvestSourceLabel,
-              value: AppLocalizations.of(context).harvestSourceReceived,
-            ),
-            if (harvest.sourceProgramId != null)
-              _ProgramNameRow(
-                label: AppLocalizations.of(context).harvestSourceProgram,
-                programId: harvest.sourceProgramId!,
-              ),
-          ],
-          _DetailRow(label: 'Storage Location', value: harvest.storageLocation ?? '—'),
           _DetailRow(
-            label: 'Harvest Date',
-            value: DateFormat('MMM d, yyyy · h:mm a').format(harvest.harvestDate),
+            label: AppLocalizations.of(context).buyerListingCategory,
+            value: localizeBuiltinLabel(
+              AppLocalizations.of(context),
+              harvest.cropCategory,
+            ),
           ),
           _DetailRow(
-            label: 'Sync Status',
-            value: harvest.isSynced ? 'Synced' : 'Pending sync',
+            label: AppLocalizations.of(context).enhBatchNumber,
+            value: harvest.displayBatch,
+          ),
+          _DetailRow(
+            label: AppLocalizations.of(context).enhStorageLocation,
+            value: harvest.storageLocation ?? '—',
+          ),
+          _DetailRow(
+            label: AppLocalizations.of(context).enhHarvestDate,
+            value: DateFormat(
+              'MMM d, yyyy · h:mm a',
+            ).format(harvest.harvestDate),
+          ),
+          _DetailRow(
+            label: AppLocalizations.of(context).enhSyncStatus,
+            value: harvest.isSynced
+                ? AppLocalizations.of(context).reportsSynced
+                : AppLocalizations.of(context).reportsPendingSync,
             isLast: true,
           ),
         ],
@@ -425,14 +463,19 @@ class _ProgramNameRowState extends State<_ProgramNameRow> {
   }
 
   @override
-  Widget build(BuildContext context) => _DetailRow(label: widget.label, value: _name);
+  Widget build(BuildContext context) =>
+      _DetailRow(label: widget.label, value: _name);
 }
 
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isLast;
-  const _DetailRow({required this.label, required this.value, this.isLast = false});
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +489,10 @@ class _DetailRow extends StatelessWidget {
             width: 140,
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(
@@ -477,26 +523,46 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: InputDecoration(
-        hintText: 'Search harvest history...',
-        hintStyle: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.60)),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppConstants.outline),
+        hintText: AppLocalizations.of(context).enhSearchHarvestHistory,
+        hintStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.60),
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.saganaColors.cardBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -518,36 +584,55 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 96, height: 96,
+            width: 96,
+            height: 96,
             decoration: const BoxDecoration(
               color: Color(0xFFDBF1FE),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.history_rounded,
-                size: 40, color: AppConstants.outline.withValues(alpha: 0.60)),
+            child: Icon(
+              Icons.history_rounded,
+              size: 40,
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
+            ),
           ),
           const SizedBox(height: 20),
-          Text(hasFilter ? 'No Matching Harvests' : 'No Harvests Found',
-              style: GoogleFonts.poppins(
-                  fontSize: 18, fontWeight: FontWeight.w700,
-                  color: AppConstants.onSurface)),
+          Text(
+            hasFilter
+                ? AppLocalizations.of(context).enhNoMatchingHarvests
+                : AppLocalizations.of(context).enhNoHarvestsFound,
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             hasFilter
-                ? 'Try a different search or crop filter.'
-                : 'You haven\'t recorded any harvests for this period yet.',
+                ? AppLocalizations.of(
+                    context,
+                  ).enhTryADifferentSearchOrCropFilter
+                : AppLocalizations.of(
+                    context,
+                  ).enhYouHavenTRecordedAnyHarvestsForThis,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           if (!hasFilter) ...[
             const SizedBox(height: 20),
             Text(
-              'You\'re all caught up.',
+              AppLocalizations.of(context).enhYouReAllCaughtUp296,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -560,5 +645,3 @@ class _EmptyState extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
-
-

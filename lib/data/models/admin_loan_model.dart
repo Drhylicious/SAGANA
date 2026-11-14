@@ -325,6 +325,10 @@ class LoanCatalogItem {
   /// catalog. Null for items created before the field existed.
   final String? source;
 
+  /// The Inventory item was archived. The catalog entry is then archived too
+  /// and cannot be restored from the catalog: Inventory decides.
+  final bool inventoryArchived;
+
   const LoanCatalogItem({
     required this.loanItemId,
     required this.inventoryItemId,
@@ -338,6 +342,7 @@ class LoanCatalogItem {
     this.notes,
     this.imageUrl,
     this.source,
+    this.inventoryArchived = false,
   });
 
   factory LoanCatalogItem.fromMap(Map<String, dynamic> map) {
@@ -354,6 +359,7 @@ class LoanCatalogItem {
       isLoanEligible: map['is_loan_eligible'] as bool? ?? true,
       notes: map['notes'] as String?,
       imageUrl: inv['image_url'] as String?,
+      inventoryArchived: inv['is_active'] == false,
       source: (inv['source'] as String?)?.trim().isEmpty ?? true
           ? null
           : (inv['source'] as String).trim(),

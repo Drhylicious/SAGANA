@@ -73,7 +73,9 @@ class FarmerMarketRatesRepository {
       final Map<String, FarmerMarketRateModel> latest = {};
       for (final row in rows) {
         // (crop_master!inner already leaves out a record whose crop was removed.)
-        final key = '${row['crop_id']}_${row['price_type']}';
+        // Per unit too: a crop priced per kg and per sack shows both.
+        final key =
+            '${row['crop_id']}_${row['price_type']}_${(row['unit'] as String? ?? 'kg').trim().toLowerCase()}';
         if (!latest.containsKey(key)) {
           latest[key] = FarmerMarketRateModel.fromMap(row);
         }

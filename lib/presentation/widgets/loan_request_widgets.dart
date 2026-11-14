@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -19,7 +20,10 @@ import 'management_modal.dart';
   LoanRequestModel r,
 ) {
   if (r.isApproved) {
-    return (label: l10n.loanReqStatusApproved, color: AppConstants.successGreen);
+    return (
+      label: l10n.loanReqStatusApproved,
+      color: AppConstants.successGreen,
+    );
   }
   if (r.isDisapproved) {
     return (label: l10n.loanReqStatusDisapproved, color: AppConstants.errorRed);
@@ -33,7 +37,11 @@ import 'management_modal.dart';
 class LoanRequestCard extends StatelessWidget {
   final LoanRequestModel request;
   final VoidCallback onTap;
-  const LoanRequestCard({super.key, required this.request, required this.onTap});
+  const LoanRequestCard({
+    super.key,
+    required this.request,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +51,7 @@ class LoanRequestCard extends StatelessWidget {
     final names = request.items.map((i) => i.label).join(', ');
 
     return Material(
-      color: Colors.white.withValues(alpha: 0.90),
+      color: context.saganaColors.cardBackground.withValues(alpha: 0.90),
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -133,11 +141,14 @@ class LoanRequestCard extends StatelessWidget {
 class LoanRequestDetailSheet extends StatefulWidget {
   final LoanRequestModel request;
   final LoanRepository repo;
-  const LoanRequestDetailSheet({super.key, required this.request, required this.repo});
+  const LoanRequestDetailSheet({
+    super.key,
+    required this.request,
+    required this.repo,
+  });
 
   @override
-  State<LoanRequestDetailSheet> createState() =>
-      LoanRequestDetailSheetState();
+  State<LoanRequestDetailSheet> createState() => LoanRequestDetailSheetState();
 }
 
 class LoanRequestDetailSheetState extends State<LoanRequestDetailSheet> {
@@ -296,7 +307,7 @@ class LoanRequestDetailSheetState extends State<LoanRequestDetailSheet> {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],

@@ -21,16 +21,21 @@ Future<String?> uploadProfilePhoto({
   required String userId,
   required Uint8List imageBytes,
   required String fileExtension,
+  bool throwOnFailure = false,
 }) async {
   try {
-    final path = '$userId/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
-    await client.storage.from('profile_photos').uploadBinary(
+    final path =
+        '$userId/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+    await client.storage
+        .from('profile_photos')
+        .uploadBinary(
           path,
           imageBytes,
           fileOptions: const FileOptions(upsert: true),
         );
     return client.storage.from('profile_photos').getPublicUrl(path);
   } catch (_) {
+    if (throwOnFailure) rethrow;
     return null;
   }
 }

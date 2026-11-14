@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -106,7 +107,7 @@ class _AdminFarmerHarvestHistoryScreenState
       return h.cropName.toLowerCase().contains(q) ||
           (h.variety?.toLowerCase().contains(q) ?? false) ||
           (h.batchNumber?.toLowerCase().contains(q) ?? false);
-      }).toList();
+    }).toList();
   }
 
   double get _thisYearYieldKg {
@@ -128,7 +129,10 @@ class _AdminFarmerHarvestHistoryScreenState
       body: SafeArea(
         child: Column(
           children: [
-            SubPageTopBar(title: l10n.farmerHarvestHistoryTitle, onBack: () => Navigator.of(context).pop()),
+            SubPageTopBar(
+              title: l10n.farmerHarvestHistoryTitle,
+              onBack: () => Navigator.of(context).pop(),
+            ),
             Expanded(
               child: widget.farmerId == null
                   ? Center(
@@ -169,6 +173,10 @@ class _AdminFarmerHarvestHistoryScreenState
                             CropCategoryChips(
                               categories: _categories,
                               active: _activeCategory,
+                              counts: CropCategoryChips.countBy(
+                                _allHarvests,
+                                (h) => h.cropCategory,
+                              ),
                               onSelected: _setCategory,
                             ),
                           const SizedBox(height: 16),
@@ -185,7 +193,9 @@ class _AdminFarmerHarvestHistoryScreenState
                                   _searchQuery.isNotEmpty ||
                                           _activeCategory !=
                                               CropCategoryChips.all
-                                      ? 'No matching harvests. Try a different search or category.'
+                                      ? AppLocalizations.of(
+                                          context,
+                                        ).enhNoMatchingHarvestsTryADifferentSearchOr
                                       : l10n.farmerHarvestHistoryNoRecords,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.inter(
@@ -198,7 +208,7 @@ class _AdminFarmerHarvestHistoryScreenState
                           else
                             ..._filtered.map(
                               (h) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.only(bottom: 12),
                                 child: GestureDetector(
                                   onTap: () => _showAdminHarvestDetails(
                                     context,
@@ -256,7 +266,7 @@ class _AdminHistoryStatsRow extends StatelessWidget {
           child: ReportIconStatCard(
             icon: Icons.calendar_month_rounded,
             accent: AppConstants.primaryGreen,
-            label: 'Total Harvest',
+            label: AppLocalizations.of(context).reportsTotalHarvest,
             value: isLoading ? '—' : '$totalHarvestCount',
           ),
         ),
@@ -265,7 +275,7 @@ class _AdminHistoryStatsRow extends StatelessWidget {
           child: ReportIconStatCard(
             icon: Icons.eco_rounded,
             accent: AppConstants.successGreen,
-            label: "This Year's Yield",
+            label: AppLocalizations.of(context).enhThisYearSYield,
             value: isLoading ? '—' : '$yieldLabel kg',
           ),
         ),
@@ -278,15 +288,17 @@ class _AdminHistoryStatsRow extends StatelessWidget {
             accent: hasUnsynced
                 ? AppConstants.warningAmber
                 : AppConstants.successGreen,
-            label: 'Sync Status',
+            label: AppLocalizations.of(context).enhSyncStatus,
             value: isLoading
                 ? '—'
                 : hasUnsynced
-                ? '$unsyncedCount Unsynced'
-                : 'Synced',
+                ? AppLocalizations.of(
+                    context,
+                  ).enhUnsynced((unsyncedCount).toString())
+                : AppLocalizations.of(context).reportsSynced,
           ),
         ),
-                        ],
+      ],
     );
   }
 }
@@ -317,16 +329,16 @@ class _AdminHarvestDetailsSheet extends StatelessWidget {
   // Same fix as the farmer-facing sheet (harvest_history_screen.dart) —
   // was omitted entirely when no crop photo existed instead of falling
   // back to the default crop icon.
-  Widget _imagePlaceholder() {
+  Widget _imagePlaceholder(BuildContext context) {
     return Container(
       width: double.infinity,
       height: 140,
       color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-      child: const Icon(
+      child: Icon(
         Icons.eco_rounded,
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         size: 40,
-                      ),
+      ),
     );
   }
 
@@ -349,37 +361,45 @@ class _AdminHarvestDetailsSheet extends StatelessWidget {
                     width: double.infinity,
                     height: 140,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                    errorBuilder: (_, __, ___) => _imagePlaceholder(context),
                   )
-                : _imagePlaceholder(),
+                : _imagePlaceholder(context),
           ),
           const SizedBox(height: 14),
           _AdminDetailRow(
-            label: 'Quantity',
+            label: AppLocalizations.of(context).issueLoanQuantity,
             value: formatQuantityUnit(harvest.quantityKg, harvest.unit),
           ),
-          _AdminDetailRow(label: 'Category', value: harvest.cropCategory),
           _AdminDetailRow(
-            label: 'Batch Number',
+            label: AppLocalizations.of(context).buyerListingCategory,
+            value: localizeBuiltinLabel(
+              AppLocalizations.of(context),
+              harvest.cropCategory,
+            ),
+          ),
+          _AdminDetailRow(
+            label: AppLocalizations.of(context).enhBatchNumber,
             value: harvest.displayBatch,
           ),
           _AdminDetailRow(
-            label: 'Storage Location',
+            label: AppLocalizations.of(context).enhStorageLocation,
             value: harvest.storageLocation ?? '—',
           ),
           _AdminDetailRow(
-            label: 'Harvest Date',
+            label: AppLocalizations.of(context).enhHarvestDate,
             value: DateFormat(
               'MMM d, yyyy · h:mm a',
             ).format(harvest.harvestDate),
-                    ),
+          ),
           _AdminDetailRow(
-            label: 'Sync Status',
-            value: harvest.isSynced ? 'Synced' : 'Pending sync',
+            label: AppLocalizations.of(context).enhSyncStatus,
+            value: harvest.isSynced
+                ? AppLocalizations.of(context).reportsSynced
+                : AppLocalizations.of(context).reportsPendingSync,
             isLast: true,
-            ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }

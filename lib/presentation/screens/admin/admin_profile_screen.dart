@@ -102,35 +102,59 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           _buildHeader(context, l10n, cs, sagana),
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : _profile == null
-                    ? Center(
-                        child: Text(l10n.adminProfileLoadError,
-                            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
-                          children: [
-                            _buildHeroCard(context, l10n, cs, sagana),
-                            const SizedBox(height: AppConstants.spacingSectionV),
-                            _sectionHeader(l10n.adminProfileActivitySummary, l10n.adminProfileActivitySummaryCaption, cs),
-                            _buildActivitySummary(context, l10n, cs, sagana),
-                            const SizedBox(height: AppConstants.spacingSectionV),
-                            _sectionHeader(l10n.adminProfileQuickAccess, l10n.adminProfileQuickAccessCaption, cs),
-                            _buildQuickAccessGrid(context, l10n, cs, sagana),
-                          ],
-                        ),
+                ? Center(
+                    child: Text(
+                      l10n.adminProfileLoadError,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
                       ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
+                      children: [
+                        _buildHeroCard(context, l10n, cs, sagana),
+                        const SizedBox(height: AppConstants.spacingSectionV),
+                        _sectionHeader(
+                          l10n.adminProfileActivitySummary,
+                          l10n.adminProfileActivitySummaryCaption,
+                          cs,
+                        ),
+                        _buildActivitySummary(context, l10n, cs, sagana),
+                        const SizedBox(height: AppConstants.spacingSectionV),
+                        _sectionHeader(
+                          l10n.adminProfileQuickAccess,
+                          l10n.adminProfileQuickAccessCaption,
+                          cs,
+                        ),
+                        _buildQuickAccessGrid(context, l10n, cs, sagana),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
-    return SubPageTopBar(title: l10n.adminProfileTitle, onBack: () => context.pop());
+  Widget _buildHeader(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    return SubPageTopBar(
+      title: l10n.adminProfileTitle,
+      onBack: () => context.pop(),
+    );
   }
 
   /// Identity + Email / Administrator Since. Redesigned per review
@@ -144,7 +168,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   /// and not meaningful for the Admin viewing their own profile.
   /// Organizational Information (Position/Department card) was removed
   /// entirely as redundant with what's already shown here.
-  Widget _buildHeroCard(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
+  Widget _buildHeroCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     final profile = _profile!;
     return Container(
       width: double.infinity,
@@ -169,7 +198,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 padding: const EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.35), width: 2),
+                  border: Border.all(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.35),
+                    width: 2,
+                  ),
                 ),
                 child: ProfileAvatar(
                   photoUrl: profile.profilePhotoUrl,
@@ -182,21 +214,41 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(profile.fullName,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.onSurface)),
+                    Text(
+                      profile.fullName,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 17,
+                        color: cs.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: 5),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
-                        color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        color: AppConstants.primaryGreen.withValues(
+                          alpha: 0.10,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Text(
-                          profile.position ??
-                              (HiveService.isOfficer
-                                  ? 'Cooperative Officer'
-                                  : l10n.adminProfileDefaultRole),
-                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                        profile.position ??
+                            (HiveService.isOfficer
+                                ? AppLocalizations.of(
+                                    context,
+                                  ).enhCooperativeOfficer
+                                : l10n.adminProfileDefaultRole),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -211,11 +263,17 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           // their own details.
           _heroRow(l10n.emailAddress, _orDash(profile.displayEmail), cs),
           const SizedBox(height: 12),
-          _heroRow(l10n.adminProfilePhoneNumber, _orDash(profile.phoneNumber), cs),
+          _heroRow(
+            l10n.adminProfilePhoneNumber,
+            _orDash(profile.phoneNumber),
+            cs,
+          ),
           const SizedBox(height: 12),
           _heroRow(
             l10n.adminProfileAdminSince,
-            profile.adminSince != null ? DateFormat('MMMM yyyy').format(profile.adminSince!) : '—',
+            profile.adminSince != null
+                ? DateFormat('MMMM yyyy').format(profile.adminSince!)
+                : '—',
             cs,
           ),
         ],
@@ -237,10 +295,20 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       children: [
         SizedBox(
           width: 120,
-          child: Text(label, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+          child: Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ),
         Expanded(
-          child: Text(value, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface)),
+          child: Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
         ),
       ],
     );
@@ -256,9 +324,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(caption, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+          Text(
+            caption,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -284,7 +362,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   /// aspect ratio gave every tile the same height regardless of how many
   /// lines its caption actually wrapped to, which is what caused the
   /// reported overflow on the longer captions.
-  Widget _buildActivitySummary(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
+  Widget _buildActivitySummary(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     final accents = [
       AppConstants.primaryGreen,
       AppConstants.buyerBlue,
@@ -424,22 +507,45 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             Row(
               children: [
                 Container(
-                  width: 30, height: 30,
-                  decoration: BoxDecoration(color: accent.withValues(alpha: 0.14), shape: BoxShape.circle),
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(icon, color: accent, size: 15),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(label,
-                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text(value, style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w800, color: accent)),
+            Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: accent,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(caption, style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(
+              caption,
+              style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -452,7 +558,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   ///
   /// Farmer Accounts / Officer Accounts are shown to the Manager and to every
   /// Officer; what an Officer can do there depends on their Members level.
-  Widget _buildQuickAccessGrid(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
+  Widget _buildQuickAccessGrid(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     final items = [
       (
         icon: Icons.groups_outlined,
@@ -503,7 +614,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               children: [
                 Expanded(child: _quickAccessCard(items[row * 2], cs, sagana)),
                 const SizedBox(width: 12),
-                Expanded(child: _quickAccessCard(items[row * 2 + 1], cs, sagana)),
+                Expanded(
+                  child: _quickAccessCard(items[row * 2 + 1], cs, sagana),
+                ),
               ],
             ),
           ),
@@ -513,7 +626,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Widget _quickAccessCard(
-    ({IconData icon, Color color, String title, String subtitle, VoidCallback onTap}) item,
+    ({
+      IconData icon,
+      Color color,
+      String title,
+      String subtitle,
+      VoidCallback onTap,
+    })
+    item,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
@@ -535,22 +655,43 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: item.color.withValues(alpha: 0.10), shape: BoxShape.circle),
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: item.color.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(item.icon, color: item.color, size: 18),
                 ),
-                Icon(Icons.arrow_forward_rounded, size: 14, color: cs.outline.withValues(alpha: 0.6)),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 14,
+                  color: cs.outline.withValues(alpha: 0.6),
+                ),
               ],
             ),
             const SizedBox(height: 10),
-            Text(item.title, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface)),
+            Text(
+              item.title,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
+            ),
             const SizedBox(height: 3),
-            Text(item.subtitle,
-                style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(
+              item.subtitle,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: cs.onSurfaceVariant,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
     );
   }
-
 }

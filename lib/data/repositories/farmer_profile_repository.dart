@@ -344,8 +344,10 @@ class FarmerProfileRepository {
           .from('user_information')
           .update({
             // The parts; the database rebuilds full_name from them.
-            if (name != null) ...name.toColumns()
-            else if (fullName != null) 'full_name': fullName,
+            if (name != null)
+              ...name.toColumns()
+            else if (fullName != null)
+              'full_name': fullName,
             if (phoneNumber != null) 'phone_number': phoneNumber,
           })
           .eq('user_id', _userId);
@@ -739,7 +741,8 @@ class FarmerProfileRepository {
       // as ambiguous and My Programs, Browse Programs and Received Items all load empty.
       const itemJoin =
           'cooperative_inventory!inventory_item_id(item_name, unit, image_url, item_type)';
-      const itemJoinOld = 'cooperative_inventory!inventory_item_id(item_name, unit, image_url)';
+      const itemJoinOld =
+          'cooperative_inventory!inventory_item_id(item_name, unit, image_url)';
       const returnCols =
           'return_quantity, return_unit, return_crop:crop_master!return_crop_id(crop_name)';
       final rows = await OfflineCache.load(
@@ -780,15 +783,12 @@ class FarmerProfileRepository {
     }
   }
 
-  /// What the cooperative has given this Farmer, from the same program records as My Programs
-  /// (nothing is stored a second time), split by the item's type in Inventory Management:
-  /// Non-Crop Items (tools, livestock, supplies) are the Farmer's Received Items; Crop Items
-  /// (seeds, seedlings, produce) belong to the Harvest tab ([cropItems] true). Newest first.
-  Future<List<MyProgramEntry>> fetchMyReceivedItems({bool cropItems = false}) async {
+  /// Everything the cooperative has given this Farmer, from the same program records as My Programs (nothing is
+  /// stored a second time): crop items (seeds, seedlings, produce) and non-crop items (tools, livestock,
+  /// supplies) alike, through a Free Distribution or a Harvest Return. Newest first.
+  Future<List<MyProgramEntry>> fetchMyReceivedItems() async {
     final all = await fetchMyPrograms();
-    final items = all
-        .where((p) => p.isDistributed && !p.isSalesProgram && p.isCropItem == cropItems)
-        .toList()
+    final items = all.where((p) => p.isDistributed && !p.isSalesProgram).toList()
       ..sort((a, b) => b.distributedAt!.compareTo(a.distributedAt!));
     return items;
   }
@@ -848,6 +848,7 @@ class FarmerProfileRepository {
       userId: _userId,
       imageBytes: imageBytes,
       fileExtension: fileExtension,
+      throwOnFailure: true,
     );
     if (url == null) throw Exception('Photo upload failed.');
     await _client

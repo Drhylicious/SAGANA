@@ -98,7 +98,7 @@ class _MyLoanHistoryScreenState extends State<MyLoanHistoryScreen> {
             children: [
               const TopBarSpacer(height: 64),
               CachedDataNotice(
-                screen: 'loans',
+                screen: "loans",
                 isOnline: _isOnline,
                 offlineMessage: l10n.offlineLoans,
               ),
@@ -112,11 +112,22 @@ class _MyLoanHistoryScreenState extends State<MyLoanHistoryScreen> {
                   style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
                   decoration: InputDecoration(
                     hintText: l10n.loanMySearchHint,
-                    hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                    prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.outline,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: cs.outline,
+                      size: 22,
+                    ),
                     suffixIcon: _search.isNotEmpty
                         ? IconButton(
-                            icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: cs.outline,
+                              size: 18,
+                            ),
                             onPressed: () {
                               _searchCtrl.clear();
                               setState(() => _search = '');
@@ -145,7 +156,10 @@ class _MyLoanHistoryScreenState extends State<MyLoanHistoryScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : visible.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -155,7 +169,8 @@ class _MyLoanHistoryScreenState extends State<MyLoanHistoryScreen> {
                               icon: Icons.agriculture_outlined,
                               text: _loans.isEmpty
                                   ? l10n.loanMyNoLoans
-                                  : (_search.trim().isNotEmpty && _searched.isEmpty
+                                  : (_search.trim().isNotEmpty &&
+                                            _searched.isEmpty
                                         ? l10n.loanMySearchNoMatch
                                         : l10n.loanMyNoLoansForFilter),
                             ),
@@ -165,8 +180,10 @@ class _MyLoanHistoryScreenState extends State<MyLoanHistoryScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                           itemCount: visible.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (_, i) => FarmerLoanCard(loan: visible[i]),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) =>
+                              FarmerLoanCard(loan: visible[i]),
                         ),
                 ),
               ),

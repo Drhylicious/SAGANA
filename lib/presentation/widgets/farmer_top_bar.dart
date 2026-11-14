@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/notification_badge_service.dart';
 import '../../data/services/profile_state_service.dart';
 import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
@@ -150,7 +151,9 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: widget.overlay
-                      ? Colors.white.withValues(alpha: 0.20)
+                      ? context.saganaColors.cardBackground.withValues(
+                          alpha: 0.20,
+                        )
                       : sagana.cardBackground,
                   border: Border.all(
                     color: widget.overlay
@@ -211,32 +214,37 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                     if (widget.showNotificationButton)
                       GestureDetector(
                         onTap: widget.onNotificationTap,
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              Icons.notifications_outlined,
-                              color: iconColor,
-                              size: 26,
-                            ),
-                            if (widget.unreadCount > 0)
-                              Positioned(
-                                top: -2,
-                                right: -2,
-                                child: Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: AppConstants.errorRed,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.5,
+                        // The dot comes from the shared badge service, so it
+                        // shows on every primary screen.
+                        child: ListenableBuilder(
+                          listenable: NotificationBadgeService.instance,
+                          builder: (context, _) => Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(
+                                Icons.notifications_outlined,
+                                color: iconColor,
+                                size: 26,
+                              ),
+                              if (NotificationBadgeService.instance.hasUnread)
+                                Positioned(
+                                  top: -2,
+                                  right: -2,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: AppConstants.errorRed,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.5,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     if (widget.onSettingsTap != null) ...[

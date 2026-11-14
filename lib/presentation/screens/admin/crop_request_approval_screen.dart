@@ -1,6 +1,9 @@
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../core/utils/app_error_message.dart';
+import '../../widgets/app_toast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,6 +16,7 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../../data/models/admin_log_message.dart';
 import '../../../data/services/market_types_service.dart';
+import '../../../core/l10n/localized_labels.dart';
 
 // ─── Model ─────────────────────────────────────────────────────────────────
 
@@ -23,6 +27,10 @@ class CropRequestItem {
   final String requestedName;
   final String category;
   final String cropType;
+
+  /// The shelf life (days) the Farmer gave for the crop; it becomes the crop's
+  /// shelf life on approval. Null for a request made before this was asked.
+  final int? shelfLifeDays;
   final String status;
   final String? adminNotes;
   final DateTime createdAt;
@@ -35,6 +43,7 @@ class CropRequestItem {
     required this.requestedName,
     required this.category,
     required this.cropType,
+    this.shelfLifeDays,
     required this.status,
     this.adminNotes,
     required this.createdAt,
@@ -49,13 +58,21 @@ class _CropRequestRepository {
 
   Future<List<CropRequestItem>> fetchByStatus(String status) async {
     try {
-      final rows = await _client
+      const columns =
+          'id, farmer_id, requested_name, category, crop_type, status, admin_notes, created_at, reviewed_at';
+      Future<List<Map<String, dynamic>>> read(String cols) => _client
           .from('crop_requests')
-          .select(
-            'id, farmer_id, requested_name, category, crop_type, status, admin_notes, created_at, reviewed_at',
-          )
+          .select(cols)
           .eq('status', status)
           .order('created_at', ascending: status == 'pending');
+      // With the Farmer's shelf-life figure; without it on a database that
+      // does not have the column yet.
+      List<Map<String, dynamic>> rows;
+      try {
+        rows = await read('$columns, shelf_life_days');
+      } on PostgrestException {
+        rows = await read(columns);
+      }
 
       if (rows.isEmpty) return [];
 
@@ -71,7 +88,7 @@ class _CropRequestRepository {
 
       final namesByUserId = <String, String>{
         for (final info in infoRows)
-          info['user_id'] as String: info['full_name'] as String? ?? 'Unknown',
+          info['user_id'] as String: info['full_name'] as String? ?? '',
       };
 
       return rows.map((r) {
@@ -79,10 +96,11 @@ class _CropRequestRepository {
         return CropRequestItem(
           id: r['id'] as String,
           farmerId: farmerId,
-          farmerName: namesByUserId[farmerId] ?? 'Unknown',
+          farmerName: namesByUserId[farmerId] ?? '',
           requestedName: r['requested_name'] as String,
           category: r['category'] as String? ?? 'Other',
           cropType: r['crop_type'] as String? ?? '',
+          shelfLifeDays: (r['shelf_life_days'] as num?)?.toInt(),
           status: r['status'] as String,
           adminNotes: r['admin_notes'] as String?,
           createdAt: DateTime.parse(r['created_at'] as String),
@@ -105,14 +123,47 @@ class _CropRequestRepository {
       await _client.rpc(
         'approve_crop_request',
         params: {
-        'p_request_id': requestId,
-        if (notes != null && notes.isNotEmpty) 'p_admin_notes': notes,
-        'p_crop_type': cropType,
+          'p_request_id': requestId,
+          if (notes != null && notes.isNotEmpty) 'p_admin_notes': notes,
+          'p_crop_type': cropType,
         },
       );
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Saves the shelf life the Manager confirmed for a pending request; it
+  /// becomes the crop's shelf life on approval. Returns the error on failure,
+  /// null on success.
+  Future<Object?> setShelfLife(String requestId, int days) async {
+    try {
+      await _client.rpc(
+        'set_crop_request_shelf_life',
+        params: {'p_request_id': requestId, 'p_days': days},
+      );
+      return null;
+    } catch (e) {
+      return e;
+    }
+  }
+
+  /// Saves the Storage Life the Manager set for a pending request; it becomes
+  /// the crop's Storage Life on approval. Returns the error on failure, null on
+  /// success. A database that does not have the function yet is not treated
+  /// as a failure: the approval then goes ahead as it did before.
+  Future<Object?> setStorageLife(String requestId, int days) async {
+    try {
+      await _client.rpc(
+        'set_crop_request_storage_life',
+        params: {'p_request_id': requestId, 'p_days': days},
+      );
+      return null;
+    } on PostgrestException catch (e) {
+      return e.code == 'PGRST202' ? null : e;
+    } catch (e) {
+      return e;
     }
   }
 
@@ -187,6 +238,16 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
     if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final notesCtrl = TextEditingController();
+    // The Farmer's shelf-life figure, for the Manager to confirm or correct.
+    // Required: a crop is not approved without a shelf life.
+    final shelfCtrl = TextEditingController(
+      text: item.shelfLifeDays?.toString() ?? '',
+    );
+    String? shelfError;
+    // Storage Life of the crop's planting materials: set by the Manager here,
+    // never asked from the Farmer. Required as well.
+    final storageCtrl = TextEditingController();
+    String? storageError;
     // The farmer's suggested market type if it is still a valid option,
     // otherwise the default one; the Manager confirms or changes it.
     final validCodes = MarketTypes.instance.activeTypes
@@ -202,139 +263,249 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheet) {
-          Future<void> respond(bool approve) async {
-            if (!approve && notesCtrl.text.trim().isEmpty) {
+            Future<void> respond(bool approve) async {
+              if (!approve && notesCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(ctx).showSnackBar(
                   SnackBar(
-                content: Text(l10n.cropRequestProvideReason),
-                backgroundColor: AppConstants.errorRed,
-                behavior: SnackBarBehavior.floating,
+                    content: Text(l10n.cropRequestProvideReason),
+                    backgroundColor: AppConstants.errorRed,
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
-              return;
-            }
-            setSheet(() => isSaving = true);
-            final ok = approve
+                return;
+              }
+              if (approve) {
+                final days = int.tryParse(shelfCtrl.text.trim());
+                if (days == null || days < 1 || days > 3650) {
+                  setSheet(
+                    () => shelfError = shelfCtrl.text.trim().isEmpty
+                        ? l10n.cropMgmtShelfLifeRequired
+                        : l10n.cropMgmtShelfLifeInvalid,
+                  );
+                  return;
+                }
+                final storageDays = int.tryParse(storageCtrl.text.trim());
+                if (storageDays == null ||
+                    storageDays < 1 ||
+                    storageDays > 36500) {
+                  setSheet(
+                    () => storageError = storageCtrl.text.trim().isEmpty
+                        ? l10n.cropMgmtStorageLifeRequired
+                        : l10n.cropMgmtStorageLifeInvalid,
+                  );
+                  return;
+                }
+                setSheet(() => isSaving = true);
+                final storageFailure = await _repo.setStorageLife(
+                  item.id,
+                  storageDays,
+                );
+                if (storageFailure != null) {
+                  if (!ctx.mounted) return;
+                  setSheet(() => isSaving = false);
+                  PostActionFeedback.error(
+                    ctx,
+                    friendlyError(l10n, storageFailure),
+                  );
+                  return;
+                }
+                // Saved only when it differs from what the request carries.
+                if (days != item.shelfLifeDays) {
+                  setSheet(() => isSaving = true);
+                  final failure = await _repo.setShelfLife(item.id, days);
+                  if (failure != null) {
+                    if (!ctx.mounted) return;
+                    setSheet(() => isSaving = false);
+                    PostActionFeedback.error(ctx, friendlyError(l10n, failure));
+                    return;
+                  }
+                }
+              }
+              setSheet(() => isSaving = true);
+              final ok = approve
                   ? await _repo.approve(
                       item.id,
-                    notes: notesCtrl.text.trim().isEmpty
-                        ? null
-                        : notesCtrl.text.trim(),
+                      notes: notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim(),
                       cropType: selectedCropType,
                     )
-                : await _repo.reject(item.id, notesCtrl.text.trim());
-            if (ok) {
-              AdminActivityRepository().log(
-                module: 'crops',
-                actionType: approve ? 'approved' : 'rejected',
-                message: approve
-? AdminLogMessage('adminLogCropRequestApproved', {'farmer': item.farmerName, 'crop': item.requestedName})
-: AdminLogMessage('adminLogCropRequestRejected', {'farmer': item.farmerName, 'crop': item.requestedName}),
-                referenceId: item.id,
-              );
-            }
-            if (!ctx.mounted) return;
-            Navigator.pop(ctx);
-            if (ok) _load();
-              ScaffoldMessenger.of(this.context).showSnackBar(
+                  : await _repo.reject(item.id, notesCtrl.text.trim());
+              if (ok) {
+                AdminActivityRepository().log(
+                  module: 'crops',
+                  actionType: approve ? 'approved' : 'rejected',
+                  message: approve
+                      ? AdminLogMessage('adminLogCropRequestApproved', {
+                          'farmer': item.farmerName,
+                          'crop': item.requestedName,
+                        })
+                      : AdminLogMessage('adminLogCropRequestRejected', {
+                          'farmer': item.farmerName,
+                          'crop': item.requestedName,
+                        }),
+                  referenceId: item.id,
+                );
+              }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              if (ok) _load();
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
                     ok
-                  ? (approve
-                      ? l10n.cropRequestApprovedToast
-                      : l10n.cropRequestDeclinedToast)
+                        ? (approve
+                              ? l10n.cropRequestApprovedToast
+                              : l10n.cropRequestDeclinedToast)
                         : l10n.cropRequestFailedTryAgain,
                   ),
                   backgroundColor: ok
                       ? AppConstants.midGreen
                       : AppConstants.errorRed,
-              behavior: SnackBarBehavior.floating,
+                  behavior: SnackBarBehavior.floating,
                 ),
               );
-          }
+            }
 
-          return ManagementModalShell(
-            title: item.requestedName,
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${item.farmerName} · ${item.category}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(ctx).colorScheme.onSurface,
+            return ManagementModalShell(
+              title: item.requestedName,
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${item.farmerName.isEmpty ? l10n.enhUnknown : item.farmerName} · ${localizeBuiltinLabel(l10n, item.category)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(ctx).colorScheme.onSurface,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.cropRequestApprovingNote,
-                  style: GoogleFonts.inter(
+                  const SizedBox(height: 10),
+                  Text(
+                    l10n.cropRequestApprovingNote,
+                    style: GoogleFonts.inter(
                       fontSize: 12,
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCropType,
-                  decoration: InputDecoration(
-                    labelText: l10n.cropRequestCropTypeLabel,
-                    helperText: l10n.cropRequestCropTypeHelper,
-                  ),
-                  items: [
-                    for (final t in MarketTypes.instance.activeTypes)
-                      DropdownMenuItem(
-                        value: t.code,
-                        child: Text(MarketTypes.instance.label(t.code)),
-                      ),
-                  ],
-                  onChanged: (v) => setSheet(() => selectedCropType = v!),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: notesCtrl,
-                  decoration: InputDecoration(
-                    labelText: l10n.cropRequestNotesLabel,
-                    hintText: l10n.cropRequestNotesHint,
-                  ),
-                  maxLines: 3,
-                ),
-              ],
-            ),
-            footer: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: isSaving ? null : () => respond(false),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppConstants.errorRed,
-                      side: const BorderSide(color: AppConstants.errorRed),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCropType,
+                    decoration: InputDecoration(
+                      labelText: l10n.cropRequestCropTypeLabel,
+                      helperText: l10n.cropRequestCropTypeHelper,
                     ),
-                    child: Text(l10n.commonReject),
+                    items: [
+                      for (final t in MarketTypes.instance.activeTypes)
+                        DropdownMenuItem(
+                          value: t.code,
+                          child: Text(MarketTypes.instance.label(t.code)),
+                        ),
+                    ],
+                    onChanged: (v) => setSheet(() => selectedCropType = v!),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: isSaving ? null : () => respond(true),
-                    child: isSaving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: shelfCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
+                    onChanged: (_) {
+                      if (shelfError != null) {
+                        setSheet(() => shelfError = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: '${l10n.shelfLifeLabel} *',
+                      hintText: l10n.cropMgmtShelfLifeHint,
+                      suffixText: l10n.shelfDaysUnit,
+                      errorText: shelfError,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.cropMgmtShelfLifeHelp,
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: storageCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(5),
+                    ],
+                    onChanged: (_) {
+                      if (storageError != null) {
+                        setSheet(() => storageError = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: '${l10n.cropMgmtStorageLifeLabel} *',
+                      hintText: l10n.cropMgmtStorageLifeHint,
+                      suffixText: l10n.shelfDaysUnit,
+                      errorText: storageError,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.cropMgmtStorageLifeHelp,
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: notesCtrl,
+                    decoration: InputDecoration(
+                      labelText: l10n.cropRequestNotesLabel,
+                      hintText: l10n.cropRequestNotesHint,
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+              footer: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: isSaving ? null : () => respond(false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppConstants.errorRed,
+                        side: const BorderSide(color: AppConstants.errorRed),
+                      ),
+                      child: Text(l10n.commonReject),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: isSaving ? null : () => respond(true),
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: Colors.white,
                               ),
-                          )
-                        : Text(l10n.farmerMgmtApproveAction),
+                            )
+                          : Text(l10n.farmerMgmtApproveAction),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
+                ],
+              ),
+            );
           },
         );
       },
@@ -352,7 +523,10 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
       body: SafeArea(
         child: Column(
           children: [
-            SubPageTopBar(title: l10n.cropRequestTitle, onBack: () => context.pop()),
+            SubPageTopBar(
+              title: l10n.cropRequestTitle,
+              onBack: () => context.pop(),
+            ),
             TabBar(
               controller: _tabController,
               labelColor: AppConstants.primaryGreen,
@@ -365,7 +539,10 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
             ),
             Expanded(
               child: _isLoading
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : TabBarView(
                       controller: _tabController,
                       children: [
@@ -406,8 +583,8 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
           final statusColor = item.status == 'approved'
               ? AppConstants.successGreen
               : item.status == 'rejected'
-                  ? AppConstants.errorRed
-                  : AppConstants.amber;
+              ? AppConstants.errorRed
+              : AppConstants.amber;
           return GestureDetector(
             onTap: isPending ? () => _showReviewModal(item) : null,
             child: Container(
@@ -431,19 +608,27 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                       children: [
                         Text(
                           item.requestedName,
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
                             color: cs.onSurface,
                           ),
                         ),
                         Text(
-                          '${item.farmerName} · ${item.category}',
+                          '${item.farmerName.isEmpty ? l10n.enhUnknown : item.farmerName} · ${localizeBuiltinLabel(l10n, item.category)}',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: cs.onSurfaceVariant,
                           ),
                         ),
+                        if (item.shelfLifeDays != null)
+                          Text(
+                            l10n.cropRequestShelfLifeLine(item.shelfLifeDays!),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
                         if (!isPending &&
                             item.adminNotes != null &&
                             item.adminNotes!.isNotEmpty)
@@ -451,9 +636,9 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               '"${item.adminNotes}"',
-                                style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontStyle: FontStyle.italic,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
                                 color: cs.onSurfaceVariant,
                               ),
                             ),
@@ -480,7 +665,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                       ),
                       child: Text(
                         item.status.toUpperCase(),
-                          style: GoogleFonts.inter(
+                        style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                           color: statusColor,

@@ -1,3 +1,5 @@
+import '../../core/l10n/app_localizations.dart';
+import '../../core/l10n/localized_labels.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -45,7 +47,7 @@ class TopHarvestedCropsChart extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                localizeBuiltinLabel(AppLocalizations.of(context), title),
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

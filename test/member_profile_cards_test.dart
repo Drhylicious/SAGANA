@@ -89,7 +89,8 @@ BuyerAddressModel _address({
   id: 'a-$label',
   userId: 'u1',
   label: label,
-  addressLine: '5, $street, Payanas, Torrijos, Marinduque, MIMAROPA Region, 4903',
+  addressLine:
+      '5, $street, Payanas, Torrijos, Marinduque, MIMAROPA Region, 4903',
   latitude: lat,
   longitude: lng,
   notes: notes,
@@ -138,74 +139,85 @@ void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
   group('Identity card: header details in two rows', () {
-    testWidgets('Email | Phone on the first row, Date of Birth | Gender on the second, equal tiles', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberIdentityCard(
-            profile: _profile(email: 'juan@gmail.com', phone: '09171234567'),
-          ),
-        );
-        final tile = (String label) => tester.getRect(
-          find.ancestor(
-            of: find.text(label),
-            matching: find.byType(Container),
-          ).first,
-        );
-        final email = tile('Email Address');
-        final phone = tile('Phone Number');
-        final dob = tile('Date of Birth');
-        final gender = tile('Gender');
-        // Row 1 and row 2 each sit on one line, row 2 below row 1.
-        expect((email.top - phone.top).abs(), lessThan(1));
-        expect((dob.top - gender.top).abs(), lessThan(1));
-        expect(dob.top, greaterThan(email.bottom));
-        // Left column and right column line up, and every tile is the same size.
-        expect((email.left - dob.left).abs(), lessThan(1));
-        expect((phone.left - gender.left).abs(), lessThan(1));
-        expect((email.width - phone.width).abs(), lessThan(1));
-        expect((dob.width - gender.width).abs(), lessThan(1));
-        expect((email.width - dob.width).abs(), lessThan(1));
-        expect((email.height - phone.height).abs(), lessThan(1));
-        expect((dob.height - gender.height).abs(), lessThan(1));
+    testWidgets(
+      'Email | Phone on the first row, Date of Birth | Gender on the second, equal tiles',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberIdentityCard(
+              profile: _profile(email: 'juan@gmail.com', phone: '09171234567'),
+            ),
+          );
+          Rect tile(String label) => tester.getRect(
+            find
+                .ancestor(
+                  of: find.text(label),
+                  matching: find.byType(Container),
+                )
+                .first,
+          );
+          final email = tile('Email Address');
+          final phone = tile('Phone Number');
+          final dob = tile('Date of Birth');
+          final gender = tile('Gender');
+          // Row 1 and row 2 each sit on one line, row 2 below row 1.
+          expect((email.top - phone.top).abs(), lessThan(1));
+          expect((dob.top - gender.top).abs(), lessThan(1));
+          expect(dob.top, greaterThan(email.bottom));
+          // Left column and right column line up, and every tile is the same size.
+          expect((email.left - dob.left).abs(), lessThan(1));
+          expect((phone.left - gender.left).abs(), lessThan(1));
+          expect((email.width - phone.width).abs(), lessThan(1));
+          expect((dob.width - gender.width).abs(), lessThan(1));
+          expect((email.width - dob.width).abs(), lessThan(1));
+          expect((email.height - phone.height).abs(), lessThan(1));
+          expect((dob.height - gender.height).abs(), lessThan(1));
 
-        expect(find.text('juan@gmail.com'), findsOneWidget);
-        expect(find.text('09171234567'), findsOneWidget);
-        expect(find.text('1990-03-07'), findsOneWidget);
-        expect(find.text('Male'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-    });
+          expect(find.text('juan@gmail.com'), findsOneWidget);
+          expect(find.text('09171234567'), findsOneWidget);
+          expect(find.text('1990-03-07'), findsOneWidget);
+          expect(find.text('Male'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+      },
+    );
 
-    testWidgets('the complete name sits under the picture, above the tiles, centred, and only once', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberIdentityCard(profile: _profile(email: 'a@b.com', phone: '0917')),
-        );
-        // Built from the parts: First M. Surname Suffix.
-        final name = find.byKey(const ValueKey('member-header-name'));
-        expect(name, findsOneWidget);
-        expect(find.text('Marc Louie M. Yañez Jr.'), findsOneWidget);
-        expect(tester.widget<Text>(name).textAlign, TextAlign.center);
+    testWidgets(
+      'the complete name sits under the picture, above the tiles, centred, and only once',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberIdentityCard(
+              profile: _profile(email: 'a@b.com', phone: '0917'),
+            ),
+          );
+          // Built from the parts: First M. Surname Suffix.
+          final name = find.byKey(const ValueKey('member-header-name'));
+          expect(name, findsOneWidget);
+          expect(find.text('Marc Louie M. Yañez Jr.'), findsOneWidget);
+          expect(tester.widget<Text>(name).textAlign, TextAlign.center);
 
-        final avatar = tester.getRect(find.byType(Container).at(2));
-        final nameBox = tester.getRect(name);
-        final firstTile = tester.getRect(
-          find.ancestor(of: find.text('Email Address'), matching: find.byType(Container)).first,
-        );
-        expect(nameBox.top, greaterThan(avatar.top));
-        expect(nameBox.bottom, lessThan(firstTile.top));
-        // The Personal Information section is gone, so no name parts are repeated.
-        expect(find.text('Personal Information'), findsNothing);
-        expect(find.text('Surname'), findsNothing);
-        expect(find.text('M.I.'), findsNothing);
-      });
-    });
+          final avatar = tester.getRect(find.byType(Container).at(2));
+          final nameBox = tester.getRect(name);
+          final firstTile = tester.getRect(
+            find
+                .ancestor(
+                  of: find.text('Email Address'),
+                  matching: find.byType(Container),
+                )
+                .first,
+          );
+          expect(nameBox.top, greaterThan(avatar.top));
+          expect(nameBox.bottom, lessThan(firstTile.top));
+          // The Personal Information section is gone, so no name parts are repeated.
+          expect(find.text('Personal Information'), findsNothing);
+          expect(find.text('Surname'), findsNothing);
+          expect(find.text('M.I.'), findsNothing);
+        });
+      },
+    );
 
     testWidgets('a long name wraps instead of overflowing on a narrow phone', (
       tester,
@@ -214,13 +226,14 @@ void main() {
         tester.view.physicalSize = const Size(320, 3000);
         await _pump(
           tester,
-          MemberIdentityCard(
+          const MemberIdentityCard(
             profile: FarmerProfileModel(
               userId: 'u3',
-              fullName: 'Maria Concepcion Alessandra D. de la Cruz-Villanueva III',
+              fullName:
+                  'Maria Concepcion Alessandra D. de la Cruz-Villanueva III',
               capitalShares: 0,
               isVerified: true,
-              primaryCrops: const [],
+              primaryCrops: [],
             ),
           ),
         );
@@ -228,17 +241,19 @@ void main() {
       });
     });
 
-    testWidgets('missing values show a dash and keep the tile size', (tester) async {
+    testWidgets('missing values show a dash and keep the tile size', (
+      tester,
+    ) async {
       await runIgnoringFontErrors(() async {
         await _pump(
           tester,
-          MemberIdentityCard(
+          const MemberIdentityCard(
             profile: FarmerProfileModel(
               userId: 'u2',
               fullName: 'Ana Reyes',
               capitalShares: 0,
               isVerified: false,
-              primaryCrops: const [],
+              primaryCrops: [],
             ),
           ),
         );
@@ -276,47 +291,54 @@ void main() {
       });
     });
 
-    testWidgets('one complete address, then its map: no separate address fields', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberResidentialAddressCard(
-            addresses: [_address(lat: 13.32, lng: 122.04, notes: 'Blue gate')],
-          ),
-        );
-        expect(find.text('Residential Address'), findsOneWidget);
-        expect(find.text('Complete Address'), findsOneWidget);
-        // The whole address is one piece of text, exactly as saved.
-        final address = find.byKey(const ValueKey('member-residential-address-0'));
-        expect(address, findsOneWidget);
-        expect(
-          tester.widget<SelectableText>(address).data,
-          '5, Mabini St, Payanas, Torrijos, Marinduque, MIMAROPA Region, 4903',
-        );
-        // None of its parts is repeated as a row of its own.
-        expectNoComponentRows();
-        expect(find.text('Mabini St'), findsNothing);
-        expect(find.text('4903'), findsNothing);
-        // The map is directly below the address.
-        expect(find.byType(AddressMapPreview), findsOneWidget);
-        expect(
-          tester.getTopLeft(find.byType(AddressMapPreview)).dy,
-          greaterThan(tester.getBottomLeft(address).dy),
-        );
-        expect(find.text('Blue gate'), findsOneWidget);
-        expect(find.text('Home'), findsOneWidget);
-        expect(find.text('Default'), findsOneWidget);
-        expect(find.text('No map pin saved for this address.'), findsNothing);
-      });
-    });
+    testWidgets(
+      'one complete address, then its map: no separate address fields',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberResidentialAddressCard(
+              addresses: [
+                _address(lat: 13.32, lng: 122.04, notes: 'Blue gate'),
+              ],
+            ),
+          );
+          expect(find.text('Residential Address'), findsOneWidget);
+          expect(find.text('Complete Address'), findsOneWidget);
+          // The whole address is one piece of text, exactly as saved.
+          final address = find.byKey(
+            const ValueKey('member-residential-address-0'),
+          );
+          expect(address, findsOneWidget);
+          expect(
+            tester.widget<SelectableText>(address).data,
+            '5, Mabini St, Payanas, Torrijos, Marinduque, MIMAROPA Region, 4903',
+          );
+          // None of its parts is repeated as a row of its own.
+          expectNoComponentRows();
+          expect(find.text('Mabini St'), findsNothing);
+          expect(find.text('4903'), findsNothing);
+          // The map is directly below the address.
+          expect(find.byType(AddressMapPreview), findsOneWidget);
+          expect(
+            tester.getTopLeft(find.byType(AddressMapPreview)).dy,
+            greaterThan(tester.getBottomLeft(address).dy),
+          );
+          expect(find.text('Blue gate'), findsOneWidget);
+          expect(find.text('Home'), findsOneWidget);
+          expect(find.text('Default'), findsOneWidget);
+          expect(find.text('No map pin saved for this address.'), findsNothing);
+        });
+      },
+    );
 
     testWidgets('the map shows this address\'s own pin', (tester) async {
       await runIgnoringFontErrors(() async {
         await _pump(
           tester,
-          MemberResidentialAddressCard(addresses: [_address(lat: 13.32, lng: 122.04)]),
+          MemberResidentialAddressCard(
+            addresses: [_address(lat: 13.32, lng: 122.04)],
+          ),
         );
         final map = tester.widget<AddressMapPreview>(
           find.byKey(const ValueKey('member-residential-map-0')),
@@ -326,34 +348,44 @@ void main() {
       });
     });
 
-    testWidgets('an address with no pin says so; every saved address is listed', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberResidentialAddressCard(
-            addresses: [
-              _address(),
-              _address(label: 'Relative', isDefault: false, street: 'Luna St'),
-            ],
-          ),
-        );
-        expect(find.text('Home'), findsOneWidget);
-        expect(find.text('Relative'), findsOneWidget);
-        expect(find.text('Default'), findsOneWidget);
-        expect(find.text('Complete Address'), findsNWidgets(2));
-        expect(
-          tester.widget<SelectableText>(
-            find.byKey(const ValueKey('member-residential-address-1')),
-          ).data,
-          contains('Luna St'),
-        );
-        expect(find.byType(AddressMapPreview), findsNothing);
-        expect(find.text('No map pin saved for this address.'), findsNWidgets(2));
-        expectNoComponentRows();
-      });
-    });
+    testWidgets(
+      'an address with no pin says so; every saved address is listed',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberResidentialAddressCard(
+              addresses: [
+                _address(),
+                _address(
+                  label: 'Relative',
+                  isDefault: false,
+                  street: 'Luna St',
+                ),
+              ],
+            ),
+          );
+          expect(find.text('Home'), findsOneWidget);
+          expect(find.text('Relative'), findsOneWidget);
+          expect(find.text('Default'), findsOneWidget);
+          expect(find.text('Complete Address'), findsNWidgets(2));
+          expect(
+            tester
+                .widget<SelectableText>(
+                  find.byKey(const ValueKey('member-residential-address-1')),
+                )
+                .data,
+            contains('Luna St'),
+          );
+          expect(find.byType(AddressMapPreview), findsNothing);
+          expect(
+            find.text('No map pin saved for this address.'),
+            findsNWidgets(2),
+          );
+          expectNoComponentRows();
+        });
+      },
+    );
 
     testWidgets('a single address that is not the default needs no label', (
       tester,
@@ -365,7 +397,10 @@ void main() {
         );
         expect(find.text('Home'), findsNothing);
         expect(find.text('Default'), findsNothing);
-        expect(find.byKey(const ValueKey('member-residential-address-0')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('member-residential-address-0')),
+          findsOneWidget,
+        );
       });
     });
   });
@@ -385,52 +420,58 @@ void main() {
       crops: const ['Ginger', 'Palay'],
     );
 
-    testWidgets('one card: Farm Address, then Farm Information, then Farm Location', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberFarmSection(profile: structured(lat: 13.3213, lng: 122.0394)),
-        );
-        expect(find.byType(AddressSectionCard), findsOneWidget);
-        expect(find.text('Farm Details'), findsOneWidget);
-        double y(String t) => tester.getTopLeft(find.text(t).first).dy;
-        expect(y('Farm Details'), lessThan(y('Farm Address')));
-        expect(y('Farm Address'), lessThan(y('Farm Information')));
-        expect(y('Farm Information'), lessThan(y('Farm Location')));
-        // The map comes after the farm information.
-        expect(
-          tester.getTopLeft(find.byType(AddressMapPreview)).dy,
-          greaterThan(y('Farm Location')),
-        );
+    testWidgets(
+      'one card: Farm Address, then Farm Information, then Farm Location',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberFarmSection(profile: structured(lat: 13.3213, lng: 122.0394)),
+          );
+          expect(find.byType(AddressSectionCard), findsOneWidget);
+          expect(find.text('Farm Details'), findsOneWidget);
+          double y(String t) => tester.getTopLeft(find.text(t).first).dy;
+          expect(y('Farm Details'), lessThan(y('Farm Address')));
+          expect(y('Farm Address'), lessThan(y('Farm Information')));
+          expect(y('Farm Information'), lessThan(y('Farm Location')));
+          // The map comes after the farm information.
+          expect(
+            tester.getTopLeft(find.byType(AddressMapPreview)).dy,
+            greaterThan(y('Farm Location')),
+          );
 
-        expect(find.text('Yañez Farm'), findsOneWidget);
-        expect(find.text('1.50 ha'), findsOneWidget);
-        expect(find.text('8 years'), findsOneWidget);
-        expect(find.text('Owned'), findsOneWidget);
-        expect(find.text('Rain fed'), findsOneWidget);
-        expect(find.text('Ginger'), findsOneWidget);
-        expect(find.text('Palay'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-    });
+          expect(find.text('Yañez Farm'), findsOneWidget);
+          expect(find.text('1.50 ha'), findsOneWidget);
+          expect(find.text('8 years'), findsOneWidget);
+          expect(find.text('Owned'), findsOneWidget);
+          expect(find.text('Rain fed'), findsOneWidget);
+          expect(find.text('Ginger'), findsOneWidget);
+          expect(find.text('Palay'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+      },
+    );
 
-    testWidgets('the farm address is one complete line, not split into fields', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(tester, MemberFarmSection(profile: structured()));
-        expect(find.text('Complete Address'), findsOneWidget);
-        expect(
-          tester.widget<SelectableText>(find.byKey(const ValueKey('member-farm-address'))).data,
-          fullLine,
-        );
-        expectNoComponentRows();
-        expect(find.text('Rizal St'), findsNothing);
-        expect(find.text('Barn B'), findsNothing);
-      });
-    });
+    testWidgets(
+      'the farm address is one complete line, not split into fields',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(tester, MemberFarmSection(profile: structured()));
+          expect(find.text('Complete Address'), findsOneWidget);
+          expect(
+            tester
+                .widget<SelectableText>(
+                  find.byKey(const ValueKey('member-farm-address')),
+                )
+                .data,
+            fullLine,
+          );
+          expectNoComponentRows();
+          expect(find.text('Rizal St'), findsNothing);
+          expect(find.text('Barn B'), findsNothing);
+        });
+      },
+    );
 
     testWidgets('a farm saved as plain text shows that line', (tester) async {
       await runIgnoringFontErrors(() async {
@@ -441,31 +482,46 @@ void main() {
           ),
         );
         expect(
-          tester.widget<SelectableText>(find.byKey(const ValueKey('member-farm-address'))).data,
+          tester
+              .widget<SelectableText>(
+                find.byKey(const ValueKey('member-farm-address')),
+              )
+              .data,
           'Sitio Bato, Payanas, Torrijos',
         );
         expectNoComponentRows();
       });
     });
 
-    testWidgets('only the separate parts saved: the same complete line is built from them', (
+    testWidgets(
+      'only the separate parts saved: the same complete line is built from them',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberFarmSection(
+              profile: _profile(
+                street: 'Rizal St',
+                building: 'Barn B',
+                houseNo: '12',
+              ),
+            ),
+          );
+          expect(
+            tester
+                .widget<SelectableText>(
+                  find.byKey(const ValueKey('member-farm-address')),
+                )
+                .data,
+            fullLine,
+          );
+        });
+      },
+    );
+
+    testWidgets('no farm address and no pin: both say so, with no map', (
       tester,
     ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberFarmSection(
-            profile: _profile(street: 'Rizal St', building: 'Barn B', houseNo: '12'),
-          ),
-        );
-        expect(
-          tester.widget<SelectableText>(find.byKey(const ValueKey('member-farm-address'))).data,
-          fullLine,
-        );
-      });
-    });
-
-    testWidgets('no farm address and no pin: both say so, with no map', (tester) async {
       await runIgnoringFontErrors(() async {
         await _pump(tester, MemberFarmSection(profile: _profile()));
         expect(find.text('No farm address saved yet.'), findsOneWidget);
@@ -489,11 +545,16 @@ void main() {
           tester,
           MemberFarmSection(profile: structured(lat: 13.3213, lng: 122.0394)),
         );
-        final map = tester.widget<AddressMapPreview>(find.byKey(const ValueKey('member-farm-map')));
+        final map = tester.widget<AddressMapPreview>(
+          find.byKey(const ValueKey('member-farm-map')),
+        );
         expect(map.pin!.latitude, 13.3213);
         expect(map.pin!.longitude, 122.0394);
-        expect(map.pinColor, isNot(const AddressMapPreview(pin: null).pinColor),
-            reason: 'farm pin is green; a home pin is red');
+        expect(
+          map.pinColor,
+          isNot(const AddressMapPreview(pin: null).pinColor),
+          reason: 'farm pin is green; a home pin is red',
+        );
         expect(find.text('13.3213° N, 122.0394° E'), findsOneWidget);
       });
     });
@@ -507,9 +568,13 @@ void main() {
           Column(
             children: [
               MemberResidentialAddressCard(
-                addresses: [_address(street: 'Home Only St', lat: 13.5, lng: 122.5)],
+                addresses: [
+                  _address(street: 'Home Only St', lat: 13.5, lng: 122.5),
+                ],
               ),
-              MemberFarmSection(profile: structured(lat: 13.3213, lng: 122.0394)),
+              MemberFarmSection(
+                profile: structured(lat: 13.3213, lng: 122.0394),
+              ),
             ],
           ),
         );
@@ -540,29 +605,54 @@ void main() {
   });
 
   group('where the cards read their data from', () {
-    final cards = File('lib/presentation/widgets/member_profile_cards.dart').readAsStringSync();
-    final repo = File('lib/data/repositories/farmer_details_repository.dart').readAsStringSync();
+    final cards = File(
+      'lib/presentation/widgets/member_profile_cards.dart',
+    ).readAsStringSync();
+    final repo = File(
+      'lib/data/repositories/farmer_details_repository.dart',
+    ).readAsStringSync();
 
-    test('the residential map uses the saved address\'s coordinates, the farm map the farm\'s', () {
-      expect(cards, contains('LatLng(a.latitude!, a.longitude!)'));
-      expect(cards, contains('LatLng(p.farmLatitude!, p.farmLongitude!)'));
-      // Neither card reads the other\'s coordinates.
-      expect(cards.contains('a.farmLatitude'), isFalse);
-      expect(cards.contains('p.latitude'), isFalse);
-    });
+    test(
+      'the residential map uses the saved address\'s coordinates, the farm map the farm\'s',
+      () {
+        expect(cards, contains('LatLng(a.latitude!, a.longitude!)'));
+        expect(cards, contains('LatLng(p.farmLatitude!, p.farmLongitude!)'));
+        // Neither card reads the other\'s coordinates.
+        expect(cards.contains('a.farmLatitude'), isFalse);
+        expect(cards.contains('p.latitude'), isFalse);
+      },
+    );
 
-    test('the complete addresses are the saved ones (address_line / farm_address)', () {
-      expect(cards, contains('address: a.addressLine'));
-      expect(cards, contains("p.farmAddress?.trim()"));
-      final model = File('lib/data/models/buyer_address_model.dart').readAsStringSync();
-      expect(model, contains("addressLine: map['address_line'] as String"));
-      final farmer = File('lib/data/models/farmer_profile_model.dart').readAsStringSync();
-      expect(farmer, contains("farmAddress:        map['farm_address'] as String?"));
-      // Both are read for the member being viewed, from their own records.
-      final addresses = repo.substring(repo.indexOf('fetchAddresses(String farmerId)'));
-      expect(addresses.substring(0, addresses.indexOf('fetchFarmerProfile')), allOf(contains(".from('buyer_addresses')"), contains(".eq('user_id', farmerId)")));
-      expect(repo, contains(".from('farmer_profiles')"));
-    });
+    test(
+      'the complete addresses are the saved ones (address_line / farm_address)',
+      () {
+        expect(cards, contains('address: a.addressLine'));
+        expect(cards, contains("p.farmAddress?.trim()"));
+        final model = File(
+          'lib/data/models/buyer_address_model.dart',
+        ).readAsStringSync();
+        expect(model, contains("addressLine: map['address_line'] as String"));
+        final farmer = File(
+          'lib/data/models/farmer_profile_model.dart',
+        ).readAsStringSync();
+        expect(
+          farmer,
+          contains("farmAddress:        map['farm_address'] as String?"),
+        );
+        // Both are read for the member being viewed, from their own records.
+        final addresses = repo.substring(
+          repo.indexOf('fetchAddresses(String farmerId)'),
+        );
+        expect(
+          addresses.substring(0, addresses.indexOf('fetchFarmerProfile')),
+          allOf(
+            contains(".from('buyer_addresses')"),
+            contains(".eq('user_id', farmerId)"),
+          ),
+        );
+        expect(repo, contains(".from('farmer_profiles')"));
+      },
+    );
 
     test('the separate address parts are no longer shown', () {
       for (final key in [
@@ -581,55 +671,60 @@ void main() {
   });
 
   group('Patronage card (Contribution tab)', () {
-    testWidgets('year summary, breakdown and shares come from the same sources as before', (
-      tester,
-    ) async {
-      var opened = 0;
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberPatronageCard(
-            row: _row,
-            contribution: _contribution(),
-            year: 2026,
-            onViewFull: () => opened++,
-          ),
-        );
-        expect(find.text('Member Patronage (2026)'), findsOneWidget);
-        // member_contributions: estimated total = 1000 + 234.5, volume 100+50+25.
-        expect(find.text('₱1234.50'), findsOneWidget);
-        expect(find.text('175kg'), findsOneWidget);
-        // Member Patronage Report row: combined total 5000 + 800.
-        expect(find.text('₱5,800'), findsOneWidget);
-        expect(find.text('12.5%'), findsOneWidget);
-        expect(find.text('4.0%'), findsOneWidget);
-        expect(find.textContaining('Palay: 100 kg'), findsOneWidget);
-        expect(find.textContaining('Peanut: 50 kg'), findsOneWidget);
-        expect(find.textContaining('Purchases:'), findsOneWidget);
+    testWidgets(
+      'year summary, breakdown and shares come from the same sources as before',
+      (tester) async {
+        var opened = 0;
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberPatronageCard(
+              row: _row,
+              contribution: _contribution(),
+              year: 2026,
+              onViewFull: () => opened++,
+            ),
+          );
+          expect(find.text('Member Patronage (2026)'), findsOneWidget);
+          // member_contributions: estimated total = 1000 + 234.5, volume 100+50+25.
+          expect(find.text('₱1234.50'), findsOneWidget);
+          expect(find.text('175kg'), findsOneWidget);
+          // Member Patronage Report row: combined total 5000 + 800.
+          expect(find.text('₱5,800'), findsOneWidget);
+          expect(find.text('12.5%'), findsOneWidget);
+          expect(find.text('4.0%'), findsOneWidget);
+          expect(find.textContaining('Palay: 100 kg'), findsOneWidget);
+          expect(find.textContaining('Peanut: 50 kg'), findsOneWidget);
+          expect(find.textContaining('Purchases:'), findsOneWidget);
 
-        await tester.tap(find.text('View Full Contribution'));
-        expect(opened, 1);
-      });
-    });
+          await tester.tap(find.text('View Full Contribution'));
+          expect(opened, 1);
+        });
+      },
+    );
 
-    testWidgets('no activity: the summary still shows and the empty line explains', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          MemberPatronageCard(
-            row: null,
-            contribution: null,
-            year: 2026,
-            onViewFull: () {},
-          ),
-        );
-        expect(find.text('₱0.00'), findsOneWidget);
-        expect(find.text('No records'), findsOneWidget);
-        expect(find.text('No patronage activity recorded for 2026.'), findsOneWidget);
-      });
-    });
+    testWidgets(
+      'no activity: the summary still shows and the empty line explains',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            MemberPatronageCard(
+              row: null,
+              contribution: null,
+              year: 2026,
+              onViewFull: () {},
+            ),
+          );
+          expect(find.text('₱0.00'), findsOneWidget);
+          expect(find.text('No records'), findsOneWidget);
+          expect(
+            find.text('No patronage activity recorded for 2026.'),
+            findsOneWidget,
+          );
+        });
+      },
+    );
   });
 
   group('Member Details screen layout', () {
@@ -655,8 +750,11 @@ void main() {
       expect(farm, lessThan(contribution));
       expect(contribution, lessThan(patronage));
       // The old private cards are gone from the screen.
-      expect(source.contains('MemberPersonalInfoCard'), isFalse,
-          reason: 'no separate Personal Information card');
+      expect(
+        source.contains('MemberPersonalInfoCard'),
+        isFalse,
+        reason: 'no separate Personal Information card',
+      );
       expect(source.contains('_IdentityCard'), isFalse);
       expect(source.contains('_MemberPatronageCard'), isFalse);
       expect(source.contains('_FarmDetailsCard'), isFalse);
@@ -665,15 +763,24 @@ void main() {
       expect('MemberPatronageCard('.allMatches(source).length, 1);
     });
 
-    test('the app bar says Farmer Details; the name is under the picture, not in the app bar', () {
-      expect(source, contains('title: l10n.farmerDetailsTitle'));
-      expect(source, isNot(contains('title: profile.fullName')));
-      expect(source, contains('MemberIdentityCard(profile: profile)'));
-    });
+    test(
+      'the app bar says Farmer Details; the name is under the picture, not in the app bar',
+      () {
+        expect(source, contains('title: l10n.farmerDetailsTitle'));
+        expect(source, isNot(contains('title: profile.fullName')));
+        expect(source, contains('MemberIdentityCard(profile: profile)'));
+      },
+    );
 
-    test('the patronage data is still loaded from the Report and member_contributions', () {
-      expect(source.contains('fetchMemberContributionReport(_patronageYear)'), isTrue);
-      expect(source.contains('fetchCurrentYearContribution'), isTrue);
-    });
+    test(
+      'the patronage data is still loaded from the Report and member_contributions',
+      () {
+        expect(
+          source.contains('fetchMemberContributionReport(_patronageYear)'),
+          isTrue,
+        );
+        expect(source.contains('fetchCurrentYearContribution'), isTrue);
+      },
+    );
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../navigation/connectivity_page_observer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:google_fonts/google_fonts.dart';
@@ -192,7 +193,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
         (_profile?.hasCoordinates ?? false) && _pinnedLocation == null;
     // Clearing the pin is not queued yet, so it needs a connection.
     if (pinWasCleared && !_isOnline) {
-      _showSnack('You\'re offline. Connect to the internet to clear the pin.');
+      _showSnack(
+        AppLocalizations.of(context).enhYouReOfflineConnectToTheInternetTo,
+      );
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -236,7 +239,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
         _showSnack(
           outcome == SaveOutcome.queued
               ? l10n.savedOnDeviceSyncLater
-              : 'Farm details saved successfully.',
+              : AppLocalizations.of(context).enhFarmDetailsSavedSuccessfully,
         );
         // Use go_router's pop helper to ensure we pop the correct navigator
         // when this screen is presented from different navigator roots.
@@ -244,8 +247,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
         if (context.mounted) context.popRoute(true);
       }
     } catch (_) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
-      _showSnack('Failed to save. Please try again.');
+      _showSnack(AppLocalizations.of(context).adminProfileSaveError);
     }
   }
 
@@ -258,6 +262,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   Future<void> _openFullMap() async {
     final result = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
+        settings: RouteSettings(name: ConnectivityPage.farmMap.name),
         fullscreenDialog: true,
         builder: (_) => LocationPinPickerScreen(
           title: AppLocalizations.of(context).farmLocationMapTitle,
@@ -333,22 +338,21 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ViewFullMapLink(
-            onTap: _openFullMap,
-            label: l10n.farmViewFullMap,
-          ),
+          ViewFullMapLink(onTap: _openFullMap, label: l10n.farmViewFullMap),
           const SizedBox(height: 6),
           Text(
             l10n.farmMapHint,
             style: GoogleFonts.inter(
               fontSize: 11,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 10),
           if (!_isOnline) ...[
             Text(
-              'Map tiles need internet to load. Pin position is still saved.',
+              AppLocalizations.of(
+                context,
+              ).enhMapTilesNeedInternetToLoadPinPosition,
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: AppConstants.warningAmber,
@@ -394,19 +398,21 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
 
   Widget _basicInfoSection() {
     return AddressSectionCard(
-      title: 'Basic Information',
+      title: AppLocalizations.of(context).enhBasicInformation,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _FieldLabel(label: 'Farm Name'),
+          _FieldLabel(
+            label: AppLocalizations.of(context).memberProfileFarmName,
+          ),
           AppTextField(
             controller: _farmNameCtrl,
-            hint: 'e.g. Santos Family Farm',
+            hint: AppLocalizations.of(context).enhEGSantosFamilyFarm,
             prefixIcon: Icons.home_work_outlined,
             textCapitalization: TextCapitalization.words,
             validator: (v) {
               if (v == null || v.trim().isEmpty) {
-                return 'Farm name is required';
+                return AppLocalizations.of(context).enhFarmNameIsRequired;
               }
               return null;
             },
@@ -419,7 +425,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _FieldLabel(label: 'Land Area (ha)'),
+                    _FieldLabel(
+                      label: AppLocalizations.of(context).enhLandAreaHa,
+                    ),
                     AppTextField(
                       controller: _landAreaCtrl,
                       hint: '0.00',
@@ -433,7 +441,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                         if (v != null &&
                             v.isNotEmpty &&
                             double.tryParse(v) == null) {
-                          return 'Invalid number';
+                          return AppLocalizations.of(
+                            context,
+                          ).addMemberInvalidNumber;
                         }
                         return null;
                       },
@@ -446,7 +456,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _FieldLabel(label: 'Years Farming'),
+                    _FieldLabel(
+                      label: AppLocalizations.of(context).enhYearsFarming,
+                    ),
                     AppTextField(
                       controller: _yearsFarmingCtrl,
                       hint: '0',
@@ -456,7 +468,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                         if (v != null &&
                             v.isNotEmpty &&
                             int.tryParse(v) == null) {
-                          return 'Whole number only';
+                          return AppLocalizations.of(
+                            context,
+                          ).enhWholeNumberOnly;
                         }
                         return null;
                       },
@@ -467,7 +481,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          const _FieldLabel(label: 'Land Ownership'),
+          _FieldLabel(
+            label: AppLocalizations.of(context).memberProfileOwnership,
+          ),
           _OptionChips(
             options: _ownershipOptions,
             selected: _ownershipType,
@@ -481,25 +497,27 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   Widget _cropsSection() {
     final crops = _profile?.primaryCrops ?? const <String>[];
     return AddressSectionCard(
-      title: 'Primary Crops',
+      title: AppLocalizations.of(context).farmerMgmtCropsSectionLabel,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Primary crops — read-only from farmer_crops
           Text(
-            'Managed via the Harvest tab. Add crops there to update this list.',
+            AppLocalizations.of(
+              context,
+            ).enhManagedViaTheHarvestTabAddCropsThere,
             style: GoogleFonts.inter(
               fontSize: 11,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
           if (crops.isEmpty)
             Text(
-              'No crops added yet',
+              AppLocalizations.of(context).addMemberNoCropsYet,
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppConstants.outline,
+                color: Theme.of(context).colorScheme.outline,
               ),
             )
           else
@@ -514,7 +532,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD5ECF8),
+                        color: context.adaptiveSurface(const Color(0xFFD5ECF8)),
                         borderRadius: BorderRadius.circular(
                           AppConstants.radiusMd,
                         ),
@@ -524,7 +542,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ),
@@ -594,19 +612,22 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.info_outline_rounded,
                                 size: 16,
-                                color: AppConstants.primaryGreen,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Your farm location pin helps SP3 Manager verify your membership '
-                                  'and will be used in future cooperative planning features.',
+                                  AppLocalizations.of(
+                                    context,
+                                  ).enhYourFarmLocationPinHelpsSPManagerVerify,
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
-                                    color: AppConstants.onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     height: 1.4,
                                   ),
                                 ),
@@ -631,15 +652,19 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
           MediaQuery.of(context).padding.bottom + 12,
         ),
         decoration: BoxDecoration(
-          color: AppConstants.offWhite,
+          color: context.saganaColors.scaffoldBackground,
           border: Border(
             top: BorderSide(
-              color: AppConstants.outline.withValues(alpha: 0.10),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.10),
             ),
           ),
         ),
         child: PrimaryButton(
-          label: _isSaving ? 'Saving...' : 'Save Farm Details',
+          label: _isSaving
+              ? AppLocalizations.of(context).saving
+              : AppLocalizations.of(context).enhSaveFarmDetails,
           isLoading: _isSaving,
           onPressed: _isSaving ? null : _save,
           icon: Icons.check_rounded,
@@ -671,10 +696,10 @@ class _PinPill extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.my_location_rounded,
             size: 16,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -682,11 +707,11 @@ class _PinPill extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pin set',
+                  AppLocalizations.of(context).enhPinSet,
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 Text(
@@ -695,7 +720,7 @@ class _PinPill extends StatelessWidget {
                   key: const ValueKey('farm-pin-coordinates'),
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -745,25 +770,31 @@ class _FarmDetailsLoadError extends StatelessWidget {
             Icon(
               isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
               size: 40,
-              color: AppConstants.outline.withValues(alpha: 0.60),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
             ),
             const SizedBox(height: 12),
             Text(
-              isOnline ? 'Could not load your farm details' : 'You\'re offline',
+              isOnline
+                  ? AppLocalizations.of(context).enhCouldNotLoadYourFarmDetails
+                  : AppLocalizations.of(context).youAreOffline,
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: AppConstants.charcoal,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             if (!isOnline) ...[
               const SizedBox(height: 4),
               Text(
-                'Your farm details will load once you\'re back online.',
+                AppLocalizations.of(
+                  context,
+                ).enhYourFarmDetailsWillLoadOnceYouRe,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -771,8 +802,10 @@ class _FarmDetailsLoadError extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(
-                'Retry',
-                style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+                AppLocalizations.of(context).retry,
+                style: GoogleFonts.poppins(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           ],
@@ -799,7 +832,7 @@ class _FieldLabel extends StatelessWidget {
         style: GoogleFonts.inter(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: AppConstants.outline,
+          color: Theme.of(context).colorScheme.outline,
           letterSpacing: 0.6,
         ),
       ),
@@ -835,12 +868,16 @@ class _OptionChips extends StatelessWidget {
             duration: const Duration(milliseconds: 160),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: isSelected ? AppConstants.primaryGreen : Colors.white,
+              color: isSelected
+                  ? AppConstants.primaryGreen
+                  : context.saganaColors.cardBackground,
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               border: Border.all(
                 color: isSelected
                     ? AppConstants.primaryGreen
-                    : AppConstants.outline.withValues(alpha: 0.30),
+                    : Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.30),
               ),
             ),
             child: Text(
@@ -848,7 +885,9 @@ class _OptionChips extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected ? Colors.white : AppConstants.onSurface,
+                color: isSelected
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),

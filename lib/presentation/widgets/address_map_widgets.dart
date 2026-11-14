@@ -27,7 +27,11 @@ const kAddressMapPinZoom = 16.5;
 class AddressSectionCard extends StatelessWidget {
   final String title;
   final Widget child;
-  const AddressSectionCard({super.key, required this.title, required this.child});
+  const AddressSectionCard({
+    super.key,
+    required this.title,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +52,7 @@ class AddressSectionCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
@@ -72,10 +76,10 @@ class ViewFullMapLink extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.open_in_full_rounded,
             size: 14,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 4),
           Text(
@@ -83,7 +87,7 @@ class ViewFullMapLink extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ],
@@ -284,7 +288,9 @@ class _LocationPinPickerScreenState extends State<LocationPinPickerScreen> {
               top: false,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                color: Colors.white.withValues(alpha: 0.75),
+                color: context.saganaColors.cardBackground.withValues(
+                  alpha: 0.75,
+                ),
                 child: const MapAttributionLinks(color: Colors.black87),
               ),
             ),
@@ -333,7 +339,11 @@ class _FullMapButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(icon, size: 20, color: AppConstants.primaryGreen),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }

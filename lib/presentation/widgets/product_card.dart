@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -86,7 +87,7 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final small = GoogleFonts.inter(
       fontSize: 11,
-      color: AppConstants.onSurfaceVariant,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
     );
     final priceStyle = GoogleFonts.poppins(
       fontSize: 14,
@@ -101,7 +102,7 @@ class ProductCard extends StatelessWidget {
         opacity: soldOut ? 0.55 : 1.0,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.saganaColors.cardBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: AppConstants.cardBorder,
             boxShadow: AppConstants.cardShadow,
@@ -159,7 +160,9 @@ class ProductCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: hintColor ?? AppConstants.onSurfaceVariant,
+                          color:
+                              hintColor ??
+                              Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -236,10 +239,7 @@ class _PairRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Flexible(
-          flex: _weight(left, leftStyle),
-          child: _side(left, leftStyle),
-        ),
+        Flexible(flex: _weight(left, leftStyle), child: _side(left, leftStyle)),
         const SizedBox(width: 6),
         Flexible(
           flex: _weight(right, rightStyle),

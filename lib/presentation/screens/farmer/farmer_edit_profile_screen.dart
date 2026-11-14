@@ -54,8 +54,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   // line shows the saved state (a typed-but-unsaved address is always Unverified).
   String? _savedEmail;
   String? _verifiedEmail;
-  bool get _emailVerified =>
-      ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
+  bool get _emailVerified => ContactEmail.isVerified(
+    contactEmail: _savedEmail,
+    verifiedEmail: _verifiedEmail,
+  );
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -140,7 +142,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     setState(() => _isUploadingPhoto = true);
     final Uint8List bytes = await picked.readAsBytes();
     final ext = picked.name.split('.').last;
-    final result = await _repo.updatePhoto(imageBytes: bytes, fileExtension: ext);
+    final result = await _repo.updatePhoto(
+      imageBytes: bytes,
+      fileExtension: ext,
+    );
     if (!mounted) return;
     setState(() {
       _isUploadingPhoto = false;
@@ -171,7 +176,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     final l10n = AppLocalizations.of(context);
     void fail(String message) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
     }
 
@@ -224,16 +232,17 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     }
     // Same email check as registration: when the address was changed, its domain
     // must be able to receive mail. The database enforces format and uniqueness.
-    if (email.isNotEmpty && email.toLowerCase() != _originalEmail.toLowerCase()) {
+    if (email.isNotEmpty &&
+        email.toLowerCase() != _originalEmail.toLowerCase()) {
       final domain = await AuthService.checkEmailDomain(email);
       if (!mounted) return;
       if (domain == EmailDomainStatus.noMailServer) {
         ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.registerEmailDomainInvalid),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
+          SnackBar(
+            content: Text(l10n.registerEmailDomainInvalid),
+            backgroundColor: AppConstants.errorRed,
+          ),
+        );
         return;
       }
     }
@@ -325,7 +334,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -334,7 +343,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
           if (!_isOnline) OfflineStatusCard(message: l10n.offlineSaveNotice),
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : _loadFailed
                 ? _EditProfileLoadError(onRetry: _load, isOnline: _isOnline)
                 : ListView(
@@ -350,7 +362,9 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                           children: [
                             ProfileAvatar(
                               photoUrl: _photoUrl,
-                              displayName: _name.displayName(l10n.defaultFarmerName),
+                              displayName: _name.displayName(
+                                l10n.defaultFarmerName,
+                              ),
                               radius: 56,
                             ),
                             if (_isUploadingPhoto)
@@ -400,7 +414,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: AppConstants.primaryGreen,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                         ),
@@ -416,7 +430,8 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                           firstNameController: _name.firstName,
                           middleInitialController: _name.middleInitial,
                           suffix: _name.suffix,
-                          onSuffixChanged: (v) => setState(() => _name.suffix = v),
+                          onSuffixChanged: (v) =>
+                              setState(() => _name.suffix = v),
                           allowAllBlank: _name.legacyFullName != null,
                           legacyFullName: _name.legacyFullName,
                         ),
@@ -438,7 +453,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                             announceEmailSignInEnabled(context, _savedEmail),
                         onVerified: () {
                           setState(() => _verifiedEmail = _savedEmail);
-                    FarmerProfileStateService.instance.refresh();
+                          FarmerProfileStateService.instance.refresh();
                         },
                       ),
                       const SizedBox(height: 16),
@@ -538,7 +553,9 @@ class _EditProfileLoadError extends StatelessWidget {
             Icon(
               isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
               size: 40,
-              color: AppConstants.outline.withValues(alpha: 0.60),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
             ),
             const SizedBox(height: 12),
             Text(
@@ -546,7 +563,7 @@ class _EditProfileLoadError extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: AppConstants.charcoal,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             if (!isOnline) ...[
@@ -556,7 +573,7 @@ class _EditProfileLoadError extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -565,7 +582,9 @@ class _EditProfileLoadError extends StatelessWidget {
               onPressed: onRetry,
               child: Text(
                 l10n.retry,
-                style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+                style: GoogleFonts.poppins(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           ],

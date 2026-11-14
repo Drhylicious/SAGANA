@@ -1,3 +1,4 @@
+import '../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
@@ -67,17 +68,25 @@ class _DisposalActionSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     if (_isDaAmadExclusive) {
       return ManagementModalShell(
-        title: '$cropName • ${formatQuantityUnit(availableKg, unit)} available',
-        subtitle: 'What would you like to do with this batch?',
-        body: const Column(
+        title: AppLocalizations.of(context).enhAvailable494(
+          (cropName).toString(),
+          (formatQuantityUnit(availableKg, unit)).toString(),
+        ),
+        subtitle: AppLocalizations.of(
+          context,
+        ).enhWhatWouldYouLikeToDoWithThis495,
+        body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Ginger is sold exclusively through the DA-AMAD Market Linking '
-              'program, not the open Marketplace, Offer to Cooperative, or an '
-              'informal sale. Check My Market Linking for this batch\'s status.',
-              style: TextStyle(fontSize: 13, color: AppConstants.onSurfaceVariant),
+              AppLocalizations.of(
+                context,
+              ).enhGingerIsSoldExclusivelyThroughTheDAAMAD,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -85,31 +94,40 @@ class _DisposalActionSheet extends StatelessWidget {
     }
 
     return ManagementModalShell(
-      title: '$cropName • ${formatQuantityUnit(availableKg, unit)} available',
-      subtitle: 'What would you like to do with this batch?',
+      title: AppLocalizations.of(context).enhAvailable494(
+        (cropName).toString(),
+        (formatQuantityUnit(availableKg, unit)).toString(),
+      ),
+      subtitle: AppLocalizations.of(context).enhWhatWouldYouLikeToDoWithThis495,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _DisposalOptionTile(
             icon: Icons.storefront_outlined,
             iconColor: AppConstants.buyerBlue,
-            title: 'Sell through Marketplace',
-            subtitle: 'List for public buyers to purchase',
+            title: AppLocalizations.of(context).enhSellThroughMarketplace,
+            subtitle: AppLocalizations.of(
+              context,
+            ).enhListForPublicBuyersToPurchase,
             onTap: () => Navigator.pop(context, DisposalAction.marketplace),
           ),
           if (isCoopEligible)
             _DisposalOptionTile(
               icon: Icons.groups_outlined,
               iconColor: AppConstants.primaryGreen,
-              title: 'Offer to Cooperative',
-              subtitle: 'SP3 confirms the exact quantity and price at pickup',
+              title: AppLocalizations.of(context).sellingTypeOfferToCooperative,
+              subtitle: AppLocalizations.of(
+                context,
+              ).enhSPConfirmsTheExactQuantityAndPriceAt,
               onTap: () => Navigator.pop(context, DisposalAction.cooperative),
             ),
           _DisposalOptionTile(
             icon: Icons.handshake_outlined,
             iconColor: AppConstants.amber,
-            title: 'Record Informal Sale',
-            subtitle: 'For cash sales or off-app buyers',
+            title: AppLocalizations.of(context).enhRecordInformalSale,
+            subtitle: AppLocalizations.of(
+              context,
+            ).enhForCashSalesOrOffAppBuyers,
             onTap: () => Navigator.pop(context, DisposalAction.informal),
           ),
         ],
@@ -147,11 +165,21 @@ class _DisposalOptionTile extends StatelessWidget {
         ),
         child: Icon(icon, color: iconColor, size: 22),
       ),
-      title: Text(title,
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle,
-          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-      trailing: const Icon(Icons.chevron_right_rounded, color: AppConstants.outline),
+      title: Text(
+        title,
+        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: Theme.of(context).colorScheme.outline,
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -64,10 +65,12 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
 
     // Read via the constructor — GoRouter's extra is delivered here, not
     // through ModalRoute.settings.arguments (that mechanism requires raw
@@ -137,9 +140,7 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            AppLocalizations.of(context).offlineWithdrawListing,
-          ),
+          content: Text(AppLocalizations.of(context).offlineWithdrawListing),
           backgroundColor: AppConstants.snackbarWarning,
         ),
       );
@@ -151,16 +152,26 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text('Withdraw Submission?',
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        title: Text(
+          AppLocalizations.of(context).enhWithdrawSubmission,
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Text(
-          'This listing will be withdrawn before it has even been reviewed. You can create a new listing for this batch later.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+          AppLocalizations.of(context).enhThisListingWillBeWithdrawnBeforeItHas,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              AppLocalizations.of(context).cancel,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -173,9 +184,14 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.errorRed,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
             ),
-            child: Text('Withdraw', style: GoogleFonts.poppins(fontSize: 14)),
+            child: Text(
+              AppLocalizations.of(context).enhWithdraw,
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -196,14 +212,16 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     final listing = _listing!;
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
               SizedBox(height: MediaQuery.of(context).padding.top + 24),
               if (!_isOnline)
-                OfflineStatusCard(message: AppLocalizations.of(context).offlineListingActions),
+                OfflineStatusCard(
+                  message: AppLocalizations.of(context).offlineListingActions,
+                ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 220),
@@ -213,7 +231,10 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
                       FadeTransition(
                         opacity: _headerAnim,
                         child: SlideTransition(
-                          position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(_headerAnim),
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.06),
+                            end: Offset.zero,
+                          ).animate(_headerAnim),
                           child: _HeaderSection(),
                         ),
                       ),
@@ -223,7 +244,10 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
                       FadeTransition(
                         opacity: _cardAnim,
                         child: SlideTransition(
-                          position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(_cardAnim),
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.06),
+                            end: Offset.zero,
+                          ).animate(_cardAnim),
                           child: _SummaryCard(
                             listing: listing,
                             batchNumber: _batchNumber,
@@ -239,7 +263,10 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
                       FadeTransition(
                         opacity: _bannerAnim,
                         child: SlideTransition(
-                          position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(_bannerAnim),
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.06),
+                            end: Offset.zero,
+                          ).animate(_bannerAnim),
                           child: const _InfoBanner(),
                         ),
                       ),
@@ -250,11 +277,16 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
             ],
           ),
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: FadeTransition(
               opacity: _footerAnim,
               child: SlideTransition(
-                position: Tween<Offset>(begin: const Offset(0, 0.10), end: Offset.zero).animate(_footerAnim),
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.10),
+                  end: Offset.zero,
+                ).animate(_footerAnim),
                 child: _BottomActions(
                   isWithdrawing: _isWithdrawing,
                   onViewListings: _viewMyListings,
@@ -270,7 +302,6 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   }
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Header Section
 // ─────────────────────────────────────────────────────────────────────────────
@@ -281,20 +312,39 @@ class _HeaderSection extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 64, height: 64,
-          decoration: const BoxDecoration(color: AppConstants.primaryContainer, shape: BoxShape.circle),
-          child: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 32),
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(
+            color: AppConstants.primaryContainer,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
         ),
         const SizedBox(height: 16),
-        Text('Listing Submitted!',
-            style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700, color: AppConstants.charcoal)),
+        Text(
+          AppLocalizations.of(context).enhListingSubmitted,
+          style: GoogleFonts.poppins(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
         const SizedBox(height: 6),
         SizedBox(
           width: 260,
           child: Text(
-            'Awaiting administrative approval from SP3 Cooperative.',
+            AppLocalizations.of(
+              context,
+            ).enhAwaitingAdministrativeApprovalFromSPCooperative,
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(fontSize: 15, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ],
@@ -337,25 +387,49 @@ class _SummaryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(listing.cropName,
-                        style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                    Text(
+                      listing.cropName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                     if (listing.variety != null && listing.variety!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(listing.variety!,
-                            style: GoogleFonts.poppins(fontSize: 14, color: AppConstants.onSurfaceVariant.withValues(alpha: 0.80))),
+                        child: Text(
+                          listing.variety!,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withValues(alpha: 0.80),
+                          ),
+                        ),
                       ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: AppConstants.warningAmber.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Text('PENDING APPROVAL',
-                    style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.warningAmber, letterSpacing: 0.5)),
+                child: Text(
+                  AppLocalizations.of(context).enhPENDINGAPPROVAL,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.warningAmber,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
             ],
           ),
@@ -367,54 +441,88 @@ class _SummaryCard extends StatelessWidget {
             child: Container(
               width: double.infinity,
               height: 160,
-              color: AppConstants.infoBlueBg,
+              color: context.adaptiveSurface(AppConstants.infoBlueBg),
               child: listing.photoUrl != null
                   ? Image.network(
                       listing.photoUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _emojiFallback(),
+                      errorBuilder: (_, __, ___) => _emojiFallback(context),
                     )
-                  : _emojiFallback(),
+                  : _emojiFallback(context),
             ),
           ),
           const SizedBox(height: 20),
 
           // Full recap of what was entered/selected in Create Listing, so
           // the farmer can verify the submission before moving on.
-          _SummaryRow(label: 'Quantity', value: formatQuantityUnit(listing.volumeKg, listing.unit)),
+          _SummaryRow(
+            label: AppLocalizations.of(context).issueLoanQuantity,
+            value: formatQuantityUnit(listing.volumeKg, listing.unit),
+          ),
           const SizedBox(height: 12),
-          _SummaryRow(label: 'Price per Unit', value: formatPricePerUnit(listing.pricePerKg, listing.unit)),
+          _SummaryRow(
+            label: AppLocalizations.of(context).enhPricePerUnit,
+            value: formatPricePerUnit(listing.pricePerKg, listing.unit),
+          ),
           if (marketType != null) ...[
             const SizedBox(height: 12),
-            _SummaryRow(label: 'Market Type', value: marketTypeLabelFor(marketType)),
+            _SummaryRow(
+              label: AppLocalizations.of(context).priceMarketTypeLabel,
+              value: marketTypeLabelFor(marketType),
+            ),
           ],
           if (category != null && category!.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _SummaryRow(label: 'Category', value: category!),
+            _SummaryRow(
+              label: AppLocalizations.of(context).buyerListingCategory,
+              value: category!,
+            ),
           ],
           if (batchNumber != null && batchNumber!.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _SummaryRow(label: 'Batch Number', value: formatBatchNumber(batchNumber)),
+            _SummaryRow(
+              label: AppLocalizations.of(context).enhBatchNumber,
+              value: formatBatchNumber(batchNumber),
+            ),
           ],
-          if (listing.description != null && listing.description!.isNotEmpty) ...[
+          if (listing.description != null &&
+              listing.description!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppConstants.offWhite,
+                color: context.saganaColors.scaffoldBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                border: Border.all(color: AppConstants.outline.withValues(alpha: 0.10)),
+                border: Border.all(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.10),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('DESCRIPTION',
-                      style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600,
-                          color: AppConstants.onSurfaceVariant.withValues(alpha: 0.70), letterSpacing: 1.0)),
+                  Text(
+                    'DESCRIPTION',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.70),
+                      letterSpacing: 1.0,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(listing.description!,
-                      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface, height: 1.5)),
+                  Text(
+                    listing.description!,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurface,
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -428,15 +536,32 @@ class _SummaryCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppConstants.primaryGreen.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.10)),
+              border: Border.all(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+              ),
             ),
             child: Column(
               children: [
-                Text('ESTIMATED TOTAL REVENUE',
-                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen.withValues(alpha: 0.70), letterSpacing: 1.0)),
+                Text(
+                  AppLocalizations.of(context).enhESTIMATEDTOTALREVENUE,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.70),
+                    letterSpacing: 1.0,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text('₱${estimatedRevenue.toStringAsFixed(2)}',
-                    style: GoogleFonts.poppins(fontSize: 30, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                Text(
+                  '₱${estimatedRevenue.toStringAsFixed(2)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -445,7 +570,7 @@ class _SummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _emojiFallback() {
+  Widget _emojiFallback(BuildContext context) {
     final emoji = _emojiForCrop(listing.cropName);
     return Center(
       child: Column(
@@ -453,7 +578,13 @@ class _SummaryCard extends StatelessWidget {
         children: [
           Text(emoji, style: const TextStyle(fontSize: 44)),
           const SizedBox(height: 6),
-          Text('No photo available', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
+          Text(
+            AppLocalizations.of(context).enhNoPhotoAvailable,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+          ),
         ],
       ),
     );
@@ -485,12 +616,25 @@ class _SummaryRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppConstants.outline.withValues(alpha: 0.08))),
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.08),
+          ),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -498,7 +642,11 @@ class _SummaryRow extends StatelessWidget {
               textAlign: TextAlign.end,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500, color: AppConstants.onSurface),
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
         ],
@@ -520,19 +668,29 @@ class _InfoBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6F6FF),
+        color: context.adaptiveSurface(const Color(0xFFE6F6FF)),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: const Color(0xFFD5ECF8)),
+        border: Border.all(
+          color: context.adaptiveSurface(const Color(0xFFD5ECF8)),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_rounded, color: AppConstants.primaryGreen, size: 20),
+          Icon(
+            Icons.info_rounded,
+            color: Theme.of(context).colorScheme.primary,
+            size: 20,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              'You will be notified via the app once your listing is approved or if additional information is required.',
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.5),
+              AppLocalizations.of(context).enhYouWillBeNotifiedViaTheAppOnce,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
           ),
         ],
@@ -561,10 +719,21 @@ class _BottomActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 20),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        16,
+        24,
+        MediaQuery.of(context).padding.bottom + 20,
+      ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 12, offset: const Offset(0, -4))],
+        color: context.saganaColors.cardBackground,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -574,8 +743,12 @@ class _BottomActions extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppConstants.primaryGreen, AppConstants.primaryContainer],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppConstants.primaryGreen,
+                    AppConstants.primaryContainer,
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               ),
@@ -585,10 +758,18 @@ class _BottomActions extends StatelessWidget {
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   disabledBackgroundColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                  ),
                 ),
-                child: Text('View Listing',
-                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white)),
+                child: Text(
+                  AppLocalizations.of(context).enhViewListing,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ),
@@ -600,11 +781,21 @@ class _BottomActions extends StatelessWidget {
               onPressed: isWithdrawing ? null : onCreateAnother,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppConstants.primaryGreen,
-                side: const BorderSide(color: AppConstants.primaryGreen, width: 2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 2,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                ),
               ),
-              child: Text('+ Create Another Listing',
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500)),
+              child: Text(
+                AppLocalizations.of(context).enhCreateAnotherListing,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -617,14 +808,31 @@ class _BottomActions extends StatelessWidget {
               onPressed: isWithdrawing ? null : onWithdraw,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppConstants.errorRed,
-                side: BorderSide(color: AppConstants.errorRed.withValues(alpha: 0.50)),
+                side: BorderSide(
+                  color: AppConstants.errorRed.withValues(alpha: 0.50),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                ),
               ),
               child: isWithdrawing
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.errorRed))
-                  : Text('Withdraw Submission',
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: AppConstants.errorRed)),
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppConstants.errorRed,
+                      ),
+                    )
+                  : Text(
+                      AppLocalizations.of(context).enhWithdrawSubmission314,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppConstants.errorRed,
+                      ),
+                    ),
             ),
           ),
         ],

@@ -1,4 +1,5 @@
 import '../models/expense_model.dart' show CategoryBreakdown;
+import 'shelf_life_model.dart';
 
 enum ReportPeriod { thisMonth, thisQuarter, thisYear, allTime }
 
@@ -318,6 +319,7 @@ class SalesTransactionRow {
     this.buyerEmail,
     this.cropCategory,
     this.recordedBy,
+    this.fromProgram = false,
   });
 
   /// The agreed / charged price per unit (Offer to Cooperative, Marketplace and
@@ -335,6 +337,9 @@ class SalesTransactionRow {
   /// is never sent to a Farmer. Null when the channel has no staff step (Informal
   /// Sale) or the sale predates the record.
   final String? recordedBy;
+
+  /// True when the batch this sale came from was produce a Cooperative Program gave the Farmer.
+  final bool fromProgram;
 
   /// Plain-map form, so a channel's rows can be cached offline.
   Map<String, dynamic> toMap() => {
@@ -654,6 +659,51 @@ class InventoryReportRow {
   status; // available | reserved | sold_out | withdrawn | low_stock
   final DateTime createdAt;
 
+  /// Quantity of this batch the Farmer reported as rotten, in [unit].
+  final double spoiledKg;
+
+  /// Nothing of the batch is left: what remained was reported as rotten.
+  bool get isLost => spoiledKg > 0 && availableKg <= 0 && reservedKg <= 0;
+
+  /// Rotten/Lost: some or all of the batch was reported as rotten.
+  bool get hasLoss => spoiledKg > 0;
+
+  /// This batch's own shelf-life tracking (null when the crop has none set).
+  final BatchShelfLife? shelfLife;
+
+  /// Good: nothing reported rotten and stock is still on hand.
+  bool get isGood => !hasLoss && (availableKg > 0 || reservedKg > 0);
+
+  /// The condition as the reports and exports word it: "Rotten/Lost", "Good",
+  /// or empty for a batch with nothing left and no loss (sold out).
+  String get conditionLabel => hasLoss
+      ? 'Rotten/Lost'
+      : isGood
+      ? 'Good'
+      : '';
+
+  /// The shelf-life standing of a Good batch, for exports: "3 days left",
+  /// "Ends today", "Past shelf life", "On hold" or "Not tracked". Empty when
+  /// the batch is not Good.
+  String get shelfLifeExportLabel {
+    if (!isGood) return '';
+    final s = shelfLife;
+    switch (s?.stage ?? ShelfLifeStage.untracked) {
+      case ShelfLifeStage.untracked:
+        return 'Not tracked';
+      case ShelfLifeStage.fresh:
+        return '${s!.daysLeft} days left';
+      case ShelfLifeStage.nearExpiry:
+        return '1 day left';
+      case ShelfLifeStage.expiresToday:
+        return 'Ends today';
+      case ShelfLifeStage.expired:
+        return 'Past shelf life';
+      case ShelfLifeStage.hold:
+        return 'On hold';
+    }
+  }
+
   const InventoryReportRow({
     required this.batchId,
     required this.farmerId,
@@ -667,6 +717,8 @@ class InventoryReportRow {
     this.unit = 'kg',
     required this.status,
     required this.createdAt,
+    this.spoiledKg = 0,
+    this.shelfLife,
   });
 
   bool get isLowStock => status == 'low_stock';
@@ -685,6 +737,9 @@ class InventoryReportData {
   final double totalAvailableKg;
   final double totalReservedKg;
   final double totalSoldKg;
+
+  /// Kilograms Farmers reported as rotten (Rotten/Lost), all batches.
+  final double totalSpoiledKg;
   final int lowStockCount;
   final List<CropStockBreakdown> cropBreakdown;
   final List<InventoryReportRow> batches;
@@ -693,6 +748,7 @@ class InventoryReportData {
     required this.totalAvailableKg,
     required this.totalReservedKg,
     required this.totalSoldKg,
+    this.totalSpoiledKg = 0,
     required this.lowStockCount,
     required this.cropBreakdown,
     required this.batches,
@@ -736,6 +792,18 @@ class HarvestReportRow {
   final bool isSynced;
   final String batchNumber; // links 1:1 to InventoryReportRow.batchNumber
 
+  /// The crop's category (Vegetable, Fruit, Grain ...), for the entry filter.
+  final String cropCategory;
+
+  /// Quantity of this harvest the Farmer reported as rotten, in [unit].
+  final double spoiledKg;
+
+  /// Nothing of this harvest is left: what remained was reported as rotten.
+  final bool isLost;
+
+  /// Rotten/Lost: some or all of the harvest was reported as rotten.
+  bool get hasLoss => spoiledKg > 0;
+
   const HarvestReportRow({
     required this.id,
     required this.farmerId,
@@ -746,6 +814,9 @@ class HarvestReportRow {
     required this.harvestDate,
     required this.isSynced,
     required this.batchNumber,
+    this.cropCategory = 'Other',
+    this.spoiledKg = 0,
+    this.isLost = false,
   });
 }
 
@@ -764,6 +835,10 @@ class HarvestReportData {
   // "harvested vs. sold" for one window, rather than duplicating the live
   // Available Stock figure shown elsewhere on the same screen.
   final double soldKgInPeriod;
+  // Produce Cooperative Programs gave Farmers in the period. Listed on its own: it is not production and is
+  // not in totalYieldKg or harvestCount.
+  final double programReceivedKg;
+  final int programReceivedCount;
 
   const HarvestReportData({
     required this.totalYieldKg,
@@ -773,6 +848,8 @@ class HarvestReportData {
     required this.cropBreakdown,
     required this.harvests,
     required this.soldKgInPeriod,
+    this.programReceivedKg = 0,
+    this.programReceivedCount = 0,
   });
 
   factory HarvestReportData.empty() => const HarvestReportData(

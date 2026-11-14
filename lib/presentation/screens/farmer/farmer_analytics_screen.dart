@@ -309,7 +309,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
+                    const TopBarSpacer(height: 72),
                     CachedDataNotice(
                       screen: AnalyticsRepository.farmPerformanceCacheScreen(
                         _period,
@@ -747,7 +747,7 @@ class _LoadErrorBanner extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ),
@@ -894,7 +894,9 @@ class _TransactionsCard extends StatelessWidget {
                           ),
                           Text(
                             l10n.farmerAnalyticsTransactionMeta(
-                              DateFormat('MMM d, yyyy').format(t.date.toLocal()),
+                              DateFormat(
+                                'MMM d, yyyy',
+                              ).format(t.date.toLocal()),
                               formatQuantityUnit(t.quantityKg, t.unit),
                               t.reference,
                             ),
@@ -936,7 +938,7 @@ class _TransactionsCard extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -1111,7 +1113,7 @@ class _PriceCardsRow extends StatelessWidget {
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: isActive
-                                ? AppConstants.primaryGreen
+                                ? Theme.of(context).colorScheme.primary
                                 : cs.onSurface,
                           ),
                         ),
@@ -1224,7 +1226,7 @@ class _PriceHistoryCard extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 9,
             fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ),

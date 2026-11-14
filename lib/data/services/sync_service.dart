@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'account_status_watcher.dart';
 import 'app_event_service.dart';
@@ -7,6 +6,9 @@ import 'connectivity_service.dart';
 import 'hive_service.dart';
 import 'app_settings_service.dart'; // NEW import — needed to read the current userId
 import 'offline_action_replay.dart';
+import 'offline_actions.dart' show isOfflineConnectionFailure;
+import 'offline_read_client.dart';
+import 'server_only.dart';
 import '../repositories/admin_loan_repository.dart';
 import '../repositories/expense_repository.dart';
 import '../repositories/harvest_entry_repository.dart';
@@ -40,92 +42,187 @@ class SyncService {
   SyncService._();
 
   static bool _isSyncing = false;
+  static Future<void>? _pendingSync;
+  static StreamSubscription<bool>? _connectionSub;
+  static StreamSubscription<AuthState>? _authSub;
+  static Timer? _retryTimer;
+  static String? _syncOwner;
+
+  static bool get _eligible =>
+      const [
+        'admin',
+        'officer',
+        'farmer',
+      ].contains(HiveService.getUserRole()) &&
+      HiveService.getUserId() != null &&
+      Supabase.instance.client.auth.currentUser?.id == HiveService.getUserId();
+
+  static bool get _sameSession =>
+      _eligible && HiveService.getUserId() == _syncOwner;
+
+  /// App-wide, independent of the current page. Buyers never replay a queue.
+  static void start() {
+    _connectionSub ??= ConnectivityService.instance.onConnectivityChanged
+        .listen((online) {
+          if (online) unawaited(syncPending());
+        });
+    _authSub ??= Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      if (_eligible) unawaited(syncPending());
+    });
+    _retryTimer ??= Timer.periodic(const Duration(minutes: 1), (_) {
+      if (_eligible &&
+          queuedCount > 0 &&
+          ConnectivityService.instance.isOnline) {
+        unawaited(syncPending());
+      }
+    });
+    if (_eligible) unawaited(syncPending());
+  }
+
   static final _adminLoanRepo = AdminLoanRepository();
   static final _harvestEntryRepo = HarvestEntryRepository();
   static final _expenseRepo = ExpenseRepository(); // NEW — Phase 2 / U2
 
   // ─── Sync Pending Records ────────────────────────────────────────────────────
 
-  static Future<void> syncPending() async {
-    if (_isSyncing) return;
-    final isOnline = await ConnectivityService.instance.checkConnectivity();
-    if (!isOnline) return;
-
-    // A suspended account must not push more writes. The check also ends
-    // the session through AccountStatusWatcher's stream.
-    if (await AccountStatusWatcher.instance.checkNow()) return;
-
+  static Future<void> syncPending() {
+    if (_pendingSync != null) return _pendingSync!;
+    if (_isSyncing || !_eligible) return Future<void>.value();
+    // Acquire before the first await: reconnect and Sync Now may arrive together.
     _isSyncing = true;
+    _syncOwner = HiveService.getUserId();
+    // Screens reload when AppEventService notifies. That is only wanted when
+    // this run had something to send: with an empty queue nothing on the
+    // server changed, and telling every open screen to reload made the whole
+    // screen go back to its loading state each time the app regained focus
+    // (on Chrome, every Alt+Tab back to the browser window).
+    final hadQueued = queuedCount > 0;
+    return _pendingSync =
+        OfflineReadClient.runForUser(_syncOwner!, _syncPending).whenComplete(
+          () {
+            _pendingSync = null;
+            _isSyncing = false;
+            _syncOwner = null;
+            if (hadQueued) AppEventService.instance.notify();
+          },
+        );
+  }
+
+  static Future<void> _syncPending() async {
     try {
+      if (!await ConnectivityService.instance.checkConnectivity() ||
+          !_sameSession) {
+        return;
+      }
+      if (await AccountStatusWatcher.instance.checkNow() || !_sameSession) {
+        return;
+      }
       for (final entry in HiveService.getPendingHarvests()) {
+        if (!_sameSession) return;
         await _replayHarvest(entry.key, entry.value);
       }
       for (final entry in HiveService.getPendingExpenses()) {
+        if (!_sameSession) return;
         await _replayExpense(entry.key, entry.value);
       }
       for (final entry in HiveService.getPendingLoanIssuances()) {
+        if (!_sameSession) return;
         await _replayLoanIssuance(entry.key, entry.value);
       }
       for (final entry in HiveService.getPendingLoanPayments()) {
+        if (!_sameSession) return;
         await _replayLoanPayment(entry.key, entry.value);
       }
+      final blockedActions = <String>{};
       for (final entry in HiveService.getOfflineActions()) {
-        await _replayAction(
+        if (!_sameSession) return;
+        final kind = entry.value['kind'] as String;
+        final orderKey = kind.startsWith('notification_')
+            ? 'notification'
+            : kind == 'admin_photo_remove'
+            ? 'admin_photo'
+            : kind;
+        if (blockedActions.contains(orderKey)) continue;
+        final ok = await _replayAction(
           entry.key,
-          entry.value['kind'] as String,
+          kind,
           entry.value['payload'] as Map<dynamic, dynamic>,
         );
+        // Preserve the order of edits to the same data, while allowing unrelated
+        // actions to sync when one record needs correction.
+        if (!ok) blockedActions.add(orderKey);
       }
       // Broadcasts to any listening screen (Harvest Hub, My Expenses,
       // Profile, etc.) so a background sync that completes while a
       // screen is already open is reflected immediately, instead of
       // only on next manual refresh — closes the gap noted in the
       // Final Verification (Section 4).
-      AppEventService.instance.notify();
       // Records "the app last successfully checked in with the server" —
       // recorded on every clean run, even one with nothing queued, so
       // Home can show a farmer a plain answer to "is this still working?"
       // rather than only ever showing an item count.
-      await HiveService.setLastSyncTime(
-        DateTime.now(),
-        userId: AppSettingsService.instance.currentUserId,
-      );
+      if (_sameSession && queuedCount == 0) {
+        await HiveService.setLastSyncTime(
+          DateTime.now(),
+          userId: AppSettingsService.instance.currentUserId,
+        );
+      }
     } catch (_) {
       // Silently fail — will retry on next interval
-    } finally {
-      _isSyncing = false;
     }
   }
 
   /// Retries one queued record. Returns true when it reached the server and
   /// was removed from its queue. Does nothing while a sync is already running.
   static Future<bool> retry(FailedSyncRecord record) async {
-    if (_isSyncing) return false;
-    final isOnline = await ConnectivityService.instance.checkConnectivity();
-    if (!isOnline) return false;
-
+    if (_isSyncing || !_eligible) return false;
     _isSyncing = true;
-    try {
-      final ok = switch (record.kind) {
-        SyncRecordKind.harvest =>
-          await _replayHarvest(record.localId, record.payload),
-        SyncRecordKind.expense =>
-          await _replayExpense(record.localId, record.payload),
-        SyncRecordKind.loanIssue =>
-          await _replayLoanIssuance(record.localId, record.payload),
-        SyncRecordKind.loanPayment =>
-          await _replayLoanPayment(record.localId, record.payload),
-        SyncRecordKind.action => await _replayAction(
-          record.localId,
-          record.actionKind!,
-          record.payload,
-        ),
-      };
-      AppEventService.instance.notify();
-      return ok;
-    } finally {
-      _isSyncing = false;
-    }
+    _syncOwner = HiveService.getUserId();
+    return OfflineReadClient.runForUser(_syncOwner!, () async {
+      try {
+        if (!await ConnectivityService.instance.checkConnectivity() ||
+            !_sameSession) {
+          return false;
+        }
+        if (await AccountStatusWatcher.instance.checkNow() || !_sameSession) {
+          return false;
+        }
+        // A stale card cannot replay a record already removed by automatic sync.
+        final stillQueued = failedRecords().any(
+          (r) => r.kind == record.kind && r.localId == record.localId,
+        );
+        if (!stillQueued) return false;
+        final ok = switch (record.kind) {
+          SyncRecordKind.harvest => await _replayHarvest(
+            record.localId,
+            record.payload,
+          ),
+          SyncRecordKind.expense => await _replayExpense(
+            record.localId,
+            record.payload,
+          ),
+          SyncRecordKind.loanIssue => await _replayLoanIssuance(
+            record.localId,
+            record.payload,
+          ),
+          SyncRecordKind.loanPayment => await _replayLoanPayment(
+            record.localId,
+            record.payload,
+          ),
+          SyncRecordKind.action => await _replayAction(
+            record.localId,
+            record.actionKind!,
+            record.payload,
+          ),
+        };
+        AppEventService.instance.notify();
+        return ok;
+      } finally {
+        _isSyncing = false;
+        _syncOwner = null;
+        AppEventService.instance.notify();
+      }
+    });
   }
 
   // ─── Single-record replays ───────────────────────────────────────────────────
@@ -148,7 +245,10 @@ class SyncService {
     } on PostgrestException catch (e) {
       await HiveService.markHarvestQueueItemError(localId, e.message);
       return false;
-    } catch (_) {
+    } catch (error) {
+      if (!isOfflineConnectionFailure(error) && error is! ServerOnlyException) {
+        await HiveService.markHarvestQueueItemError(localId, _reason(error));
+      }
       return false;
     }
   }
@@ -166,7 +266,10 @@ class SyncService {
     } on PostgrestException catch (e) {
       await HiveService.markExpenseQueueItemError(localId, e.message);
       return false;
-    } catch (_) {
+    } catch (error) {
+      if (!isOfflineConnectionFailure(error) && error is! ServerOnlyException) {
+        await HiveService.markExpenseQueueItemError(localId, _reason(error));
+      }
       return false;
     }
   }
@@ -192,7 +295,7 @@ class SyncService {
         monthlyPayment: (payload['monthlyPayment'] as num).toDouble(),
         nextPaymentDate: DateTime.parse(payload['nextPaymentDate'] as String),
         notes: payload['notes'] as String?,
-        idempotencyKey: localId,
+        idempotencyKey: (payload['idempotencyKey'] as String?) ?? localId,
       );
       await HiveService.removePendingQueueItem(localId);
       return true;
@@ -202,9 +305,10 @@ class SyncService {
       // is shown on the Loan Dashboard with its reason.
       await HiveService.markLoanQueueItemError(localId, e.message);
       return false;
-    } catch (_) {
-      // Never reached the server (network drop, timeout) — retried on the
-      // next sync.
+    } catch (error) {
+      if (!isOfflineConnectionFailure(error) && error is! ServerOnlyException) {
+        await HiveService.markLoanQueueItemError(localId, _reason(error));
+      }
       return false;
     }
   }
@@ -232,7 +336,10 @@ class SyncService {
     } on PostgrestException catch (e) {
       await HiveService.markLoanQueueItemError(localId, e.message);
       return false;
-    } catch (_) {
+    } catch (error) {
+      if (!isOfflineConnectionFailure(error) && error is! ServerOnlyException) {
+        await HiveService.markLoanQueueItemError(localId, _reason(error));
+      }
       return false;
     }
   }
@@ -253,18 +360,12 @@ class SyncService {
       await HiveService.removeOfflineAction(localId);
       return true;
     } catch (e) {
-      if (!_isConnectionFailure(e)) {
+      if (!isOfflineConnectionFailure(e)) {
         await HiveService.markOfflineActionError(localId, _reason(e));
       }
       return false;
     }
   }
-
-  static bool _isConnectionFailure(Object e) =>
-      e is SocketException ||
-      e is TimeoutException ||
-      e is HandshakeException ||
-      e.runtimeType.toString() == 'ClientException';
 
   static String _reason(Object e) => e is PostgrestException
       ? e.message

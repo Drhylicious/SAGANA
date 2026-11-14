@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/program_outcome_model.dart';
 import '../../data/services/server_only.dart';
+import '../../data/services/offline_actions.dart';
 import '../l10n/app_localizations.dart';
 
 /// The one place that turns a failure into a sentence a person can read.
@@ -23,7 +24,9 @@ String friendlyError(
   _log(error, stack);
   final other = fallback ?? l10n.errGeneric;
 
-  if (error is ServerOnlyException) return l10n.errOffline;
+  if (error is ServerOnlyException || error is OfflineActionBlocked) {
+    return l10n.errOffline;
+  }
   if (error is OutcomeActionException) {
     if (error.offline) return l10n.errOffline;
     return _fromText(l10n, error.message, null) ?? other;
@@ -31,7 +34,10 @@ String friendlyError(
   if (error is SocketException) return l10n.errNetwork;
   if (error is PostgrestException) {
     // The app expects a column or function the database does not have yet.
-    if (error.code == 'PGRST204' || error.code == 'PGRST202' || error.code == '42703' || error.code == '42883') {
+    if (error.code == 'PGRST204' ||
+        error.code == 'PGRST202' ||
+        error.code == '42703' ||
+        error.code == '42883') {
       return l10n.errNeedsDbUpdate;
     }
     return _fromText(l10n, error.message, error.code) ?? other;
@@ -118,6 +124,8 @@ String? _fromText(AppLocalizations l10n, String raw, String? sqlState) {
       return l10n.errReturnUnit;
     case 'RETURN_QUANTITY':
       return l10n.errReturnQuantity;
+    case 'RESOLUTION_LOCKED':
+      return l10n.errResolutionLocked;
     case 'OUTCOME_LOCKED':
       return l10n.errOutcomeLocked;
     case 'RESTORE_CONFLICT':
@@ -218,6 +226,7 @@ String? _fromText(AppLocalizations l10n, String raw, String? sqlState) {
   if (sqlState == '23503' || sqlState == '23514') return l10n.errFixFields;
   // A refusal written on purpose for a person, with nothing technical in it.
   if (sqlState == 'P0001' && _isPlainSentence(raw)) {
+    if (l10n.localeName.startsWith('tl')) return l10n.errFixFields;
     return raw.trim().replaceFirst(RegExp(r'^[A-Z][A-Z_]{3,}:\s*'), '');
   }
   return null;

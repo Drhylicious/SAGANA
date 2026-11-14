@@ -1,3 +1,6 @@
+import 'coop_shelf_life_repository.dart';
+import '../services/offline_actions.dart'
+    show isOfflineConnectionFailure, OfflineActionBlocked;
 import 'dart:math' show Random;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
@@ -559,7 +562,17 @@ class AdminLoanRepository {
           )
           .eq('is_loan_eligible', true)
           .eq('cooperative_inventory.is_active', true);
-      return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
+      // The picker follows the Loan Item Catalog, which follows Inventory:
+      // an entry archived in the catalog or in Inventory is left out by the
+      // two filters above, and an item that is Unavailable (awaiting
+      // inspection) or Rotten/Lost in Inventory is left out here.
+      final shelf = await CoopShelfLifeRepository().fetchByItem();
+      return rows.map((r) => LoanCatalogItem.fromMap(r)).where((i) {
+        final state =
+            (shelf[i.inventoryItemId] ?? CoopItemShelfLife.none).state;
+        return state != CoopShelfState.onHold &&
+            state != CoopShelfState.rottenLost;
+      }).toList();
     } catch (_) {
       return [];
     }
@@ -575,9 +588,10 @@ class AdminLoanRepository {
           .from('loan_items_master')
           .select(
             'id, unit_price, is_loan_eligible, notes, '
-            'cooperative_inventory!inner(id, item_name, category, item_type, unit, quantity_on_hand, image_url, source)',
-          )
-          .eq('cooperative_inventory.is_active', true);
+            'cooperative_inventory!inner(id, item_name, category, item_type, unit, quantity_on_hand, image_url, source, is_active)',
+          );
+      // Entries of an archived Inventory item are kept: the catalog shows them
+      // under Archived instead of losing them.
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
     } catch (_) {
       return [];
@@ -663,7 +677,9 @@ class AdminLoanRepository {
   /// issued. Throws when the read fails, so the screen can say so instead of
   /// showing an empty list that looks like "no requests".
   Future<List<LoanRequestModel>> fetchLoanRequests({String? status}) async {
-    var query = _client.from('loan_requests').select('*, loan_request_items(*)');
+    var query = _client
+        .from('loan_requests')
+        .select('*, loan_request_items(*)');
     if (status != null) query = query.eq('status', status);
     final rows = await query.order('requested_at', ascending: false);
     if (rows.isEmpty) return [];
@@ -752,9 +768,7 @@ class AdminLoanRepository {
       decidedAt: r.decidedAt,
       decisionNote: r.decisionNote,
       loanReference: r.loanReference,
-      items: [
-        for (final i in r.items) i.withStock(stock[i.inventoryItemId]),
-      ],
+      items: [for (final i in r.items) i.withStock(stock[i.inventoryItemId])],
       farmerId: r.farmerId,
       farmerName: r.farmerName,
       farmerPhone: r.farmerPhone,
@@ -930,54 +944,73 @@ class AdminLoanRepository {
     String? notes,
     String? idempotencyKey,
   }) async {
+    final effectiveKey = idempotencyKey ?? _newIdempotencyKey();
+    final owner = _client.auth.currentUser?.id;
     // Offline (Batch 6): the payment is kept on this device with its own
     // idempotency key and sent by Sync, which re-checks the balance on the
     // server. A replay from Sync always carries the key, so it goes straight
     // to the server and is never queued again.
-    if (idempotencyKey == null && !ConnectivityService.instance.isOnline) {
+    Future<LoanPaymentResult> queueLocally() async {
+      if (owner == null ||
+          HiveService.getUserId() != owner ||
+          _client.auth.currentUser?.id != owner) {
+        throw const OfflineActionBlocked();
+      }
       await HiveService.savePendingLoanPayment({
         'loanId': loanId,
         'amount': amount,
         'paymentDate': paymentDate.toIso8601String(),
         'notes': notes,
-        'idempotencyKey': _newIdempotencyKey(),
+        'idempotencyKey': effectiveKey,
       });
       return const LoanPaymentResult.savedOnDevice();
     }
 
-    await ServerOnly.ensureOnline();
-    final candidateNextPaymentDate = BodSchedule.after(paymentDate);
+    if (idempotencyKey == null &&
+        !await ConnectivityService.instance.checkConnectivity()) {
+      return queueLocally();
+    }
+    try {
+      await ServerOnly.ensureOnline();
+      final candidateNextPaymentDate = BodSchedule.after(paymentDate);
 
-    final rows =
-        await _client.rpc(
-              'record_loan_payment',
-              params: {
-                'p_loan_id': loanId,
-                'p_amount': amount,
-                'p_payment_date': _dateOnly(paymentDate),
-                'p_next_payment_date_if_active': _dateOnly(
-                  candidateNextPaymentDate,
-                ),
-                'p_notes': notes,
-                'p_recorded_by': _client.auth.currentUser?.id,
-                'p_idempotency_key': idempotencyKey,
-              },
-            )
-            as List;
+      final rows =
+          await _client.rpc(
+                'record_loan_payment',
+                params: {
+                  'p_loan_id': loanId,
+                  'p_amount': amount,
+                  'p_payment_date': _dateOnly(paymentDate),
+                  'p_next_payment_date_if_active': _dateOnly(
+                    candidateNextPaymentDate,
+                  ),
+                  'p_notes': notes,
+                  'p_recorded_by': _client.auth.currentUser?.id,
+                  'p_idempotency_key': effectiveKey,
+                },
+              )
+              as List;
 
-    final row = rows.first as Map<String, dynamic>;
-    AdminActivityRepository().log(
-      module: 'loans',
-      actionType: 'payment_recorded',
-      message: AdminLogMessage('adminLogLoanPaymentRecorded', {
-        'amount': amount.toStringAsFixed(2),
-      }),
-      referenceId: loanId,
-    );
-    return LoanPaymentResult(
-      isFullyPaid: row['is_fully_paid'] as bool,
-      runningBalance: (row['running_balance'] as num).toDouble(),
-    );
+      final row = rows.first as Map<String, dynamic>;
+      AdminActivityRepository().log(
+        module: 'loans',
+        actionType: 'payment_recorded',
+        message: AdminLogMessage('adminLogLoanPaymentRecorded', {
+          'amount': amount.toStringAsFixed(2),
+        }),
+        referenceId: loanId,
+      );
+      return LoanPaymentResult(
+        isFullyPaid: row['is_fully_paid'] as bool,
+        runningBalance: (row['running_balance'] as num).toDouble(),
+      );
+    } catch (error) {
+      if (idempotencyKey == null &&
+          (isOfflineConnectionFailure(error) || error is ServerOnlyException)) {
+        return queueLocally();
+      }
+      rethrow;
+    }
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;

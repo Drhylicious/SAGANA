@@ -124,6 +124,8 @@ class CsvExportService implements ReportExportService {
           [
             ('Total Yield (kg)', harvest.totalYieldKg.toStringAsFixed(2)),
             ('Harvest Entries', '${harvest.harvestCount}'),
+            if (harvest.programReceivedCount > 0)
+              ('Received From Programs (kg, not harvest)', harvest.programReceivedKg.toStringAsFixed(2)),
           ],
         );
       case ReportModuleType.expense:

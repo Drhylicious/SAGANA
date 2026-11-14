@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('DropdownButtonFormField fits within a narrow container', (tester) async {
+  testWidgets('DropdownButtonFormField fits within a narrow container', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -10,7 +12,7 @@ void main() {
             child: SizedBox(
               width: 240,
               child: DropdownButtonFormField<String>(
-                value: 'farmer-id',
+                initialValue: 'farmer-id',
                 isExpanded: true,
                 decoration: const InputDecoration(),
                 items: const [

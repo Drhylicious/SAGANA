@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/notification_badge_service.dart';
 import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
 import 'sagana_logo_mark.dart';
@@ -75,10 +76,17 @@ class BuyerTopBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64 + MediaQuery.paddingOf(context).top,
-          padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top, 20, 0),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            MediaQuery.paddingOf(context).top,
+            20,
+            0,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20))),
+            border: Border(
+              bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20)),
+            ),
           ),
           child: Row(
             children: [
@@ -95,38 +103,58 @@ class BuyerTopBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.notifications_outlined, color: cs.primary, size: 26),
-                    onPressed: onNotificationTap,
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: IgnorePointer(
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: AppConstants.errorRed,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: sagana.glassBackground, width: 1.5),
+              // The dot comes from the shared badge service, so it shows on every
+              // primary screen, not only where a count was loaded.
+              ListenableBuilder(
+                listenable: NotificationBadgeService.instance,
+                builder: (context, _) => Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.notifications_outlined,
+                        color: cs.primary,
+                        size: 26,
+                      ),
+                      onPressed: onNotificationTap,
+                    ),
+                    if (NotificationBadgeService.instance.hasUnread)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: AppConstants.errorRed,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: sagana.glassBackground,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
               if (onSettingsTap != null)
                 IconButton(
-                  icon: Icon(Icons.settings_outlined, color: cs.primary, size: 26),
+                  icon: Icon(
+                    Icons.settings_outlined,
+                    color: cs.primary,
+                    size: 26,
+                  ),
                   onPressed: onSettingsTap,
                 ),
             ],

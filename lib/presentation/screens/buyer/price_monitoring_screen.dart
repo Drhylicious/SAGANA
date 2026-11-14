@@ -18,6 +18,8 @@ import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/price_display_widgets.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/skeleton.dart';
 import '../../../data/services/market_types_service.dart';
 
@@ -42,6 +44,8 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
 
   // ─── Exclusive inline expansion ─────────────────────────────────────────
   String? _expandedCropId;
+  // The crop category shown (null = All).
+  String? _categoryFilter;
   List<PriceRecordModel> _trend = [];
   bool _isTrendLoading = false;
 
@@ -142,7 +146,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'latest_prices',
                 isOnline: _isOnline,
@@ -157,18 +161,18 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
                           child: SkeletonList(),
                         )
                       : Column(
-                            children: [
-                              _buildSearchRow(l10n),
-                              const SizedBox(height: 8),
-                              Expanded(
-                                child: _latestPrices.isEmpty
-                                    ? _buildEmptyState(l10n)
-                                    : filtered.isEmpty
-                                    ? _buildNoResultsState(l10n)
-                                    : _buildPriceList(l10n, filtered),
-                              ),
-                            ],
-                          ),
+                          children: [
+                            _buildSearchRow(l10n),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: _latestPrices.isEmpty
+                                  ? _buildEmptyState(l10n)
+                                  : filtered.isEmpty
+                                  ? _buildNoResultsState(l10n)
+                                  : _buildPriceList(l10n, filtered),
+                            ),
+                          ],
+                        ),
                 ),
               ),
             ],
@@ -231,6 +235,14 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
       (p) => p.cropCategory,
       l10n.buyerPriceCategoryOther,
     );
+    // The chosen category, unless a search left it with no crops: then All.
+    final category = groups.any((g) => g.key == _categoryFilter)
+        ? _categoryFilter
+        : null;
+    final shown = [
+      for (final group in groups)
+        if (category == null || group.key == category) ...group.value,
+    ];
     final markets = filtered.map((p) => p.priceType).toSet();
     final title = markets.length == 1
         ? l10n.buyerPriceHeaderTitle(MarketTypes.instance.label(markets.first))
@@ -255,26 +267,40 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
             cropCount: filtered.length,
             updated: AppUtils.formatRelativeTime(newest, l10n),
           ),
-          for (final group in groups) ...[
-            const SizedBox(height: 20),
-            PriceCategoryHeader(title: group.key, count: group.value.length),
-            const SizedBox(height: 10),
-            for (int i = 0; i < group.value.length; i++) ...[
-              if (i > 0) const SizedBox(height: 10),
-              _CropCard(
-                price: group.value[i],
-                isExpanded: group.value[i].cropId == _expandedCropId,
-                isListed: _listedCrops.contains(
-                  group.value[i].cropName.toLowerCase(),
-                ),
-                trend: _trend,
-                isTrendLoading: _isTrendLoading,
-                onTap: () => _toggleExpand(
-                  group.value[i].cropId,
-                  group.value[i].priceType,
-                ),
+          const SizedBox(height: 14),
+          MarketplaceFilterBar<String?>(
+            options: [
+              MarketplaceFilterOption<String?>(
+                value: null,
+                label: l10n.farmerMgmtAllFilter,
+                count: filtered.length,
+                color: AppConstants.primaryGreen,
               ),
+              for (final group in groups)
+                MarketplaceFilterOption<String?>(
+                  value: group.key,
+                  label: group.key,
+                  count: group.value.length,
+                  color: AppConstants.primaryGreen,
+                ),
             ],
+            selected: category,
+            onSelected: (c) => setState(() {
+              _categoryFilter = c;
+              _expandedCropId = null;
+            }),
+          ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < shown.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _CropCard(
+              price: shown[i],
+              isExpanded: shown[i].cropId == _expandedCropId,
+              isListed: _listedCrops.contains(shown[i].cropName.toLowerCase()),
+              trend: _trend,
+              isTrendLoading: _isTrendLoading,
+              onTap: () => _toggleExpand(shown[i].cropId, shown[i].priceType),
+            ),
           ],
         ],
       ),
@@ -291,7 +317,9 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
             Icon(
               Icons.trending_up_rounded,
               size: 56,
-              color: AppConstants.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -307,7 +335,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -326,7 +354,9 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
             Icon(
               Icons.search_off_rounded,
               size: 48,
-              color: AppConstants.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 12),
             Text(
@@ -345,7 +375,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -402,7 +432,7 @@ class _CropCard extends StatelessWidget {
               _buildHeader(context, l10n),
               if (isExpanded) ...[
                 const SizedBox(height: 10),
-                _buildStatusTag(l10n),
+                _buildStatusTag(context, l10n),
                 const SizedBox(height: 14),
                 PriceTrendPanel(
                   trend: trend,
@@ -473,8 +503,10 @@ class _CropCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusTag(AppLocalizations l10n) {
-    final color = isListed ? AppConstants.successGreen : AppConstants.outline;
+  Widget _buildStatusTag(BuildContext context, AppLocalizations l10n) {
+    final color = isListed
+        ? AppConstants.successGreen
+        : Theme.of(context).colorScheme.outline;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(

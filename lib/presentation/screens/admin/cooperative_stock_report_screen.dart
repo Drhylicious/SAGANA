@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import '../../../core/utils/item_type_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -108,7 +109,10 @@ class _CooperativeStockReportScreenState
             child: RefreshIndicator(
               onRefresh: _load,
               child: _isLoading
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(
                         AppConstants.spacingSafeH,
@@ -137,7 +141,20 @@ class _CooperativeStockReportScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return SubPageTopBar(title: l10n.reportsCoopStockReport, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.file_download_outlined, color: cs.primary), onPressed: () => context.push( AppRoutes.exportCenter, extra: const ExportCenterArgs( preselectedModule: ReportModuleType.coopStock, ), ), tooltip: l10n.reportsExportCenter, ));
+    return SubPageTopBar(
+      title: l10n.reportsCoopStockReport,
+      onBack: () => context.pop(),
+      trailing: IconButton(
+        icon: Icon(Icons.file_download_outlined, color: cs.primary),
+        onPressed: () => context.push(
+          AppRoutes.exportCenter,
+          extra: const ExportCenterArgs(
+            preselectedModule: ReportModuleType.coopStock,
+          ),
+        ),
+        tooltip: l10n.reportsExportCenter,
+      ),
+    );
   }
 
   /// Header + KPI row together in one bordered, padded card — matching
@@ -180,36 +197,36 @@ class _CooperativeStockReportScreenState
   ) {
     return Column(
       children: [
-    Row(
-      children: [
-        Expanded(
-          child: ReportIconStatCard(
-            icon: Icons.inventory_2_rounded,
-            label: l10n.reportsTotalItems,
-            value: '${_data.totalItems}',
-            accent: AppConstants.buyerBlue,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: ReportIconStatCard(
+                icon: Icons.inventory_2_rounded,
+                label: l10n.reportsTotalItems,
+                value: '${_data.totalItems}',
+                accent: AppConstants.buyerBlue,
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Expanded(
+              child: ReportIconStatCard(
+                icon: Icons.warning_amber_rounded,
+                label: l10n.reportsLowStockItems,
+                value: '${_data.lowStockCount}',
+                accent: AppConstants.errorRed,
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Expanded(
+              child: ReportIconStatCard(
+                icon: Icons.category_rounded,
+                label: l10n.reportsCategories,
+                value: '${_data.categoryCounts.length}',
+                accent: AppConstants.amber,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: ReportIconStatCard(
-            icon: Icons.warning_amber_rounded,
-            label: l10n.reportsLowStockItems,
-            value: '${_data.lowStockCount}',
-            accent: AppConstants.errorRed,
-          ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: ReportIconStatCard(
-            icon: Icons.category_rounded,
-            label: l10n.reportsCategories,
-            value: '${_data.categoryCounts.length}',
-            accent: AppConstants.amber,
-          ),
-        ),
-      ],
-    ),
         const SizedBox(height: AppConstants.spacingSm),
         // The Item Type Inventory Management gives every item.
         Row(
@@ -237,7 +254,7 @@ class _CooperativeStockReportScreenState
                 icon: Icons.handyman_rounded,
                 label: l10n.itemTypeNonCrop,
                 value: '${_data.nonCropItemCount}',
-                accent: AppConstants.outline,
+                accent: Theme.of(context).colorScheme.outline,
               ),
             ),
           ],
@@ -371,7 +388,7 @@ class _CooperativeStockReportScreenState
               scrollDirection: Axis.horizontal,
               children: [
                 _StockFilterChip(
-                  label: l10n.reportsAll,
+                  label: '${l10n.reportsAll} (${_data.items.length})',
                   selected: _filter == null,
                   onTap: () => setState(() => _filter = null),
                   cs: cs,
@@ -387,7 +404,8 @@ class _CooperativeStockReportScreenState
                   (category) => Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: _StockFilterChip(
-                      label: category,
+                      label:
+                          '${localizeBuiltinLabel(AppLocalizations.of(context), category)} (${_data.items.where((i) => i.category == category).length})',
                       selected: _filter == category,
                       onTap: () => setState(() => _filter = category),
                       cs: cs,
@@ -447,14 +465,20 @@ class _CooperativeStockReportScreenState
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           color: cs.surfaceContainerHighest,
-                          child: Icon(Icons.inventory_2_outlined,
-                              size: 22, color: cs.outline.withValues(alpha: 0.4)),
+                          child: Icon(
+                            Icons.inventory_2_outlined,
+                            size: 22,
+                            color: cs.outline.withValues(alpha: 0.4),
+                          ),
                         ),
                       )
                     : Container(
                         color: cs.surfaceContainerHighest,
-                        child: Icon(Icons.inventory_2_outlined,
-                            size: 22, color: cs.outline.withValues(alpha: 0.4)),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 22,
+                          color: cs.outline.withValues(alpha: 0.4),
+                        ),
                       ),
               ),
             ),

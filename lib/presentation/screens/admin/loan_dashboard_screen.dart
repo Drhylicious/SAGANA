@@ -531,7 +531,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w600,
               fontSize: 13,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ),
@@ -654,7 +654,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       style: OutlinedButton.styleFrom(
         foregroundColor: highlight ? Colors.white : AppConstants.primaryGreen,
         backgroundColor: highlight ? AppConstants.primaryGreen : null,
-        side: const BorderSide(color: AppConstants.primaryGreen),
+        side: BorderSide(color: Theme.of(context).colorScheme.primary),
         minimumSize: const Size(double.infinity, 44),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -789,21 +789,21 @@ class _AdminLoanCard extends StatelessWidget {
                           horizontal: 8,
                           vertical: 3,
                         ),
-                          decoration: BoxDecoration(
+                        decoration: BoxDecoration(
                           color: cs.surfaceContainerHighest.withValues(
                             alpha: 0.4,
                           ),
                           borderRadius: BorderRadius.circular(
                             AppConstants.radiusFull,
                           ),
-                          ),
-                          child: Text(
-                            name,
+                        ),
+                        child: Text(
+                          name,
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             color: cs.onSurfaceVariant,
                           ),
-                          ),
+                        ),
                       ),
                     )
                     .toList(),
@@ -813,7 +813,7 @@ class _AdminLoanCard extends StatelessWidget {
               const SizedBox(height: AppConstants.spacingSm),
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.eco_rounded,
                     size: 13,
                     color: AppConstants.programPurple,
@@ -821,7 +821,9 @@ class _AdminLoanCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      'From Program Distribution: ${loan.sourceProgramName}',
+                      AppLocalizations.of(context).enhFromProgramDistribution(
+                        (loan.sourceProgramName).toString(),
+                      ),
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 10.5,
@@ -878,8 +880,8 @@ class _AdminLoanCard extends StatelessWidget {
                             DateFormat('MMM d').format(loan.nextPaymentDate!),
                           )
                         : loan.nextPaymentDate != null
-                            ? '${l10n.loanDashNext}: ${DateFormat('MMM d').format(loan.nextPaymentDate!)}'
-                            : '',
+                        ? '${l10n.loanDashNext}: ${DateFormat('MMM d').format(loan.nextPaymentDate!)}'
+                        : '',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

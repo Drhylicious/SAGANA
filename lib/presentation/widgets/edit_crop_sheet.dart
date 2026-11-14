@@ -1,9 +1,12 @@
+import '../../core/l10n/localized_labels.dart';
+import '../../core/theme/sagana_colors.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
-import '../../data/models/farmer_crop_model.dart' show FarmerCropModel, marketTypeLabelFor;
+import '../../data/models/farmer_crop_model.dart'
+    show FarmerCropModel, marketTypeLabelFor;
 import '../../data/repositories/crop_repository.dart';
 import 'crop_photo_capture.dart';
 import 'management_modal.dart';
@@ -67,8 +70,10 @@ class _EditCropModalState extends State<_EditCropModal> {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not save photo. Please try again.',
-              style: GoogleFonts.inter(fontSize: 13)),
+          content: Text(
+            AppLocalizations.of(context).enhCouldNotSavePhotoPleaseTryAgain,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
         ),
       );
       return;
@@ -76,8 +81,10 @@ class _EditCropModalState extends State<_EditCropModal> {
     if (result.queued) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).savedOnDeviceSyncLater,
-              style: GoogleFonts.inter(fontSize: 13)),
+          content: Text(
+            AppLocalizations.of(context).savedOnDeviceSyncLater,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
         ),
       );
     }
@@ -88,27 +95,43 @@ class _EditCropModalState extends State<_EditCropModal> {
   Widget build(BuildContext context) {
     final crop = widget.crop;
     return ManagementModalShell(
-      title: 'Edit Crop',
-      subtitle: 'Name, category, and market type are set by SP3 and can\'t be changed here.',
+      title: AppLocalizations.of(context).cropMgmtEditTitle,
+      subtitle: AppLocalizations.of(
+        context,
+      ).enhNameCategoryAndMarketTypeAreSetBy,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _LockedField(label: 'Crop name', value: crop.cropName),
-          const SizedBox(height: 12),
-          _LockedField(label: 'Category', value: crop.category),
+          _LockedField(
+            label: AppLocalizations.of(context).enhCropName,
+            value: crop.cropName,
+          ),
           const SizedBox(height: 12),
           _LockedField(
-            label: 'Market type',
+            label: AppLocalizations.of(context).buyerListingCategory,
+            value: localizeBuiltinLabel(
+              AppLocalizations.of(context),
+              crop.category,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _LockedField(
+            label: AppLocalizations.of(context).enhMarketType,
             value: crop.cropMasterId != null
                 ? marketTypeLabelFor(crop.cropType)
-                : 'Pending approval',
+                : AppLocalizations.of(context).enhPendingApproval,
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Text('Photo of your crop',
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+              Text(
+                AppLocalizations.of(context).enhPhotoOfYourCrop,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(width: 8),
               if (!crop.hasPhoto && _pickedImageBytes == null)
                 const PhotoRequiredBadge(compact: true),
@@ -121,50 +144,66 @@ class _EditCropModalState extends State<_EditCropModal> {
               height: 160,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: AppConstants.offWhite,
+                color: context.saganaColors.scaffoldBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 border: Border.all(
                   color: (!crop.hasPhoto && _pickedImageBytes == null)
                       ? AppConstants.errorRed.withValues(alpha: 0.45)
-                      : AppConstants.outline.withValues(alpha: 0.20),
+                      : Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.20),
                 ),
               ),
               clipBehavior: Clip.antiAlias,
               child: _pickedImageBytes != null
                   ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
                   : (crop.hasPhoto
-                      ? Image.network(crop.photoUrl!, fit: BoxFit.cover)
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.photo_camera_outlined,
-                                size: 30, color: AppConstants.errorRed),
-                            const SizedBox(height: 6),
-                            Text('Tap to take a photo',
+                        ? Image.network(crop.photoUrl!, fit: BoxFit.cover)
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.photo_camera_outlined,
+                                size: 30,
+                                color: AppConstants.errorRed,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                AppLocalizations.of(context).enhTapToTakeAPhoto,
                                 style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppConstants.errorRed)),
-                          ],
-                        )),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.errorRed,
+                                ),
+                              ),
+                            ],
+                          )),
             ),
           ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded,
-                  size: 14, color: AppConstants.onSurfaceVariant),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   _pickedImageBytes != null || crop.hasPhoto
-                      ? 'Taken with your camera. Tap the photo to retake it.'
-                      : 'Take a photo of your actual crop with your camera. It is needed to '
-                          'sell on the Marketplace, to the Cooperative, or through Market '
-                          'Linking. You can record harvests and Informal Sales without it.',
+                      ? AppLocalizations.of(
+                          context,
+                        ).enhTakenWithYourCameraTapThePhotoTo
+                      : AppLocalizations.of(
+                          context,
+                        ).enhTakeAPhotoOfYourActualCropWith,
                   style: GoogleFonts.inter(
-                      fontSize: 11.5, height: 1.4, color: AppConstants.onSurfaceVariant),
+                    fontSize: 11.5,
+                    height: 1.4,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -172,7 +211,7 @@ class _EditCropModalState extends State<_EditCropModal> {
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: 'Save Photo',
+        primaryLabel: AppLocalizations.of(context).enhSavePhoto,
 
         isLoading: _isSaving,
         onPrimary: _pickedImageBytes == null ? null : _save,
@@ -191,26 +230,45 @@ class _LockedField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 4),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            color: AppConstants.offWhite,
+            color: context.saganaColors.scaffoldBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.15),
+            ),
           ),
           child: Row(
             children: [
               Expanded(
-                child: Text(value,
-                    style: GoogleFonts.inter(
-                        fontSize: 14, fontWeight: FontWeight.w600, color: AppConstants.charcoal)),
+                child: Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
               ),
-              Icon(Icons.lock_outline_rounded,
-                  size: 16, color: AppConstants.outline.withValues(alpha: 0.60)),
+              Icon(
+                Icons.lock_outline_rounded,
+                size: 16,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.60),
+              ),
             ],
           ),
         ),
@@ -218,4 +276,3 @@ class _LockedField extends StatelessWidget {
     );
   }
 }
-

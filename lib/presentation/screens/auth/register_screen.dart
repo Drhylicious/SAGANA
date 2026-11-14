@@ -178,6 +178,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       keyboardType: TextInputType.phone,
       textInputAction: TextInputAction.next,
       decoration: authFieldDecoration(
+        context: context,
         label: l10n.registerPhoneLabel,
         hint: '09XXXXXXXXX',
         icon: Icons.phone_outlined,
@@ -199,8 +200,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       textInputAction: TextInputAction.next,
       onChanged: _onEmailChanged,
       decoration: authFieldDecoration(
+        context: context,
         label: l10n.registerEmailLabel,
-        hint: 'name@example.com',
+        hint: AppLocalizations.of(context).mlkBuyerEmailHint,
         icon: Icons.email_outlined,
         suffix: _isCheckingEmail
             ? Padding(
@@ -486,7 +488,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 10),
@@ -496,7 +498,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               style: GoogleFonts.inter(
                 fontSize: 13,
                 height: 1.6,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -542,7 +544,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 4),
@@ -691,6 +693,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           key: ValueKey('username-$_selectedRole'),
           controller: _usernameCtrl,
           decorationBuilder: (suffix) => authFieldDecoration(
+            context: context,
             label: l10n.registerUsernameLabel,
             hint: l10n.registerUsernameHint,
             icon: Icons.badge_outlined,
@@ -736,6 +739,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               // errorText gives the same red border and message as the other
               // required fields.
               decoration: authFieldDecoration(
+                context: context,
                 label: l10n.registerDob,
                 icon: Icons.cake_outlined,
               ).copyWith(errorText: _dobError),
@@ -773,6 +777,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.next,
           decoration: authFieldDecoration(
+            context: context,
             label: l10n.registerPasswordLabel,
             icon: Icons.lock_outline_rounded,
             suffix: IconButton(
@@ -789,8 +794,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         ValueListenableBuilder<TextEditingValue>(
           valueListenable: _passwordCtrl,
-          builder: (_, value, __) =>
-              PasswordLengthHint(password: value.text),
+          builder: (_, value, __) => PasswordLengthHint(password: value.text),
         ),
         const SizedBox(height: 12),
 
@@ -801,6 +805,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _onPrimaryPressed(),
           decoration: authFieldDecoration(
+            context: context,
             label: l10n.registerConfirmPasswordLabel,
             icon: Icons.lock_outline_rounded,
             suffix: IconButton(
@@ -844,7 +849,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.70),
+                          color: context.saganaColors.cardBackground.withValues(
+                            alpha: 0.70,
+                          ),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: cs.outline.withValues(alpha: 0.15),
@@ -877,9 +884,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.person_add_alt_1_rounded,
-                            color: AppConstants.primaryGreen,
+                            color: Theme.of(context).colorScheme.primary,
                             size: 28,
                           ),
                         ),

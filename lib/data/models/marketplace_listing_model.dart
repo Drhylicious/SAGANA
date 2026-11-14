@@ -1,4 +1,5 @@
 import '../../core/utils/quantity_utils.dart';
+import 'shelf_life_model.dart';
 
 class MarketplaceListingModel {
   final String id;
@@ -30,6 +31,17 @@ class MarketplaceListingModel {
   final DateTime? submittedAt;
   final DateTime? updatedAt;
 
+  /// Shelf-life state of this listing (unavailable / discounted). Only the
+  /// owning Farmer's and the staff's queries carry it.
+  final ListingShelfLife? shelfLife;
+
+  /// Set when the cooperative changed the Reference Price Range and this open
+  /// listing's price is now outside it: the range the Farmer must move into
+  /// (through an edit submitted for approval). The listing stays available
+  /// meanwhile. Null otherwise.
+  final ListingPriceRule? priceUpdateRule;
+  bool get priceUpdateRequired => priceUpdateRule != null;
+
   const MarketplaceListingModel({
     required this.id,
     required this.farmerId,
@@ -48,6 +60,8 @@ class MarketplaceListingModel {
     required this.createdAt,
     this.submittedAt,
     this.updatedAt,
+    this.shelfLife,
+    this.priceUpdateRule,
   });
 
   bool get isPending => status == 'pending_review';
@@ -58,7 +72,19 @@ class MarketplaceListingModel {
 
   /// Approved and still open for purchase (Available). An approved listing
   /// with nothing left is Sold Out instead; see [isSoldOut].
-  bool get isAvailable => status == 'approved' && remainingKg > 0;
+  bool get isAvailable =>
+      status == 'approved' && remainingKg > 0 && !isShelfUnavailable;
+
+  /// Published, but past its shelf life and not confirmed: hidden from Buyers
+  /// until the Farmer confirms the produce and the cooperative approves.
+  bool get isShelfUnavailable =>
+      status == 'approved' &&
+      remainingKg > 0 &&
+      (shelfLife?.unavailable ?? false);
+
+  /// Carries the automatic expiry-day discount.
+  bool get isShelfDiscounted =>
+      status == 'approved' && (shelfLife?.isDiscounted ?? false);
 
   /// Nothing left to buy: stored as sold, or approved with 0 kg remaining.
   bool get isSoldOut => status == 'sold' || (status == 'approved' && remainingKg <= 0);
@@ -104,6 +130,8 @@ class MarketplaceListingModel {
       createdAt: _parseDateTime(map['created_at']) ?? DateTime.now(),
       submittedAt: _parseDateTime(map['submitted_at']),
       updatedAt: _parseDateTime(map['updated_at']),
+      shelfLife: ListingShelfLife.fromEmbed(map['listing_shelf_life']),
+      priceUpdateRule: ListingPriceRule.fromMap(map['price_update_rule']),
     );
   }
 }
@@ -113,7 +141,17 @@ class MarketplaceListingModel {
 /// Farmer-side filter for My Listings. The chip names follow the shared
 /// listing terminology (see listing_status_badge.dart): Pending Approval,
 /// Available, Sold Out, Disapproved, Withdrawn.
-enum ListingFilter { all, pending, available, soldOut, disapproved, withdrawn }
+enum ListingFilter {
+  all,
+  pending,
+  available,
+
+  /// Published but past its shelf life and not confirmed: hidden from Buyers.
+  unavailable,
+  soldOut,
+  disapproved,
+  withdrawn,
+}
 
 extension ListingFilterExt on ListingFilter {
   /// English fallback only; screens use listingFilterLabel() for the
@@ -126,6 +164,8 @@ extension ListingFilterExt on ListingFilter {
         return 'Pending Approval';
       case ListingFilter.available:
         return 'Available';
+      case ListingFilter.unavailable:
+        return 'Unavailable';
       case ListingFilter.soldOut:
         return 'Sold Out';
       case ListingFilter.disapproved:
@@ -143,6 +183,8 @@ extension ListingFilterExt on ListingFilter {
         return listing.isPending;
       case ListingFilter.available:
         return listing.isAvailable;
+      case ListingFilter.unavailable:
+        return listing.isShelfUnavailable;
       case ListingFilter.soldOut:
         return listing.isSoldOut;
       case ListingFilter.disapproved:

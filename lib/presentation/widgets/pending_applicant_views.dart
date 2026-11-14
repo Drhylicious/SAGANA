@@ -11,7 +11,6 @@ import 'member_profile_cards.dart';
 import 'notification_day_groups.dart';
 import 'notification_ui.dart';
 import 'sagana_logo_mark.dart';
-import 'shared_widgets.dart';
 import 'skeleton.dart';
 
 /// The three tabs a Pending Applicant sees (Home, Notifications, Profile). Plain
@@ -168,12 +167,8 @@ class PendingHomeView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              _welcomeBanner(l10n),
+              _welcomeBanner(context, l10n),
               const SizedBox(height: 16),
-              if (!isOnline) ...[
-                OfflineStatusCard(message: l10n.pendingOfflineBanner),
-                const SizedBox(height: 16),
-              ],
               _statusCard(context, cs, sagana),
               const SizedBox(height: 16),
               _ContactCard(cs: cs, sagana: sagana),
@@ -184,7 +179,7 @@ class PendingHomeView extends StatelessWidget {
     );
   }
 
-  Widget _welcomeBanner(AppLocalizations l10n) {
+  Widget _welcomeBanner(BuildContext context, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -211,7 +206,9 @@ class PendingHomeView extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.20),
+                  color: context.saganaColors.cardBackground.withValues(
+                    alpha: 0.20,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -753,15 +750,16 @@ class _ContactRow extends StatelessWidget {
 // roles
 // ─────────────────────────────────────────────────────────────────────────────
 
-class PendingNotificationsView extends StatelessWidget {
+class PendingNotificationsView extends StatefulWidget {
   final List<NotificationModel> notifications;
   final bool isLoading;
   final Future<void> Function() onRefresh;
   final void Function(NotificationModel) onTap;
-  final void Function(NotificationModel) onToggleRead;
-  final void Function(NotificationModel) onDelete;
-  final VoidCallback onMarkAllRead;
-  final VoidCallback onMarkAllUnread;
+
+  /// Applies Mark as Read (true) or Mark as Unread (false) to the selected
+  /// notifications.
+  final void Function(List<NotificationModel> selected, bool markRead)
+  onApplyToSelection;
 
   const PendingNotificationsView({
     super.key,
@@ -769,33 +767,63 @@ class PendingNotificationsView extends StatelessWidget {
     required this.isLoading,
     required this.onRefresh,
     required this.onTap,
-    required this.onToggleRead,
-    required this.onDelete,
-    required this.onMarkAllRead,
-    required this.onMarkAllUnread,
+    required this.onApplyToSelection,
   });
+
+  @override
+  State<PendingNotificationsView> createState() =>
+      _PendingNotificationsViewState();
+}
+
+class _PendingNotificationsViewState extends State<PendingNotificationsView> {
+  final _selection = NotificationSelection();
+
+  void _apply() {
+    final markRead = _selection.offersMarkRead(widget.notifications);
+    final picked = _selection.picked(widget.notifications);
+    setState(_selection.clear);
+    widget.onApplyToSelection(picked, markRead);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    final notifications = widget.notifications;
+    final isLoading = widget.isLoading;
+    final onRefresh = widget.onRefresh;
 
     return Column(
       children: [
         PendingTopBar(
-          title: l10n.pendingNotificationsTitle,
-          trailing: notifications.isEmpty
+          title: notificationTopBarTitle(
+            l10n,
+            l10n.pendingNotificationsTitle,
+            _selection,
+          ),
+          trailing: !_selection.isActive
               ? null
-              : NotificationMenuButton(
-                  hasUnread: notifications.any((n) => n.isUnread),
-                  hasRead: notifications.any((n) => n.isRead),
-                  onMarkAllRead: onMarkAllRead,
-                  onMarkAllUnread: onMarkAllUnread,
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: l10n.notifSelectionCancel,
+                      icon: Icon(Icons.close_rounded, color: cs.onSurface),
+                      onPressed: () => setState(_selection.clear),
+                    ),
+                    NotificationSelectionMenu(
+                      markRead: _selection.offersMarkRead(notifications),
+                      onApply: _apply,
+                    ),
+                  ],
                 ),
         ),
         Expanded(
           child: isLoading
-              ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SkeletonList(),
+                )
               : RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: onRefresh,
@@ -843,25 +871,31 @@ class PendingNotificationsView extends StatelessWidget {
                       : ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                          children: notificationGroupChildren<NotificationModel>(
-                            items: notifications,
-                            timeOf: (n) => n.createdAt,
-                            l10n: l10n,
-                            buildItem: (n) => NotificationCard(
-                              item: n,
-                              timeLabel: notificationTimeLabel(
-                                l10n,
-                                n.createdAt,
+                          children:
+                              notificationGroupChildren<NotificationModel>(
+                                items: notifications,
+                                timeOf: (n) => n.createdAt,
+                                l10n: l10n,
+                                buildItem: (n) => NotificationCard(
+                                  item: n,
+                                  timeLabel: notificationTimeLabel(
+                                    l10n,
+                                    n.createdAt,
+                                  ),
+                                  selected: _selection.contains(n.id),
+                                  onTap: () {
+                                    if (_selection.isActive) {
+                                      setState(() => _selection.toggle(n.id));
+                                    } else {
+                                      widget.onTap(n);
+                                    }
+                                  },
+                                  onLongPress: () {
+                                    if (_selection.isActive) return;
+                                    setState(() => _selection.toggle(n.id));
+                                  },
+                                ),
                               ),
-                              onTap: () => onTap(n),
-                              onLongPress: () => showNotificationReadSheet(
-                                context,
-                                isRead: n.isRead,
-                                onToggle: () => onToggleRead(n),
-                              ),
-                              onDelete: () => onDelete(n),
-                            ),
-                          ),
                         ),
                 ),
         ),
@@ -906,7 +940,10 @@ class PendingProfileView extends StatelessWidget {
         PendingTopBar(title: l10n.pendingProfileTitle),
         Expanded(
           child: isLoading
-              ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SkeletonList(),
+                )
               : SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                   child: Column(

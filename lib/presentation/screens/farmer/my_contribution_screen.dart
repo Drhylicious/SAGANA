@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/services.dart';
@@ -152,9 +153,11 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
           // was already correctly blocked.
           double? entered = double.tryParse(controller.text.trim());
           if (entered == null || entered <= 0) {
-            error = 'Enter a valid amount.';
+            error = AppLocalizations.of(context).enhEnterAValidAmount;
           } else if (entered - available > epsilon) {
-            error = 'Cannot exceed ₱${NumberFormat('#,##0.00').format(available)}.';
+            error = AppLocalizations.of(context).enhCannotExceed(
+              (NumberFormat('#,##0.00').format(available)).toString(),
+            );
           } else {
             error = null;
           }
@@ -162,7 +165,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
 
           return AlertDialog(
             title: Text(
-              'Add to Capital Share',
+              AppLocalizations.of(context).enhAddToCapitalShare,
               style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
             ),
             content: Column(
@@ -170,33 +173,38 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Request to move part or all of your $year payout into your '
-                  'capital share instead of receiving it as cash. This will be '
-                  'submitted for Manager confirmation before it takes effect, '
-                  'and locks out choosing "Keep as Cash" for this year.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhRequestToMovePartOrAllOfYour((year).toString()),
                   style: GoogleFonts.inter(fontSize: 13),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Available: ₱${NumberFormat('#,##0.00').format(available)}',
+                  AppLocalizations.of(context).enhAvailable360(
+                    (NumberFormat('#,##0.00').format(available)).toString(),
+                  ),
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: controller,
                   autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                     _MaxTwoDecimalsFormatter(),
                   ],
                   onChanged: (_) => setDialogState(() {}),
                   decoration: InputDecoration(
-                    labelText: 'Amount (₱)',
+                    labelText: AppLocalizations.of(
+                      context,
+                    ).farmerDetailsAmountLabel,
                     prefixText: '₱ ',
                     errorText: error,
                   ),
@@ -206,13 +214,13 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel'),
+                child: Text(AppLocalizations.of(context).cancel),
               ),
               TextButton(
                 onPressed: isValid
                     ? () => Navigator.of(dialogContext).pop(entered)
                     : null,
-                child: const Text('Submit Request'),
+                child: Text(AppLocalizations.of(context).enhSubmitRequest),
               ),
             ],
           );
@@ -230,12 +238,18 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       if (!mounted) return;
       AppToast.show(
         context,
-        'Request to add ₱${NumberFormat('#,##0.00').format(amount)} to your capital share was submitted for Manager confirmation.',
+        AppLocalizations.of(context).enhRequestToAddToYourCapitalShareWas(
+          (NumberFormat('#,##0.00').format(amount)).toString(),
+        ),
       );
       await _loadData();
     } catch (e) {
       if (!mounted) return;
-      AppToast.show(context, 'Could not submit request: $e', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhCouldNotSubmitRequest((e).toString()),
+        isError: true,
+      );
     }
   }
 
@@ -259,24 +273,24 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          'Keep as Cash',
+          AppLocalizations.of(context).enhKeepAsCash363,
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'Request to receive your $year payout of '
-          '₱${NumberFormat('#,##0.00').format(available)} as cash. This will '
-          'be submitted for Manager confirmation and locks out "Add to '
-          'Capital" for this year.',
+          AppLocalizations.of(context).enhRequestToReceiveYourPayoutOfAsCash(
+            (year).toString(),
+            (NumberFormat('#,##0.00').format(available)).toString(),
+          ),
           style: GoogleFonts.inter(fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Submit Request'),
+            child: Text(AppLocalizations.of(context).enhSubmitRequest),
           ),
         ],
       ),
@@ -288,12 +302,16 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       if (!mounted) return;
       AppToast.show(
         context,
-        'Your request to receive this payout as cash was submitted for Manager confirmation.',
+        AppLocalizations.of(context).enhYourRequestToReceiveThisPayoutAsCash,
       );
       await _loadData();
     } catch (e) {
       if (!mounted) return;
-      AppToast.show(context, 'Could not submit request: $e', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhCouldNotSubmitRequest((e).toString()),
+        isError: true,
+      );
     }
   }
 
@@ -303,16 +321,18 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
     final prevYear = year - 1;
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'member_capital_shares',
                 isOnline: _isOnline,
-                offlineMessage: AppLocalizations.of(context).offlineContribution,
+                offlineMessage: AppLocalizations.of(
+                  context,
+                ).offlineContribution,
               ),
               Expanded(
                 child: RefreshIndicator(
@@ -321,12 +341,6 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                     children: [
-                      // Offline banner
-                      if (!_isOnline) ...[
-                        OfflineStatusCard(message: AppLocalizations.of(context).offlineContribution),
-                        const SizedBox(height: 16),
-                      ],
-
                       // My activity this year — selling and buying, both
                       // shown together so neither reads as the "main"
                       // source and the other as an afterthought.
@@ -370,11 +384,11 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                       // transaction-level view.
                       if (!_isLoading) ...[
                         Text(
-                          'Recent Sales',
+                          AppLocalizations.of(context).enhRecentSales,
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: AppConstants.charcoal,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -382,11 +396,11 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                         if (_purchases.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           Text(
-                            'Recent Purchases',
+                            AppLocalizations.of(context).enhRecentPurchases,
                             style: GoogleFonts.poppins(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: AppConstants.charcoal,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -420,7 +434,8 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                           year: prevYear,
                           onAddToCapital: _previous == null
                               ? null
-                              : () => _requestAddToCapital(_previous!, prevYear),
+                              : () =>
+                                    _requestAddToCapital(_previous!, prevYear),
                           onKeepCash: _previous == null
                               ? null
                               : () => _requestKeepAsCash(_previous!, prevYear),
@@ -437,7 +452,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'My Contribution',
+              title: AppLocalizations.of(context).activityMyContribution,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -485,7 +500,7 @@ class _MyActivityCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
@@ -499,11 +514,13 @@ class _MyActivityCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'My Activity This Year ($year)',
+            AppLocalizations.of(
+              context,
+            ).enhMyActivityThisYear((year).toString()),
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 16),
@@ -511,11 +528,19 @@ class _MyActivityCard extends StatelessWidget {
           // Selling to the cooperative — Offer to Cooperative.
           Row(
             children: [
-              const Icon(Icons.agriculture_rounded, size: 16, color: AppConstants.primaryGreen),
+              Icon(
+                Icons.agriculture_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 6),
               Text(
-                'Selling to Cooperative',
-                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
+                AppLocalizations.of(context).enhSellingToCooperative,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ],
           ),
@@ -526,7 +551,7 @@ class _MyActivityCard extends StatelessWidget {
                 GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryContainer,
+                  color: Theme.of(context).colorScheme.primary,
                 ).copyWith(
                   fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
                 ),
@@ -535,7 +560,7 @@ class _MyActivityCard extends StatelessWidget {
           _CropSalesRow(
             icon: Icons.grass_rounded,
             iconColor: AppConstants.primaryGreen,
-            label: 'Palay',
+            label: AppLocalizations.of(context).reportsPalay,
             amount: palayAmt,
             kg: palayKg,
             bgColor: AppConstants.primaryGreen.withValues(alpha: 0.05),
@@ -544,7 +569,7 @@ class _MyActivityCard extends StatelessWidget {
           _CropSalesRow(
             icon: Icons.eco_rounded,
             iconColor: AppConstants.amber,
-            label: 'Peanut',
+            label: AppLocalizations.of(context).reportsPeanut,
             amount: peanutAmt,
             kg: peanutKg,
             bgColor: AppConstants.amber.withValues(alpha: 0.05),
@@ -558,7 +583,7 @@ class _MyActivityCard extends StatelessWidget {
             _CropSalesRow(
               icon: Icons.spa_rounded,
               iconColor: AppConstants.buyerBlue,
-              label: 'Other Crops',
+              label: AppLocalizations.of(context).enhOtherCrops,
               amount: otherCropsAmt,
               kg: otherCropsKg,
               bgColor: AppConstants.buyerBlue.withValues(alpha: 0.05),
@@ -568,12 +593,22 @@ class _MyActivityCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded, size: 14, color: AppConstants.errorRed),
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 14,
+                color: AppConstants.errorRed,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Ginger sales through DA-AMAD market linking are not included.',
-                  style: GoogleFonts.inter(fontSize: 10, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant),
+                  AppLocalizations.of(
+                    context,
+                  ).enhGingerSalesThroughDAAMADMarketLinkingAre,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -586,17 +621,30 @@ class _MyActivityCard extends StatelessWidget {
           ),
 
           const SizedBox(height: 18),
-          Container(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+          Container(
+            height: 1,
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.10),
+          ),
           const SizedBox(height: 18),
 
           // Buying from the cooperative — Product Sales Program.
           Row(
             children: [
-              const Icon(Icons.storefront_rounded, size: 16, color: AppConstants.buyerBlue),
+              const Icon(
+                Icons.storefront_rounded,
+                size: 16,
+                color: AppConstants.buyerBlue,
+              ),
               const SizedBox(width: 6),
               Text(
-                'Buying from Cooperative',
-                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.buyerBlue),
+                AppLocalizations.of(context).enhBuyingFromCooperative,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.buyerBlue,
+                ),
               ),
             ],
           ),
@@ -615,10 +663,21 @@ class _MyActivityCard extends StatelessWidget {
           if ((purchaseBreakdown?.discount ?? 0) > 0) ...[
             const SizedBox(height: 6),
             Text(
-              'Regular price ₱${NumberFormat('#,##0.00').format(purchaseBreakdown!.regular)} − '
-              'member discount ₱${NumberFormat('#,##0.00').format(purchaseBreakdown!.discount)} = '
-              'net paid ₱${NumberFormat('#,##0.00').format(purchaseBreakdown!.net)}',
-              style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+              AppLocalizations.of(context).enhRegularPriceMemberDiscountNetPaid(
+                (NumberFormat(
+                  '#,##0.00',
+                ).format(purchaseBreakdown!.regular)).toString(),
+                (NumberFormat(
+                  '#,##0.00',
+                ).format(purchaseBreakdown!.discount)).toString(),
+                (NumberFormat(
+                  '#,##0.00',
+                ).format(purchaseBreakdown!.net)).toString(),
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
           const SizedBox(height: 14),
@@ -664,13 +723,21 @@ class _ActivityShareProgress extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppConstants.radiusFull),
               ),
               child: Text(
-                'My Share',
-                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+                AppLocalizations.of(context).enhMyShare,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ),
             Text(
               '${percent.toStringAsFixed(2)}%',
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: color),
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
           ],
         ),
@@ -690,12 +757,23 @@ class _ActivityShareProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Text('My Total', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
+        Text(
+          AppLocalizations.of(context).enhMyTotal,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
         Text(
           '₱${NumberFormat('#,##0').format(myTotal)}',
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: color).copyWith(
-            fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
-          ),
+          style:
+              GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ).copyWith(
+                fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
+              ),
         ),
       ],
     );
@@ -765,7 +843,7 @@ class _CropSalesRow extends StatelessWidget {
                 formatKgTotal(kg),
                 style: GoogleFonts.inter(
                   fontSize: 10,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -775,7 +853,6 @@ class _CropSalesRow extends StatelessWidget {
     );
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // This Year's Payout Card — shows the running estimate while the year is
@@ -790,13 +867,17 @@ class _CropSalesRow extends StatelessWidget {
 /// Shared by _ThisYearPayoutCard and _PreviousYearPayoutCard — describes
 /// whichever payout decision the farmer has already submitted for a year,
 /// pending or confirmed.
-String _payoutDecisionMessage(MemberContribution c) {
-  final isCash = c.payoutDecision == 'pending_cash' || c.payoutDecision == 'cash_confirmed';
+String _payoutDecisionMessage(AppLocalizations l10n, MemberContribution c) {
+  final isCash =
+      c.payoutDecision == 'pending_cash' ||
+      c.payoutDecision == 'cash_confirmed';
   final amount = NumberFormat('#,##0.00').format(c.payoutDecisionAmount ?? 0);
-  final action = isCash ? 'keep ₱$amount as cash' : 'add ₱$amount to your capital share';
+  final action = isCash
+      ? l10n.enhPayoutCashAction(amount)
+      : l10n.enhPayoutCapitalAction(amount);
   return c.hasPendingPayoutDecision
-      ? 'Your request to $action is awaiting Manager confirmation.'
-      : 'Confirmed: you chose to $action.';
+      ? l10n.enhPayoutDecisionPending(action)
+      : l10n.enhPayoutDecisionConfirmed(action);
 }
 
 class _ThisYearPayoutCard extends StatelessWidget {
@@ -815,12 +896,20 @@ class _ThisYearPayoutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPaid = current?.isPaid ?? false;
-    final bt = isPaid ? (current?.actualBalikTangkilik ?? 0) : (current?.estimatedBalikTangkilik ?? 0);
-    final interest = isPaid ? (current?.actualInterestOnCapital ?? 0) : (current?.estimatedInterestOnCapital ?? 0);
-    final productSales = isPaid ? (current?.actualProductSalesTotal ?? 0) : (current?.estimatedProductSalesTotal ?? 0);
+    final bt = isPaid
+        ? (current?.actualBalikTangkilik ?? 0)
+        : (current?.estimatedBalikTangkilik ?? 0);
+    final interest = isPaid
+        ? (current?.actualInterestOnCapital ?? 0)
+        : (current?.estimatedInterestOnCapital ?? 0);
+    final productSales = isPaid
+        ? (current?.actualProductSalesTotal ?? 0)
+        : (current?.estimatedProductSalesTotal ?? 0);
     final hasProductSales =
         productSales > 0 || (current?.programPurchasesAmount ?? 0) > 0;
-    final total = isPaid ? (current?.actualGrandTotal ?? 0) : (current?.estimatedGrandTotal ?? 0);
+    final total = isPaid
+        ? (current?.actualGrandTotal ?? 0)
+        : (current?.estimatedGrandTotal ?? 0);
     final available = current?.availableToReinvest ?? 0;
     final reinvested = current?.reinvestedAmount ?? 0;
 
@@ -859,11 +948,15 @@ class _ThisYearPayoutCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isPaid ? AppConstants.successGreen : AppConstants.warningAmber,
+                  color: isPaid
+                      ? AppConstants.successGreen
+                      : AppConstants.warningAmber,
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Text(
-                  isPaid ? '✓  FINALIZED' : '⚠️  ESTIMATE ONLY',
+                  isPaid
+                      ? AppLocalizations.of(context).enhFINALIZED
+                      : AppLocalizations.of(context).enhESTIMATEONLY,
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -874,7 +967,13 @@ class _ThisYearPayoutCard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                isPaid ? '$year Balik-Tangkilik Payout' : '$year Estimated Distribution',
+                isPaid
+                    ? AppLocalizations.of(
+                        context,
+                      ).enhBalikTangkilikPayout((year).toString())
+                    : AppLocalizations.of(
+                        context,
+                      ).enhEstimatedDistribution((year).toString()),
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -882,40 +981,54 @@ class _ThisYearPayoutCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              const _PatronageSourceHeader(
+              _PatronageSourceHeader(
                 icon: Icons.agriculture_rounded,
-                title: 'Cooperative Sales Patronage',
-                caption: 'Money back from crops you sold to the cooperative.',
+                title: AppLocalizations.of(
+                  context,
+                ).balikTangkilikSalesSectionTitle,
+                caption: AppLocalizations.of(
+                  context,
+                ).enhMoneyBackFromCropsYouSoldToThe,
               ),
               const SizedBox(height: 10),
               _DistributionRow(label: 'Balik-Tangkilik', value: bt),
               const SizedBox(height: 8),
               _DistributionRow(
-                label: 'Interest on Capital Share',
+                label: AppLocalizations.of(context).enhInterestOnCapitalShare,
                 value: interest,
               ),
               if (hasProductSales) ...[
                 const SizedBox(height: 16),
-                const _PatronageSourceHeader(
+                _PatronageSourceHeader(
                   icon: Icons.storefront_rounded,
-                  title: 'Product Sales Program Patronage',
-                  caption:
-                      'Money back from products you bought from the cooperative.',
+                  title: AppLocalizations.of(
+                    context,
+                  ).balikTangkilikProgramSectionTitle,
+                  caption: AppLocalizations.of(
+                    context,
+                  ).enhMoneyBackFromProductsYouBoughtFromThe,
                 ),
                 const SizedBox(height: 10),
                 _DistributionRow(
-                  label: 'Purchase Patronage',
+                  label: AppLocalizations.of(context).enhPurchasePatronage,
                   value: productSales,
                 ),
               ],
               const SizedBox(height: 14),
-              Container(height: 1, color: Colors.white.withValues(alpha: 0.20)),
+              Container(
+                height: 1,
+                color: context.saganaColors.cardBackground.withValues(
+                  alpha: 0.20,
+                ),
+              ),
               const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isPaid ? 'Total Payout' : 'Total Distribution',
+                    isPaid
+                        ? AppLocalizations.of(context).enhTotalPayout
+                        : AppLocalizations.of(context).enhTotalDistribution,
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -954,8 +1067,12 @@ class _ThisYearPayoutCard extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      color: context.saganaColors.cardBackground.withValues(
+                        alpha: 0.15,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -970,7 +1087,10 @@ class _ThisYearPayoutCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _payoutDecisionMessage(current!),
+                            _payoutDecisionMessage(
+                              AppLocalizations.of(context),
+                              current!,
+                            ),
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -983,7 +1103,9 @@ class _ThisYearPayoutCard extends StatelessWidget {
                   ),
                 ] else if (available > 0) ...[
                   Text(
-                    'What would you like to do with this payout?',
+                    AppLocalizations.of(
+                      context,
+                    ).enhWhatWouldYouLikeToDoWithThis,
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -996,13 +1118,23 @@ class _ThisYearPayoutCard extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: onKeepCash,
-                          icon: const Icon(Icons.payments_outlined, size: 16, color: Colors.white),
+                          icon: const Icon(
+                            Icons.payments_outlined,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                           label: Text(
-                            'Keep as Cash',
-                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                            AppLocalizations.of(context).enhKeepAsCash363,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.white.withValues(alpha: 0.60)),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.60),
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
@@ -1013,8 +1145,11 @@ class _ThisYearPayoutCard extends StatelessWidget {
                           onPressed: onAddToCapital,
                           icon: const Icon(Icons.savings_rounded, size: 16),
                           label: Text(
-                            'Add to Capital',
-                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                            AppLocalizations.of(context).enhAddToCapital385,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
@@ -1027,23 +1162,32 @@ class _ThisYearPayoutCard extends StatelessWidget {
                   ),
                 ] else if (reinvested > 0)
                   Text(
-                    'You added the full ₱${NumberFormat('#,##0.00').format(reinvested)} to your capital share.',
-                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.90)),
+                    AppLocalizations.of(
+                      context,
+                    ).enhYouAddedTheFullToYourCapitalShare(
+                      (NumberFormat('#,##0.00').format(reinvested)).toString(),
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.90),
+                    ),
                   ),
               ] else
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.10),
+                    color: context.saganaColors.cardBackground.withValues(
+                      alpha: 0.10,
+                    ),
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.15),
                     ),
                   ),
                   child: Text(
-                    'This is an estimate only. Actual distribution amounts are determined by the '
-                    "cooperative's Audited Financial Statement and announced at the Annual General "
-                    'Assembly within the first 90 days of next year.',
+                    AppLocalizations.of(
+                      context,
+                    ).enhThisIsAnEstimateOnlyActualDistributionAmounts,
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: Colors.white.withValues(alpha: 0.80),
@@ -1168,7 +1312,7 @@ class _DistributionTimelineState extends State<_DistributionTimeline> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
@@ -1187,106 +1331,165 @@ class _DistributionTimelineState extends State<_DistributionTimeline> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'How does this work?',
+                  AppLocalizations.of(context).enhHowDoesThisWork,
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.charcoal,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 Icon(
                   _expanded
                       ? Icons.keyboard_arrow_up_rounded
                       : Icons.keyboard_arrow_down_rounded,
-                  color: AppConstants.outline,
+                  color: Theme.of(context).colorScheme.outline,
                 ),
               ],
             ),
           ),
           if (_expanded) ...[
-          const SizedBox(height: 20),
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                // Vertical line
-                Column(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        color: AppConstants.primaryGreen,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.analytics_rounded,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        width: 2,
-                        color: AppConstants.outline.withValues(alpha: 0.20),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 20),
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  // Vertical line
+                  Column(
                     children: [
-                      Text(
-                        'Audited Financial Statement',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: const BoxDecoration(
                           color: AppConstants.primaryGreen,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.analytics_rounded,
+                          size: 14,
+                          color: Colors.white,
                         ),
                       ),
-                      Text(
-                        'January – March',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AppConstants.outline,
+                      Expanded(
+                        child: Container(
+                          width: 2,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.20),
                         ),
                       ),
-                      const SizedBox(height: 28),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppLocalizations.of(
+                            context,
+                          ).enhAuditedFinancialStatement,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        Text(
+                          AppLocalizations.of(context).enhJanuaryMarch,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Column(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD5ECF8),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppConstants.outline.withValues(alpha: 0.20),
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  Column(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: context.adaptiveSurface(
+                            const Color(0xFFD5ECF8),
+                          ),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.20),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.account_balance_rounded,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-                      child: const Icon(
-                        Icons.account_balance_rounded,
-                        size: 14,
-                        color: AppConstants.primaryGreen,
+                      Expanded(
+                        child: Container(
+                          width: 2,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.20),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppLocalizations.of(context).enhAnnualGeneralAssembly,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          AppLocalizations.of(
+                            context,
+                          ).enhWithinFirstDaysOfTheYear,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
                     ),
-                    Expanded(
-                      child: Container(
-                        width: 2,
-                        color: AppConstants.outline.withValues(alpha: 0.20),
-                      ),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: context.adaptiveSurface(const Color(0xFFD5ECF8)),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.20),
                     ),
-                  ],
+                  ),
+                  child: Icon(
+                    Icons.payments_rounded,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -1294,70 +1497,27 @@ class _DistributionTimelineState extends State<_DistributionTimeline> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Annual General Assembly',
+                        AppLocalizations.of(context).enhBalikTangkilikReleased,
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: AppConstants.onSurface,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       Text(
-                        'Within first 90 days of the year',
+                        AppLocalizations.of(
+                          context,
+                        ).enhPostAssemblyDistribution,
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: AppConstants.outline,
+                          color: Theme.of(context).colorScheme.outline,
                         ),
                       ),
-                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
               ],
             ),
-          ),
-          Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD5ECF8),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppConstants.outline.withValues(alpha: 0.20),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.payments_rounded,
-                  size: 14,
-                  color: AppConstants.primaryGreen,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Balik-Tangkilik Released',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppConstants.onSurface,
-                      ),
-                    ),
-                    Text(
-                      'Post-Assembly Distribution',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
           ],
         ],
       ),
@@ -1380,17 +1540,17 @@ class _SalesTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.85),
+          color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         ),
         child: Center(
           child: Text(
-            'No sales transactions recorded yet.',
+            AppLocalizations.of(context).enhNoSalesTransactionsRecordedYet,
             style: GoogleFonts.inter(
               fontSize: 12,
               fontStyle: FontStyle.italic,
-              color: AppConstants.outline,
+              color: Theme.of(context).colorScheme.outline,
             ),
           ),
         ),
@@ -1400,7 +1560,7 @@ class _SalesTable extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
@@ -1421,18 +1581,26 @@ class _SalesTable extends StatelessWidget {
             headingTextStyle: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             dataTextStyle: GoogleFonts.inter(
               fontSize: 12,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             dividerThickness: 0.5,
-            columns: const [
-              DataColumn(label: Text('Date')),
-              DataColumn(label: Text('Crop')),
-              DataColumn(label: Text('Qty'), numeric: true),
-              DataColumn(label: Text('Amount'), numeric: true),
+            columns: [
+              DataColumn(label: Text(AppLocalizations.of(context).rptDate)),
+              DataColumn(
+                label: Text(AppLocalizations.of(context).priceTrendCropLabel),
+              ),
+              DataColumn(
+                label: Text(AppLocalizations.of(context).enhQty396),
+                numeric: true,
+              ),
+              DataColumn(
+                label: Text(AppLocalizations.of(context).rptAmount),
+                numeric: true,
+              ),
             ],
             rows: transactions.map((t) {
               final isPalay = t.cropType == 'palay';
@@ -1457,15 +1625,13 @@ class _SalesTable extends StatelessWidget {
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                           color: isPalay
-                              ? AppConstants.primaryContainer
+                              ? Theme.of(context).colorScheme.primary
                               : AppConstants.amber,
                         ),
                       ),
                     ),
                   ),
-                  DataCell(
-                    Text(formatQuantityUnit(t.quantityKg, t.unit)),
-                  ),
+                  DataCell(Text(formatQuantityUnit(t.quantityKg, t.unit))),
                   DataCell(
                     Text(
                       '₱${NumberFormat('#,##0.00').format(t.amount)}',
@@ -1501,7 +1667,7 @@ class _PurchasesTable extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
@@ -1522,22 +1688,38 @@ class _PurchasesTable extends StatelessWidget {
             headingTextStyle: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             dataTextStyle: GoogleFonts.inter(
               fontSize: 12,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             dividerThickness: 0.5,
             columns: [
-              const DataColumn(label: Text('Date')),
-              const DataColumn(label: Text('Product')),
-              const DataColumn(label: Text('Qty'), numeric: true),
-              if (purchases.any((p) => p.hasDiscount)) ...const [
-                DataColumn(label: Text('Regular'), numeric: true),
-                DataColumn(label: Text('Discount'), numeric: true),
+              DataColumn(label: Text(AppLocalizations.of(context).rptDate)),
+              DataColumn(
+                label: Text(
+                  AppLocalizations.of(context).editListingFieldProduct,
+                ),
+              ),
+              DataColumn(
+                label: Text(AppLocalizations.of(context).enhQty396),
+                numeric: true,
+              ),
+              if (purchases.any((p) => p.hasDiscount)) ...[
+                DataColumn(
+                  label: Text(AppLocalizations.of(context).enhRegular),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(AppLocalizations.of(context).enhDiscount),
+                  numeric: true,
+                ),
               ],
-              const DataColumn(label: Text('Paid'), numeric: true),
+              DataColumn(
+                label: Text(AppLocalizations.of(context).loanDashPaid),
+                numeric: true,
+              ),
             ],
             rows: purchases.map((p) {
               final date = p.confirmedAt ?? p.requestedAt;
@@ -1546,13 +1728,18 @@ class _PurchasesTable extends StatelessWidget {
                   DataCell(Text(DateFormat('MMM d, yyyy').format(date))),
                   DataCell(
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: AppConstants.buyerBlue.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        p.itemName.isNotEmpty ? p.itemName.toUpperCase() : 'ITEM',
+                        p.itemName.isNotEmpty
+                            ? p.itemName.toUpperCase()
+                            : 'ITEM',
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
@@ -1562,10 +1749,16 @@ class _PurchasesTable extends StatelessWidget {
                     ),
                   ),
                   DataCell(
-                    Text('${NumberFormat('#,##0').format(p.quantity)} ${p.unit}'),
+                    Text(
+                      '${NumberFormat('#,##0').format(p.quantity)} ${p.unit}',
+                    ),
                   ),
                   if (purchases.any((x) => x.hasDiscount)) ...[
-                    DataCell(Text('₱${NumberFormat('#,##0.00').format(p.regularTotal)}')),
+                    DataCell(
+                      Text(
+                        '₱${NumberFormat('#,##0.00').format(p.regularTotal)}',
+                      ),
+                    ),
                     DataCell(
                       Text(
                         p.hasDiscount
@@ -1577,9 +1770,14 @@ class _PurchasesTable extends StatelessWidget {
                   DataCell(
                     Text(
                       '₱${NumberFormat('#,##0.00').format(p.totalAmount)}',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500).copyWith(
-                        fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
-                      ),
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500)
+                          .copyWith(
+                            fontFamilyFallback: const [
+                              'Roboto',
+                              'Arial',
+                              'sans-serif',
+                            ],
+                          ),
                     ),
                   ),
                 ],
@@ -1600,10 +1798,7 @@ class _CapitalSharesCard extends StatelessWidget {
   final CapitalSharesModel? shares;
   final MemberCapitalSummary? summary;
 
-  const _CapitalSharesCard({
-    required this.shares,
-    this.summary,
-  });
+  const _CapitalSharesCard({required this.shares, this.summary});
 
   @override
   Widget build(BuildContext context) {
@@ -1614,7 +1809,7 @@ class _CapitalSharesCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
@@ -1634,11 +1829,11 @@ class _CapitalSharesCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Capital Shares',
+                    AppLocalizations.of(context).enhCapitalShares400,
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppConstants.charcoal,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -1662,14 +1857,14 @@ class _CapitalSharesCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     Text(
-                      'Total Shares',
+                      AppLocalizations.of(context).enhTotalShares,
                       style: GoogleFonts.inter(
                         fontSize: 10,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
                   ],
@@ -1680,7 +1875,9 @@ class _CapitalSharesCard extends StatelessWidget {
                 child: Container(
                   width: 1,
                   height: 36,
-                  color: AppConstants.outline.withValues(alpha: 0.20),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.20),
                 ),
               ),
               Expanded(
@@ -1695,7 +1892,7 @@ class _CapitalSharesCard extends StatelessWidget {
                           GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: AppConstants.primaryGreen,
+                            color: Theme.of(context).colorScheme.primary,
                           ).copyWith(
                             fontFamilyFallback: const [
                               'Roboto',
@@ -1705,10 +1902,10 @@ class _CapitalSharesCard extends StatelessWidget {
                           ),
                     ),
                     Text(
-                      'Investment Value',
+                      AppLocalizations.of(context).enhInvestmentValue,
                       style: GoogleFonts.inter(
                         fontSize: 10,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
                   ],
@@ -1721,10 +1918,14 @@ class _CapitalSharesCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.50),
+              color: context.saganaColors.cardBackground.withValues(
+                alpha: 0.50,
+              ),
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               border: Border.all(
-                color: AppConstants.outline.withValues(alpha: 0.10),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.10),
               ),
             ),
             child: Column(
@@ -1734,40 +1935,45 @@ class _CapitalSharesCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Share Value',
+                        AppLocalizations.of(context).enhShareValue,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
-                          color: AppConstants.onSurface,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        '₱${perShare.toStringAsFixed(2)} / share',
+                        AppLocalizations.of(
+                          context,
+                        ).enhShare404((perShare.toStringAsFixed(2)).toString()),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ).copyWith(
-                          fontFamilyFallback: const [
-                            'Roboto',
-                            'Arial',
-                            'sans-serif',
-                          ],
-                        ),
+                        style:
+                            GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ).copyWith(
+                              fontFamilyFallback: const [
+                                'Roboto',
+                                'Arial',
+                                'sans-serif',
+                              ],
+                            ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Interest rates are determined annually by the Board of Directors based on cooperative performance.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhInterestRatesAreDeterminedAnnuallyByTheBoard,
                   style: GoogleFonts.inter(
                     fontSize: 10,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.4,
                   ),
                 ),
@@ -1781,15 +1987,24 @@ class _CapitalSharesCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: summary!.shareProgress,
                 minHeight: 6,
-                backgroundColor: AppConstants.outline.withValues(alpha: 0.15),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.15),
                 color: AppConstants.primaryGreen,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               summary!.meetsLoanEligibility
-                  ? 'Meets the ₱${summary!.minimumForLoan.toStringAsFixed(0)} minimum for a loan.'
-                  : 'Needs ₱${summary!.loanShortfall.toStringAsFixed(0)} more to reach the ₱${summary!.minimumForLoan.toStringAsFixed(0)} loan minimum.',
+                  ? AppLocalizations.of(context).enhMeetsTheMinimumForALoan(
+                      (summary!.minimumForLoan.toStringAsFixed(0)).toString(),
+                    )
+                  : AppLocalizations.of(
+                      context,
+                    ).enhNeedsMoreToReachTheLoanMinimum(
+                      (summary!.loanShortfall.toStringAsFixed(0)).toString(),
+                      (summary!.minimumForLoan.toStringAsFixed(0)).toString(),
+                    ),
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: summary!.meetsLoanEligibility
@@ -1811,11 +2026,16 @@ class _CapitalSharesCard extends StatelessWidget {
 class _PayoutDecisionBadge extends StatelessWidget {
   final MemberContribution contribution;
   final bool isPending;
-  const _PayoutDecisionBadge({required this.contribution, required this.isPending});
+  const _PayoutDecisionBadge({
+    required this.contribution,
+    required this.isPending,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = isPending ? AppConstants.warningAmber : AppConstants.successGreen;
+    final color = isPending
+        ? AppConstants.warningAmber
+        : AppConstants.successGreen;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -1827,15 +2047,24 @@ class _PayoutDecisionBadge extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isPending ? Icons.hourglass_top_rounded : Icons.check_circle_rounded,
+            isPending
+                ? Icons.hourglass_top_rounded
+                : Icons.check_circle_rounded,
             size: 16,
             color: color,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _payoutDecisionMessage(contribution),
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+              _payoutDecisionMessage(
+                AppLocalizations.of(context),
+                contribution,
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -1872,7 +2101,7 @@ class _PreviousYearPayoutCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
@@ -1890,12 +2119,14 @@ class _PreviousYearPayoutCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '$year Actual Payout',
+                  AppLocalizations.of(
+                    context,
+                  ).enhActualPayout((year).toString()),
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.charcoal,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -1912,7 +2143,7 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'PAID',
+                    AppLocalizations.of(context).balikTangkilikPaidBadge,
                     style: GoogleFonts.inter(
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
@@ -1928,31 +2159,39 @@ class _PreviousYearPayoutCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: Text(
-                  'No payout data for $year.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhNoPayoutDataFor((year).toString()),
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontStyle: FontStyle.italic,
-                    color: AppConstants.outline,
+                    color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
               ),
             )
           else ...[
             _PayoutRow(
-              label: 'Cooperative Sales Patronage',
+              label: AppLocalizations.of(
+                context,
+              ).balikTangkilikSalesSectionTitle,
               value: offerToCoopTotal,
             ),
             if (productSalesTotal > 0) ...[
               const SizedBox(height: 8),
               _PayoutRow(
-                label: 'Product Sales Program Patronage',
+                label: AppLocalizations.of(
+                  context,
+                ).balikTangkilikProgramSectionTitle,
                 value: productSalesTotal,
               ),
             ],
             const SizedBox(height: 10),
             Container(
               height: 1,
-              color: AppConstants.outline.withValues(alpha: 0.10),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.10),
             ),
             const SizedBox(height: 10),
             Row(
@@ -1963,10 +2202,10 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Total Received',
+                      AppLocalizations.of(context).enhTotalReceived,
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
                     if (payoutDate != null)
@@ -1975,7 +2214,7 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                   ],
@@ -1986,7 +2225,7 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                       GoogleFonts.poppins(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.charcoal,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ).copyWith(
                         fontFamilyFallback: const [
                           'Roboto',
@@ -2000,11 +2239,13 @@ class _PreviousYearPayoutCard extends StatelessWidget {
             if (reinvested > 0) ...[
               const SizedBox(height: 8),
               Text(
-                '₱${NumberFormat('#,##0.00').format(reinvested)} already added to your capital share',
+                AppLocalizations.of(context).enhAlreadyAddedToYourCapitalShare(
+                  (NumberFormat('#,##0.00').format(reinvested)).toString(),
+                ),
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontStyle: FontStyle.italic,
-                  color: AppConstants.outline,
+                  color: Theme.of(context).colorScheme.outline,
                 ),
               ),
             ],
@@ -2022,13 +2263,22 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: onKeepCash,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppConstants.charcoal,
-                          side: BorderSide(color: AppConstants.outline.withValues(alpha: 0.30)),
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onSurface,
+                          side: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.30),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
                         child: Text(
-                          'Keep as Cash',
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                          AppLocalizations.of(context).enhKeepAsCash363,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -2038,12 +2288,17 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                         onPressed: onAddToCapital,
                         icon: const Icon(Icons.savings_rounded, size: 16),
                         label: Text(
-                          'Add to Capital',
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                          AppLocalizations.of(context).enhAddToCapital385,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppConstants.primaryGreen,
-                          side: const BorderSide(color: AppConstants.primaryGreen),
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
@@ -2072,7 +2327,7 @@ class _PayoutRow extends StatelessWidget {
           label,
           style: GoogleFonts.inter(
             fontSize: 12,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         Text(
@@ -2081,7 +2336,7 @@ class _PayoutRow extends StatelessWidget {
               GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: AppConstants.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ).copyWith(
                 fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
               ),
@@ -2094,4 +2349,3 @@ class _PayoutRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Section Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
-

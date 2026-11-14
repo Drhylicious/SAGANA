@@ -71,30 +71,32 @@ void main() {
   String text(WidgetTester t) => t.widget<TextField>(field()).controller!.text;
 
   group('QuantityStepper', () {
-    testWidgets('the number can be typed directly: 10 -> 5 without pressing -', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        final reported = <double>[];
-        await tester.pumpWidget(_Host(reported: reported));
-        await tester.enterText(field(), '5');
-        await tester.pump();
-        expect(reported.last, 5);
-        expect(find.text('value=5.0'), findsOneWidget);
-      });
-    });
+    testWidgets(
+      'the number can be typed directly: 10 -> 5 without pressing -',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          final reported = <double>[];
+          await tester.pumpWidget(_Host(reported: reported));
+          await tester.enterText(field(), '5');
+          await tester.pump();
+          expect(reported.last, 5);
+          expect(find.text('value=5.0'), findsOneWidget);
+        });
+      },
+    );
 
-    testWidgets('the owner has the typed value at once (no wait for focus loss)', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        final reported = <double>[];
-        await tester.pumpWidget(_Host(reported: reported));
-        await tester.enterText(field(), '3.5');
-        await tester.pump();
-        expect(reported.last, 3.5);
-      });
-    });
+    testWidgets(
+      'the owner has the typed value at once (no wait for focus loss)',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          final reported = <double>[];
+          await tester.pumpWidget(_Host(reported: reported));
+          await tester.enterText(field(), '3.5');
+          await tester.pump();
+          expect(reported.last, 3.5);
+        });
+      },
+    );
 
     testWidgets('- and + still adjust by one and show the new number', (
       tester,
@@ -134,7 +136,9 @@ void main() {
     ) async {
       await runIgnoringFontErrors(() async {
         final reported = <double>[];
-        await tester.pumpWidget(_Host(reported: reported, initial: 49, max: 50));
+        await tester.pumpWidget(
+          _Host(reported: reported, initial: 49, max: 50),
+        );
         await tester.tap(find.byIcon(Icons.add));
         await tester.tap(find.byIcon(Icons.add));
         await tester.pump();
@@ -172,24 +176,25 @@ void main() {
       });
     });
 
-    testWidgets('a half-typed value is not reported; leaving the field restores the last good number', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        final reported = <double>[];
-        await tester.pumpWidget(_Host(reported: reported));
-        await tester.tap(field());
-        await tester.enterText(field(), '');
-        await tester.pump();
-        await tester.enterText(field(), '0');
-        await tester.pump();
-        expect(reported, isEmpty); // nothing half-typed leaked out
-        FocusManager.instance.primaryFocus?.unfocus();
-        await tester.pump();
-        expect(text(tester), '10');
-        expect(find.text('value=10.0'), findsOneWidget);
-      });
-    });
+    testWidgets(
+      'a half-typed value is not reported; leaving the field restores the last good number',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          final reported = <double>[];
+          await tester.pumpWidget(_Host(reported: reported));
+          await tester.tap(field());
+          await tester.enterText(field(), '');
+          await tester.pump();
+          await tester.enterText(field(), '0');
+          await tester.pump();
+          expect(reported, isEmpty); // nothing half-typed leaked out
+          FocusManager.instance.primaryFocus?.unfocus();
+          await tester.pump();
+          expect(text(tester), '10');
+          expect(find.text('value=10.0'), findsOneWidget);
+        });
+      },
+    );
 
     testWidgets('leaving the field tidies the text ("5." becomes "5")', (
       tester,
@@ -206,72 +211,75 @@ void main() {
       });
     });
 
-    testWidgets('a refused change (offline) puts the old number back and says why', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        final reported = <double>[];
-        var blocked = 0;
-        await tester.pumpWidget(
-          _Host(
-            reported: reported,
-            allowChange: () => false,
-            onBlocked: () => blocked++,
-          ),
-        );
-        await tester.tap(find.byIcon(Icons.add));
-        await tester.pump();
-        expect(reported, isEmpty);
-        expect(text(tester), '10');
-        expect(blocked, 1);
-        await tester.enterText(field(), '4');
-        await tester.pump();
-        expect(reported, isEmpty);
-        expect(text(tester), '10');
-        expect(blocked, 2);
-      });
-    });
+    testWidgets(
+      'a refused change (offline) puts the old number back and says why',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          final reported = <double>[];
+          var blocked = 0;
+          await tester.pumpWidget(
+            _Host(
+              reported: reported,
+              allowChange: () => false,
+              onBlocked: () => blocked++,
+            ),
+          );
+          await tester.tap(find.byIcon(Icons.add));
+          await tester.pump();
+          expect(reported, isEmpty);
+          expect(text(tester), '10');
+          expect(blocked, 1);
+          await tester.enterText(field(), '4');
+          await tester.pump();
+          expect(reported, isEmpty);
+          expect(text(tester), '10');
+          expect(blocked, 2);
+        });
+      },
+    );
 
-    testWidgets('disabled (a line that cannot be bought): buttons and typing do nothing', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        final reported = <double>[];
-        await tester.pumpWidget(_Host(reported: reported, enabled: false));
-        await tester.tap(find.byIcon(Icons.add));
-        await tester.pump();
-        expect(reported, isEmpty);
-        expect(tester.widget<TextField>(field()).enabled, isFalse);
-      });
-    });
+    testWidgets(
+      'disabled (a line that cannot be bought): buttons and typing do nothing',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          final reported = <double>[];
+          await tester.pumpWidget(_Host(reported: reported, enabled: false));
+          await tester.tap(find.byIcon(Icons.add));
+          await tester.pump();
+          expect(reported, isEmpty);
+          expect(tester.widget<TextField>(field()).enabled, isFalse);
+        });
+      },
+    );
 
-    testWidgets('the owner can change the number (stock dropped) and it shows', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        double value = 10;
-        late StateSetter set;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: StatefulBuilder(
-                builder: (context, setState) {
-                  set = setState;
-                  return QuantityStepper(
-                    value: value,
-                    max: 50,
-                    onChanged: (_) {},
-                  );
-                },
+    testWidgets(
+      'the owner can change the number (stock dropped) and it shows',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          double value = 10;
+          late StateSetter set;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: StatefulBuilder(
+                  builder: (context, setState) {
+                    set = setState;
+                    return QuantityStepper(
+                      value: value,
+                      max: 50,
+                      onChanged: (_) {},
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        );
-        set(() => value = 4);
-        await tester.pump();
-        expect(text(tester), '4');
-      });
-    });
+          );
+          set(() => value = 4);
+          await tester.pump();
+          expect(text(tester), '4');
+        });
+      },
+    );
 
     for (final compact in [false, true]) {
       testWidgets('fits a narrow row (${compact ? 'cart' : 'Buy Now'} size)', (
@@ -283,7 +291,12 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
           await tester.pumpWidget(
-            _Host(reported: [], compact: compact, initial: 12345.5, max: 99999),
+            _Host(
+              reported: const [],
+              compact: compact,
+              initial: 12345.5,
+              max: 99999,
+            ),
           );
           expect(tester.takeException(), isNull);
         });
@@ -315,50 +328,76 @@ void main() {
     String norm(String s) => s.replaceAll('\r\n', '\n');
     String flat(String s) => norm(s).replaceAll(RegExp(r'\s+'), '');
     // The sheet is shared by a Marketplace listing and a Cooperative Product.
-    final details = norm(_read('lib/presentation/widgets/product_buy_now_sheet.dart'));
+    final details = norm(
+      _read('lib/presentation/widgets/product_buy_now_sheet.dart'),
+    );
     final cart = norm(_read('lib/presentation/screens/buyer/cart_screen.dart'));
 
-    test('Buy Now uses the editable stepper, shows the product unit, and settles typing before checkout', () {
-      expect(details, contains('QuantityStepper('));
-      expect(
-        flat(details).replaceAll(',', ''),
-        contains('buyerListingOrderQty(unit)'),
-      );
-      expect(details, contains('primaryFocus?.unfocus()'));
-    });
+    test(
+      'Buy Now uses the editable stepper, shows the product unit, and settles typing before checkout',
+      () {
+        expect(details, contains('QuantityStepper('));
+        expect(
+          flat(details).replaceAll(',', ''),
+          contains('buyerListingOrderQty(unit)'),
+        );
+        expect(details, contains('primaryFocus?.unfocus()'));
+      },
+    );
 
     test('the Buy Now sheet is lifted by the keyboard and can scroll', () {
       expect(details, contains('viewInsetsOf(context).bottom'));
       expect(details, contains('SingleChildScrollView'));
     });
 
-    test('Cart: a quantity change updates that line only (no reload, no skeleton)', () {
-      final start = cart.indexOf('void _setQuantity(');
-      expect(start, greaterThan(0));
-      final body = cart.substring(start, cart.indexOf('\n  }\n', start));
-      expect(body.contains('_load('), isFalse);
-      expect(body.contains('_isLoading'), isFalse);
-      expect(body, contains('updateQuantity'));
-    });
+    test(
+      'Cart: a quantity change updates that line only (no reload, no skeleton)',
+      () {
+        final start = cart.indexOf('void _setQuantity(');
+        expect(start, greaterThan(0));
+        final body = cart.substring(start, cart.indexOf('\n  }\n', start));
+        expect(body.contains('_load('), isFalse);
+        expect(body.contains('_isLoading'), isFalse);
+        expect(body, contains('updateQuantity'));
+      },
+    );
 
-    test('Cart: only the first load shows the skeleton; reloads after a change are silent', () {
-      expect(cart, contains('Future<void> _load({bool silent = false})'));
-      expect(cart, contains('if (!silent) setState(() => _isLoading = true);'));
-      // Every reload that follows a change is silent.
-      expect(RegExp(r'\n\s+_load\(\);').allMatches(cart).length, 1); // initState only
-    });
+    test(
+      'Cart: only the first load shows the skeleton; reloads after a change are silent',
+      () {
+        expect(cart, contains('Future<void> _load({bool silent = false})'));
+        expect(
+          cart,
+          contains('if (!silent) setState(() => _isLoading = true);'),
+        );
+        // Every reload that follows a change is silent.
+        expect(
+          RegExp(r'\n\s+_load\(\);').allMatches(cart).length,
+          1,
+        ); // initState only
+      },
+    );
 
-    test('Cart: the quantity is the editable stepper with the line\'s own unit, kept offline-safe', () {
-      expect(cart, contains('QuantityStepper('));
-      expect(cart, contains('unitOrDefault(item.unit)'));
-      expect(cart, contains('allowChange: allowQuantityChange'));
-      expect(cart, contains('ConnectivityService.instance.isOnline'));
-    });
+    test(
+      'Cart: the quantity is the editable stepper with the line\'s own unit, kept offline-safe',
+      () {
+        expect(cart, contains('QuantityStepper('));
+        expect(cart, contains('unitOrDefault(item.unit)'));
+        expect(cart, contains('allowChange: allowQuantityChange'));
+        expect(cart, contains('ConnectivityService.instance.isOnline'));
+      },
+    );
 
-    test('Cart: a removed line leaves the list at once (a swiped line cannot stay in the tree)', () {
-      final start = cart.indexOf('Future<void> _removeItem(');
-      final body = cart.substring(start, cart.indexOf('\n  }\n', start));
-      expect(body.indexOf('_items.removeWhere'), lessThan(body.indexOf('removeItem(item.listingId)')));
-    });
+    test(
+      'Cart: a removed line leaves the list at once (a swiped line cannot stay in the tree)',
+      () {
+        final start = cart.indexOf('Future<void> _removeItem(');
+        final body = cart.substring(start, cart.indexOf('\n  }\n', start));
+        expect(
+          body.indexOf('_items.removeWhere'),
+          lessThan(body.indexOf('removeItem(item.listingId)')),
+        );
+      },
+    );
   });
 }

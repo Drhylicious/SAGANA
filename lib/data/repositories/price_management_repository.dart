@@ -64,7 +64,11 @@ class PriceManagementRepository {
         // cleared when a crop is deleted) is history: it stays in the database
         // but is not a current reference price and cannot be edited.
         if (row['crop_id'] == null) continue;
-        final key = '${row['crop_id']}_${row['price_type']}';
+        // One current Reference Price per crop, market AND unit: a crop can be
+        // priced per kg and per sack at the same time, and a Marketplace
+        // listing follows the price of its own unit.
+        final key =
+            '${row['crop_id']}_${row['price_type']}_${(row['unit'] as String? ?? 'kg').trim().toLowerCase()}';
         if (!latest.containsKey(key)) {
           latest[key] = PriceRecordModel.fromMap(row);
         }
@@ -165,8 +169,12 @@ class PriceManagementRepository {
     required String unit,
     String? source,
     DateTime? effectiveDate,
+    // Null = a Fixed Price ([price]). Set = a Reference Price Range: [price] is
+    // the Minimum Reference Price and this the Maximum.
+    double? priceMax,
   }) async {
     final adminId = _client.auth.currentUser?.id;
+    final isRange = priceMax != null;
 
     // Read current price to store as previous_price
     double? previousPrice;
@@ -176,6 +184,9 @@ class PriceManagementRepository {
           .select('price')
           .eq('crop_id', cropId)
           .eq('price_type', priceType)
+          // The previous price in the SAME unit (a per-sack price is not the
+          // previous value of a per-kg price).
+          .ilike('unit', unit.trim())
           .order('recorded_at', ascending: false)
           .limit(1);
       if (existing.isNotEmpty) {
@@ -195,6 +206,10 @@ class PriceManagementRepository {
           'recorded_at': (effectiveDate ?? DateTime.now()).toIso8601String(),
           'recorded_by': adminId,
           if (source != null && source.isNotEmpty) 'source': source.trim(),
+          // Sent only for a range, so a Fixed Price still saves on a database
+          // that does not have the range columns yet.
+          if (isRange) 'price_mode': PriceRecordModel.modeRange,
+          if (isRange) 'price_max': priceMax,
         })
         .select()
         .single();
@@ -205,7 +220,9 @@ class PriceManagementRepository {
       message: AdminLogMessage('adminLogPriceRecorded', {
         'priceType': priceType,
         'crop': cropName.trim(),
-        'price': price.toStringAsFixed(2),
+        'price': priceMax != null
+            ? '${price.toStringAsFixed(2)}–${priceMax.toStringAsFixed(2)}'
+            : price.toStringAsFixed(2),
         'unit': unit,
       }),
       referenceId: cropId,
@@ -259,11 +276,26 @@ class PriceManagementRepository {
     required String unit,
     double? previousPrice,
     String? priceType,
+    double? priceMax,
   }) async {
     // The notices are written by the database (notify_price_update), so they
     // don't depend on the device's permissions. A failure here does not undo the
     // saved price, but it is logged instead of being silently ignored.
     try {
+      if (priceMax != null) {
+        // A Reference Price Range has its own notice ("₱50.00–₱80.00/kg").
+        await _client.rpc(
+          'notify_reference_price_range',
+          params: {
+            'p_crop_name': cropName,
+            'p_price_min': newPrice,
+            'p_price_max': priceMax,
+            'p_unit': unit,
+            'p_price_type': priceType,
+          },
+        );
+        return;
+      }
       await _client.rpc(
         'notify_price_update',
         params: {

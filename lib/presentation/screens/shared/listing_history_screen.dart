@@ -46,7 +46,7 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
   Future<void> _load() async {
     final results = await Future.wait([
       widget.staffView
-          ? WorkflowEventRepository().fetch('listing', widget.listingId)
+          ? WorkflowEventRepository().fetch("listing", widget.listingId)
           : ListingRepository().fetchMyHistory(widget.listingId),
       _loadHeader(),
     ]);
@@ -60,7 +60,9 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
 
   Future<ListingHistoryHeader?> _loadHeader() async {
     if (widget.staffView) {
-      final l = await AdminListingRepository().fetchListingById(widget.listingId);
+      final l = await AdminListingRepository().fetchListingById(
+        widget.listingId,
+      );
       if (l == null) return null;
       return ListingHistoryHeader(
         name: l.canonicalCropName ?? l.cropName,
@@ -91,7 +93,9 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final shown = _events.where((e) => listingHistoryMatches(_filter, e)).toList();
+    final shown = _events
+        .where((e) => listingHistoryMatches(_filter, e))
+        .toList();
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
@@ -105,7 +109,10 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
               color: AppConstants.primaryGreen,
               onRefresh: _load,
               child: _loading
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
@@ -121,7 +128,11 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 40),
                             child: Column(
                               children: [
-                                Icon(Icons.history_rounded, size: 44, color: cs.outline.withValues(alpha: 0.5)),
+                                Icon(
+                                  Icons.history_rounded,
+                                  size: 44,
+                                  color: cs.outline.withValues(alpha: 0.5),
+                                ),
                                 const SizedBox(height: 10),
                                 Text(
                                   l.leHistoryEmpty,
@@ -137,7 +148,10 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
                             events: _events,
                             onSelected: (f) => setState(() => _filter = f),
                           ),
-                          ListingHistoryTimeline(events: shown, staffView: widget.staffView),
+                          ListingHistoryTimeline(
+                            events: shown,
+                            staffView: widget.staffView,
+                          ),
                         ],
                       ],
                     ),

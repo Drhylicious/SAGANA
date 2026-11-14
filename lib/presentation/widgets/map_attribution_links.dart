@@ -1,8 +1,8 @@
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/constants/osm_config.dart';
 
 /// Visible attribution for the address screens: the OpenStreetMap copyright
@@ -26,7 +26,7 @@ class MapAttributionLinks extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = GoogleFonts.inter(
       fontSize: 10,
-      color: color ?? AppConstants.onSurfaceVariant,
+      color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
       decoration: TextDecoration.underline,
     );
     final separatorStyle = style.copyWith(decoration: TextDecoration.none);
@@ -92,7 +92,7 @@ class OsmMapAttribution extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(3),
         child: Container(
-          color: Colors.white.withValues(alpha: 0.8),
+          color: context.saganaColors.cardBackground.withValues(alpha: 0.8),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
           child: Text(
             kOsmAttribution,

@@ -137,6 +137,20 @@ class FarmerManagementRepository {
             harvestMap.putIfAbsent(id, () => r['harvest_date'] as String);
           }
 
+          // 7. Total capital contribution per farmer (for Sort By). Left at 0
+          // when it cannot be read: the list itself must still load.
+          final capitalMap = <String, double>{};
+          try {
+            final capitalRows = await _client
+                .from('member_capital_shares')
+                .select('farmer_id, total_contribution')
+                .inFilter('farmer_id', userIds);
+            for (final r in capitalRows) {
+              capitalMap[r['farmer_id'] as String] =
+                  (r['total_contribution'] as num? ?? 0).toDouble();
+            }
+          } catch (_) {}
+
           return userIds.map<Map<String, dynamic>>((uid) {
             final role = roleMap[uid]!;
             final info = infoMap[uid] ?? {};
@@ -157,6 +171,7 @@ class FarmerManagementRepository {
               'is_verified': profile['is_verified'] as bool? ?? false,
               'crops': cropsMap[uid] ?? [],
               'outstanding_balance': loan?['balance'] ?? 0.0,
+              'capital_contribution': capitalMap[uid] ?? 0.0,
               'loan_status': loan != null ? loan['status'] : 'none',
               'is_synced': true,
               'last_harvest_date': harvestMap[uid],
@@ -418,7 +433,16 @@ extension FarmerListFilter on List<FarmerMemberModel> {
     int byOption(FarmerMemberModel a, FarmerMemberModel b) {
       switch (filter.sortBy) {
         case FarmerSortOption.nameAZ:
-          return a.fullName.compareTo(b.fullName);
+          return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+        case FarmerSortOption.nameZA:
+          return b.fullName.toLowerCase().compareTo(a.fullName.toLowerCase());
+        case FarmerSortOption.newestMember:
+          if (a.joinedAt == null && b.joinedAt == null) return 0;
+          if (a.joinedAt == null) return 1;
+          if (b.joinedAt == null) return -1;
+          return b.joinedAt!.compareTo(a.joinedAt!);
+        case FarmerSortOption.capitalContribution:
+          return b.capitalContribution.compareTo(a.capitalContribution);
         case FarmerSortOption.recentHarvest:
           if (a.lastHarvestDate == null && b.lastHarvestDate == null) {
             return 0;

@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -141,7 +142,7 @@ class _CooperativeProductDetailsScreenState
       onConfirm: (quantity) => router.push(
         AppRoutes.farmerMarketplaceCheckout,
         extra: {
-          'items': [_line(quantity)],
+          "items": [_line(quantity)],
           'isCartCheckout': false,
         },
       ),
@@ -260,8 +261,8 @@ class _CooperativeProductDetailsScreenState
                                     fontSize: 26,
                                     fontWeight: FontWeight.w800,
                                     color: soldOut
-                                        ? AppConstants.outline
-                                        : AppConstants.primaryGreen,
+                                        ? Theme.of(context).colorScheme.outline
+                                        : Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ),
@@ -269,7 +270,9 @@ class _CooperativeProductDetailsScreenState
                                 '/$unit',
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
-                                  color: AppConstants.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -280,10 +283,12 @@ class _CooperativeProductDetailsScreenState
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.sell_outlined,
                                 size: 14,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -293,7 +298,9 @@ class _CooperativeProductDetailsScreenState
                                 key: const Key('cpSold'),
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: AppConstants.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -308,16 +315,19 @@ class _CooperativeProductDetailsScreenState
                       style: GoogleFonts.poppins(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     if (_p.category.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
-                        _p.category,
+                        localizeBuiltinLabel(
+                          AppLocalizations.of(context),
+                          _p.category,
+                        ),
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -329,7 +339,7 @@ class _CooperativeProductDetailsScreenState
                         formatPricePerUnit(_p.regularPrice, _p.unit),
                         style: GoogleFonts.inter(
                           fontSize: 12.5,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           decoration: TextDecoration.lineThrough,
                         ),
                       ),
@@ -408,7 +418,9 @@ class _CooperativeProductDetailsScreenState
                                     CooperativeAddressText(
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
-                                        color: AppConstants.onSurfaceVariant,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ],
@@ -422,7 +434,9 @@ class _CooperativeProductDetailsScreenState
                             key: const Key('cpProgram'),
                             style: GoogleFonts.inter(
                               fontSize: 13,
-                              color: AppConstants.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               height: 1.5,
                             ),
                           ),
@@ -440,7 +454,7 @@ class _CooperativeProductDetailsScreenState
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -493,8 +507,8 @@ class _CooperativeProductDetailsScreenState
                         key: const Key('cpAddToCart'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppConstants.primaryGreen,
-                          side: const BorderSide(
-                            color: AppConstants.primaryGreen,
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
@@ -570,7 +584,7 @@ class _CooperativeProductDetailsScreenState
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
@@ -615,7 +629,7 @@ class _CooperativeProductDetailsScreenState
                   l10n.cpSoldOutBody,
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

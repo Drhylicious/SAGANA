@@ -44,7 +44,6 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
 
   bool _isOnline = true;
   bool _isLoading = true;
-  bool _offlineUnavailable = false;
   bool _isMarkingPaid = false;
 
   AdminLoanDetail? _detail;
@@ -63,17 +62,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   Future<void> _load() async {
     setState(() {
       _isLoading = true;
-      _offlineUnavailable = false;
     });
-
-    if (!_isOnline) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _offlineUnavailable = true;
-      });
-      return;
-    }
 
     final detail = await _repo.fetchLoanById(widget.loanId);
     if (!mounted) return;
@@ -127,11 +116,11 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   void _showSnack(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-      content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
+        content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
             : AppConstants.midGreen,
-      behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
@@ -180,7 +169,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               color: cs.primary,
               onPressed: () => showWorkflowHistorySheet(
                 context,
-                entityType: 'loan',
+                entityType: "loan",
                 entityId: detail.loan.id,
                 title: '${detail.loan.referenceNo} · ${detail.farmerName}',
               ),
@@ -197,13 +186,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     if (_isLoading) {
       return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
-    if (_offlineUnavailable) {
-      return _buildMessageState(
-        Icons.wifi_off_rounded,
-        l10n.loanDetailsUnavailableOffline,
-        cs,
-      );
-    }
+
     if (_detail == null) {
       return _buildMessageState(
         Icons.search_off_rounded,
@@ -311,7 +294,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     SaganaColors sagana,
   ) {
     return GestureDetector(
-      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, detail.loan.farmerId) : null,
+      onTap: membersAccessAllowed
+          ? () => pushFarmerDetails(context, detail.loan.farmerId)
+          : null,
       child: Container(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
         decoration: BoxDecoration(
@@ -343,7 +328,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                       color: cs.onSurface,
-                  ),
+                    ),
                   ),
                 ],
               ),
@@ -370,8 +355,8 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     final statusColor = loan.isPaid
         ? AppConstants.buyerBlue
         : isOverdueLoan
-            ? AppConstants.errorRed
-            : AppConstants.successGreen;
+        ? AppConstants.errorRed
+        : AppConstants.successGreen;
 
     return Container(
       width: double.infinity,
@@ -416,7 +401,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.saganaColors.cardBackground,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
@@ -435,7 +420,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
+                color: context.saganaColors.cardBackground.withValues(
+                  alpha: 0.18,
+                ),
                 borderRadius: BorderRadius.circular(AppConstants.radiusFull),
               ),
               child: Row(
@@ -444,7 +431,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                   const Icon(Icons.eco_rounded, size: 12, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    'From Program Distribution: ${loan.sourceProgramName}',
+                    AppLocalizations.of(context).enhFromProgramDistribution(
+                      (loan.sourceProgramName).toString(),
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
@@ -526,7 +515,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
             child: LinearProgressIndicator(
               value: loan.repaidPercent as double,
               minHeight: 6,
-              backgroundColor: Colors.white.withValues(alpha: 0.25),
+              backgroundColor: context.saganaColors.cardBackground.withValues(
+                alpha: 0.25,
+              ),
               valueColor: const AlwaysStoppedAnimation(Colors.white),
             ),
           ),
@@ -942,7 +933,7 @@ class _MarkAsPaidDialogState extends State<_MarkAsPaidDialog> {
               Navigator.of(context).pop(_reasonController.text.trim()),
           child: Text(
             widget.l10n.loanDetailsMarkPaidConfirm,
-            style: const TextStyle(color: AppConstants.primaryGreen),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
         ),
       ],

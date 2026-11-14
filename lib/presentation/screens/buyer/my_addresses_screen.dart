@@ -164,7 +164,7 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
         Icon(
           Icons.location_off_outlined,
           size: 48,
-          color: AppConstants.outline.withValues(alpha: 0.6),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
         ),
         const SizedBox(height: 12),
         Text(
@@ -178,7 +178,7 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
             fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -232,7 +232,7 @@ class _AddressTile extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.onSurface,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ),
@@ -243,7 +243,7 @@ class _AddressTile extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -254,7 +254,7 @@ class _AddressTile extends StatelessWidget {
                   address.addressLine,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: AppConstants.onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                     height: 1.35,
                   ),
                 ),
@@ -266,7 +266,7 @@ class _AddressTile extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     if (address.isDefault) ...[
@@ -274,7 +274,7 @@ class _AddressTile extends StatelessWidget {
                         '  •  ',
                         style: GoogleFonts.inter(
                           fontSize: 11.5,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       Text(
@@ -292,9 +292,9 @@ class _AddressTile extends StatelessWidget {
             ),
           ),
           PopupMenuButton<String>(
-            icon: const Icon(
+            icon: Icon(
               Icons.more_vert_rounded,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             onSelected: (value) {
               switch (value) {
@@ -364,7 +364,7 @@ class _DeleteAddressConfirmDialog extends StatelessWidget {
               l10n.buyerAddressesDeleteConfirmBody(label),
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 20),

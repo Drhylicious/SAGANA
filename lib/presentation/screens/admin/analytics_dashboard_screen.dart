@@ -384,7 +384,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -418,7 +418,7 @@ class _PriceSnapshotCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final marketColor = MarketTypeDisplay.color(context, price.priceType);
     final hasImage = price.imageUrl != null && price.imageUrl!.isNotEmpty;
-    final delta = _delta();
+    final delta = _delta(context);
 
     return Container(
       width: 130,
@@ -542,7 +542,7 @@ class _PriceSnapshotCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  l10n.priceUpdatedPrefix(_updatedLabel()),
+                  l10n.priceUpdatedPrefix(_updatedLabel(context)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(fontSize: 8, color: cs.outline),
@@ -555,16 +555,19 @@ class _PriceSnapshotCard extends StatelessWidget {
     );
   }
 
-  ({IconData icon, String label, Color color})? _delta() {
+  ({IconData icon, String label, Color color})? _delta(BuildContext context) {
     final diff = price.priceDiff;
-    if (diff == null || price.previousPrice == null || price.previousPrice == 0)
+    if (diff == null ||
+        price.previousPrice == null ||
+        price.previousPrice == 0) {
       return null;
+    }
     final pct = (diff / price.previousPrice!) * 100;
     if (pct.abs() < 0.01) {
       return (
         icon: Icons.horizontal_rule_rounded,
         label: '0%',
-        color: AppConstants.outline,
+        color: Theme.of(context).colorScheme.outline,
       );
     }
     return (
@@ -574,25 +577,33 @@ class _PriceSnapshotCard extends StatelessWidget {
     );
   }
 
-  String _updatedLabel() {
+  String _updatedLabel(BuildContext context) {
     final dt = price.recordedAt;
     if (dt == null) return '';
     final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+    if (diff.inMinutes < 60) {
+      return AppLocalizations.of(
+        context,
+      ).enhMinutesAgo((diff.inMinutes).toString());
+    }
+    if (diff.inHours < 24) {
+      return AppLocalizations.of(
+        context,
+      ).enhHoursAgo((diff.inHours).toString());
+    }
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}';
   }

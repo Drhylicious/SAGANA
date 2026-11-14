@@ -92,7 +92,9 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
           .maybeSingle();
       if (!mounted) return;
       setState(() {
-        _fullName = info?['full_name'] as String? ?? 'Applicant';
+        _fullName =
+            info?['full_name'] as String? ??
+            AppLocalizations.of(context).enhApplicant;
         _firstName = (info?['first_name'] as String?)?.trim() ?? '';
         _username = info?['username'] as String? ?? '';
         _status = role?['status'] as String? ?? 'pending';
@@ -197,7 +199,7 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
               l10n.pendingContinueButton,
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ),
@@ -287,7 +289,10 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
                 // intrinsic height, and SkeletonList contains a LayoutBuilder,
                 // which cannot answer that (assertion in debug builds).
                 const SliverFillRemaining(
-                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  ),
                 ),
               ],
             )
@@ -378,7 +383,7 @@ class _PendingBottomNav extends StatelessWidget {
                               active ? item.$1 : item.$2,
                               size: 22,
                               color: active
-                                  ? AppConstants.primaryGreen
+                                  ? Theme.of(context).colorScheme.primary
                                   : cs.onSurfaceVariant,
                             ),
                           ),
@@ -391,7 +396,7 @@ class _PendingBottomNav extends StatelessWidget {
                                   ? FontWeight.w700
                                   : FontWeight.w400,
                               color: active
-                                  ? AppConstants.primaryGreen
+                                  ? Theme.of(context).colorScheme.primary
                                   : cs.onSurfaceVariant,
                             ),
                           ),
@@ -464,40 +469,21 @@ class _PendingNotificationsTabState extends State<_PendingNotificationsTab> {
     await _repo.markAsRead(n.id);
   }
 
-  Future<void> _toggleRead(NotificationModel n) async {
-    final nowRead = !n.isRead;
-    _replace(n.id, nowRead);
-    if (nowRead) {
-      await _repo.markAsRead(n.id);
-    } else {
-      await _repo.markAsUnread(n.id);
-    }
-  }
-
-  Future<void> _markAllRead() async {
+  /// Mark as Read / Mark as Unread for the selected notifications only.
+  Future<void> _applyToSelection(
+    List<NotificationModel> selected,
+    bool markRead,
+  ) async {
+    final ids = selected.map((n) => n.id).toSet();
     setState(() {
       _notifications = _notifications
-          .map((n) => n.copyWith(isRead: true))
+          .map((n) => ids.contains(n.id) ? n.copyWith(isRead: markRead) : n)
           .toList();
     });
+    await Future.wait(
+      ids.map((id) => markRead ? _repo.markAsRead(id) : _repo.markAsUnread(id)),
+    );
     AppEventService.instance.notify();
-    await _repo.markAllAsRead();
-  }
-
-  Future<void> _markAllUnread() async {
-    setState(() {
-      _notifications = _notifications
-          .map((n) => n.copyWith(isRead: false))
-          .toList();
-    });
-    AppEventService.instance.notify();
-    await _repo.markAllAsUnread();
-  }
-
-  Future<void> _delete(NotificationModel n) async {
-    setState(() => _notifications.removeWhere((x) => x.id == n.id));
-    AppEventService.instance.notify();
-    await _repo.deleteNotification(n.id);
   }
 
   @override
@@ -507,10 +493,7 @@ class _PendingNotificationsTabState extends State<_PendingNotificationsTab> {
       isLoading: _isLoading,
       onRefresh: _load,
       onTap: _onTap,
-      onToggleRead: _toggleRead,
-      onDelete: _delete,
-      onMarkAllRead: _markAllRead,
-      onMarkAllUnread: _markAllUnread,
+      onApplyToSelection: _applyToSelection,
     );
   }
 }
@@ -574,7 +557,7 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
         _profilePhotoUrl = row?['profile_photo_url'] as String?;
         _phone = row?['phone_number'] as String?;
         _email = row?['contact_email'] as String?;
-        _gender = farmer?['gender'] as String?;
+        _gender = farmer?["gender"] as String?;
         final dob = farmer?['date_of_birth'] as String?;
         _dateOfBirth = dob == null ? null : DateTime.tryParse(dob);
         _address = address;

@@ -39,7 +39,7 @@ class LoanSectionHeader extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -57,7 +57,10 @@ class LoanSectionHeader extends StatelessWidget {
               children: [
                 Text(
                   viewAllLabel!,
-                  style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(width: 2),
                 const Icon(Icons.chevron_right_rounded, size: 18),
@@ -93,8 +96,9 @@ class LoanStatusChips extends StatelessWidget {
       'overdue': l10n.loanDashOverdueLoans,
       'paid': l10n.loanHistoryFilterPaid,
     };
-    String label(String? key) =>
-        counts == null ? options[key]! : '${options[key]} (${counts![key] ?? 0})';
+    String label(String? key) => counts == null
+        ? options[key]!
+        : '${options[key]} (${counts![key] ?? 0})';
 
     return SizedBox(
       height: 38,
@@ -108,7 +112,7 @@ class LoanStatusChips extends StatelessWidget {
             child: LoanChoiceChip(
               label: label(key),
               selected: active == key,
-              selectedColor: AppConstants.buyerBlue,
+              selectedColor: AppConstants.primaryGreen,
               onTap: () => onChanged(key),
             ),
           );
@@ -130,7 +134,11 @@ class LoanEmptyNote extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Column(
         children: [
-          Icon(icon, size: 36, color: AppConstants.outline.withValues(alpha: 0.7)),
+          Icon(
+            icon,
+            size: 36,
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.7),
+          ),
           const SizedBox(height: 10),
           Text(
             text,
@@ -138,7 +146,7 @@ class LoanEmptyNote extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 13,
               height: 1.4,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -170,7 +178,8 @@ class FarmerLoanCard extends StatelessWidget {
     final accent = loan.isPaid
         ? AppConstants.buyerBlue
         : (loan.isOverdue ? AppConstants.errorRed : AppConstants.primaryGreen);
-    final payment = loan.monthlyPayment > 0 && loan.monthlyPayment < loan.remainingBalance
+    final payment =
+        loan.monthlyPayment > 0 && loan.monthlyPayment < loan.remainingBalance
         ? loan.monthlyPayment
         : loan.remainingBalance;
 
@@ -191,7 +200,9 @@ class FarmerLoanCard extends StatelessWidget {
               ? AppConstants.errorRed.withValues(alpha: 0.25)
               : cs.outline.withValues(alpha: 0.10),
         ),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,18 +230,28 @@ class FarmerLoanCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            l10n.loanMyIssued(DateFormat('MMM d, yyyy').format(loan.issuedDate)),
-                            style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                            l10n.loanMyIssued(
+                              DateFormat('MMM d, yyyy').format(loan.issuedDate),
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 11.5,
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Text(
                         statusLabel.toUpperCase(),
@@ -248,7 +269,11 @@ class FarmerLoanCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.volunteer_activism_rounded, size: 13, color: AppConstants.programPurple),
+                      const Icon(
+                        Icons.volunteer_activism_rounded,
+                        size: 13,
+                        color: AppConstants.programPurple,
+                      ),
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
@@ -270,7 +295,11 @@ class FarmerLoanCard extends StatelessWidget {
                     itemSummary(),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(fontSize: 12.5, height: 1.35, color: cs.onSurface),
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      color: cs.onSurface,
+                    ),
                   )
                 else
                   for (final item in loan.items)
@@ -281,7 +310,10 @@ class FarmerLoanCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               item.displayLabel,
-                              style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurface),
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                color: cs.onSurface,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -304,8 +336,12 @@ class FarmerLoanCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
               color: const Color(0xFFE6F6FF).withValues(alpha: 0.5),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppConstants.radiusLg)),
-              border: Border(top: BorderSide(color: cs.outline.withValues(alpha: 0.08))),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(AppConstants.radiusLg),
+              ),
+              border: Border(
+                top: BorderSide(color: cs.outline.withValues(alpha: 0.08)),
+              ),
             ),
             child: Column(
               children: [
@@ -346,19 +382,27 @@ class FarmerLoanCard extends StatelessWidget {
                       child: !loan.isPaid && loan.nextPaymentDate != null
                           ? Text(
                               l10n.loanMyNextPayment(
-                                DateFormat('MMM d, yyyy').format(loan.nextPaymentDate!),
+                                DateFormat(
+                                  'MMM d, yyyy',
+                                ).format(loan.nextPaymentDate!),
                                 _money.format(payment),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant),
+                              style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                color: cs.onSurfaceVariant,
+                              ),
                             )
                           : const SizedBox.shrink(),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       l10n.loanMyRepaid((loan.repaidPercent * 100).round()),
-                      style: GoogleFonts.inter(fontSize: 10.5, color: cs.outline),
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        color: cs.outline,
+                      ),
                     ),
                   ],
                 ),
@@ -386,7 +430,9 @@ class _Figure extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -399,7 +445,11 @@ class _Figure extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(
             value,
-            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600, color: color),
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ),
       ],
@@ -413,7 +463,11 @@ class FarmerPaymentRow extends StatelessWidget {
   final LoanModel loan;
   final LoanPaymentModel payment;
 
-  const FarmerPaymentRow({super.key, required this.loan, required this.payment});
+  const FarmerPaymentRow({
+    super.key,
+    required this.loan,
+    required this.payment,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -428,7 +482,9 @@ class FarmerPaymentRow extends StatelessWidget {
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,13 +536,21 @@ class FarmerPaymentRow extends StatelessWidget {
                         l10n.loanMyPaymentLoan(loan.referenceNo),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      l10n.loanDetailsBalanceAfter('₱${_money.format(payment.runningBalance)}'),
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      l10n.loanDetailsBalanceAfter(
+                        '₱${_money.format(payment.runningBalance)}',
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),

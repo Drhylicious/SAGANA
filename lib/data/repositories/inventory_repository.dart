@@ -1,10 +1,17 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/inventory_batch_model.dart';
+import '../models/shelf_life_model.dart';
 import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
+import 'shelf_life_repository.dart';
 import '../models/admin_log_message.dart';
+
+/// A batch with its harvest date; its own shelf-life tracking is embedded on
+/// top of this (see withShelfLifeEmbed).
+const String _batchColumns = '*, harvest_records(harvest_date, source_type)';
+const String _batchShelfLife = 'batch_shelf_life(*)';
 
 class InventoryRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -17,11 +24,15 @@ class InventoryRepository {
     try {
       final rows = await OfflineCache.load(
         screen: 'inventory_batches',
-        fetch: () => _client
-            .from('inventory_batches')
-            .select('*, harvest_records(harvest_date)')
-            .eq('farmer_id', _userId)
-            .order('created_at', ascending: false),
+        fetch: () => withShelfLifeEmbed(
+          _batchColumns,
+          _batchShelfLife,
+          (columns) => _client
+              .from('inventory_batches')
+              .select(columns)
+              .eq('farmer_id', _userId)
+              .order('created_at', ascending: false),
+        ),
       );
       return rows.map((row) => InventoryBatchModel.fromMap(row)).toList();
     } catch (_) {
@@ -150,12 +161,16 @@ extension AvailableBatchesFetch on InventoryRepository {
     final client = Supabase.instance.client;
     final userId = client.auth.currentUser!.id;
     try {
-      final response = await client
-          .from('inventory_batches')
-          .select('*, harvest_records(harvest_date)')
-          .eq('farmer_id', userId)
-          .inFilter('status', ['available', 'low_stock'])
-          .order('created_at', ascending: false);
+      final response = await withShelfLifeEmbed(
+        _batchColumns,
+        _batchShelfLife,
+        (columns) => client
+            .from('inventory_batches')
+            .select(columns)
+            .eq('farmer_id', userId)
+            .inFilter('status', ['available', 'low_stock'])
+            .order('created_at', ascending: false),
+      );
 
       final farmerCropIds = response
           .map((r) => r['crop_id'] as String?)
@@ -177,6 +192,14 @@ extension AvailableBatchesFetch on InventoryRepository {
             }),
           )
           .where((batch) => batch.exclusiveChannel == null)
+          // A batch on hold, or past its shelf life and not confirmed, cannot
+          // be listed (the database refuses it too); it is confirmed in Manage
+          // Inventory first.
+          .where(
+            (batch) =>
+                !batch.isOnShelfLifeHold &&
+                batch.shelfLife?.stage != ShelfLifeStage.expired,
+          )
           .toList();
     } catch (_) {
       return [];
@@ -192,11 +215,15 @@ extension AvailableBatchesFetch on InventoryRepository {
     try {
       final batchRows = await OfflineCache.load(
         screen: 'batch_$batchId',
-        fetch: () => client
-            .from('inventory_batches')
-            .select('*, harvest_records(harvest_date)')
-            .eq('id', batchId)
-            .limit(1),
+        fetch: () => withShelfLifeEmbed(
+          _batchColumns,
+          _batchShelfLife,
+          (columns) => client
+              .from('inventory_batches')
+              .select(columns)
+              .eq('id', batchId)
+              .limit(1),
+        ),
       );
       if (batchRows.isEmpty) return null;
       final row = batchRows.first;

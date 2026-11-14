@@ -79,7 +79,10 @@ class _OrderDeliveryMapScreenState extends State<OrderDeliveryMapScreen> {
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   child: BackdropFilter(
                     filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: SubPageTopBar(title: l10n.orderDetailDeliveryPinTitle, onBack: () => Navigator.of(context).pop()),
+                    child: SubPageTopBar(
+                      title: l10n.orderDetailDeliveryPinTitle,
+                      onBack: () => Navigator.of(context).pop(),
+                    ),
                   ),
                 ),
               ),
@@ -118,7 +121,9 @@ class _OrderDeliveryMapScreenState extends State<OrderDeliveryMapScreen> {
               top: false,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                color: Colors.white.withValues(alpha: 0.75),
+                color: context.saganaColors.cardBackground.withValues(
+                  alpha: 0.75,
+                ),
                 child: const MapAttributionLinks(color: Colors.black87),
               ),
             ),
@@ -152,7 +157,7 @@ class _ZoomButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(icon, color: AppConstants.primaryGreen),
+        child: Icon(icon, color: Theme.of(context).colorScheme.primary),
       ),
     );
   }

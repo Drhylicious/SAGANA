@@ -1,6 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import 'encrypted_box.dart';
+import '../../core/utils/client_id.dart';
+import 'app_event_service.dart';
 
 class HiveService {
   HiveService._();
@@ -37,6 +39,46 @@ class HiveService {
     _cacheBox = await EncryptedBox.open(
       AppConstants.hiveBoxOfflineCache,
     ); // Phase 10
+    // Attribute legacy queues once, before login/logout can change last_user_id.
+    // Unattributable rows stay intact; another account must never inherit them.
+    final legacyOwner = getUserId() ?? _legacyOwnerId();
+    if (legacyOwner != null) {
+      for (final box in [
+        _harvestQueueBox,
+        _expenseQueueBox,
+        _loanQueueBox,
+        _actionQueueBox,
+      ]) {
+        for (final key in box.keys.toList()) {
+          final row = Map<dynamic, dynamic>.from(box.get(key) as Map);
+          if (row[_ownerKey] == null) {
+            row[_ownerKey] = legacyOwner;
+            await box.put(key, row);
+          }
+        }
+      }
+    }
+    // Persist retry identities before the first request, including old queues.
+    // A lost response must never generate another financial/harvest record.
+    for (final box in [_harvestQueueBox, _expenseQueueBox]) {
+      for (final key in box.keys.toList()) {
+        final row = Map<dynamic, dynamic>.from(box.get(key) as Map);
+        if (row['client_id'] == null) {
+          row['client_id'] = newClientId();
+          await box.put(key, row);
+        }
+      }
+    }
+    for (final key in _actionQueueBox.keys.toList()) {
+      final row = Map<dynamic, dynamic>.from(_actionQueueBox.get(key) as Map);
+      if (row['kind'] != 'capital_record') continue;
+      final payload = Map<dynamic, dynamic>.from(row['payload'] as Map);
+      if (payload['eventId'] == null) {
+        payload['eventId'] = newClientId();
+        row['payload'] = payload;
+        await _actionQueueBox.put(key, row);
+      }
+    }
   }
 
   /// Snapshot store for OfflineCache. Not for queued records — those live in
@@ -251,11 +293,11 @@ class HiveService {
   static Future<void> cacheFarmerRoster(
     List<Map<String, dynamic>> roster,
   ) async {
-    await _settingsBox.put('cached_farmer_roster', roster);
+    await _settingsBox.put('${getUserId()}::cached_farmer_roster', roster);
   }
 
   static List<Map<String, dynamic>> getCachedFarmerRoster() {
-    final data = _settingsBox.get('cached_farmer_roster');
+    final data = _settingsBox.get('${getUserId()}::cached_farmer_roster');
     if (data == null) return [];
     return (data as List)
         .map((entry) => Map<String, dynamic>.from(entry as Map))
@@ -270,11 +312,11 @@ class HiveService {
   // Record Payment loads while online.
 
   static Future<void> cacheActiveLoans(List<Map<String, dynamic>> loans) async {
-    await _settingsBox.put('cached_active_loans', loans);
+    await _settingsBox.put('${getUserId()}::cached_active_loans', loans);
   }
 
   static List<Map<String, dynamic>> getCachedActiveLoans() {
-    final data = _settingsBox.get('cached_active_loans');
+    final data = _settingsBox.get('${getUserId()}::cached_active_loans');
     if (data == null) return [];
     return (data as List)
         .map((entry) => Map<String, dynamic>.from(entry as Map))
@@ -295,8 +337,9 @@ class HiveService {
   static Future<void> savePendingLoanIssuance(
     Map<String, dynamic> payload,
   ) async {
-    final localId = 'issue_${DateTime.now().millisecondsSinceEpoch}';
+    final localId = 'issue_${newClientId()}';
     await _loanQueueBox.put(localId, _owned(payload));
+    AppEventService.instance.notify();
   }
 
   // Microseconds, not milliseconds: two payments saved in the same
@@ -304,8 +347,10 @@ class HiveService {
   static Future<void> savePendingLoanPayment(
     Map<String, dynamic> payload,
   ) async {
-    final localId = 'payment_${DateTime.now().microsecondsSinceEpoch}';
+    final localId =
+        'payment_${DateTime.now().microsecondsSinceEpoch}_${newClientId()}';
     await _loanQueueBox.put(localId, _owned(payload));
+    AppEventService.instance.notify();
   }
 
   static List<MapEntry<String, Map<dynamic, dynamic>>>
@@ -338,7 +383,7 @@ class HiveService {
 
   static Map<String, dynamic> _owned(Map<String, dynamic> payload) {
     final owner = getUserId();
-    if (owner == null) {
+    if (owner == null || getUserRole() == 'buyer') {
       throw StateError('Sign in before saving offline records.');
     }
     return {...payload, _ownerKey: owner};
@@ -350,7 +395,7 @@ class HiveService {
     final result = <MapEntry<String, Map<dynamic, dynamic>>>[];
     for (final key in box.keys) {
       final value = Map<dynamic, dynamic>.from(box.get(key) as Map);
-      final owner = (value[_ownerKey] as String?) ?? _legacyOwnerId();
+      final owner = value[_ownerKey] as String?;
       if (owner != me) continue;
       value.remove(_ownerKey);
       result.add(MapEntry(key as String, value));
@@ -433,8 +478,9 @@ class HiveService {
   // is actually available again.
 
   static Future<String> savePendingHarvest(Map<String, dynamic> payload) async {
-    final localId = 'harvest_${DateTime.now().millisecondsSinceEpoch}';
+    final localId = 'harvest_${newClientId()}';
     await _harvestQueueBox.put(localId, _owned(payload));
+    AppEventService.instance.notify();
     return localId;
   }
 
@@ -467,8 +513,9 @@ class HiveService {
   // farmer_expenses insert — no secondary table, unlike harvests).
 
   static Future<String> savePendingExpense(Map<String, dynamic> payload) async {
-    final localId = 'expense_${DateTime.now().millisecondsSinceEpoch}';
+    final localId = 'expense_${newClientId()}';
     await _expenseQueueBox.put(localId, _owned(payload));
+    AppEventService.instance.notify();
     return localId;
   }
 
@@ -497,8 +544,9 @@ class HiveService {
       20,
       '0',
     );
-    final key = 'act_$stamp';
+    final key = 'act_${stamp}_${newClientId()}';
     await _actionQueueBox.put(key, _owned({'kind': kind, 'payload': payload}));
+    AppEventService.instance.notify();
     return key;
   }
 
@@ -540,7 +588,7 @@ class HiveService {
     final existing = box.get(localId);
     if (existing == null) return;
     final updated = Map<dynamic, dynamic>.from(existing as Map);
-    final owner = (updated[_ownerKey] as String?) ?? _legacyOwnerId();
+    final owner = updated[_ownerKey] as String?;
     if (owner != getUserId()) return;
     updated['_syncError'] = message;
     updated['_syncErrorAt'] = DateTime.now().toIso8601String();

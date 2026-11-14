@@ -4,6 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Phone notifications need the Firebase config file from the Firebase console
+// (Project settings > Your apps > Android > google-services.json). Without it the
+// app still builds and runs, with in-app notifications only.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.sp3cooperative.sagana"
     compileSdk = flutter.compileSdkVersion

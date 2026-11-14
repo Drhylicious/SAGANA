@@ -54,8 +54,8 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
-    final cs     = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
 
     return Scaffold(
@@ -72,39 +72,46 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
             ),
             Expanded(
               child: _isLoading
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : _buyer == null
-                      ? _NotFoundState(cs: cs)
-                      : RefreshIndicator(
-                          color: AppConstants.primaryGreen,
-                          onRefresh: _load,
-                          child: ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                            children: [
-                          BuyerIdentityCard(buyer: _buyer!, cs: cs, sagana: sagana),
-                              const SizedBox(height: 16),
-                          _StatsRow(buyer: _buyer!, cs: cs, sagana: sagana),
-                              const SizedBox(height: 16),
-                              _RecentOrdersSection(
-                                orders: _recentOrders,
-                                totalOrders: _buyer!.totalOrders,
-                                cs: cs,
-                                sagana: sagana,
-                                onOrderTap: (orderId) => context.push(
-                                  AppRoutes.adminOrderDetail,
-                                  extra: {'orderId': orderId, 'readOnly': true},
-                                ),
-                                onViewAll: () => context.push(
-                                  AppRoutes.buyerOrderHistory,
-                                  extra: {
-                                    'buyerId': _buyer!.userId,
-                                    'buyerName': _buyer!.fullName,
-                                  },
-                                ),
-                              ),
-                            ],
+                  ? _NotFoundState(cs: cs)
+                  : RefreshIndicator(
+                      color: AppConstants.primaryGreen,
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                        children: [
+                          BuyerIdentityCard(
+                            buyer: _buyer!,
+                            cs: cs,
+                            sagana: sagana,
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          _StatsRow(buyer: _buyer!, cs: cs, sagana: sagana),
+                          const SizedBox(height: 16),
+                          _RecentOrdersSection(
+                            orders: _recentOrders,
+                            totalOrders: _buyer!.totalOrders,
+                            cs: cs,
+                            sagana: sagana,
+                            onOrderTap: (orderId) => context.push(
+                              AppRoutes.adminOrderDetail,
+                              extra: {'orderId': orderId, 'readOnly': true},
+                            ),
+                            onViewAll: () => context.push(
+                              AppRoutes.buyerOrderHistory,
+                              extra: {
+                                'buyerId': _buyer!.userId,
+                                'buyerName': _buyer!.fullName,
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -133,6 +140,7 @@ class BuyerIdentityCard extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
   const BuyerIdentityCard({
+    super.key,
     required this.buyer,
     required this.cs,
     required this.sagana,
@@ -161,57 +169,57 @@ class BuyerIdentityCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: Column(
-            children: [
-              // The ring takes the status colour, so the state reads at a glance.
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: statusColor.withValues(alpha: 0.08),
-                  border: Border.all(color: statusColor, width: 3),
+              children: [
+                // The ring takes the status colour, so the state reads at a glance.
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: statusColor.withValues(alpha: 0.08),
+                    border: Border.all(color: statusColor, width: 3),
+                  ),
+                  child: buyer.hasPhoto
+                      ? ClipOval(
+                          child: Image.network(
+                            buyer.profilePhotoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _fallback(statusColor),
+                          ),
+                        )
+                      : _fallback(statusColor),
                 ),
-                child: buyer.hasPhoto
-                    ? ClipOval(
-                        child: Image.network(
-                          buyer.profilePhotoUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _fallback(statusColor),
-                        ),
-                      )
-                    : _fallback(statusColor),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                buyer.fullName,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
-              // Why the account is Inactive, only when it is.
-              if (status == BuyerStatus.inactive) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 Text(
-                  l10n.buyerStatusInactiveNote,
+                  buyer.fullName,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                 ),
+                // Why the account is Inactive, only when it is.
+                if (status == BuyerStatus.inactive) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.buyerStatusInactiveNote,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ],
-            ],
             ),
           ),
           // The status badge sits in the top-right corner of the card. It is laid
           // over the card rather than in its own row, so it adds no height.
-          Positioned(
-            top: 0,
-            right: 0,
-            child: BuyerStatusBadge(status: status),
-          ),
+          Positioned(top: 0, right: 0, child: BuyerStatusBadge(status: status)),
         ],
       ),
     );
@@ -273,15 +281,15 @@ class _StatsRow extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   value,
-                    style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
                     color: cs.onSurface,
                   ),
                 ),
                 Text(
                   label,
-                    style: GoogleFonts.inter(
+                  style: GoogleFonts.inter(
                     fontSize: 10,
                     color: cs.onSurfaceVariant,
                   ),
@@ -468,7 +476,7 @@ class _RecentOrderRow extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 6),
@@ -500,9 +508,9 @@ class _NotFoundState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               AppLocalizations.of(context).buyerDetailsNotFound,
-                style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
                 color: cs.onSurfaceVariant,
               ),
             ),

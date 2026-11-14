@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'connectivity_service.dart';
 import 'hive_service.dart';
 
@@ -24,6 +26,10 @@ class OfflineCache {
   /// crops and batches carry crop_type / exclusive_channel.
   static const int schemaVersion = 2;
 
+  /// List snapshots own their fallback and original save time. A transport
+  /// fallback underneath them must not look like newly retrieved server data.
+  static const liveFetchZoneKey = #saganaLiveListFetch;
+
   static final Map<String, bool> _servedFromCache = {};
 
   static String _key(String screen) =>
@@ -35,11 +41,25 @@ class OfflineCache {
     required String screen,
     required Future<List<Map<String, dynamic>>> Function() fetch,
   }) async {
+    // Buyer connectivity is informational only. Shared repositories are also
+    // used by Farmers, so enforce the role at this common boundary.
+    if (!const [
+      'admin',
+      'officer',
+      'farmer',
+    ].contains(HiveService.getUserRole())) {
+      return fetch();
+    }
     final key = _key(screen);
+    final owner = HiveService.getUserId();
     Object? failure;
     if (ConnectivityService.instance.isOnline) {
       try {
-        final rows = await fetch();
+        final rows = await runZoned(
+          fetch,
+          zoneValues: {liveFetchZoneKey: true},
+        );
+        if (HiveService.getUserId() != owner) return rows;
         await HiveService.cacheBox.put(key, {
           'v': schemaVersion,
           'savedAt': DateTime.now().toIso8601String(),
@@ -48,11 +68,14 @@ class OfflineCache {
         _servedFromCache[key] = false;
         return rows;
       } catch (e) {
+        // Permission and validation errors must never reveal an old snapshot.
+        if (e is PostgrestException) rethrow;
+        if (HiveService.getUserId() == null) rethrow;
         failure = e;
       }
     }
 
-    final snapshot = _read(key);
+    final snapshot = HiveService.getUserId() == owner ? _read(key) : null;
     if (snapshot != null) {
       _servedFromCache[key] = true;
       return snapshot.rows;
@@ -64,7 +87,8 @@ class OfflineCache {
 
   /// True when the last [load] for [screen] returned the saved snapshot.
   static bool servedFromCache(String screen) =>
-      _servedFromCache[_key(screen)] ?? false;
+      HiveService.getUserRole() != 'buyer' &&
+      (_servedFromCache[_key(screen)] ?? false);
 
   /// When the snapshot for [screen] was saved, or null if there is none.
   static DateTime? savedAt(String screen) => _read(_key(screen))?.savedAt;

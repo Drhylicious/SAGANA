@@ -54,30 +54,36 @@ class AppDropdownField<T> extends FormField<T> {
     // True shows a long option in full over as many lines as it needs, in the closed field and in the
     // opened list, instead of cutting it off with "…".
     bool wrapText = false,
+    // Height of the closed field's inside, without its 1 px border. 48 (the
+    // default) is what every existing dropdown uses. A caller that puts the
+    // dropdown in a row with a standard text field passes 54, so the two boxes
+    // are the same 56 px tall.
+    double fieldHeight = 48,
   }) : super(
-          initialValue: value,
-          validator: validator,
-          builder: (field) {
-            return _DropdownFieldBody<T>(
-              value: field.value,
-              hintText: hintText,
-              labelText: labelText,
-              helperText: helperText,
-              errorText: field.errorText,
-              items: items,
-              itemLabel: itemLabel,
-              maxMenuHeight: menuMaxHeight,
-              addNewLabel: addNewLabel,
-              onAddNew: onAddNew,
-              addNewShowIcon: addNewShowIcon,
-              wrapText: wrapText,
-              onChanged: (v) {
-                field.didChange(v);
-                onChanged(v);
-              },
-            );
-          },
-        );
+         initialValue: value,
+         validator: validator,
+         builder: (field) {
+           return _DropdownFieldBody<T>(
+             value: field.value,
+             hintText: hintText,
+             labelText: labelText,
+             helperText: helperText,
+             errorText: field.errorText,
+             items: items,
+             itemLabel: itemLabel,
+             maxMenuHeight: menuMaxHeight,
+             addNewLabel: addNewLabel,
+             onAddNew: onAddNew,
+             addNewShowIcon: addNewShowIcon,
+             wrapText: wrapText,
+             fieldHeight: fieldHeight,
+             onChanged: (v) {
+               field.didChange(v);
+               onChanged(v);
+             },
+           );
+         },
+       );
 
   @override
   FormFieldState<T> createState() => _AppDropdownFieldState<T>();
@@ -110,6 +116,7 @@ class _DropdownFieldBody<T> extends StatefulWidget {
   final Future<T?> Function()? onAddNew;
   final bool addNewShowIcon;
   final bool wrapText;
+  final double fieldHeight;
 
   const _DropdownFieldBody({
     super.key,
@@ -126,6 +133,7 @@ class _DropdownFieldBody<T> extends StatefulWidget {
     this.onAddNew,
     this.addNewShowIcon = true,
     this.wrapText = false,
+    this.fieldHeight = 48,
   });
 
   @override
@@ -172,7 +180,9 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final selectedBg = isDark ? Colors.blue.withValues(alpha: 0.28) : Colors.blue.withValues(alpha: 0.18);
+    final selectedBg = isDark
+        ? Colors.blue.withValues(alpha: 0.28)
+        : Colors.blue.withValues(alpha: 0.18);
     final selectedText = isDark ? Colors.blue.shade100 : Colors.blue.shade900;
 
     _overlayEntry = OverlayEntry(
@@ -199,11 +209,15 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                   color: Colors.transparent,
                   child: Container(
                     width: fieldWidth,
-                    constraints: BoxConstraints(maxHeight: widget.maxMenuHeight),
+                    constraints: BoxConstraints(
+                      maxHeight: widget.maxMenuHeight,
+                    ),
                     decoration: BoxDecoration(
                       color: sagana.cardBackground,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: cs.outline.withValues(alpha: 0.3),
+                      ),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Column(
@@ -213,7 +227,9 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                           child: widget.items.isEmpty
                               ? Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 14),
+                                    horizontal: 14,
+                                    vertical: 14,
+                                  ),
                                   child: Text(
                                     AppLocalizations.of(context).noOptionsYet,
                                     style: GoogleFonts.inter(
@@ -248,19 +264,29 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                                         },
                                         child: Container(
                                           width: double.infinity,
-                                          color: selected ? selectedBg : Colors.transparent,
+                                          color: selected
+                                              ? selectedBg
+                                              : Colors.transparent,
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 14, vertical: 12),
+                                            horizontal: 14,
+                                            vertical: 12,
+                                          ),
                                           child: Text(
                                             widget.itemLabel(item),
-                                            overflow: widget.wrapText ? TextOverflow.visible : TextOverflow.ellipsis,
-                                            maxLines: widget.wrapText ? null : 1,
+                                            overflow: widget.wrapText
+                                                ? TextOverflow.visible
+                                                : TextOverflow.ellipsis,
+                                            maxLines: widget.wrapText
+                                                ? null
+                                                : 1,
                                             style: GoogleFonts.inter(
                                               fontSize: 14,
                                               fontWeight: selected
                                                   ? FontWeight.w600
                                                   : FontWeight.w400,
-                                              color: selected ? selectedText : cs.onSurface,
+                                              color: selected
+                                                  ? selectedText
+                                                  : cs.onSurface,
                                             ),
                                           ),
                                         ),
@@ -284,17 +310,25 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                             child: Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                               child: Row(
                                 children: [
                                   if (widget.addNewShowIcon) ...[
-                                    Icon(Icons.add_circle_outline_rounded,
-                                        size: 18, color: cs.primary),
+                                    Icon(
+                                      Icons.add_circle_outline_rounded,
+                                      size: 18,
+                                      color: cs.primary,
+                                    ),
                                     const SizedBox(width: 8),
                                   ],
                                   Flexible(
                                     child: Text(
-                                      widget.addNewLabel ?? AppLocalizations.of(context).genericAdd,
+                                      widget.addNewLabel ??
+                                          AppLocalizations.of(
+                                            context,
+                                          ).genericAdd,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.inter(
@@ -327,7 +361,10 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
   /// The closed field's row. With wrapped text it grows with the text and the arrow box grows with it.
   Widget _fieldRow({required List<Widget> children}) => widget.wrapText
       ? IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
         )
       : Row(children: children);
 
@@ -338,8 +375,8 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
     final borderColor = widget.errorText != null
         ? cs.error
         : _isOpen
-            ? cs.primary
-            : cs.outline.withValues(alpha: 0.4);
+        ? cs.primary
+        : cs.outline.withValues(alpha: 0.4);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,16 +398,26 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: borderColor, width: _isOpen ? 1.5 : 1),
+                border: Border.all(
+                  color: borderColor,
+                  width: _isOpen ? 1.5 : 1,
+                ),
               ),
               child: _fieldRow(
                 children: [
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
                       child: Text(
-                        hasValue ? widget.itemLabel(widget.value as T) : widget.hintText,
-                        overflow: widget.wrapText ? TextOverflow.visible : TextOverflow.ellipsis,
+                        hasValue
+                            ? widget.itemLabel(widget.value as T)
+                            : widget.hintText,
+                        overflow: widget.wrapText
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
                         maxLines: widget.wrapText ? null : 1,
                         style: GoogleFonts.inter(
                           fontSize: 14,
@@ -386,7 +433,7 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                   // reads as one continuous field with two zones.
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    height: widget.wrapText ? null : 48,
+                    height: widget.wrapText ? null : widget.fieldHeight,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
@@ -397,7 +444,9 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                       ),
                     ),
                     child: Icon(
-                      _isOpen ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      _isOpen
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
                       size: 22,
                       color: cs.onSurfaceVariant,
                     ),
@@ -417,7 +466,10 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
           const SizedBox(height: 4),
           Text(
             widget.helperText!,
-            style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              color: cs.onSurfaceVariant,
+            ),
           ),
         ],
       ],
@@ -432,18 +484,23 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
 Future<String?> promptForNewOptionName(
   BuildContext context, {
   required String title,
-  String hintText = 'Name',
+  String? hintText,
 }) async {
   final controller = TextEditingController();
   final l10n = AppLocalizations.of(context);
   final result = await showDialog<String>(
     context: context,
     builder: (dialogCtx) => AlertDialog(
-      title: Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+      title: Text(
+        title,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
       content: TextField(
         controller: controller,
         autofocus: true,
-        decoration: InputDecoration(hintText: hintText),
+        decoration: InputDecoration(
+          hintText: hintText ?? l10n.programMgmtFieldName,
+        ),
         textCapitalization: TextCapitalization.words,
       ),
       actions: [

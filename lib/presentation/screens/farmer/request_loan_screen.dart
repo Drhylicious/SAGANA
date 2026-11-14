@@ -113,7 +113,10 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
   }
 
   List<String> get _categories {
-    final set = <String>{for (final i in _items) if (i.category.isNotEmpty) i.category};
+    final set = <String>{
+      for (final i in _items)
+        if (i.category.isNotEmpty) i.category,
+    };
     return set.toList()..sort();
   }
 
@@ -183,7 +186,8 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
     await context.pushRoute<void>(AppRoutes.myLoanRequests);
   }
 
-  Future<void> _openMyRequests() => context.pushRoute<void>(AppRoutes.myLoanRequests);
+  Future<void> _openMyRequests() =>
+      context.pushRoute<void>(AppRoutes.myLoanRequests);
 
   @override
   Widget build(BuildContext context) {
@@ -243,19 +247,23 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                             hintText: l10n.loanReqSearchHint,
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: context.saganaColors.cardBackground,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
+                              ),
                               borderSide: BorderSide(
                                 color: cs.outline.withValues(alpha: 0.2),
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
+                              ),
                               borderSide: BorderSide(
                                 color: cs.outline.withValues(alpha: 0.2),
                               ),
@@ -268,6 +276,11 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                             categories: _categories,
                             selected: _category,
                             allLabel: l10n.loanReqAll,
+                            total: _items.length,
+                            counts: {
+                              for (final c in _categories)
+                                c: _items.where((i) => i.category == c).length,
+                            },
                             onSelected: (c) => setState(() => _category = c),
                           ),
                         ],
@@ -285,7 +298,9 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                               child: _LoanableItemCard(
                                 item: item,
                                 quantity: _quantities[item.inventoryItemId],
-                                onTap: item.inStock ? () => _editQuantity(item) : null,
+                                onTap: item.inStock
+                                    ? () => _editQuantity(item)
+                                    : null,
                               ),
                             ),
                       ],
@@ -311,9 +326,9 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                   message: l10n.loanReqHistoryTooltip,
                   child: GestureDetector(
                     onTap: _openMyRequests,
-                    child: const Icon(
+                    child: Icon(
                       Icons.assignment_outlined,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                       size: 26,
                     ),
                   ),
@@ -368,7 +383,11 @@ class _Notice extends StatelessWidget {
               color: Color(0xFFDBF1FE),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 32, color: AppConstants.outline),
+            child: Icon(
+              icon,
+              size: 32,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -377,7 +396,7 @@ class _Notice extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
@@ -387,7 +406,7 @@ class _Notice extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 13,
               height: 1.4,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           if (actionLabel != null) ...[
@@ -404,12 +423,16 @@ class _CategoryChips extends StatelessWidget {
   final List<String> categories;
   final String? selected;
   final String allLabel;
+  final int total;
+  final Map<String, int> counts;
   final ValueChanged<String?> onSelected;
 
   const _CategoryChips({
     required this.categories,
     required this.selected,
     required this.allLabel,
+    required this.total,
+    required this.counts,
     required this.onSelected,
   });
 
@@ -423,18 +446,18 @@ class _CategoryChips extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: active ? AppConstants.primaryContainer : AppConstants.onSurfaceVariant,
+            color: active
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         selected: active,
         showCheckmark: false,
         onSelected: (_) => onTap(),
-        selectedColor: AppConstants.primaryContainer.withValues(alpha: 0.12),
+        selectedColor: AppConstants.primaryGreen,
         backgroundColor: context.saganaColors.cardBackground,
         side: BorderSide(
-          color: active
-              ? AppConstants.primaryContainer.withValues(alpha: 0.30)
-              : Colors.transparent,
+          color: active ? AppConstants.primaryGreen : Colors.transparent,
         ),
         shape: const StadiumBorder(),
       ),
@@ -444,8 +467,13 @@ class _CategoryChips extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          chip(allLabel, selected == null, () => onSelected(null)),
-          for (final c in categories) chip(c, selected == c, () => onSelected(c)),
+          chip('$allLabel ($total)', selected == null, () => onSelected(null)),
+          for (final c in categories)
+            chip(
+              '$c (${counts[c] ?? 0})',
+              selected == c,
+              () => onSelected(c),
+            ),
         ],
       ),
     );
@@ -471,7 +499,9 @@ class _LoanableItemCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final selected = quantity != null && quantity! > 0;
     final enabled = item.inStock;
-    final stockColor = enabled ? AppConstants.successGreen : AppConstants.errorRed;
+    final stockColor = enabled
+        ? AppConstants.successGreen
+        : AppConstants.errorRed;
 
     return Opacity(
       opacity: enabled ? 1 : 0.6,
@@ -504,7 +534,8 @@ class _LoanableItemCard extends StatelessWidget {
                         ? Image.network(
                             item.imageUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const _ItemPlaceholder(),
+                            errorBuilder: (_, __, ___) =>
+                                const _ItemPlaceholder(),
                           )
                         : const _ItemPlaceholder(),
                   ),
@@ -536,7 +567,9 @@ class _LoanableItemCard extends StatelessWidget {
                       Row(
                         children: [
                           Icon(
-                            enabled ? Icons.inventory_2_outlined : Icons.block_rounded,
+                            enabled
+                                ? Icons.inventory_2_outlined
+                                : Icons.block_rounded,
                             size: 13,
                             color: stockColor,
                           ),
@@ -545,7 +578,10 @@ class _LoanableItemCard extends StatelessWidget {
                             child: Text(
                               enabled
                                   ? l10n.loanReqInStock(
-                                      formatQuantityUnit(item.quantityOnHand, item.unit),
+                                      formatQuantityUnit(
+                                        item.quantityOnHand,
+                                        item.unit,
+                                      ),
                                     )
                                   : l10n.loanReqOutOfStock,
                               maxLines: 1,
@@ -574,7 +610,7 @@ class _LoanableItemCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                       Text(
@@ -582,24 +618,29 @@ class _LoanableItemCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
                     child: Text(
                       l10n.loanReqAdd,
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -618,7 +659,11 @@ class _ItemPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-    child: const Icon(Icons.grass_rounded, color: AppConstants.primaryGreen, size: 26),
+    child: Icon(
+      Icons.grass_rounded,
+      color: Theme.of(context).colorScheme.primary,
+      size: 26,
+    ),
   );
 }
 
@@ -646,7 +691,9 @@ class _SummaryBar extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
-        border: Border(top: BorderSide(color: cs.outline.withValues(alpha: 0.12))),
+        border: Border(
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.12)),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -664,7 +711,10 @@ class _SummaryBar extends StatelessWidget {
               children: [
                 Text(
                   l10n.loanReqItemCount(count),
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 Text(
                   '₱${NumberFormat('#,##0.00').format(total)}',
@@ -725,9 +775,11 @@ class _QuantitySheetState extends State<_QuantitySheet> {
       return;
     }
     if (v > widget.item.quantityOnHand + 1e-9) {
-      setState(() => _error = l10n.loanReqQtyTooMuch(
-        formatQuantityUnit(widget.item.quantityOnHand, widget.item.unit),
-      ));
+      setState(
+        () => _error = l10n.loanReqQtyTooMuch(
+          formatQuantityUnit(widget.item.quantityOnHand, widget.item.unit),
+        ),
+      );
       return;
     }
     Navigator.pop(context, roundQuantity(v));
@@ -750,7 +802,11 @@ class _QuantitySheetState extends State<_QuantitySheet> {
         children: [
           Row(
             children: [
-              const Icon(Icons.inventory_2_outlined, size: 16, color: AppConstants.successGreen),
+              const Icon(
+                Icons.inventory_2_outlined,
+                size: 16,
+                color: AppConstants.successGreen,
+              ),
               const SizedBox(width: 6),
               Text(
                 l10n.loanReqQtyAvailable(
@@ -796,7 +852,9 @@ class _QuantitySheetState extends State<_QuantitySheet> {
               onPressed: () => Navigator.pop(context, 0.0),
               icon: const Icon(Icons.delete_outline_rounded, size: 18),
               label: Text(l10n.loanReqRemove),
-              style: TextButton.styleFrom(foregroundColor: AppConstants.errorRed),
+              style: TextButton.styleFrom(
+                foregroundColor: AppConstants.errorRed,
+              ),
             ),
           ],
         ],
@@ -877,7 +935,8 @@ class _ReviewSheetState extends State<_ReviewSheet> {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _error = readableDatabaseMessage(e) ??
+        _error =
+            readableDatabaseMessage(e) ??
             (e is ServerOnlyException ? e.toString() : l10n.loanReqFailed);
       });
       // The stock may have changed: show the catalog as it is now.
@@ -957,7 +1016,10 @@ class _ReviewSheetState extends State<_ReviewSheet> {
               Expanded(
                 child: Text(
                   l10n.loanReqTotal,
-                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
@@ -965,7 +1027,7 @@ class _ReviewSheetState extends State<_ReviewSheet> {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],
@@ -988,7 +1050,11 @@ class _ReviewSheetState extends State<_ReviewSheet> {
           const SizedBox(height: 4),
           Text(
             l10n.loanReqPaymentNote,
-            style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              height: 1.4,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: 10),
@@ -1001,7 +1067,10 @@ class _ReviewSheetState extends State<_ReviewSheet> {
               ),
               child: Text(
                 _error!,
-                style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.errorRed),
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  color: AppConstants.errorRed,
+                ),
               ),
             ),
           ],

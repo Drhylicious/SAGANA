@@ -1,3 +1,5 @@
+import '../../../core/theme/sagana_colors.dart';
+import '../../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
@@ -50,100 +52,120 @@ class _FarmLocationFullMapScreenState extends State<FarmLocationFullMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
       body: Column(
         children: [
-          SubPageTopBar(title: 'Farm Location', onBack: _done),
-          Expanded(child: Stack(
-        children: [
-          fm.FlutterMap(
-            mapController: _mapCtrl,
-            options: fm.MapOptions(
-              initialCenter: _pinnedLocation ?? _defaultCenter,
-              initialZoom: _pinnedLocation != null ? _pinZoom : _defaultZoom,
-              onTap: _onMapTap,
-            ),
-            children: [
-              const OsmMapAttribution(),
-              fm.TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.sp3coop.sagana',
-                tileProvider: fm.NetworkTileProvider(
-                  headers: {'User-Agent': kOsmTileUserAgent},
-                ),
-                // See edit_farm_details_screen.dart's identical callback —
-                // flutter_map cancels in-flight tile requests for tiles
-                // scrolled out of view mid-pan/zoom; expected, not a
-                // real failure.
-                errorTileCallback: (tile, error, stackTrace) {},
-              ),
-              if (_pinnedLocation != null)
-                fm.MarkerLayer(
-                  markers: [
-                    fm.Marker(
-                      point: _pinnedLocation!,
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.topCenter,
-                      child: const Icon(
-                        Icons.location_on_rounded,
-                        size: 44,
-                        color: AppConstants.primaryGreen,
+          SubPageTopBar(
+            title: AppLocalizations.of(context).farmLocationSectionTitle,
+            onBack: _done,
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                fm.FlutterMap(
+                  mapController: _mapCtrl,
+                  options: fm.MapOptions(
+                    initialCenter: _pinnedLocation ?? _defaultCenter,
+                    initialZoom: _pinnedLocation != null
+                        ? _pinZoom
+                        : _defaultZoom,
+                    onTap: _onMapTap,
+                  ),
+                  children: [
+                    const OsmMapAttribution(),
+                    fm.TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.sp3coop.sagana',
+                      tileProvider: fm.NetworkTileProvider(
+                        headers: {'User-Agent': kOsmTileUserAgent},
                       ),
+                      // See edit_farm_details_screen.dart's identical callback —
+                      // flutter_map cancels in-flight tile requests for tiles
+                      // scrolled out of view mid-pan/zoom; expected, not a
+                      // real failure.
+                      errorTileCallback: (tile, error, stackTrace) {},
                     ),
+                    if (_pinnedLocation != null)
+                      fm.MarkerLayer(
+                        markers: [
+                          fm.Marker(
+                            point: _pinnedLocation!,
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.topCenter,
+                            child: Icon(
+                              Icons.location_on_rounded,
+                              size: 44,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
-            ],
-          ),
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Text(
-                'Tap anywhere on the map to place your farm pin',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _done,
-                icon: const Icon(Icons.check_rounded),
-                label: const Text('Use This Location'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.saganaColors.cardBackground.withValues(
+                        alpha: 0.95,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      AppLocalizations.of(
+                        context,
+                      ).enhTapAnywhereOnTheMapToPlaceYour,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                Positioned(
+                  bottom: 20,
+                  left: 20,
+                  right: 20,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _done,
+                      icon: const Icon(Icons.check_rounded),
+                      label: Text(
+                        AppLocalizations.of(context).enhUseThisLocation,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppConstants.primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      )),
         ],
       ),
     );

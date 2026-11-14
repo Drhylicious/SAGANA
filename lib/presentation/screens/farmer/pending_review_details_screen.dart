@@ -151,7 +151,8 @@ class _PendingReviewDetailsScreenState
     // uniqueness.
     final email = _emailCtrl.text.trim();
     final originalEmail = _profile?.contactEmail?.trim() ?? '';
-    if (email.isNotEmpty && email.toLowerCase() != originalEmail.toLowerCase()) {
+    if (email.isNotEmpty &&
+        email.toLowerCase() != originalEmail.toLowerCase()) {
       setState(() => _savingPersonal = true);
       final domain = await AuthService.checkEmailDomain(email);
       if (!mounted) return;
@@ -259,7 +260,7 @@ class _PendingReviewDetailsScreenState
         );
       } else {
         await _addressRepo.addAddress(
-          label: 'Home',
+          label: AppLocalizations.of(context).navHome,
           recipientName: fullName,
           contactNumber: phone,
           addressLine: addressLine,
@@ -296,10 +297,16 @@ class _PendingReviewDetailsScreenState
       body: Column(
         children: [
           // Same header height, background, and divider as the three tabs.
-          SubPageTopBar(title: l10n.pendingReviewEditButton, onBack: () => context.pop()),
+          SubPageTopBar(
+            title: l10n.pendingReviewEditButton,
+            onBack: () => context.pop(),
+          ),
           Expanded(
             child: _loading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
                     children: [
@@ -393,7 +400,7 @@ class _PendingReviewDetailsScreenState
         style: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppConstants.primaryGreen,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -433,24 +440,28 @@ class _PendingReviewDetailsScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _infoRow(cs, l10n.pendingFullNameLabel, p?.fullName ?? l10n.pendingNotSet),
+        _infoRow(
+          cs,
+          l10n.pendingFullNameLabel,
+          p?.fullName ?? l10n.pendingNotSet,
+        ),
         _infoRow(cs, l10n.emailAddress, p?.contactEmail ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.pendingPhoneLabel, p?.phoneNumber ?? l10n.pendingNotSet),
+        _infoRow(
+          cs,
+          l10n.pendingPhoneLabel,
+          p?.phoneNumber ?? l10n.pendingNotSet,
+        ),
         _infoRow(
           cs,
           l10n.pendingDobLabel,
           dob == null ? l10n.pendingNotSet : _formatDate(dob),
         ),
-        _infoRow(
-          cs,
-          l10n.addMemberGenderLabel,
-          switch (gender) {
-            'male' => l10n.registerGenderMale,
-            'female' => l10n.registerGenderFemale,
-            'prefer_not_to_say' => l10n.registerGenderPreferNotToSay,
-            _ => l10n.pendingNotSet,
-          },
-        ),
+        _infoRow(cs, l10n.addMemberGenderLabel, switch (gender) {
+          'male' => l10n.registerGenderMale,
+          'female' => l10n.registerGenderFemale,
+          'prefer_not_to_say' => l10n.registerGenderPreferNotToSay,
+          _ => l10n.pendingNotSet,
+        }),
       ],
     );
   }
@@ -475,6 +486,7 @@ class _PendingReviewDetailsScreenState
             controller: _phoneCtrl,
             keyboardType: TextInputType.phone,
             decoration: authFieldDecoration(
+              context: context,
               label: l10n.pendingPhoneFieldLabel,
               icon: Icons.phone_outlined,
             ),
@@ -491,6 +503,7 @@ class _PendingReviewDetailsScreenState
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             decoration: authFieldDecoration(
+              context: context,
               label: l10n.pendingEmailFieldLabel,
               icon: Icons.mail_outline_rounded,
             ),
@@ -517,6 +530,7 @@ class _PendingReviewDetailsScreenState
             },
             child: InputDecorator(
               decoration: authFieldDecoration(
+                context: context,
                 label: l10n.pendingDobLabel,
                 icon: Icons.cake_outlined,
               ),
@@ -573,14 +587,42 @@ class _PendingReviewDetailsScreenState
           style: GoogleFonts.inter(fontSize: 14, height: 1.5),
         ),
         const SizedBox(height: 14),
-        _infoRow(cs, l10n.registerRegionLabel, a.regionName ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.registerProvinceLabel, a.provinceName ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.registerCityLabel, a.cityMunicipalityName ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.registerBarangayLabel, a.barangayName ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.registerPostalLabel, a.postalCode ?? l10n.pendingNotSet),
+        _infoRow(
+          cs,
+          l10n.registerRegionLabel,
+          a.regionName ?? l10n.pendingNotSet,
+        ),
+        _infoRow(
+          cs,
+          l10n.registerProvinceLabel,
+          a.provinceName ?? l10n.pendingNotSet,
+        ),
+        _infoRow(
+          cs,
+          l10n.registerCityLabel,
+          a.cityMunicipalityName ?? l10n.pendingNotSet,
+        ),
+        _infoRow(
+          cs,
+          l10n.registerBarangayLabel,
+          a.barangayName ?? l10n.pendingNotSet,
+        ),
+        _infoRow(
+          cs,
+          l10n.registerPostalLabel,
+          a.postalCode ?? l10n.pendingNotSet,
+        ),
         _infoRow(cs, l10n.registerStreetLabel, a.street ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.registerBuildingLabel, a.building ?? l10n.pendingNotSet),
-        _infoRow(cs, l10n.registerHouseNoLabel, a.houseNo ?? l10n.pendingNotSet),
+        _infoRow(
+          cs,
+          l10n.registerBuildingLabel,
+          a.building ?? l10n.pendingNotSet,
+        ),
+        _infoRow(
+          cs,
+          l10n.registerHouseNoLabel,
+          a.houseNo ?? l10n.pendingNotSet,
+        ),
       ],
     );
   }
@@ -589,31 +631,31 @@ class _PendingReviewDetailsScreenState
     return Form(
       key: _addressKey,
       child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FixedFarmerAddressFields(
-          streetController: _streetCtrl,
-          buildingController: _buildingCtrl,
-          houseNoController: _houseNoCtrl,
-        ),
-        if (_addressError != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            _addressError!,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppConstants.errorRed,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FixedFarmerAddressFields(
+            streetController: _streetCtrl,
+            buildingController: _buildingCtrl,
+            houseNoController: _houseNoCtrl,
+          ),
+          if (_addressError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _addressError!,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
             ),
+          ],
+          const SizedBox(height: 16),
+          _editActions(
+            l10n: l10n,
+            saving: _savingAddress,
+            onCancel: _cancelAddress,
+            onSave: _saveAddress,
           ),
         ],
-        const SizedBox(height: 16),
-        _editActions(
-          l10n: l10n,
-          saving: _savingAddress,
-          onCancel: _cancelAddress,
-          onSave: _saveAddress,
-        ),
-      ],
       ),
     );
   }

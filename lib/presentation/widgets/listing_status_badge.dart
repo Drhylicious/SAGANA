@@ -131,6 +131,8 @@ String listingFilterLabel(AppLocalizations l10n, ListingFilter filter) {
       return l10n.listingStatePendingApproval;
     case ListingFilter.available:
       return l10n.listingStateAvailable;
+    case ListingFilter.unavailable:
+      return l10n.shelfTagUnavailable;
     case ListingFilter.soldOut:
       return l10n.listingStateSoldOut;
     case ListingFilter.disapproved:
@@ -148,6 +150,8 @@ Color listingFilterColor(BuildContext context, ListingFilter filter) {
       return listingStateColor(context, ListingState.pendingApproval);
     case ListingFilter.available:
       return listingStateColor(context, ListingState.available);
+    case ListingFilter.unavailable:
+      return Theme.of(context).colorScheme.error;
     case ListingFilter.soldOut:
       return listingStateColor(context, ListingState.soldOut);
     case ListingFilter.disapproved:
@@ -184,9 +188,18 @@ class ListingStatusBadge extends StatelessWidget {
     BuildContext context, {
     required String status,
     required double remainingKg,
+    // Published but past its shelf life and not confirmed: Buyers cannot see
+    // or buy it. Only the Farmer's and the staff's screens pass this.
+    bool shelfUnavailable = false,
   }) {
     final l10n = AppLocalizations.of(context);
     final state = listingStateOf(status: status, remainingKg: remainingKg);
+    if (shelfUnavailable && state == ListingState.available) {
+      return ListingStatusBadge(
+        label: l10n.shelfTagUnavailable,
+        color: Theme.of(context).colorScheme.error,
+      );
+    }
     if (state == null) {
       return ListingStatusBadge(
         label: status,

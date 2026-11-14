@@ -55,9 +55,15 @@ class CartCheckoutResultScreen extends StatelessWidget {
       backgroundColor: sagana.scaffoldBackground,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH, vertical: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSafeH,
+            vertical: 24,
+          ),
           children: [
-            OfflineStatusCard(title: l10n.offlineStatusTitle, message: l10n.offlineBuyerBody),
+            OfflineStatusCard(
+              title: l10n.offlineStatusTitle,
+              message: l10n.offlineBuyerBody,
+            ),
             const SizedBox(height: 12),
             // Same OrderResultIcon Buy Now's Order Success uses — just a
             // different icon/color for the partial-failure case, not a
@@ -65,20 +71,36 @@ class CartCheckoutResultScreen extends StatelessWidget {
             Center(
               child: OrderResultIcon(
                 icon: allSucceeded ? Icons.check_rounded : Icons.info_rounded,
-                color: allSucceeded ? AppConstants.successGreen : AppConstants.warningAmber,
+                color: allSucceeded
+                    ? AppConstants.successGreen
+                    : AppConstants.warningAmber,
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              allSucceeded ? l10n.buyerOrderSuccessTitle : l10n.buyerCheckoutResultPartialTitle(succeeded.length, succeeded.length + failed.length),
+              allSucceeded
+                  ? l10n.buyerOrderSuccessTitle
+                  : l10n.buyerCheckoutResultPartialTitle(
+                      succeeded.length,
+                      succeeded.length + failed.length,
+                    ),
               textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen),
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              allSucceeded ? l10n.buyerOrderSuccessSubtitle : l10n.buyerCheckoutResultPartialBody,
+              allSucceeded
+                  ? l10n.buyerOrderSuccessSubtitle
+                  : l10n.buyerCheckoutResultPartialBody,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 24),
             if (succeeded.isNotEmpty) ...[
@@ -102,10 +124,24 @@ class CartCheckoutResultScreen extends StatelessWidget {
             ],
             if (failed.isNotEmpty) ...[
               const SizedBox(height: 18),
-              Text(l10n.buyerCheckoutResultFailedLabel,
-                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.errorRed, letterSpacing: 0.5)),
+              Text(
+                l10n.buyerCheckoutResultFailedLabel,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.errorRed,
+                  letterSpacing: 0.5,
+                ),
+              ),
               const SizedBox(height: 6),
-              ...failed.map((f) => _resultRow(f.$1.displayName, f.$2, AppConstants.errorRed, Icons.error_outline_rounded)),
+              ...failed.map(
+                (f) => _resultRow(
+                  f.$1.displayName,
+                  f.$2,
+                  AppConstants.errorRed,
+                  Icons.error_outline_rounded,
+                ),
+              ),
             ],
           ],
         ),
@@ -148,17 +184,21 @@ class _SucceededOrderCardsState extends State<_SucceededOrderCards> {
     super.initState();
     final tokens = widget.succeeded.map((s) => s.$2).toList();
     Future.wait([
-      BuyerOrderRepository().fetchOrderNumbers(tokens.where((t) => !isProgramOrderToken(t)).toList()),
+      BuyerOrderRepository().fetchOrderNumbers(
+        tokens.where((t) => !isProgramOrderToken(t)).toList(),
+      ),
       CooperativeOrderRepository().fetchOrderNumbers(
         tokens.where(isProgramOrderToken).map(programOrderIdOf).toList(),
       ),
     ]).then((r) {
       if (!mounted) return;
-      setState(() => _numbers = {
-            ...r[0],
-            // A Cooperative order is keyed here by its token, like the id the checkout handed over.
-            for (final e in r[1].entries) programOrderToken(e.key): e.value,
-          });
+      setState(
+        () => _numbers = {
+          ...r[0],
+          // A Cooperative order is keyed here by its token, like the id the checkout handed over.
+          for (final e in r[1].entries) programOrderToken(e.key): e.value,
+        },
+      );
     });
   }
 

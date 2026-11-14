@@ -110,7 +110,10 @@ class _CoopOfferNegotiationScreenState
   /// Runs one negotiation action. On a refusal (someone answered first, the
   /// price moved, the offer closed) the message is shown and the screen is
   /// reloaded so the user sees the latest price before trying again.
-  Future<void> _run(Future<void> Function() action, String successMessage) async {
+  Future<void> _run(
+    Future<void> Function() action,
+    String successMessage,
+  ) async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
@@ -215,7 +218,8 @@ class _CoopOfferNegotiationScreenState
   Future<void> _confirmReceipt(CooperativeOfferModel offer) async {
     if (!_cooperativeMayAct()) return;
     final l10n = AppLocalizations.of(context);
-    final amount = offer.confirmedAmount ??
+    final amount =
+        offer.confirmedAmount ??
         moneyOf(offer.agreedPricePerKg ?? 0, offer.offeredQuantityKg);
     final note = await showCoopConfirmDialog(
       context,
@@ -489,7 +493,10 @@ class _DeliveryCard extends StatelessWidget {
           if (offer.deliveredAt != null)
             Text(
               l10n.coopDeliveredOn(coopDateTime(offer.deliveredAt!)),
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           if (offer.deliveryNote != null && offer.deliveryNote!.isNotEmpty)
             Padding(
@@ -550,7 +557,7 @@ class _FarmerCard extends StatelessWidget {
                         : 'F',
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
           ),
@@ -662,6 +669,7 @@ class CoopOfferActionBar extends StatelessWidget {
   final VoidCallback onEnd;
 
   const CoopOfferActionBar({
+    super.key,
     required this.offer,
     required this.forFarmer,
     required this.busy,
@@ -786,7 +794,11 @@ class CoopOfferActionBar extends StatelessWidget {
     );
 
     if (!offer.hasPrice) {
-      return [counter, const SizedBox(height: 10), SizedBox(width: double.infinity, child: decline)];
+      return [
+        counter,
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: decline),
+      ];
     }
     return [
       Padding(

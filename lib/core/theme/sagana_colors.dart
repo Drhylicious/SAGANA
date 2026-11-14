@@ -95,18 +95,31 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
   SaganaColors lerp(ThemeExtension<SaganaColors>? other, double t) {
     if (other is! SaganaColors) return this;
     return SaganaColors(
-      scaffoldBackground:
-          Color.lerp(scaffoldBackground, other.scaffoldBackground, t)!,
+      scaffoldBackground: Color.lerp(
+        scaffoldBackground,
+        other.scaffoldBackground,
+        t,
+      )!,
       cardBackground: Color.lerp(cardBackground, other.cardBackground, t)!,
       glassBackground: Color.lerp(glassBackground, other.glassBackground, t)!,
       glassBorder: Color.lerp(glassBorder, other.glassBorder, t)!,
-      navBarBackground:
-          Color.lerp(navBarBackground, other.navBarBackground, t)!,
+      navBarBackground: Color.lerp(
+        navBarBackground,
+        other.navBarBackground,
+        t,
+      )!,
       gold: Color.lerp(gold, other.gold, t)!,
       harvestGold: Color.lerp(harvestGold, other.harvestGold, t)!,
-      marketCooperative:
-          Color.lerp(marketCooperative, other.marketCooperative, t)!,
-      marketOpenMarket: Color.lerp(marketOpenMarket, other.marketOpenMarket, t)!,
+      marketCooperative: Color.lerp(
+        marketCooperative,
+        other.marketCooperative,
+        t,
+      )!,
+      marketOpenMarket: Color.lerp(
+        marketOpenMarket,
+        other.marketOpenMarket,
+        t,
+      )!,
       marketDaAmad: Color.lerp(marketDaAmad, other.marketDaAmad, t)!,
     );
   }
@@ -115,6 +128,16 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
 extension SaganaColorsContext on BuildContext {
   SaganaColors get saganaColors =>
       Theme.of(this).extension<SaganaColors>() ?? SaganaColors.light;
+
+  /// Pale illustration/status fills retain their hue without becoming white
+  /// panels in dark mode. All roles share the Manager's card surface beneath.
+  Color adaptiveSurface(Color light) =>
+      Theme.of(this).brightness == Brightness.dark
+      ? Color.alphaBlend(
+          light.withValues(alpha: 0.12),
+          saganaColors.cardBackground,
+        )
+      : light;
 }
 
 /// Shared label + colour for the market types (crop_master.crop_type /

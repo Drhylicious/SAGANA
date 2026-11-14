@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -27,17 +26,13 @@ class BuyerManagementScreen extends StatefulWidget {
 }
 
 class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
-  final _repo       = BuyerProfileRepository();
+  final _repo = BuyerProfileRepository();
   final _searchCtrl = TextEditingController();
 
-  List<BuyerProfileModel> _buyers      = [];
+  List<BuyerProfileModel> _buyers = [];
   bool _isLoading = true;
-  bool _isOnline  = true;
+  bool _isOnline = true;
   String _searchQuery = '';
-  // null=all, 'active', 'inactive' (derived, 30-day-idle — see
-  // BuyerProfileModel.isInactive).
-  String? _statusFilter;
-
   @override
   void initState() {
     super.initState();
@@ -68,33 +63,66 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
     });
   }
 
+  // Every Buyer, searched by name only (contact details are not shown on this
+  // screen), in name order.
   List<BuyerProfileModel> get _filtered {
-    var list = _buyers;
-    switch (_statusFilter) {
-      case 'active':
-        list = list.where((b) => buyerStatusOf(b) == BuyerStatus.active).toList();
-        break;
-      case 'inactive':
-        list = list.where((b) => buyerStatusOf(b) == BuyerStatus.inactive).toList();
-        break;
-    }
-    // Searched by name only: contact details are not shown on this screen.
-    if (_searchQuery.trim().isNotEmpty) {
-      final q = _searchQuery.trim().toLowerCase();
-      list = list.where((b) => b.fullName.toLowerCase().contains(q)).toList();
-    }
+    final q = _searchQuery.trim().toLowerCase();
+    final list = q.isEmpty
+        ? [..._buyers]
+        : _buyers.where((b) => b.fullName.toLowerCase().contains(q)).toList();
+    list.sort(
+      (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+    );
     return list;
   }
 
-  int _countOf(BuyerStatus s) =>
-      _buyers.where((b) => buyerStatusOf(b) == s).length;
+  Widget _buyerCard(BuyerProfileModel b, ColorScheme cs, SaganaColors sagana) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: BuyerManagementCard(
+        buyer: b,
+        cs: cs,
+        sagana: sagana,
+        onTap: () => context.push(AppRoutes.buyerDetails, extra: b.userId),
+        onViewOrders: () => context.push(
+          AppRoutes.buyerOrderHistory,
+          extra: {'buyerId': b.userId, 'buyerName': b.fullName},
+        ),
+        onSendNotification: () => context.push(
+          AppRoutes.announcementDashboard,
+          extra: {'buyerId': b.userId, 'buyerName': b.fullName},
+        ),
+      ),
+    );
+  }
+
+  // A group heading: the status and how many Buyers it holds.
+  Widget _groupHeader(String label, int count, ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 8),
+      child: Text(
+        '$label ($count)',
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final l10n    = AppLocalizations.of(context);
-    final sagana  = context.saganaColors;
-    final cs      = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final sagana = context.saganaColors;
+    final cs = Theme.of(context).colorScheme;
     final visible = _filtered;
+    final active = visible
+        .where((b) => buyerStatusOf(b) == BuyerStatus.active)
+        .toList();
+    final inactive = visible
+        .where((b) => buyerStatusOf(b) == BuyerStatus.inactive)
+        .toList();
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -102,7 +130,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'buyers_all',
                 isOnline: _isOnline,
@@ -113,8 +141,12 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
                           children: [
                             // ── Search ───────────────────────────────────
@@ -149,71 +181,33 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                             ),
                             const SizedBox(height: 12),
 
-                            // ── Status tabs ───────────────────────────────
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  _TextTab(
-                                    label: '${l10n.farmerMgmtAllFilter} (${_buyers.length})',
-                                    active: _statusFilter == null,
-                                    onTap: () =>
-                                        setState(() => _statusFilter = null),
-                                    cs: cs,
-                                  ),
-                                  _TextTab(
-                                    label: '${l10n.farmerMgmtStatusActiveLabel} (${_countOf(BuyerStatus.active)})',
-                                    active: _statusFilter == 'active',
-                                    onTap: () => setState(
-                                      () => _statusFilter = 'active',
-                                    ),
-                                    cs: cs,
-                                  ),
-                                  _TextTab(
-                                    label: '${l10n.analyticsInactive} (${_countOf(BuyerStatus.inactive)})',
-                                    active: _statusFilter == 'inactive',
-                                    onTap: () => setState(
-                                      () => _statusFilter = 'inactive',
-                                    ),
-                                    cs: cs,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
                             // ── Buyer cards ──────────────────────────────
+                            // Active Buyers first, then Inactive ones, each
+                            // group in name order under its own heading.
                             if (visible.isEmpty)
                               _EmptyState(cs: cs)
-                            else
-                              ...visible.map(
-                                (b) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                    child: BuyerManagementCard(
-                                      buyer: b,
-                                      cs: cs,
-                                      sagana: sagana,
-                                      onTap: () => context.push(
-                                          AppRoutes.buyerDetails,
-                                      extra: b.userId,
-                                    ),
-                                    onViewOrders: () => context.push(
-                                      AppRoutes.buyerOrderHistory,
-                                      extra: {
-                                        'buyerId': b.userId,
-                                        'buyerName': b.fullName,
-                                      },
-                                    ),
-                                    onSendNotification: () => context.push(
-                                      AppRoutes.announcementDashboard,
-                                      extra: {
-                                        'buyerId': b.userId,
-                                        'buyerName': b.fullName,
-                                      },
-                                    ),
-                                  ),
+                            else ...[
+                              if (active.isNotEmpty) ...[
+                                _groupHeader(
+                                  l10n.farmerMgmtStatusActiveLabel,
+                                  active.length,
+                                  cs,
                                 ),
-                                    ),
+                                for (final b in active)
+                                  _buyerCard(b, cs, sagana),
+                              ],
+                              if (inactive.isNotEmpty) ...[
+                                if (active.isNotEmpty)
+                                  const SizedBox(height: 8),
+                                _groupHeader(
+                                  l10n.analyticsInactive,
+                                  inactive.length,
+                                  cs,
+                                ),
+                                for (final b in inactive)
+                                  _buyerCard(b, cs, sagana),
+                              ],
+                            ],
                           ],
                         ),
                 ),
@@ -252,46 +246,9 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SubPageTopBar(title: AppLocalizations.of(context).buyerMgmtTitle, onBack: onBack);
-  }
-}
-
-class _TextTab extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-  const _TextTab({
-    required this.label,
-    required this.active,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 20),
-        padding: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: active ? cs.primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            color: active ? cs.primary : cs.onSurfaceVariant,
-          ),
-        ),
-      ),
+    return SubPageTopBar(
+      title: AppLocalizations.of(context).buyerMgmtTitle,
+      onBack: onBack,
     );
   }
 }
@@ -309,6 +266,7 @@ class BuyerManagementCard extends StatelessWidget {
   final VoidCallback onViewOrders;
   final VoidCallback onSendNotification;
   const BuyerManagementCard({
+    super.key,
     required this.buyer,
     required this.cs,
     required this.sagana,
@@ -335,13 +293,13 @@ class BuyerManagementCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: sagana.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(
             color: buyer.isActive
-            ? cs.outline.withValues(alpha: 0.10)
+                ? cs.outline.withValues(alpha: 0.10)
                 : cs.outline.withValues(alpha: 0.06),
           ),
           boxShadow: [
@@ -350,10 +308,10 @@ class BuyerManagementCard extends StatelessWidget {
               blurRadius: 6,
             ),
           ],
-      ),
-      child: Row(
+        ),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
+          children: [
             ProfileAvatar(
               photoUrl: buyer.profilePhotoUrl,
               displayName: buyer.fullName,
@@ -417,9 +375,9 @@ class BuyerManagementCard extends StatelessWidget {
                   ),
                 ),
               ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -443,7 +401,7 @@ class _EmptyState extends StatelessWidget {
             size: 48,
             color: cs.outline.withValues(alpha: 0.35),
           ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             l10n.buyerMgmtNoBuyersFound,
             style: GoogleFonts.poppins(
@@ -452,7 +410,7 @@ class _EmptyState extends StatelessWidget {
               color: cs.onSurfaceVariant,
             ),
           ),
-        const SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             l10n.buyerMgmtNoBuyersHint,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),

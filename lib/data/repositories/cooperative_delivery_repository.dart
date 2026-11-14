@@ -79,8 +79,9 @@ class CooperativeDeliveryRepository {
     return (v as num).toInt();
   });
 
-  Future<void> setPickupEnabled(bool enabled) =>
-      _write(() => _client.rpc('set_pickup_enabled', params: {'p_enabled': enabled}));
+  Future<void> setPickupEnabled(bool enabled) => _write(
+    () => _client.rpc('set_pickup_enabled', params: {'p_enabled': enabled}),
+  );
 
   Future<void> setDeliveryEnabled(bool enabled) => _write(
     () => _client.rpc('set_delivery_enabled', params: {'p_enabled': enabled}),
@@ -89,7 +90,6 @@ class CooperativeDeliveryRepository {
   /// What delivery to this saved address costs (writes nothing). Throws with a code at the
   /// start of the message; see [deliveryRefusalOf].
   Future<DeliveryQuote> fetchQuote(String addressId) async {
-    await ServerOnly.ensureOnline();
     final res = await _client.rpc(
       'get_delivery_quote',
       params: {'p_address_id': addressId},

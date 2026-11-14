@@ -264,17 +264,19 @@ class PriceAmountColumn extends StatelessWidget {
         ? AppConstants.successGreen
         : price.isDown
         ? AppConstants.errorRed
-        : AppConstants.outline;
+        : Theme.of(context).colorScheme.outline;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
-          '₱${price.price.toStringAsFixed(2)}',
+          // "₱50.00" for a Fixed Price, "₱50.00–₱80.00" for a Reference Price
+          // Range (smaller, so the longer text still fits the card).
+          price.priceText,
           style: GoogleFonts.poppins(
-            fontSize: 18,
+            fontSize: price.isRange ? 14 : 18,
             fontWeight: FontWeight.w800,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         Text(

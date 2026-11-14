@@ -1,3 +1,5 @@
+import '../../../core/l10n/localized_labels.dart';
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,10 +14,12 @@ import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/guest_mode_service.dart';
-import '../../widgets/animated_pressable.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show ListingStatusFilterChip, MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/guest_prompt.dart';
 import '../../widgets/product_card.dart';
-import '../../../core/utils/order_status.dart' show kOrderSourceCooperative, kOrderSourceMarketplace;
+import '../../../core/utils/order_status.dart'
+    show kOrderSourceCooperative, kOrderSourceMarketplace;
 import '../../widgets/skeleton.dart';
 
 /// Farmer-as-buyer Marketplace tab (Phase 9) — mirrors Buyer's
@@ -64,7 +68,9 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
     _load();
     _loadCartCount();
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -100,11 +106,13 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   List<String> get _availableCategories {
     final cats = <String>{
       for (final l in _allListings)
-        if (_sourceFilter != kOrderSourceCooperative && l.category != null) l.category!,
+        if (_sourceFilter != kOrderSourceCooperative && l.category != null)
+          l.category!,
       for (final p in _allProducts)
-        if (_sourceFilter != kOrderSourceMarketplace && p.category.trim().isNotEmpty) p.category.trim(),
-    }.toList()
-      ..sort();
+        if (_sourceFilter != kOrderSourceMarketplace &&
+            p.category.trim().isNotEmpty)
+          p.category.trim(),
+    }.toList()..sort();
     return ['All', ...cats];
   }
 
@@ -114,8 +122,10 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   List<CooperativeProduct> get _filteredProducts {
     if (!_showProducts) return const [];
     return _allProducts.where((p) {
-      final matchesCategory = _selectedCategory == 'All' || p.category.trim() == _selectedCategory;
-      final matchesSearch = _searchQuery.isEmpty ||
+      final matchesCategory =
+          _selectedCategory == 'All' || p.category.trim() == _selectedCategory;
+      final matchesSearch =
+          _searchQuery.isEmpty ||
           p.itemName.toLowerCase().contains(_searchQuery) ||
           p.programName.toLowerCase().contains(_searchQuery);
       return matchesCategory && matchesSearch;
@@ -127,7 +137,8 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
     return _allListings.where((l) {
       final matchesCategory =
           _selectedCategory == 'All' || l.category == _selectedCategory;
-      final matchesSearch = _searchQuery.isEmpty ||
+      final matchesSearch =
+          _searchQuery.isEmpty ||
           l.cropName.toLowerCase().contains(_searchQuery) ||
           (l.variety?.toLowerCase().contains(_searchQuery) ?? false);
       return matchesCategory && matchesSearch;
@@ -176,13 +187,16 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
           child: _isLoading
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  ),
                 )
               : nothingAtAll
-                  ? _buildEmptyState(l10n, isFilterEmpty: false)
-                  : (filtered.isEmpty && products.isEmpty)
-                      ? _buildEmptyState(l10n, isFilterEmpty: true)
-                      : _buildGrid(l10n, filtered, products),
+              ? _buildEmptyState(l10n, isFilterEmpty: false)
+              : (filtered.isEmpty && products.isEmpty)
+              ? _buildEmptyState(l10n, isFilterEmpty: true)
+              : _buildGrid(l10n, filtered, products),
         ),
       ],
     );
@@ -199,7 +213,7 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
               hintText: l10n.buyerBrowseSearchHint,
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: context.saganaColors.cardBackground,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 borderSide: BorderSide.none,
@@ -212,7 +226,11 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
         IconButton(
           key: const Key('myOrdersShortcut'),
           tooltip: AppLocalizations.of(context).uoMyOrdersShortcut,
-          icon: const Icon(Icons.receipt_long_outlined, color: AppConstants.primaryGreen, size: 24),
+          icon: Icon(
+            Icons.receipt_long_outlined,
+            color: Theme.of(context).colorScheme.primary,
+            size: 24,
+          ),
           onPressed: () async {
             await context.push(AppRoutes.farmerMyOrders);
             _loadCartCount();
@@ -227,43 +245,36 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
     final cats = _availableCategories;
     if (cats.length <= 1) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: 34,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: cats.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final cat = cats[i];
-          final isSelected = cat == _selectedCategory;
-          return AnimatedPressable(
-            onTap: () => setState(() => _selectedCategory = cat),
-            scaleDown: 0.95,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected ? AppConstants.primaryGreen : Colors.white,
-                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                border: Border.all(
-                  color: isSelected
-                      ? AppConstants.primaryGreen
-                      : AppConstants.outline.withValues(alpha: 0.25),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                cat,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : AppConstants.onSurfaceVariant,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    // The standard "Label (n)" chips. A count is the number of items of that
+    // category in the source(s) now shown (listings and Cooperative Products).
+    int countOf(String cat) {
+      var n = 0;
+      if (_showListings) {
+        n += _allListings
+            .where((l) => cat == 'All' || l.category == cat)
+            .length;
+      }
+      if (_showProducts) {
+        n += _allProducts
+            .where((p) => cat == 'All' || p.category.trim() == cat)
+            .length;
+      }
+      return n;
+    }
+
+    return MarketplaceFilterBar<String>(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      selected: _selectedCategory,
+      onSelected: (cat) => setState(() => _selectedCategory = cat),
+      options: [
+        for (final cat in cats)
+          MarketplaceFilterOption(
+            value: cat,
+            label: localizeBuiltinLabel(AppLocalizations.of(context), cat),
+            count: countOf(cat),
+            color: AppConstants.primaryGreen,
+          ),
+      ],
     );
   }
 
@@ -285,7 +296,9 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
         if (i < listings.length) {
           return _ListingCard(
             listing: listings[i],
-            isOwn: listings[i].farmerId != null && listings[i].farmerId == _currentUserId,
+            isOwn:
+                listings[i].farmerId != null &&
+                listings[i].farmerId == _currentUserId,
             onReturn: _loadCartCount,
           );
         }
@@ -301,34 +314,24 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   }
 
   Widget _buildSourceChips(AppLocalizations l10n) {
+    // The standard "Label (n)" chip; the count is what that source holds.
     Widget chip(String? value, String label) {
-      final selected = _sourceFilter == value;
-      return AnimatedPressable(
+      final count = switch (value) {
+        kOrderSourceMarketplace => _allListings.length,
+        kOrderSourceCooperative => _allProducts.length,
+        _ => _allListings.length + _allProducts.length,
+      };
+      return ListingStatusFilterChip(
+        key: Key('source_${value ?? 'all'}'),
+        label: label,
+        count: count,
+        active: _sourceFilter == value,
+        color: AppConstants.programPurple,
+        cs: Theme.of(context).colorScheme,
         onTap: () => setState(() {
           _sourceFilter = value;
           _selectedCategory = 'All';
         }),
-        scaleDown: 0.95,
-        child: Container(
-          key: Key('source_${value ?? 'all'}'),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: selected ? AppConstants.programPurple : Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-            border: Border.all(
-              color: selected ? AppConstants.programPurple : AppConstants.outline.withValues(alpha: 0.25),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : AppConstants.onSurfaceVariant,
-            ),
-          ),
-        ),
       );
     }
 
@@ -348,26 +351,44 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
     );
   }
 
-  Widget _buildEmptyState(AppLocalizations l10n, {required bool isFilterEmpty}) {
+  Widget _buildEmptyState(
+    AppLocalizations l10n, {
+    required bool isFilterEmpty,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.storefront_outlined, size: 56,
-                color: AppConstants.outline.withValues(alpha: 0.5)),
+            Icon(
+              Icons.storefront_outlined,
+              size: 56,
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 16),
             Text(
-              isFilterEmpty ? l10n.buyerBrowseNoResultsTitle : l10n.buyerBrowseEmptyTitle,
+              isFilterEmpty
+                  ? l10n.buyerBrowseNoResultsTitle
+                  : l10n.buyerBrowseEmptyTitle,
               textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
-              isFilterEmpty ? l10n.buyerBrowseNoResultsBody : l10n.buyerBrowseEmptyBody,
+              isFilterEmpty
+                  ? l10n.buyerBrowseNoResultsBody
+                  : l10n.buyerBrowseEmptyBody,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -387,10 +408,17 @@ class _ListingCard extends StatelessWidget {
   final BuyerListingModel listing;
   final bool isOwn;
   final VoidCallback? onReturn;
-  const _ListingCard({required this.listing, required this.isOwn, this.onReturn});
+  const _ListingCard({
+    required this.listing,
+    required this.isOwn,
+    this.onReturn,
+  });
 
   void _open(BuildContext context) async {
-    await context.push(AppRoutes.farmerMarketplaceListingDetail, extra: listing.id);
+    await context.push(
+      AppRoutes.farmerMarketplaceListingDetail,
+      extra: listing.id,
+    );
     onReturn?.call();
   }
 
@@ -417,7 +445,8 @@ class _ListingCard extends StatelessWidget {
       imageUrl: listing.listingPhotoUrl,
       priceText: formatPricePerUnit(listing.pricePerKg, listing.unit),
       buyersText: l10n.catBuyers(listing.buyers),
-      marketTypeText: '${l10n.uoSourceMarketplace} · ${listing.marketTypeLabel}',
+      marketTypeText:
+          '${l10n.uoSourceMarketplace} · ${listing.marketTypeLabel}',
       availableText:
           '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
       soldText: l10n.buyerBrowseUnitsSold(
@@ -450,21 +479,26 @@ class _CooperativeProductCard extends StatelessWidget {
     final String? hint = p.memberPriceApplies
         ? l10n.prodRegularPrice(formatPesos(p.regularPrice))
         : p.hasMemberDiscount
-            ? l10n.cpMemberPriceHint(formatPesos(p.memberPrice))
-            : null;
+        ? l10n.cpMemberPriceHint(formatPesos(p.memberPrice))
+        : null;
     return ProductCard(
       key: Key('coopProduct_${p.productId}'),
       name: p.itemName,
       imageUrl: p.imageUrl,
       placeholderIcon: Icons.inventory_2_outlined,
       priceText: formatPricePerUnit(p.payPrice, p.unit),
-      priceColor: p.memberPriceApplies ? AppConstants.successGreen : AppConstants.primaryGreen,
+      priceColor: p.memberPriceApplies
+          ? AppConstants.successGreen
+          : AppConstants.primaryGreen,
       hintText: hint,
       hintColor: p.memberPriceApplies ? null : AppConstants.programPurple,
       buyersText: l10n.catBuyers(p.buyers),
       marketTypeText: '${l10n.cpSourceLabel} · ${p.programName}',
-      availableText: '${formatQuantityUnit(p.availableToSell, p.unit)} ${l10n.buyerBrowseAvailableSuffix}',
-      soldText: l10n.buyerBrowseUnitsSold(formatQuantityUnit(p.soldQuantity, p.unit)),
+      availableText:
+          '${formatQuantityUnit(p.availableToSell, p.unit)} ${l10n.buyerBrowseAvailableSuffix}',
+      soldText: l10n.buyerBrowseUnitsSold(
+        formatQuantityUnit(p.soldQuantity, p.unit),
+      ),
       soldOut: p.isOutOfStock,
       badgeLabel: p.isOutOfStock ? l10n.buyerBrowseSoldOut : null,
       badgeColor: AppConstants.errorRed,
@@ -484,12 +518,17 @@ class _CartIconButton extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          icon: const Icon(Icons.shopping_cart_outlined, color: AppConstants.primaryGreen, size: 26),
+          icon: Icon(
+            Icons.shopping_cart_outlined,
+            color: Theme.of(context).colorScheme.primary,
+            size: 26,
+          ),
           onPressed: onTap,
         ),
         if (count > 0)
           Positioned(
-            top: 6, right: 6,
+            top: 6,
+            right: 6,
             child: IgnorePointer(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -500,8 +539,14 @@ class _CartIconButton extends StatelessWidget {
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 alignment: Alignment.center,
-                child: Text(count > 9 ? '9+' : '$count',
-                    style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                child: Text(
+                  count > 9 ? '9+' : '$count',
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ),

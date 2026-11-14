@@ -125,11 +125,14 @@ class OfflineActionReplay {
       case 'notification_unread_all':
         await NotificationRepository().markAllAsUnreadOnline();
       case 'notification_delete':
-        await NotificationRepository().deleteNotificationOnline(p['id'] as String);
+        await NotificationRepository().deleteNotificationOnline(
+          p['id'] as String,
+        );
       case 'notification_delete_all':
         await NotificationRepository().deleteAllNotificationsOnline();
       case 'capital_record':
         await CapitalContributionRepository().recordContributionOnline(
+          eventId: p['eventId'] as String,
           farmerId: p['farmerId'] as String,
           amount: (p['amount'] as num).toDouble(),
           source: p['source'] as String,

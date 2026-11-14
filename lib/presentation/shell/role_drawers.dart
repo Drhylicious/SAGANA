@@ -67,7 +67,9 @@ class AdminShellDrawer extends StatelessWidget {
           photoUrl: profile?.profilePhotoUrl,
           displayName:
               profile?.fullName ??
-              (HiveService.isOfficer ? 'Officer' : 'Manager'),
+              (HiveService.isOfficer
+                  ? AppLocalizations.of(context).createOfficerSectionOfficer
+                  : AppLocalizations.of(context).programHistRoleManager),
           contactEmail: profile?.contactEmail ?? profile?.email,
           phoneNumber: profile?.phoneNumber,
           onEditProfile: () {
@@ -102,7 +104,8 @@ class BuyerShellDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppNavigationDrawer(
       photoUrl: profile?.profilePhotoUrl,
-      displayName: profile?.fullName ?? 'Buyer',
+      displayName:
+          profile?.fullName ?? AppLocalizations.of(context).buyerDefaultName,
       contactEmail: profile?.contactEmail,
       phoneNumber: profile?.phoneNumber,
       onEditProfile: () {

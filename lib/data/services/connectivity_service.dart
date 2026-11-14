@@ -17,6 +17,8 @@ class ConnectivityService {
 
   StreamSubscription? _subscription;
   Timer? _reachabilityTimer;
+  Future<bool>? _checking;
+  int _interfaceRevision = 0;
 
   static const _reachabilityTimeout = Duration(seconds: 3);
   static const _reachabilityInterval = Duration(seconds: 30);
@@ -24,43 +26,44 @@ class ConnectivityService {
   // ─── Initialize ──────────────────────────────────────────────────────────────
 
   Future<void> init() async {
-    final result = await _connectivity.checkConnectivity();
-    _isOnline = _isConnected(result);
-
+    if (_subscription != null) return;
     _subscription = _connectivity.onConnectivityChanged.listen((result) {
-      final online = _isConnected(result);
-      if (online != _isOnline) {
-        _isOnline = online;
-        _controller.add(_isOnline);
+      _interfaceRevision++;
+      if (!_isConnected(result)) {
+        _publish(false);
+      } else {
+        unawaited(checkConnectivity());
       }
     });
+    await checkConnectivity();
 
     // Interface-level checks can't tell a live pisonet link from a dead
     // one — both report the same ConnectivityResult. This periodically
     // confirms actual reachability and corrects _isOnline (and every
     // screen listening to onConnectivityChanged) without any of those
     // 19 screens needing to change.
-    _reachabilityTimer = Timer.periodic(_reachabilityInterval, (_) => _probeIfConnected());
+    _reachabilityTimer = Timer.periodic(_reachabilityInterval, (_) {
+      unawaited(checkConnectivity());
+    });
   }
 
   bool _isConnected(ConnectivityResult result) {
-    return result == ConnectivityResult.mobile ||
-        result == ConnectivityResult.wifi ||
-        result == ConnectivityResult.ethernet;
+    return result != ConnectivityResult.none;
   }
 
-  Future<void> _probeIfConnected() async {
-    if (!_isOnline) return; // already known down — nothing to correct
-    final reachable = await _isReachable();
-    if (reachable != _isOnline) {
-      _isOnline = reachable;
-      _controller.add(_isOnline);
-    }
+  void _publish(bool online) {
+    if (_isOnline == online) return;
+    _isOnline = online;
+    _controller.add(online);
   }
 
   Future<bool> _isReachable() async {
     try {
       await Supabase.instance.client.rpc('ping').timeout(_reachabilityTimeout);
+      return true;
+    } on PostgrestException {
+      // A backend error still proves reachability. A missing ping RPC or an
+      // expired token must not mislabel a working connection as offline.
       return true;
     } catch (_) {
       return false;
@@ -71,14 +74,26 @@ class ConnectivityService {
   /// (Loan issuance/payment, Harvest, Expense, SyncService) already awaits
   /// this, so the added round trip is safe here — bounded by
   /// _reachabilityTimeout, not left to hang.
-  Future<bool> checkConnectivity() async {
-    final result = await _connectivity.checkConnectivity();
-    if (!_isConnected(result)) {
-      _isOnline = false;
-      return false;
+  Future<bool> checkConnectivity() => _checking ??= _check().whenComplete(() {
+    _checking = null;
+  });
+
+  Future<bool> _check() async {
+    while (true) {
+      final revision = _interfaceRevision;
+      var online = false;
+      try {
+        final result = await _connectivity.checkConnectivity();
+        online = _isConnected(result) && await _isReachable();
+      } catch (_) {
+        online = false;
+      }
+      // A reconnect can arrive during the shared probe. Recheck that new
+      // interface before completing, rather than waiting for the next timer.
+      if (revision != _interfaceRevision) continue;
+      _publish(online);
+      return _isOnline;
     }
-    _isOnline = await _isReachable();
-    return _isOnline;
   }
 
   void dispose() {

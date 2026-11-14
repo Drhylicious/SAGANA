@@ -1,6 +1,6 @@
-import 'dart:async';
 import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/material.dart';
+import '../../../data/services/hive_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -13,12 +13,10 @@ import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
-import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
-import '../../widgets/cached_data_notice.dart';
 import '../../widgets/dashboard_cards.dart';
 import '../../widgets/sync_status_card.dart';
 import '../../../core/utils/member_access.dart';
@@ -44,25 +42,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<ManagementModuleCard> _managementModules = [];
   List<CalendarEvent> _calendarEvents = [];
   int _unreadCount = 0;
-  String _adminName = 'Admin';
+  String _adminName = '';
 
   // Sections appear as soon as their own data arrives, so a slow query no
   // longer holds back the rest of the dashboard. Refreshes keep showing the
   // previous data instead of re-showing the skeleton.
   final Set<_DashSection> _ready = {};
-  bool _isOnline = true;
-  StreamSubscription<bool>? _connectivitySub;
 
   DateTime _calendarMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
     super.initState();
-    _isOnline = ConnectivityService.instance.isOnline;
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
-        .listen((v) {
-          if (mounted) setState(() => _isOnline = v);
-        });
     _loadAll();
   }
 
@@ -70,12 +61,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     AppTheme.applySystemOverlay(context);
-  }
-
-  @override
-  void dispose() {
-    _connectivitySub?.cancel();
-    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -314,19 +299,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
 
-            // Below the top bar, not above it (same placement as Price
-            // Management's offline card).
-            SliverToBoxAdapter(
-              child: CachedDataNotice(
-                screen: AdminDashboardRepository.cacheScreens().first,
-                otherScreens: AdminDashboardRepository.cacheScreens()
-                    .skip(1)
-                    .toList(),
-                isOnline: _isOnline,
-                offlineMessage: l10n.offlineStaffBody,
-              ),
-            ),
-
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 20,
@@ -338,7 +310,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 delegate: SliverChildListDelegate([
                   // ── Greeting ────────────────────────────────────────────
                   Text(
-                    '${_greeting(l10n)}, $_adminName!',
+                    '${_greeting(l10n)}, ${_adminName.isNotEmpty
+                        ? _adminName
+                        : HiveService.isOfficer
+                        ? l10n.staffRoleOfficer
+                        : l10n.staffRoleManager}!',
                     style: GoogleFonts.poppins(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -744,7 +720,11 @@ class _KpiStrip extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
 
-  const _KpiStrip({required this.pulse, required this.cs, required this.sagana});
+  const _KpiStrip({
+    required this.pulse,
+    required this.cs,
+    required this.sagana,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1461,8 +1441,9 @@ class _CoopPerformanceCard extends StatelessWidget {
                   // One line per unit (kg, sack...), never added together.
                   summary.farmerStock.isEmpty
                       ? '0'
-                      : formatQuantitiesByUnit(summary.farmerStock)
-                            .replaceAll(' + ', '\n'),
+                      : formatQuantitiesByUnit(
+                          summary.farmerStock,
+                        ).replaceAll(' + ', '\n'),
                   cs,
                 ),
                 const SizedBox(width: 12),

@@ -13,13 +13,19 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/report_ui_widgets.dart';
+import '../../widgets/shelf_life_widgets.dart'
+    show ShelfLifeLine, ShelfLifeTag;
+import '../../../core/l10n/localized_labels.dart';
 import '../../../core/utils/member_access.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 
-enum _BatchStatusFilter { all, available, committed, lowStock, soldOut }
+/// The Batches & Stock filter. It follows the Farmer's Manage Inventory: the
+/// stock chips (Available, Committed, Sold) and the condition chips (Good,
+/// Rotten/Lost), where rotten and lost are ONE condition, never two.
+enum _BatchStatusFilter { all, available, committed, sold, good, rottenLost }
 
 extension on _BatchStatusFilter {
   String label(AppLocalizations l10n) {
@@ -30,27 +36,35 @@ extension on _BatchStatusFilter {
         return l10n.rptStatusAvailable;
       case _BatchStatusFilter.committed:
         return l10n.rptStatusCommitted;
-      case _BatchStatusFilter.lowStock:
-        return l10n.rptStatusLowStock;
-      case _BatchStatusFilter.soldOut:
-        return l10n.rptStatusSoldOut;
+      case _BatchStatusFilter.sold:
+        return l10n.reportsSold;
+      case _BatchStatusFilter.good:
+        return l10n.shelfFilterGood;
+      case _BatchStatusFilter.rottenLost:
+        return l10n.shelfFilterRotten;
     }
   }
 
   // The stored batch status for "Committed" is 'reserved' (the whole batch is
   // placed in a listing, offer or sale); the Manager sees it as Committed.
+  // A batch emptied by a rotten report is Rotten/Lost, not Committed or Sold
+  // (its stored status alone cannot tell them apart).
   bool matches(InventoryReportRow row) {
     switch (this) {
       case _BatchStatusFilter.all:
         return true;
+      // A low-stock batch still has stock to sell: it is Available.
       case _BatchStatusFilter.available:
-        return row.status == 'available';
+        return row.status == 'available' || row.status == 'low_stock';
       case _BatchStatusFilter.committed:
-        return row.status == 'reserved';
-      case _BatchStatusFilter.lowStock:
-        return row.status == 'low_stock';
-      case _BatchStatusFilter.soldOut:
-        return row.status == 'sold_out';
+        return row.status == 'reserved' && !row.isLost;
+      case _BatchStatusFilter.sold:
+        return (row.status == 'sold_out' || row.status == 'withdrawn') &&
+            !row.isLost;
+      case _BatchStatusFilter.good:
+        return !row.hasLoss && (row.availableKg > 0 || row.reservedKg > 0);
+      case _BatchStatusFilter.rottenLost:
+        return row.hasLoss;
     }
   }
 }
@@ -83,6 +97,10 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
 
   ReportPeriod _period = ReportPeriod.thisMonth;
   _BatchStatusFilter _statusFilter = _BatchStatusFilter.all;
+  // Activity & Trends: the crop category of the harvest entries shown
+  // (null = All). These chips describe the harvest itself; the stock chips
+  // (Available, Committed ...) belong to Batches & Stock only.
+  String? _categoryFilter;
   String _harvestSearchQuery = '';
   String _inventorySearchQuery = '';
 
@@ -134,13 +152,23 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
     setState(() => _period = period);
     final data = await _repo.fetchHarvestReport(period);
     if (!mounted) return;
-    setState(() => _harvestData = data);
+    setState(() {
+      _harvestData = data;
+      if (!data.harvests.any((h) => h.cropCategory == _categoryFilter)) {
+        _categoryFilter = null;
+      }
+    });
   }
 
   List<HarvestReportRow> get _filteredHarvests {
-    if (_harvestSearchQuery.isEmpty) return _harvestData.harvests;
+    final byCategory = _categoryFilter == null
+        ? _harvestData.harvests
+        : _harvestData.harvests
+              .where((h) => h.cropCategory == _categoryFilter)
+              .toList();
+    if (_harvestSearchQuery.isEmpty) return byCategory;
     final q = _harvestSearchQuery.toLowerCase();
-    return _harvestData.harvests
+    return byCategory
         .where(
           (h) =>
               h.farmerName.toLowerCase().contains(q) ||
@@ -339,6 +367,14 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                 icon: Icons.groups_rounded,
                 accent: AppConstants.warningAmber,
               ),
+              // Produce Cooperative Programs gave Farmers: listed apart, not part of the yield above.
+              if (_harvestData.programReceivedCount > 0)
+                ReportHeroStat(
+                  label: l10n.rptReceivedFromPrograms,
+                  value: formatKgTotal(_harvestData.programReceivedKg),
+                  icon: Icons.volunteer_activism_rounded,
+                  accent: AppConstants.buyerBlue,
+                ),
             ],
           ),
           const SizedBox(height: AppConstants.spacingSectionV),
@@ -421,6 +457,30 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
             hint: l10n.reportsSearchHarvestsWithBatch,
             onChanged: (v) => setState(() => _harvestSearchQuery = v),
           ),
+          const SizedBox(height: AppConstants.spacingSm),
+          // All, then one chip per crop category that has entries in the
+          // period, each with its number of entries.
+          ReportFilterChips<String?>(
+            options: [
+              ReportFilterOption<String?>(
+                null,
+                l10n.reportsAll,
+                count: _harvestData.harvests.length,
+              ),
+              for (final category in ({
+                for (final h in _harvestData.harvests) h.cropCategory,
+              }.toList()..sort()))
+                ReportFilterOption<String?>(
+                  category,
+                  localizeBuiltinLabel(l10n, category),
+                  count: _harvestData.harvests
+                      .where((h) => h.cropCategory == category)
+                      .length,
+                ),
+            ],
+            selected: _categoryFilter,
+            onSelected: (c) => setState(() => _categoryFilter = c),
+          ),
           const SizedBox(height: AppConstants.spacingMd),
         ],
         if (_harvestData.harvests.isEmpty)
@@ -441,7 +501,11 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
   ) {
     return ReportRecordCard(
       onTap: membersAccessAllowed
-          ? () => pushFarmerDetails(context, harvest.farmerId)
+          ? () => pushFarmerDetails(
+              context,
+              harvest.farmerId,
+              tab: kFarmerDetailsHarvestTab,
+            )
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,6 +541,33 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          // Rotten / Lost: what the Farmer reported as rotten from this harvest.
+          if (harvest.hasLoss) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                ShelfLifeTag(
+                  label: l10n.shelfFilterRotten,
+                  color: AppConstants.errorRed,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.shelfLossLine(
+                      formatQuantityUnit(harvest.spoiledKg, harvest.unit),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 4),
           Row(
             children: [
@@ -529,35 +620,59 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           ReportSectionCard(
             title: l10n.reportsStockOverview,
             icon: Icons.inventory_2_rounded,
-            child: Row(
+            // Two rows of two equal cards. Each row has a fixed height, so
+            // all four cards are the same size on every screen width.
+            child: Column(
               children: [
-                Expanded(
-                  child: ReportIconStatCard(
-                    icon: Icons.check_circle_rounded,
-                    label: l10n.rptStatusAvailable,
-                    value:
-                        formatKgTotal(_inventoryData.totalAvailableKg),
-                    accent: AppConstants.successGreen,
+                SizedBox(
+                  height: 104,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: ReportIconStatCard(
+                          icon: Icons.check_circle_rounded,
+                          label: l10n.rptStatusAvailable,
+                          value: formatKgTotal(_inventoryData.totalAvailableKg),
+                          accent: AppConstants.successGreen,
+                        ),
+                      ),
+                      const SizedBox(width: AppConstants.spacingSm),
+                      Expanded(
+                        child: ReportIconStatCard(
+                          icon: Icons.delete_outline_rounded,
+                          label: l10n.shelfFilterRotten,
+                          value: formatKgTotal(_inventoryData.totalSpoiledKg),
+                          accent: AppConstants.errorRed,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: AppConstants.spacingSm),
-                Expanded(
-                  child: ReportIconStatCard(
-                    icon: Icons.bookmark_rounded,
-                    label: l10n.rptCommitted,
-                    value:
-                        formatKgTotal(_inventoryData.totalReservedKg),
-                    accent: AppConstants.buyerBlue,
-                  ),
-                ),
-                const SizedBox(width: AppConstants.spacingSm),
-                Expanded(
-                  child: ReportIconStatCard(
-                    icon: Icons.sell_rounded,
-                    label: l10n.reportsSold,
-                    value:
-                        formatKgTotal(_inventoryData.totalSoldKg),
-                    accent: AppConstants.amber,
+                const SizedBox(height: AppConstants.spacingSm),
+                SizedBox(
+                  height: 104,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: ReportIconStatCard(
+                          icon: Icons.bookmark_rounded,
+                          label: l10n.rptCommitted,
+                          value: formatKgTotal(_inventoryData.totalReservedKg),
+                          accent: AppConstants.buyerBlue,
+                        ),
+                      ),
+                      const SizedBox(width: AppConstants.spacingSm),
+                      Expanded(
+                        child: ReportIconStatCard(
+                          icon: Icons.sell_rounded,
+                          label: l10n.reportsSold,
+                          value: formatKgTotal(_inventoryData.totalSoldKg),
+                          accent: AppConstants.amber,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -676,7 +791,11 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           ReportFilterChips<_BatchStatusFilter>(
             options: [
               for (final s in _BatchStatusFilter.values)
-                ReportFilterOption(s, s.label(l10n)),
+                ReportFilterOption(
+                  s,
+                  s.label(l10n),
+                  count: _inventoryData.batches.where(s.matches).length,
+                ),
             ],
             selected: _statusFilter,
             onSelected: (s) => setState(() => _statusFilter = s),
@@ -727,7 +846,11 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           ? AppConstants.errorRed.withValues(alpha: 0.3)
           : null,
       onTap: membersAccessAllowed
-          ? () => pushFarmerDetails(context, batch.farmerId)
+          ? () => pushFarmerDetails(
+              context,
+              batch.farmerId,
+              tab: kFarmerDetailsHarvestTab,
+            )
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,7 +885,13 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              ReportStatusPill(label: status.label, color: status.color),
+              if (batch.hasLoss)
+                ReportStatusPill(
+                  label: l10n.shelfFilterRotten,
+                  color: AppConstants.errorRed,
+                )
+              else
+                ReportStatusPill(label: status.label, color: status.color),
             ],
           ),
           const SizedBox(height: AppConstants.spacingMd),
@@ -790,6 +919,40 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
               ),
             ],
           ),
+          // Condition, the way the Farmer's Manage Inventory shows it: a Good
+          // batch carries its shelf-life line; a Rotten/Lost one carries the
+          // quantity that was lost.
+          if (batch.isGood && (batch.shelfLife?.isTracked ?? false)) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            ShelfLifeLine(shelfLife: batch.shelfLife),
+          ],
+          if (batch.hasLoss) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            Row(
+              children: [
+                Icon(
+                  Icons.delete_outline_rounded,
+                  size: 14,
+                  color: AppConstants.errorRed,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    l10n.shelfLossLine(
+                      formatQuantityUnit(batch.spoiledKg, batch.unit),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(

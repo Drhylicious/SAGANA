@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -23,7 +24,26 @@ class RecentActivityFilterOption<T> {
   final T value;
   final String label;
 
-  const RecentActivityFilterOption({required this.value, required this.label});
+  /// How many records sit under this filter. Shown as "Label (n)" when given.
+  final int? count;
+
+  const RecentActivityFilterOption({
+    required this.value,
+    required this.label,
+    this.count,
+  });
+}
+
+/// The date shown for a day that is neither today nor yesterday, shared by every
+/// role's Recent Activity and Notifications: "November 12" in the current year,
+/// "November 12, 2025" in any other year. The year appears only when it differs
+/// from the current year.
+String activityDateLabel(DateTime when, String localeName, {DateTime? now}) {
+  final current = now ?? DateTime.now();
+  final format = when.year == current.year
+      ? DateFormat.MMMMd(localeName)
+      : DateFormat.yMMMMd(localeName);
+  return format.format(when);
 }
 
 class RecentActivitySearchBar extends StatelessWidget {
@@ -41,47 +61,58 @@ class RecentActivitySearchBar extends StatelessWidget {
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (context, value, _) => TextField(
-      controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.inter(
+        controller: controller,
+        style: GoogleFonts.inter(
           fontSize: 14,
-          color: AppConstants.outline.withValues(alpha: 0.60),
+          color: Theme.of(context).colorScheme.onSurface,
         ),
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          color: AppConstants.outline,
-        ),
-        suffixIcon: value.text.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18),
-                onPressed: controller.clear,
-              ),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(
-            color: AppConstants.outline.withValues(alpha: 0.20),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: GoogleFonts.inter(
+            fontSize: 14,
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.60),
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+          suffixIcon: value.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: controller.clear,
+                ),
+          filled: true,
+          fillColor: context.saganaColors.cardBackground,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            borderSide: BorderSide(
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.20),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            borderSide: BorderSide(
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.20),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
           ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(
-            color: AppConstants.outline.withValues(alpha: 0.20),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-      ),
       ),
     );
   }
@@ -119,7 +150,9 @@ class RecentActivityFilterChips<T> extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppConstants.primaryGreen
-                      : Colors.white.withValues(alpha: 0.70),
+                      : context.saganaColors.cardBackground.withValues(
+                          alpha: 0.70,
+                        ),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   border: Border.all(
                     color: isActive
@@ -134,13 +167,15 @@ class RecentActivityFilterChips<T> extends StatelessWidget {
                   ],
                 ),
                 child: Text(
+                  // No "(n)": an activity log only ever grows, so a count
+                  // here says little and clutters the row.
                   option.label,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: isActive
                         ? Colors.white
-                        : AppConstants.onSurfaceVariant,
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -172,7 +207,7 @@ class RecentActivityDateHeader extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: AppConstants.outline,
+          color: Theme.of(context).colorScheme.outline,
           letterSpacing: 1.2,
         ),
       ),
@@ -197,10 +232,8 @@ class RecentActivityDateGroup extends StatelessWidget {
       children: [
         RecentActivityDateHeader(label: label),
         ...cards.map(
-          (card) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: card,
-          ),
+          (card) =>
+              Padding(padding: const EdgeInsets.only(bottom: 10), child: card),
         ),
         const SizedBox(height: 8),
       ],
@@ -250,7 +283,7 @@ class RecentActivityCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: context.saganaColors.cardBackground.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
             boxShadow: [
@@ -286,7 +319,7 @@ class RecentActivityCard extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: AppConstants.charcoal,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -295,7 +328,7 @@ class RecentActivityCard extends StatelessWidget {
                           recentActivityTime(timestamp),
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: AppConstants.outline,
+                            color: Theme.of(context).colorScheme.outline,
                           ),
                         ),
                       ],
@@ -307,7 +340,7 @@ class RecentActivityCard extends StatelessWidget {
                         subtitle,
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -328,7 +361,7 @@ class RecentActivityCard extends StatelessWidget {
                   child: Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
-                    color: AppConstants.outline,
+                    color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
             ],
@@ -392,7 +425,9 @@ class _RecentActivityCardBottom extends StatelessWidget {
       style: GoogleFonts.poppins(
         fontSize: 15,
         fontWeight: FontWeight.w700,
-        color: isAlert ? AppConstants.errorRed : AppConstants.charcoal,
+        color: isAlert
+            ? AppConstants.errorRed
+            : Theme.of(context).colorScheme.onSurface,
       ),
     );
 
@@ -419,7 +454,8 @@ class RecentActivityStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeColor = color ??
+    final badgeColor =
+        color ??
         switch (tone) {
           RecentActivityTone.alert => AppConstants.errorRed,
           RecentActivityTone.warning => AppConstants.warningAmber,
@@ -467,25 +503,25 @@ class RecentActivityIcon extends StatelessWidget {
         ? (color!.withValues(alpha: 0.12), color!)
         : switch (tone) {
             RecentActivityIconTone.primary => (
-                AppConstants.primaryContainer.withValues(alpha: 0.10),
-                AppConstants.primaryGreen,
-              ),
+              AppConstants.primaryContainer.withValues(alpha: 0.10),
+              AppConstants.primaryGreen,
+            ),
             RecentActivityIconTone.accent => (
-                AppConstants.secondaryContainer.withValues(alpha: 0.10),
-                AppConstants.amber,
-              ),
+              AppConstants.secondaryContainer.withValues(alpha: 0.10),
+              AppConstants.amber,
+            ),
             RecentActivityIconTone.neutral => (
-                AppConstants.outline.withValues(alpha: 0.10),
-                AppConstants.outline,
-              ),
+              Theme.of(context).colorScheme.outline.withValues(alpha: 0.10),
+              Theme.of(context).colorScheme.outline,
+            ),
             RecentActivityIconTone.info => (
-                AppConstants.buyerBlue.withValues(alpha: 0.10),
-                AppConstants.buyerBlue,
-              ),
+              AppConstants.buyerBlue.withValues(alpha: 0.10),
+              AppConstants.buyerBlue,
+            ),
             RecentActivityIconTone.alert => (
-                AppConstants.errorRed.withValues(alpha: 0.10),
-                AppConstants.errorRed,
-              ),
+              AppConstants.errorRed.withValues(alpha: 0.10),
+              AppConstants.errorRed,
+            ),
           };
     return Container(
       width: 48,
@@ -521,7 +557,9 @@ class RecentActivityEmptyState extends StatelessWidget {
           Icon(
             hasSearch ? Icons.search_off_rounded : Icons.inbox_outlined,
             size: 56,
-            color: AppConstants.outline.withValues(alpha: 0.50),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.50),
           ),
           const SizedBox(height: 16),
           Text(
@@ -529,14 +567,17 @@ class RecentActivityEmptyState extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             hasSearch ? noMatchHint : emptyHint,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.outline),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
         ],
       ),

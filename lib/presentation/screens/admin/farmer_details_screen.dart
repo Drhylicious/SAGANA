@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import '../../widgets/view_only_banner.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
@@ -35,10 +36,18 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/program_origin_chip.dart';
 
 class FarmerDetailsScreen extends StatefulWidget {
   final String farmerId;
-  const FarmerDetailsScreen({super.key, required this.farmerId});
+
+  /// The tab to open on (0 = Profile, 1 = Harvest ...).
+  final int initialTab;
+  const FarmerDetailsScreen({
+    super.key,
+    required this.farmerId,
+    this.initialTab = 0,
+  });
 
   @override
   State<FarmerDetailsScreen> createState() => _FarmerDetailsScreenState();
@@ -83,6 +92,19 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
+    // Without a Farmer there is nothing to show, and every query would be
+    // rejected by the database: go back instead of loading.
+    if (widget.farmerId.trim().isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.farmerManagement);
+        }
+      });
+      return;
+    }
     _loadAll();
   }
 
@@ -128,7 +150,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     });
   }
 
-  static String _stamp(DateTime t) => DateFormat('MMM d, y · h:mm a').format(t.toLocal());
+  static String _stamp(DateTime t) =>
+      DateFormat('MMM d, y · h:mm a').format(t.toLocal());
 
   CapitalContributionEvent? _reversalOf(CapitalContributionEvent e) {
     for (final x in _capitalLedger) {
@@ -198,7 +221,11 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     if (_isReversing) return;
     final l10n = AppLocalizations.of(context);
     if (!ConnectivityService.instance.isOnline) {
-      AppToast.show(context, l10n.farmerDetailsReverseNeedsInternet, isError: true);
+      AppToast.show(
+        context,
+        l10n.farmerDetailsReverseNeedsInternet,
+        isError: true,
+      );
       return;
     }
     final reason = await showDialog<String>(
@@ -208,7 +235,11 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     if (reason == null || !mounted) return;
     setState(() => _isReversing = true);
     try {
-      await _capitalRepo.reverseContribution(eventId: e.id, reason: reason, amount: e.amount);
+      await _capitalRepo.reverseContribution(
+        eventId: e.id,
+        reason: reason,
+        amount: e.amount,
+      );
       if (!mounted) return;
       AppToast.show(context, l10n.farmerDetailsContributionReversed);
       await _loadAll();
@@ -326,7 +357,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: FarmerDetailsRepository.cacheScreens(
                   widget.farmerId,
@@ -343,6 +374,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                   onRefresh: _loadAll,
                   child: DefaultTabController(
                     length: 6,
+                    initialIndex: widget.initialTab.clamp(0, 5),
                     child: Column(
                       children: [
                         Container(
@@ -451,7 +483,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                 children: [
                                   _TabSectionHeader(
                                     icon: Icons.savings_rounded,
-                                    title: l10n.memberContributionCapitalSection,
+                                    title:
+                                        l10n.memberContributionCapitalSection,
                                     cs: cs,
                                   ),
                                   const SizedBox(height: 10),
@@ -461,7 +494,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                     capitalLedger: _capitalLedger,
                                     cs: cs,
                                     sagana: sagana,
-                                    canRecordContribution: !profile.memberStatus.isApplicant,
+                                    canRecordContribution:
+                                        !profile.memberStatus.isApplicant,
                                     onRecordContribution: _recordContribution,
                                     onOpenEntry: _openEntry,
                                     onViewAll: _openHistory,
@@ -469,7 +503,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   const SizedBox(height: 20),
                                   _TabSectionHeader(
                                     icon: Icons.handshake_rounded,
-                                    title: l10n.memberContributionPatronageSection,
+                                    title:
+                                        l10n.memberContributionPatronageSection,
                                     cs: cs,
                                   ),
                                   const SizedBox(height: 10),
@@ -667,6 +702,8 @@ class _HarvestActivityCard extends StatelessWidget {
         ? thisYearYieldKg.toStringAsFixed(0)
         : thisYearYieldKg.toStringAsFixed(1);
     final hasUnsynced = unsyncedCount > 0;
+    final receivedCount = stats['received_count'] as int? ?? 0;
+    final receivedKg = (stats['received_kg'] as num?)?.toDouble() ?? 0.0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -693,7 +730,7 @@ class _HarvestActivityCard extends StatelessWidget {
                 child: ReportIconStatCard(
                   icon: Icons.calendar_month_rounded,
                   accent: AppConstants.primaryGreen,
-                  label: 'Total Harvest',
+                  label: AppLocalizations.of(context).reportsTotalHarvest,
                   value: '$totalHarvestCount',
                 ),
               ),
@@ -702,7 +739,7 @@ class _HarvestActivityCard extends StatelessWidget {
                 child: ReportIconStatCard(
                   icon: Icons.eco_rounded,
                   accent: AppConstants.successGreen,
-                  label: "This Year's Yield",
+                  label: AppLocalizations.of(context).enhThisYearSYield,
                   value: '$yieldLabel kg',
                 ),
               ),
@@ -715,12 +752,33 @@ class _HarvestActivityCard extends StatelessWidget {
                   accent: hasUnsynced
                       ? AppConstants.warningAmber
                       : AppConstants.successGreen,
-                  label: 'Sync Status',
-                  value: hasUnsynced ? '$unsyncedCount Unsynced' : 'Synced',
+                  label: AppLocalizations.of(context).enhSyncStatus,
+                  value: hasUnsynced
+                      ? AppLocalizations.of(
+                          context,
+                        ).enhUnsynced((unsyncedCount).toString())
+                      : AppLocalizations.of(context).reportsSynced,
                 ),
               ),
             ],
           ),
+          // Produce received from a Cooperative Program: labeled, and kept out of the harvest figures above.
+          if (receivedCount > 0) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ProgramOriginChip(label: l10n.cropFromProgram),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.farmerDetailsProgramReceived(receivedCount, formatQuantity(receivedKg)),
+                    style: GoogleFonts.inter(fontSize: 11, height: 1.4, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (summary.cropBreakdown.isNotEmpty) ...[
             const SizedBox(height: 18),
             ...summary.cropBreakdown
@@ -1038,6 +1096,7 @@ class _ContributionCard extends StatelessWidget {
   final List<CapitalContributionEvent> capitalLedger;
   final ColorScheme cs;
   final SaganaColors sagana;
+
   /// False for an applicant: capital is recorded for members only.
   final bool canRecordContribution;
   final VoidCallback onRecordContribution;
@@ -1172,21 +1231,21 @@ class _ContributionCard extends StatelessWidget {
                   ),
                 ],
                 if (canRecordContribution) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onRecordContribution,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: Text(
-                      l10n.farmerDetailsRecordContribution,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onRecordContribution,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: Text(
+                        l10n.farmerDetailsRecordContribution,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 ],
                 if (capitalLedger.isNotEmpty) ...[
                   const SizedBox(height: 10),
@@ -1207,8 +1266,13 @@ class _ContributionCard extends StatelessWidget {
                       child: TextButton(
                         onPressed: onViewAll,
                         child: Text(
-                          l10n.farmerDetailsViewAllEntries(capitalLedger.length),
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                          l10n.farmerDetailsViewAllEntries(
+                            capitalLedger.length,
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -1261,22 +1325,35 @@ class _LedgerRow extends StatelessWidget {
                 children: [
                   Text(
                     '$sourceLabel · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                   if (tag != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
-                        color: (e.isReversal ? AppConstants.warningAmber : cs.outline)
-                            .withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        color:
+                            (e.isReversal
+                                    ? AppConstants.warningAmber
+                                    : cs.outline)
+                                .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Text(
                         tag,
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: e.isReversal ? AppConstants.warningAmber : cs.onSurfaceVariant,
+                          color: e.isReversal
+                              ? AppConstants.warningAmber
+                              : cs.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1334,7 +1411,13 @@ class _ContributionEntrySheet extends StatelessWidget {
           Icon(icon, size: 16, color: color ?? cs.onSurfaceVariant),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: GoogleFonts.inter(fontSize: 13, color: color ?? cs.onSurface)),
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: color ?? cs.onSurface,
+              ),
+            ),
           ),
         ],
       ),
@@ -1354,7 +1437,10 @@ class _ContributionEntrySheet extends StatelessWidget {
               Expanded(
                 child: Text(
                   _ContributionCard._sourceLabel(l10n, e.source),
-                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
@@ -1373,10 +1459,16 @@ class _ContributionEntrySheet extends StatelessWidget {
           if (e.isReversal) ...[
             line(
               Icons.undo_rounded,
-              l10n.farmerDetailsReversedByOn(e.recordedByName ?? unknown, stamp(e.createdAt)),
+              l10n.farmerDetailsReversedByOn(
+                e.recordedByName ?? unknown,
+                stamp(e.createdAt),
+              ),
             ),
             if ((e.reversalReason ?? '').isNotEmpty)
-              line(Icons.notes_rounded, l10n.farmerDetailsReversalReason(e.reversalReason!)),
+              line(
+                Icons.notes_rounded,
+                l10n.farmerDetailsReversalReason(e.reversalReason!),
+              ),
             if (original != null)
               line(
                 Icons.link_rounded,
@@ -1389,20 +1481,33 @@ class _ContributionEntrySheet extends StatelessWidget {
           ] else ...[
             line(
               Icons.edit_note_rounded,
-              l10n.farmerDetailsRecordedByOn(e.recordedByName ?? unknown, stamp(e.createdAt)),
+              l10n.farmerDetailsRecordedByOn(
+                e.recordedByName ?? unknown,
+                stamp(e.createdAt),
+              ),
             ),
-            if ((e.note ?? '').isNotEmpty) line(Icons.notes_rounded, l10n.farmerDetailsNoteLine(e.note!)),
+            if ((e.note ?? '').isNotEmpty)
+              line(Icons.notes_rounded, l10n.farmerDetailsNoteLine(e.note!)),
             if (reversal != null) ...[
               line(
                 Icons.undo_rounded,
-                l10n.farmerDetailsReversedByOn(reversal!.recordedByName ?? unknown, stamp(reversal!.createdAt)),
+                l10n.farmerDetailsReversedByOn(
+                  reversal!.recordedByName ?? unknown,
+                  stamp(reversal!.createdAt),
+                ),
                 color: AppConstants.warningAmber,
               ),
               if ((reversal!.reversalReason ?? '').isNotEmpty)
-                line(Icons.notes_rounded, l10n.farmerDetailsReversalReason(reversal!.reversalReason!)),
+                line(
+                  Icons.notes_rounded,
+                  l10n.farmerDetailsReversalReason(reversal!.reversalReason!),
+                ),
             ],
             if (e.source == 'patronage_capital' && !reversed)
-              line(Icons.info_outline_rounded, l10n.farmerDetailsReverseElsewhere),
+              line(
+                Icons.info_outline_rounded,
+                l10n.farmerDetailsReverseElsewhere,
+              ),
           ],
           if (canReverse) ...[
             const SizedBox(height: 18),
@@ -1413,7 +1518,10 @@ class _ContributionEntrySheet extends StatelessWidget {
                 icon: const Icon(Icons.undo_rounded, size: 16),
                 label: Text(
                   l10n.farmerDetailsReverseContribution,
-                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppConstants.errorRed,
@@ -1434,10 +1542,12 @@ class _ReverseContributionDialog extends StatefulWidget {
   const _ReverseContributionDialog({required this.amount});
 
   @override
-  State<_ReverseContributionDialog> createState() => _ReverseContributionDialogState();
+  State<_ReverseContributionDialog> createState() =>
+      _ReverseContributionDialogState();
 }
 
-class _ReverseContributionDialogState extends State<_ReverseContributionDialog> {
+class _ReverseContributionDialogState
+    extends State<_ReverseContributionDialog> {
   final _reasonCtrl = TextEditingController();
   String? _error;
 
@@ -1632,7 +1742,7 @@ class _FilterPill extends StatelessWidget {
               fontWeight: FontWeight.w500,
               color: active
                   ? AppConstants.onPrimaryContainer
-                  : AppConstants.onSurfaceVariant,
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -1681,7 +1791,7 @@ class _MetricTile extends StatelessWidget {
             label,
             style: GoogleFonts.inter(
               fontSize: 10,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               height: 1.2,
             ),
             maxLines: 2,
@@ -1693,7 +1803,7 @@ class _MetricTile extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1750,7 +1860,10 @@ class _BreakdownCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        b.category,
+                        localizeBuiltinLabel(
+                          AppLocalizations.of(context),
+                          b.category,
+                        ),
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: cs.onSurfaceVariant,
@@ -1774,7 +1887,9 @@ class _BreakdownCard extends StatelessWidget {
                           ? 1.0
                           : b.percentOfMax,
                       minHeight: 6,
-                      backgroundColor: const Color(0xFFCFE6F2),
+                      backgroundColor: context.adaptiveSurface(
+                        const Color(0xFFCFE6F2),
+                      ),
                       valueColor: AlwaysStoppedAnimation(
                         b.hasSubsidy && b.total == 0
                             ? AppConstants.successGreen
@@ -1841,7 +1956,10 @@ class _TransactionCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        record.category,
+                        localizeBuiltinLabel(
+                          AppLocalizations.of(context),
+                          record.category,
+                        ),
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
                           fontSize: 13,
@@ -2010,7 +2128,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                 value: top?.category ?? l10n.farmerDetailsExpNoneYet,
                 color: top != null
                     ? categoryColor(top.category)
-                    : AppConstants.outline,
+                    : Theme.of(context).colorScheme.outline,
                 icon: top != null
                     ? categoryIcon(top.category)
                     : Icons.category_outlined,
@@ -2157,7 +2275,7 @@ class _ProgramCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              program['name'] as String? ??
+                              program["name"] as String? ??
                                   l10n.farmerDetailsProgramFallback,
                               style: GoogleFonts.poppins(
                                 fontSize: 14,

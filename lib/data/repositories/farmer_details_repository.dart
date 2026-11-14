@@ -171,7 +171,9 @@ class FarmerDetailsRepository {
         screen: 'fd_summary_harvests_$farmerId',
         fetch: () => _client
             .from('harvest_records')
-            .select('crop_name, quantity_kg, unit, harvest_date').eq('source_type', 'self'),
+            .select('crop_name, quantity_kg, unit, harvest_date')
+            .eq('source_type', 'self')
+            .eq('farmer_id', farmerId),
       );
       double totalYield = 0;
       final Map<String, double> byCrop = {};
@@ -280,6 +282,22 @@ class FarmerDetailsRepository {
             .select('quantity_kg, unit, harvest_date, crop_name, is_synced').eq('source_type', 'self')
             .eq('farmer_id', farmerId),
       );
+      // Produce a program gave the Farmer is not their harvest and is not in the figures above; it is counted
+      // here on its own so the Harvest section can say so.
+      var receivedCount = 0;
+      var receivedKg = 0.0;
+      try {
+        final received = await _client
+            .from('harvest_records')
+            .select('quantity_kg, unit')
+            .eq('source_type', 'program_received')
+            .eq('farmer_id', farmerId);
+        for (final r in received) {
+          receivedCount++;
+          if (isKg(r['unit'] as String?)) receivedKg += (r['quantity_kg'] as num).toDouble();
+        }
+      } catch (_) {}
+
       if (rows.isEmpty) {
         return {
           'count': 0,
@@ -288,6 +306,8 @@ class FarmerDetailsRepository {
           'unsynced_count': 0,
           'last_entry': null,
           'recent': [],
+          'received_count': receivedCount,
+          'received_kg': receivedKg,
         };
       }
 
@@ -314,6 +334,8 @@ class FarmerDetailsRepository {
         'unsynced_count': unsyncedCount,
         'last_entry': rows.first['harvest_date'],
         'recent': rows.take(3).toList(),
+        'received_count': receivedCount,
+        'received_kg': receivedKg,
       };
     } catch (_) {
       return {

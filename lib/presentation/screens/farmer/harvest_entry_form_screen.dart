@@ -1,4 +1,4 @@
-import 'dart:ui';
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -28,8 +28,7 @@ class HarvestEntryFormScreen extends StatefulWidget {
   const HarvestEntryFormScreen({super.key, this.crop});
 
   @override
-  State<HarvestEntryFormScreen> createState() =>
-      _HarvestEntryFormScreenState();
+  State<HarvestEntryFormScreen> createState() => _HarvestEntryFormScreenState();
 }
 
 class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
@@ -51,7 +50,8 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   // the harvest's unit is the one source for every selling channel.
   List<String> _units = [];
   String? _selectedUnit;
-  final String _selectedStorageLocation = AppConstants.harvestStorageLocations.first;
+  final String _selectedStorageLocation =
+      AppConstants.harvestStorageLocations.first;
 
   DateTime _harvestDate = DateTime.now();
   bool _isLoading = false;
@@ -63,10 +63,12 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
@@ -182,16 +184,42 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     if (picked != null) setState(() => _harvestDate = picked);
   }
 
+  /// The harvest date entered is already beyond the crop's default shelf life
+  /// (harvest date + shelf life is before today). The harvest can still be
+  /// recorded; it just cannot be sold until the Farmer confirms the produce.
+  bool _harvestIsPastShelfLife(FarmerCropModel crop) {
+    final days = crop.shelfLifeDays;
+    if (days == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expires = DateTime(
+      _harvestDate.year,
+      _harvestDate.month,
+      _harvestDate.day,
+    ).add(Duration(days: days));
+    return expires.isBefore(today);
+  }
+
   Future<void> _handleSubmit() async {
     setState(() => _errorMessage = null);
     if (_selectedCrop == null) {
-      setState(() => _errorMessage = _blockedCrop != null
-          ? '${_blockedCrop!.cropName} is still awaiting Manager approval and can\'t be harvested yet.'
-          : 'Please select a crop.');
+      setState(
+        () => _errorMessage = _blockedCrop != null
+            ? AppLocalizations.of(
+                context,
+              ).enhIsStillAwaitingManagerApprovalAndCanT(
+                (_blockedCrop!.cropName).toString(),
+              )
+            : AppLocalizations.of(context).enhPleaseSelectACrop,
+      );
       return;
     }
     if (_selectedCrop!.isPendingApproval) {
-      setState(() => _errorMessage = 'This crop is still awaiting Manager approval and can\'t be harvested yet.');
+      setState(
+        () => _errorMessage = AppLocalizations.of(
+          context,
+        ).enhThisCropIsStillAwaitingManagerApprovalAnd,
+      );
       return;
     }
     // Quantity and Unit show their own message under their own field.
@@ -243,7 +271,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         // the generic connection message.
         _errorMessage =
             readableDatabaseMessage(e) ??
-            'Failed to submit harvest. Please check your connection and try again.';
+            AppLocalizations.of(
+              context,
+            ).enhFailedToSubmitHarvestPleaseCheckYourConnection;
       });
     }
   }
@@ -266,58 +296,84 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64, height: 64,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
-                color: (wasQueuedOffline ? AppConstants.amber : AppConstants.successGreen)
-                    .withValues(alpha: 0.10),
+                color:
+                    (wasQueuedOffline
+                            ? AppConstants.amber
+                            : AppConstants.successGreen)
+                        .withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                wasQueuedOffline ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
-                color: wasQueuedOffline ? AppConstants.amber : AppConstants.successGreen,
+                wasQueuedOffline
+                    ? Icons.cloud_off_rounded
+                    : Icons.check_circle_rounded,
+                color: wasQueuedOffline
+                    ? AppConstants.amber
+                    : AppConstants.successGreen,
                 size: 36,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              wasQueuedOffline ? 'Saved Offline' : 'Harvest Submitted!',
+              wasQueuedOffline
+                  ? AppLocalizations.of(context).enhSavedOffline
+                  : AppLocalizations.of(context).enhHarvestSubmitted,
               style: GoogleFonts.poppins(
-                  fontSize: 18, fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               wasQueuedOffline
-                  ? '${formatQuantityUnit(qty, unit)} of ${_selectedCrop!.cropName} recorded.\n\n'
-                    'No connection right now — this will sync automatically once '
-                    'you\'re back online, and its batch number is issued then.'
-                  : '${formatQuantityUnit(qty, unit)} of ${_selectedCrop!.cropName} recorded '
-                    '($batchNumber).\n\nCheck Inventory to sell, offer it '
-                    'to the cooperative, or record a sale.',
+                  ? AppLocalizations.of(
+                      context,
+                    ).enhOfRecordedNoConnectionRightNowThisWill(
+                      (formatQuantityUnit(qty, unit)).toString(),
+                      (_selectedCrop!.cropName).toString(),
+                    )
+                  : AppLocalizations.of(
+                      context,
+                    ).enhOfRecordedCheckInventoryToSellOfferIt(
+                      (formatQuantityUnit(qty, unit)).toString(),
+                      (_selectedCrop!.cropName).toString(),
+                      (batchNumber).toString(),
+                    ),
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                  fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5),
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
           ],
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop(true);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.primaryGreen,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.primaryGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
-              child: Text('Done',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w500)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: Text(
+              AppLocalizations.of(context).buyerCartDone,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -330,16 +386,21 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       return Scaffold(
         body: Stack(
           children: [
-            Column(
+            const Column(
               children: [
                 TopBarSpacer(height: 72),
-                const Expanded(
-                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  ),
                 ),
               ],
             ),
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               child: FarmerTopBar(
                 title: '',
                 onBack: () => Navigator.of(context).pop(),
@@ -367,7 +428,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         // be misleading here, since they do have one, it just isn't usable.
         return _PendingCropBlockedState(
           cropName: _blockedCrop!.cropName,
-          buttonLabel: 'Go to Crop Roster',
+          buttonLabel: AppLocalizations.of(context).enhGoToCropRoster,
           onButtonTap: () => context.pushRoute(AppRoutes.cropListing),
         );
       }
@@ -383,7 +444,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       // dedicated crop picker instead of an inline dropdown.
       return _PendingCropBlockedState(
         cropName: _blockedCrop!.cropName,
-        buttonLabel: 'Choose a Different Crop',
+        buttonLabel: AppLocalizations.of(context).enhChooseADifferentCrop,
         onButtonTap: () => context.pushRoute(AppRoutes.selectCropForHarvest),
       );
     }
@@ -391,17 +452,18 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     final selectedCrop = _selectedCrop!;
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 72),
+              const TopBarSpacer(height: 72),
               if (!_isOnline)
                 OfflineStatusCard(
-                  message:
-                      AppLocalizations.of(context).offlineHarvestEntriesSave,
+                  message: AppLocalizations.of(
+                    context,
+                  ).offlineHarvestEntriesSave,
                 ),
               Expanded(
                 child: SingleChildScrollView(
@@ -424,7 +486,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         // supplies one); re-selection here would be
                         // redundant, so this is a read-only display, not a
                         // dropdown.
-                        const _FieldLabel('Crop'),
+                        _FieldLabel(
+                          AppLocalizations.of(context).priceTrendCropLabel,
+                        ),
                         const SizedBox(height: 8),
                         _LockedField(value: selectedCrop.cropName),
                         const SizedBox(height: 20),
@@ -438,7 +502,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                           onUnitChanged: (u) =>
                               setState(() => _selectedUnit = u),
                           onAddUnit: _addUnit,
-                          addUnitLabel: AppLocalizations.of(context).unitAddCompact,
+                          addUnitLabel: AppLocalizations.of(
+                            context,
+                          ).unitAddCompact,
                         ),
                         const SizedBox(height: 20),
 
@@ -447,7 +513,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         // the crop's registered market type, carried
                         // through from Request New Crop / Crop Roster, not
                         // something set per-harvest.
-                        const _FieldLabel('Market Type'),
+                        _FieldLabel(
+                          AppLocalizations.of(context).priceMarketTypeLabel,
+                        ),
                         const SizedBox(height: 8),
                         _LockedField(value: selectedCrop.marketTypeLabel),
                         if (selectedCrop.exclusiveChannel != null) ...[
@@ -462,18 +530,47 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 16),
 
                         // ── Batch Number ──────────────────────────────────
-                        const _FieldLabel('Batch Number'),
+                        _FieldLabel(
+                          AppLocalizations.of(context).enhBatchNumber,
+                        ),
                         const SizedBox(height: 8),
                         // Issued by the database when the harvest is saved
                         // (BATCH-CROP-YYMMDD-X0001), so it cannot be shown
                         // before then without risking a different number.
-                        const _LockedField(value: 'Assigned when you submit'),
+                        _LockedField(
+                          value: AppLocalizations.of(
+                            context,
+                          ).enhAssignedWhenYouSubmit,
+                        ),
                         const SizedBox(height: 16),
 
                         // ── Harvest Date ──────────────────────────────────
-                        const _FieldLabel('Harvest Date'),
+                        _FieldLabel(
+                          AppLocalizations.of(context).enhHarvestDate,
+                        ),
                         const SizedBox(height: 8),
                         _DateField(date: _harvestDate, onTap: _pickDate),
+                        const SizedBox(height: 16),
+
+                        // ── Shelf Life ────────────────────────────────────
+                        // The crop's default from Crop Management. Locked: it
+                        // starts counting at the harvest date above, for this
+                        // harvest only.
+                        _FieldLabel(AppLocalizations.of(context).shelfLifeLabel),
+                        const SizedBox(height: 8),
+                        _LockedField(
+                          value: selectedCrop.shelfLifeDays == null
+                              ? AppLocalizations.of(context).shelfNotSetByCoop
+                              : AppLocalizations.of(
+                                  context,
+                                ).shelfDaysCount(selectedCrop.shelfLifeDays!),
+                        ),
+                        if (_harvestIsPastShelfLife(selectedCrop)) ...[
+                          const SizedBox(height: 8),
+                          _ShelfLifeOverdueNote(
+                            days: selectedCrop.shelfLifeDays!,
+                          ),
+                        ],
                         const SizedBox(height: 16),
 
                         // ── Storage Location ──────────────────────────────
@@ -482,13 +579,16 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         // AppConstants.harvestStorageLocations); the farmer
                         // never chooses it. Was previously an interactive
                         // dropdown despite having only one option.
-                        const _FieldLabel('Storage Location'),
+                        _FieldLabel(
+                          AppLocalizations.of(context).enhStorageLocation,
+                        ),
                         const SizedBox(height: 8),
                         _LockedField(value: _selectedStorageLocation),
                         const SizedBox(height: 16),
 
                         // ── Error ─────────────────────────────────────────
-                        if (_errorMessage != null) _ErrorBanner(message: _errorMessage!),
+                        if (_errorMessage != null)
+                          _ErrorBanner(message: _errorMessage!),
 
                         // ── Submit Button ─────────────────────────────────
                         const SizedBox(height: 24),
@@ -507,26 +607,70 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
           // ── Top App Bar ───────────────────────────────────────────────
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: FarmerTopBar(
               title: selectedCrop.cropName,
               onBack: () => Navigator.of(context).pop(),
               profilePhotoUrl: null,
               onProfileTap: () {},
-              onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications),
+              onNotificationTap: () =>
+                  context.pushRoute(AppRoutes.farmerNotifications),
               onSettingsTap: null,
               hideProfileAvatar: true,
               showNotificationButton: false,
               // trailing badge removed; use the standardized OfflineStatusCard above
             ),
           ),
-
         ],
       ),
     );
   }
 }
 
+/// Shown under Shelf Life when the harvest date is already past it. A warning,
+/// not an error: the harvest is still recorded.
+class _ShelfLifeOverdueNote extends StatelessWidget {
+  final int days;
+  const _ShelfLifeOverdueNote({required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppConstants.warningAmber.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(
+          color: AppConstants.warningAmber.withValues(alpha: 0.30),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            size: 18,
+            color: AppConstants.warningAmber,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              AppLocalizations.of(context).shelfHarvestOverdueWarning(days),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.45,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // _OnlineBadge and _PulsingDot removed — standardized OfflineStatusCard is used instead
 
@@ -553,54 +697,68 @@ class _CropsLoadError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
 
       body: Column(
         children: [
           SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
-          Expanded(child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
-                size: 40,
-                color: AppConstants.outline.withValues(alpha: 0.60),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                isOnline ? 'Could not load your crops' : 'You\'re offline',
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isOnline
+                          ? Icons.error_outline_rounded
+                          : Icons.wifi_off_rounded,
+                      size: 40,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.60),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      isOnline
+                          ? AppLocalizations.of(
+                              context,
+                            ).enhCouldNotLoadYourCrops
+                          : AppLocalizations.of(context).youAreOffline,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    if (!isOnline) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        AppLocalizations.of(
+                          context,
+                        ).enhYourCropsWillLoadOnceYouReBack,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: onRetry,
+                      child: Text(
+                        AppLocalizations.of(context).retry,
+                        style: GoogleFonts.poppins(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (!isOnline) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Your crops will load once you\'re back online.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppConstants.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: onRetry,
-                child: Text(
-                  'Retry',
-                  style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      )),
         ],
       ),
     );
@@ -614,56 +772,82 @@ class _NoCropsEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
 
       body: Column(
         children: [
           SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
-          Expanded(child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 88, height: 88,
-                decoration: BoxDecoration(
-                    color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.eco_outlined,
-                    size: 40, color: AppConstants.primaryGreen),
-              ),
-              const SizedBox(height: 20),
-              Text("You don't have any crops yet",
-                  style: GoogleFonts.poppins(
-                      fontSize: 18, fontWeight: FontWeight.w700,
-                      color: AppConstants.charcoal)),
-              const SizedBox(height: 8),
-              Text(
-                'Add a crop from the cooperative\'s list before recording a harvest.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                    fontSize: 13, color: AppConstants.onSurfaceVariant),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: onGoToMyCrops,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: AppConstants.primaryGreen.withValues(
+                          alpha: 0.08,
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.eco_outlined,
+                        size: 40,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      AppLocalizations.of(context).enhYouDonTHaveAnyCropsYet,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      AppLocalizations.of(
+                        context,
+                      ).enhAddACropFromTheCooperativeSList285,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: onGoToMyCrops,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppConstants.primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusLg,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        AppLocalizations.of(context).enhGoToCropRoster,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text('Go to Crop Roster',
-                    style: GoogleFonts.poppins(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
               ),
-            ],
+            ),
           ),
-        ),
-      )),
         ],
       ),
     );
@@ -688,57 +872,83 @@ class _PendingCropBlockedState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
 
       body: Column(
         children: [
           SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
-          Expanded(child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 88, height: 88,
-                decoration: BoxDecoration(
-                    color: AppConstants.amber.withValues(alpha: 0.10),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.hourglass_top_rounded,
-                    size: 40, color: AppConstants.amber),
-              ),
-              const SizedBox(height: 20),
-              Text('$cropName is still awaiting approval',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                      fontSize: 18, fontWeight: FontWeight.w700,
-                      color: AppConstants.charcoal)),
-              const SizedBox(height: 8),
-              Text(
-                'You can record a harvest once the cooperative approves this crop.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                    fontSize: 13, color: AppConstants.onSurfaceVariant),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: onButtonTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: AppConstants.amber.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.hourglass_top_rounded,
+                        size: 40,
+                        color: AppConstants.amber,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      AppLocalizations.of(
+                        context,
+                      ).enhIsStillAwaitingApproval((cropName).toString()),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      AppLocalizations.of(
+                        context,
+                      ).enhYouCanRecordAHarvestOnceTheCooperative,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: onButtonTap,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppConstants.primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusLg,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        buttonLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(buttonLabel,
-                    style: GoogleFonts.poppins(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
               ),
-            ],
+            ),
           ),
-        ),
-      )),
         ],
       ),
     );
@@ -767,12 +977,19 @@ class _PendingCropBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.hourglass_top_rounded, size: 18, color: AppConstants.amber),
+          const Icon(
+            Icons.hourglass_top_rounded,
+            size: 18,
+            color: AppConstants.amber,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '$cropName is still awaiting Manager approval and can\'t be harvested yet. '
-              'Pick another crop below, or go back once it\'s approved.',
+              AppLocalizations.of(
+                context,
+              ).enhIsStillAwaitingManagerApprovalAndCanT288(
+                (cropName).toString(),
+              ),
               style: GoogleFonts.inter(fontSize: 13, color: AppConstants.amber),
             ),
           ),
@@ -785,7 +1002,6 @@ class _PendingCropBanner extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Quantity Field
 // ─────────────────────────────────────────────────────────────────────────────
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Locked Field — read-only display styled to look and behave locked
@@ -806,34 +1022,50 @@ class _LockedField extends StatelessWidget {
           initialValue: value,
           readOnly: true,
           style: GoogleFonts.inter(
-              fontSize: 13, color: AppConstants.onSurface,
-              fontFeatures: const [FontFeature.tabularFigures()]),
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFFE6F6FF),
+            fillColor: context.adaptiveSurface(const Color(0xFFE6F6FF)),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               borderSide: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.20)),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.20),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               borderSide: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.20)),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.20),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               borderSide: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.20)),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.20),
+              ),
             ),
             contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(right: 14),
-          child: Icon(Icons.lock_outline_rounded,
-              size: 18, color: AppConstants.outline),
+        Padding(
+          padding: const EdgeInsets.only(right: 14),
+          child: Icon(
+            Icons.lock_outline_rounded,
+            size: 18,
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
       ],
     );
@@ -857,20 +1089,30 @@ class _DateField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(
-              color: AppConstants.outline.withValues(alpha: 0.20)),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         child: Row(
           children: [
             Expanded(
-              child: Text(DateFormat('MMMM d, yyyy').format(date),
-                  style: GoogleFonts.inter(
-                      fontSize: 14, color: AppConstants.onSurface)),
+              child: Text(
+                DateFormat('MMMM d, yyyy').format(date),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
             ),
-            const Icon(Icons.calendar_today_rounded,
-                size: 18, color: AppConstants.primaryGreen),
+            Icon(
+              Icons.calendar_today_rounded,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ],
         ),
       ),
@@ -890,10 +1132,14 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
-      child: Text(text,
-          style: GoogleFonts.poppins(
-              fontSize: 13, fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant)),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }
@@ -915,17 +1161,27 @@ class _ErrorBanner extends StatelessWidget {
         color: AppConstants.errorRed.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(
-            color: AppConstants.errorRed.withValues(alpha: 0.25)),
+          color: AppConstants.errorRed.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              size: 18, color: AppConstants.errorRed),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: AppConstants.errorRed,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(message,
+          Expanded(
+            child: Text(
+              message,
               style: GoogleFonts.inter(
-                  fontSize: 13, color: AppConstants.errorRed))),
+                fontSize: 13,
+                color: AppConstants.errorRed,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -965,7 +1221,8 @@ class _SubmitButton extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: AppConstants.primaryGreen.withValues(alpha: 0.30),
-              blurRadius: 24, offset: const Offset(0, 8),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -983,15 +1240,23 @@ class _SubmitButton extends StatelessWidget {
           ),
           child: isLoading
               ? const SizedBox(
-                  width: 22, height: 22,
+                  width: 22,
+                  height: 22,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
               : Text(
-                  isSuccess ? 'Submitted!' : 'Submit Harvest',
+                  isSuccess
+                      ? AppLocalizations.of(context).enhSubmitted
+                      : AppLocalizations.of(context).enhSubmitHarvest,
                   style: GoogleFonts.poppins(
-                      fontSize: 15, fontWeight: FontWeight.w500,
-                      color: Colors.white)),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
         ),
       ),
     );

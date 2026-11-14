@@ -1,3 +1,4 @@
+import '../../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
@@ -18,42 +19,48 @@ class AdminRoutePlaceholderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final resolvedTitle = title ?? label ?? routeName ?? 'Coming Soon';
+    final resolvedTitle =
+        title ?? label ?? routeName ?? AppLocalizations.of(context).comingSoon;
     final resolvedDescription =
-        description ?? 'This route is not implemented yet.';
+        description ??
+        AppLocalizations.of(context).enhThisRouteIsNotImplementedYet;
 
     return Scaffold(
-
       body: Column(
         children: [
-          SubPageTopBar(title: resolvedTitle, onBack: () => Navigator.of(context).pop()),
-          Expanded(child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.construction_rounded,
-                size: 56,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                resolvedTitle,
-                style: theme.textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                resolvedDescription,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
+          SubPageTopBar(
+            title: resolvedTitle,
+            onBack: () => Navigator.of(context).pop(),
           ),
-        ),
-      )),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.construction_rounded,
+                      size: 56,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      resolvedTitle,
+                      style: theme.textTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      resolvedDescription,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

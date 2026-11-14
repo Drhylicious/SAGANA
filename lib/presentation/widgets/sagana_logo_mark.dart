@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 
 /// The SAGANA logo in the top bar of a role's primary screens, followed by a thin
@@ -26,7 +27,7 @@ class SaganaLogoMark extends StatelessWidget {
         height: 38,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.95),
+          color: context.saganaColors.cardBackground.withValues(alpha: 0.95),
           border: Border.all(
             color: overlay
                 ? Colors.white.withValues(alpha: 0.45)
@@ -64,7 +65,7 @@ class SaganaLogoDivider extends StatelessWidget {
         width: 1,
         height: 24,
         color: overlay
-            ? Colors.white.withValues(alpha: 0.35)
+            ? context.saganaColors.cardBackground.withValues(alpha: 0.35)
             : cs.outline.withValues(alpha: 0.35),
       ),
     );

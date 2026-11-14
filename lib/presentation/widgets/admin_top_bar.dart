@@ -9,6 +9,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/services/admin_profile_state_service.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/notification_badge_service.dart';
 import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
 import 'profile_avatar.dart';
@@ -65,7 +66,8 @@ class AdminTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profileState = AdminProfileStateService.instance;
-    final sagana = Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
+    final sagana =
+        Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
     final cs = Theme.of(context).colorScheme;
 
     if (profileState.profile == null) {
@@ -79,7 +81,9 @@ class AdminTopBar extends StatelessWidget {
     return AnimatedBuilder(
       animation: profileState,
       builder: (context, _) {
-        final displayName = profileState.fullName ?? 'Manager';
+        final displayName =
+            profileState.fullName ??
+            AppLocalizations.of(context).programHistRoleManager;
         final profilePhotoUrl = profileState.profilePhotoUrl;
 
         return ClipRect(
@@ -87,7 +91,12 @@ class AdminTopBar extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               height: 64 + MediaQuery.paddingOf(context).top,
-              padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top, 20, 0),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                MediaQuery.paddingOf(context).top,
+                20,
+                0,
+              ),
               decoration: BoxDecoration(
                 color: sagana.glassBackground,
                 border: Border(
@@ -101,7 +110,9 @@ class AdminTopBar extends StatelessWidget {
                   // branding-only, non-interactive otherwise, so
                   // secondary screens reusing this bar are unaffected.
                   SaganaLogoMark(
-                    onTap: enableMenu ? () => openNavigationDrawer(context) : null,
+                    onTap: enableMenu
+                        ? () => openNavigationDrawer(context)
+                        : null,
                   ),
 
                   // Primary screens: logo | title. Secondary screens that reuse
@@ -126,10 +137,16 @@ class AdminTopBar extends StatelessWidget {
 
                   // Broadcast
                   GestureDetector(
-                    onTap: onBroadcastTap ?? () => context.push(AppRoutes.announcementDashboard),
+                    onTap:
+                        onBroadcastTap ??
+                        () => context.push(AppRoutes.announcementDashboard),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(Icons.campaign_rounded, color: cs.primary, size: 26),
+                      child: Icon(
+                        Icons.campaign_rounded,
+                        color: cs.primary,
+                        size: 26,
+                      ),
                     ),
                   ),
 
@@ -137,26 +154,40 @@ class AdminTopBar extends StatelessWidget {
 
                   // Notifications (with unread badge)
                   GestureDetector(
-                    onTap: onNotificationTap ?? () => context.push(AppRoutes.adminNotifications),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(Icons.notifications_outlined, color: cs.primary, size: 26),
-                        if (unreadCount > 0)
-                          Positioned(
-                            top: -2,
-                            right: -2,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: AppConstants.errorRed,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
+                    onTap:
+                        onNotificationTap ??
+                        () => context.push(AppRoutes.adminNotifications),
+                    // The dot comes from the shared badge service, so it shows on
+                    // every primary screen, not only where a count was loaded.
+                    child: ListenableBuilder(
+                      listenable: NotificationBadgeService.instance,
+                      builder: (context, _) => Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(
+                            Icons.notifications_outlined,
+                            color: cs.primary,
+                            size: 26,
+                          ),
+                          if (NotificationBadgeService.instance.hasUnread)
+                            Positioned(
+                              top: -2,
+                              right: -2,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: AppConstants.errorRed,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
 
@@ -168,13 +199,18 @@ class AdminTopBar extends StatelessWidget {
                     height: 38,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.80), width: 2),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.80),
+                        width: 2,
+                      ),
                     ),
                     child: ProfileAvatar(
                       photoUrl: profilePhotoUrl,
                       displayName: displayName,
                       radius: 19,
-                      onTap: onProfileTap ?? () => context.push(AppRoutes.adminProfile),
+                      onTap:
+                          onProfileTap ??
+                          () => context.push(AppRoutes.adminProfile),
                     ),
                   ),
                 ],
@@ -213,12 +249,17 @@ class AdminTopBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent => 64 + topPadding;
   @override
-  bool shouldRebuild(covariant AdminTopBarDelegate old) => old.unreadCount != unreadCount ||
+  bool shouldRebuild(covariant AdminTopBarDelegate old) =>
+      old.unreadCount != unreadCount ||
       old.title != title ||
       old.topPadding != topPadding;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return AdminTopBar(
       title: title,
       unreadCount: unreadCount,

@@ -3,6 +3,7 @@ import '../../core/utils/quantity_utils.dart';
 import '../models/harvest_model.dart';
 import '../services/hive_service.dart';
 import '../services/offline_cache.dart';
+import 'shelf_life_repository.dart';
 
 class HarvestRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -51,11 +52,17 @@ class HarvestRepository {
     try {
       // Only the signed-in farmer's own history is kept for offline viewing.
       // An admin viewing another farmer always reads live.
-      Future<List<Map<String, dynamic>>> query() => _client
-          .from('harvest_records')
-          .select()
-          .eq('farmer_id', farmerId)
-          .order('harvest_date', ascending: false);
+      // Each harvest with its own batch's shelf-life row (what was reported as
+      // rotten). Read without it on a database that has no shelf-life tables.
+      Future<List<Map<String, dynamic>>> query() => withShelfLifeEmbed(
+        '*',
+        'inventory_batches(available_kg, reserved_kg, batch_shelf_life(*))',
+        (columns) => _client
+            .from('harvest_records')
+            .select(columns)
+            .eq('farmer_id', farmerId)
+            .order('harvest_date', ascending: false),
+      );
       final response = farmerId == _signedInUserId
           ? await OfflineCache.load(screen: 'harvests', fetch: query)
           : await query();

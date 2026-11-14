@@ -23,7 +23,6 @@ import '../../widgets/cached_data_notice.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
-
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
   // Phase 13 — reused as-is for Farmer's "My Orders" (farmer-as-buyer);
@@ -77,7 +76,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           children: [
             SubPageTopBar(title: '', onBack: () => context.pop()),
             const Expanded(
-              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SkeletonList(),
+              ),
             ),
           ],
         ),
@@ -85,13 +87,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
     if (_order == null) {
       return Scaffold(
-
         body: Column(
-        children: [
-          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
-          Expanded(child: Center(child: Text(l10n.buyerOrderDetailNotFound))),
-        ],
-      ),
+          children: [
+            SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+            Expanded(child: Center(child: Text(l10n.buyerOrderDetailNotFound))),
+          ],
+        ),
       );
     }
 
@@ -102,81 +103,91 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.buyerOrderDetailTitle(order.orderReference), onBack: () => Navigator.of(context).pop()),
+          SubPageTopBar(
+            title: l10n.buyerOrderDetailTitle(order.orderReference),
+            onBack: () => Navigator.of(context).pop(),
+          ),
           CachedDataNotice(
-                screen: 'buyer_order_${widget.orderId}',
-                isOnline: _isOnline,
-                offlineMessage: l10n.offlineBuyerBody,
+            screen: 'buyer_order_${widget.orderId}',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingSafeH,
+                8,
+                AppConstants.spacingSafeH,
+                32,
               ),
-          Expanded(child: ListView(
-        padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 32),
-        children: [
-          // Fulfillment first — how the order arrives is the thing a buyer
-          // checking a pending/approved order most wants confirmed, so it
-          // leads instead of sitting after the summary/payment info.
-          if (order.hasFulfillmentChoice) ...[
-            FulfillmentInfoCard(
-              fulfillmentMethod: order.fulfillmentMethod,
-              deliveryAddress: order.deliveryAddress,
-              deliveryContactNumber: order.deliveryContactNumber,
-              deliveryRecipientName: order.deliveryRecipientName,
-              deliveryLabel: order.deliveryLabel,
-              deliveryNotes: order.deliveryNotes,
+              children: [
+                // Fulfillment first — how the order arrives is the thing a buyer
+                // checking a pending/approved order most wants confirmed, so it
+                // leads instead of sitting after the summary/payment info.
+                if (order.hasFulfillmentChoice) ...[
+                  FulfillmentInfoCard(
+                    fulfillmentMethod: order.fulfillmentMethod,
+                    deliveryAddress: order.deliveryAddress,
+                    deliveryContactNumber: order.deliveryContactNumber,
+                    deliveryRecipientName: order.deliveryRecipientName,
+                    deliveryLabel: order.deliveryLabel,
+                    deliveryNotes: order.deliveryNotes,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                _buildStatusSection(order, l10n),
+                const SizedBox(height: 16),
+                if (!order.isCancelled) ...[
+                  _buildTimeline(order, l10n),
+                  const SizedBox(height: 16),
+                ],
+                _buildProductSection(order, l10n),
+                const SizedBox(height: 16),
+                _buildOrderSummary(order, l10n),
+                const SizedBox(height: 16),
+                _buildPaymentInfo(l10n),
+                if (order.deliveryPhotoUrl != null) ...[
+                  const SizedBox(height: 16),
+                  _buildDeliveryPhoto(order, l10n),
+                ],
+                // The cash is recorded by the cooperative first; only then can receipt be confirmed.
+                if (order.isWaitingForPayment) ...[
+                  const SizedBox(height: 16),
+                  const WaitingForPaymentCard(),
+                ],
+                if (order.isPaymentRecorded) ...[
+                  const SizedBox(height: 16),
+                  OrderPaymentCard(
+                    paymentStatus: order.paymentStatus,
+                    itemsTotal: order.totalPrice,
+                    amountCollected: order.amountCollected,
+                    deliveryFee: order.deliveryFeeCollected,
+                    paidAt: order.paidAt,
+                  ),
+                ],
+                if (order.completionMethod == 'staff') ...[
+                  const SizedBox(height: 16),
+                  const StaffCompletionCard(showStaffIdentity: false),
+                ],
+                if (order.canConfirmReceipt) ...[
+                  const SizedBox(height: 16),
+                  _buildReceivedSection(context, order, l10n),
+                ],
+                if (order.isPending) ...[
+                  const SizedBox(height: 16),
+                  _buildCancelSection(context, order, l10n),
+                ],
+                // Browse More Products doesn't belong once an order is approved —
+                // Pickup/Delivery are the only appropriate actions left at that
+                // point. Still shown for pending/completed/cancelled orders,
+                // where there's no fulfillment choice to make.
+                if (!isFulfillmentStatus(order.status)) ...[
+                  const SizedBox(height: 20),
+                  _buildSupportSection(context, l10n),
+                ],
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
-          _buildStatusSection(order, l10n),
-          const SizedBox(height: 16),
-          if (!order.isCancelled) ...[
-            _buildTimeline(order, l10n),
-            const SizedBox(height: 16),
-          ],
-          _buildProductSection(order, l10n),
-          const SizedBox(height: 16),
-          _buildOrderSummary(order, l10n),
-          const SizedBox(height: 16),
-          _buildPaymentInfo(l10n),
-          if (order.deliveryPhotoUrl != null) ...[
-            const SizedBox(height: 16),
-            _buildDeliveryPhoto(order, l10n),
-          ],
-          // The cash is recorded by the cooperative first; only then can receipt be confirmed.
-          if (order.isWaitingForPayment) ...[
-            const SizedBox(height: 16),
-            const WaitingForPaymentCard(),
-          ],
-          if (order.isPaymentRecorded) ...[
-            const SizedBox(height: 16),
-            OrderPaymentCard(
-              paymentStatus: order.paymentStatus,
-              itemsTotal: order.totalPrice,
-              amountCollected: order.amountCollected,
-              deliveryFee: order.deliveryFeeCollected,
-              paidAt: order.paidAt,
-            ),
-          ],
-          if (order.completionMethod == 'staff') ...[
-            const SizedBox(height: 16),
-            const StaffCompletionCard(showStaffIdentity: false),
-          ],
-          if (order.canConfirmReceipt) ...[
-            const SizedBox(height: 16),
-            _buildReceivedSection(context, order, l10n),
-          ],
-          if (order.isPending) ...[
-            const SizedBox(height: 16),
-            _buildCancelSection(context, order, l10n),
-          ],
-          // Browse More Products doesn't belong once an order is approved —
-          // Pickup/Delivery are the only appropriate actions left at that
-          // point. Still shown for pending/completed/cancelled orders,
-          // where there's no fulfillment choice to make.
-          if (!isFulfillmentStatus(order.status)) ...[
-            const SizedBox(height: 20),
-            _buildSupportSection(context, l10n),
-          ],
-        ],
-      )),
+          ),
         ],
       ),
     );
@@ -199,13 +210,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       _ => l10n.buyerOrderDetailCancelledStatus,
     };
     final message = switch (order.status) {
-      'approved' => order.isDelivery
-          ? l10n.buyerOrderMsgApprovedDelivery(AppConstants.cooperativeName)
-          : l10n.buyerOrderMsgApprovedPickup(AppConstants.cooperativeName),
+      'approved' =>
+        order.isDelivery
+            ? l10n.buyerOrderMsgApprovedDelivery(AppConstants.cooperativeName)
+            : l10n.buyerOrderMsgApprovedPickup(AppConstants.cooperativeName),
       'ready_for_pickup' => l10n.buyerOrderMsgReady,
       'out_for_delivery' => l10n.buyerOrderMsgOut,
       'delivered' => l10n.buyerOrderMsgDelivered,
-      'pending' => l10n.buyerOrderDetailMsgPending(AppConstants.cooperativeName),
+      'pending' => l10n.buyerOrderDetailMsgPending(
+        AppConstants.cooperativeName,
+      ),
       'completed' => l10n.buyerOrderDetailMsgCompleted,
       _ => l10n.buyerOrderDetailMsgCancelled,
     };
@@ -229,9 +243,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 40, height: 40,
+                  width: 40,
+                  height: 40,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.14), shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: _statusColor.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(statusIcon, size: 20, color: _statusColor),
                 ),
                 const SizedBox(width: 12),
@@ -239,27 +257,59 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(buyerOrderStatusLabel(order.status, l10n),
-                          style: GoogleFonts.poppins(fontSize: 15.5, fontWeight: FontWeight.w800, color: _statusColor)),
+                      Text(
+                        buyerOrderStatusLabel(order.status, l10n),
+                        style: GoogleFonts.poppins(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: _statusColor,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+          Divider(
+            height: 1,
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.10),
+          ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message, style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: AppConstants.onSurfaceVariant)),
-                if (order.isCancelled && order.notes != null && order.notes!.trim().isNotEmpty) ...[
+                Text(
+                  message,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (order.isCancelled &&
+                    order.notes != null &&
+                    order.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Text('${l10n.adminOrderDetailReasonLabel}: ${order.notes}',
-                      style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    '${l10n.adminOrderDetailReasonLabel}: ${order.notes}',
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontStyle: FontStyle.italic,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -285,7 +335,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       _ => l10n.buyerOrderDetailStepCompleted,
     };
     final journey = orderJourney(order.fulfillmentMethod);
-    final steps = [l10n.buyerOrderDetailStepPlaced, for (final s in journey) label(s)];
+    final steps = [
+      l10n.buyerOrderDetailStepPlaced,
+      for (final s in journey) label(s),
+    ];
     // index 0 is "Order Placed"; a cancelled order never left it.
     final at = journey.indexOf(order.status);
     final currentIndex = order.isCancelled || at < 0 ? 0 : at + 1;
@@ -296,9 +349,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.timeline_rounded, size: 16, color: AppConstants.primaryGreen),
+              Icon(
+                Icons.timeline_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 6),
-              Text(l10n.buyerOrderDetailJourney, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                l10n.buyerOrderDetailJourney,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -311,8 +374,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               timestamp: i == 0
                   ? _formatDateTime(order.createdAt, l10n)
                   : i == currentIndex
-                      ? _formatDateTime(order.updatedAt, l10n)
-                      : (i < currentIndex ? null : l10n.buyerOrderDetailPendingTimestamp),
+                  ? _formatDateTime(order.updatedAt, l10n)
+                  : (i < currentIndex
+                        ? null
+                        : l10n.buyerOrderDetailPendingTimestamp),
             ),
         ],
       ),
@@ -326,7 +391,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     required bool isLast,
     String? timestamp,
   }) {
-    final color = isDone || isCurrent ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.3);
+    final color = isDone || isCurrent
+        ? AppConstants.primaryGreen
+        : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,17 +401,37 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Column(
             children: [
               Container(
-                width: 22, height: 22,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
-                  color: isDone ? AppConstants.primaryGreen : (isCurrent ? AppConstants.primaryGreen.withValues(alpha: 0.1) : Colors.transparent),
+                  color: isDone
+                      ? AppConstants.primaryGreen
+                      : (isCurrent
+                            ? AppConstants.primaryGreen.withValues(alpha: 0.1)
+                            : Colors.transparent),
                   shape: BoxShape.circle,
-                  border: isCurrent ? Border.all(color: AppConstants.primaryGreen, width: 2) : null,
+                  border: isCurrent
+                      ? Border.all(color: AppConstants.primaryGreen, width: 2)
+                      : null,
                 ),
                 child: isDone
-                    ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      )
                     : isCurrent
-                        ? Center(child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppConstants.primaryGreen, shape: BoxShape.circle)))
-                        : null,
+                    ? Center(
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppConstants.primaryGreen,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
               if (!isLast) Expanded(child: Container(width: 2, color: color)),
             ],
@@ -355,13 +442,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-                  color: isDone || isCurrent ? AppConstants.onSurface : AppConstants.onSurfaceVariant.withValues(alpha: 0.5),
-                )),
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                    color: isDone || isCurrent
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
+                ),
                 if (timestamp != null)
-                  Text(timestamp, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    timestamp,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -389,12 +489,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                   child: order.listingPhotoUrl != null
-                      ? Image.network(order.listingPhotoUrl!, width: 64, height: 64, fit: BoxFit.cover)
-                      : Container(width: 64, height: 64, color: AppConstants.limeGreen),
+                      ? Image.network(
+                          order.listingPhotoUrl!,
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          width: 64,
+                          height: 64,
+                          color: AppConstants.limeGreen,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(order.displayName, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    order.displayName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -405,19 +520,43 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
-                  if (order.marketType != null) Expanded(child: _miniField('Market Type', order.marketTypeLabel)),
-                  if (order.marketType != null && order.category != null) const SizedBox(width: 20),
-                  if (order.category != null) Expanded(child: _miniField(l10n.buyerListingCategory, order.category!)),
+                  if (order.marketType != null)
+                    Expanded(
+                      child: _miniField(
+                        AppLocalizations.of(context).priceMarketTypeLabel,
+                        order.marketTypeLabel,
+                      ),
+                    ),
+                  if (order.marketType != null && order.category != null)
+                    const SizedBox(width: 20),
+                  if (order.category != null)
+                    Expanded(
+                      child: _miniField(
+                        l10n.buyerListingCategory,
+                        order.category!,
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
           if (order.description != null && order.description!.isNotEmpty) ...[
-            Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+            Divider(
+              height: 1,
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.10),
+            ),
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Text(order.description!,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.5)),
+              child: Text(
+                order.description!,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
             ),
           ],
         ],
@@ -427,10 +566,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Widget _miniField(String label, String value, {bool alignEnd = false}) {
     return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-        Text(value, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700)),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ],
     );
   }
@@ -442,16 +592,36 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.receipt_long_rounded, size: 16, color: AppConstants.primaryGreen),
+              Icon(
+                Icons.receipt_long_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 6),
-              Text(l10n.buyerOrderDetailSummary, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                l10n.buyerOrderDetailSummary,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          _summaryRow(l10n.buyerOrdersQuantityLabel, formatQuantityUnit(order.quantityKg, order.unit)),
-          _summaryRow(l10n.buyerPricePerKg(unitOrDefault(order.unit)), formatPesos(order.pricePerKg)),
+          _summaryRow(
+            l10n.buyerOrdersQuantityLabel,
+            formatQuantityUnit(order.quantityKg, order.unit),
+          ),
+          _summaryRow(
+            l10n.buyerPricePerKg(unitOrDefault(order.unit)),
+            formatPesos(order.pricePerKg),
+          ),
           const Divider(height: 20),
-          _summaryRow(l10n.buyerOrdersTotalLabel, '₱${order.totalPrice.toStringAsFixed(2)}', bold: true),
+          _summaryRow(
+            l10n.buyerOrdersTotalLabel,
+            '₱${order.totalPrice.toStringAsFixed(2)}',
+            bold: true,
+          ),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 10),
@@ -461,15 +631,41 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.buyerOrderDetailReferenceLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: AppConstants.onSurfaceVariant)),
-                  Text(order.orderReference, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(
+                    l10n.buyerOrderDetailReferenceLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      letterSpacing: 0.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    order.orderReference,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(l10n.buyerOrderDetailDateLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: AppConstants.onSurfaceVariant)),
-                  Text(AppUtils.formatDate(order.createdAt, l10n.localeName), style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(
+                    l10n.buyerOrderDetailDateLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      letterSpacing: 0.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    AppUtils.formatDate(order.createdAt, l10n.localeName),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -485,8 +681,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: bold ? 15 : 13, fontWeight: bold ? FontWeight.w700 : FontWeight.w400, color: bold ? AppConstants.primaryGreen : AppConstants.onSurfaceVariant)),
-          Text(value, style: GoogleFonts.poppins(fontSize: bold ? 18 : 13, fontWeight: bold ? FontWeight.w800 : FontWeight.w600, color: bold ? AppConstants.primaryGreen : AppConstants.onSurface)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: bold ? 15 : 13,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              color: bold
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: bold ? 18 : 13,
+              fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+              color: bold
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
         ],
       ),
     );
@@ -509,11 +723,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.buyerOrderDetailPaymentInfo, style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                Text(
+                  l10n.buyerOrderDetailPaymentInfo,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   l10n.buyerOrderDetailPaymentBody,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.4),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -535,13 +760,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+        ),
       ),
       child: TextButton.icon(
         icon: const Icon(Icons.shopping_basket_outlined, size: 18),
         label: Text(l10n.buyerOrderDetailBrowseMore),
         onPressed: () => context.go(
-          widget.isFarmerContext ? AppRoutes.myListings : AppRoutes.marketplaceBrowse,
+          widget.isFarmerContext
+              ? AppRoutes.myListings
+              : AppRoutes.marketplaceBrowse,
         ),
       ),
     );
@@ -555,23 +784,44 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.photo_camera_outlined, size: 16, color: AppConstants.primaryGreen),
+              Icon(
+                Icons.photo_camera_outlined,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 6),
-              Text(l10n.buyerOrderDeliveryPhotoTitle,
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                l10n.buyerOrderDeliveryPhotoTitle,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           CoopDeliveryPhoto(url: order.deliveryPhotoUrl!),
           if (order.deliveredAt != null) ...[
             const SizedBox(height: 8),
-            Text(_formatDateTime(order.deliveredAt!, l10n),
-                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+            Text(
+              _formatDateTime(order.deliveredAt!, l10n),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
-          if (order.deliveryEvidenceNote != null && order.deliveryEvidenceNote!.isNotEmpty) ...[
+          if (order.deliveryEvidenceNote != null &&
+              order.deliveryEvidenceNote!.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text('“${order.deliveryEvidenceNote}”',
-                style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
+            Text(
+              '“${order.deliveryEvidenceNote}”',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ],
       ),
@@ -583,49 +833,81 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   // become SOLD in the seller's stock. Offered only on an approved order; the
   // server (confirm_order_received) re-checks the owner and status and refuses a
   // second confirmation.
-  Widget _buildReceivedSection(BuildContext context, BuyerOrderModel order, AppLocalizations l10n) {
+  Widget _buildReceivedSection(
+    BuildContext context,
+    BuyerOrderModel order,
+    AppLocalizations l10n,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.30)),
+        border: Border.all(
+          color: AppConstants.primaryGreen.withValues(alpha: 0.30),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.inventory_2_outlined, size: 18, color: AppConstants.primaryGreen),
+              Icon(
+                Icons.inventory_2_outlined,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(l10n.buyerOrderReceivedCardTitle,
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+                child: Text(
+                  l10n.buyerOrderReceivedCardTitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(order.isDelivery ? l10n.buyerOrderConfirmAfterDelivered : l10n.buyerOrderConfirmAfterReady,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+          Text(
+            order.isDelivery
+                ? l10n.buyerOrderConfirmAfterDelivered
+                : l10n.buyerOrderConfirmAfterReady,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           if (!_isOnline) ...[
             const SizedBox(height: 6),
-            Text(l10n.buyerOrderReceivedOffline,
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+            Text(
+              l10n.buyerOrderReceivedOffline,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
+            ),
           ],
           const SizedBox(height: 10),
           ElevatedButton.icon(
             onPressed: _isOnline ? () => _confirmReceived(order, l10n) : null,
             icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-            label: Text(l10n.buyerOrderReceivedAction,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+            label: Text(
+              l10n.buyerOrderReceivedAction,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _confirmReceived(BuyerOrderModel order, AppLocalizations l10n) async {
+  Future<void> _confirmReceived(
+    BuyerOrderModel order,
+    AppLocalizations l10n,
+  ) async {
     bool isSaving = false;
     // null = dismissed without confirming (no feedback); otherwise the error
     // text to show, or '' for success.
@@ -635,10 +917,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => ManagementModalShell(
           title: l10n.buyerOrderReceivedDialogTitle,
-          body: Text(l10n.buyerOrderReceivedDialogBody(
-            formatQuantityUnit(order.quantityKg, order.unit),
-            order.displayName,
-          )),
+          body: Text(
+            l10n.buyerOrderReceivedDialogBody(
+              formatQuantityUnit(order.quantityKg, order.unit),
+              order.displayName,
+            ),
+          ),
           footer: ManagementModalActions(
             primaryLabel: l10n.buyerOrderReceivedConfirm,
             isLoading: isSaving,
@@ -661,27 +945,42 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final result = outcome;
     if (result == null || !mounted) return;
     final ok = result.isEmpty;
-    AppToast.show(context, ok ? l10n.buyerOrderReceivedToast : result, isError: !ok);
+    AppToast.show(
+      context,
+      ok ? l10n.buyerOrderReceivedToast : result,
+      isError: !ok,
+    );
     _load();
   }
 
   // Buyer-side cancel. Offered only while the order is still pending: once the
   // cooperative approves it, the order is committed and can only be completed.
   // The server re-checks ownership and status (cancel_my_order), so this is UI only.
-  Widget _buildCancelSection(BuildContext context, BuyerOrderModel order, AppLocalizations l10n) {
+  Widget _buildCancelSection(
+    BuildContext context,
+    BuyerOrderModel order,
+    AppLocalizations l10n,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.25),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l10n.buyerOrderCancelHint,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+          Text(
+            l10n.buyerOrderCancelHint,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 10),
           OutlinedButton(
             onPressed: () => _confirmCancel(l10n),
@@ -689,8 +988,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               foregroundColor: AppConstants.errorRed,
               side: const BorderSide(color: AppConstants.errorRed),
             ),
-            child: Text(l10n.buyerOrderCancelAction,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            child: Text(
+              l10n.buyerOrderCancelAction,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -717,7 +1018,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               TextField(
                 controller: reasonCtrl,
                 maxLines: 2,
-                decoration: InputDecoration(labelText: l10n.buyerOrderCancelReasonLabel),
+                decoration: InputDecoration(
+                  labelText: l10n.buyerOrderCancelReasonLabel,
+                ),
               ),
             ],
           ),

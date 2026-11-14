@@ -76,7 +76,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   late final _marketRepo = widget.marketRepo ?? BuyerMarketplaceRepository();
   late final _addressRepo = widget.addressRepo ?? BuyerAddressRepository();
   late final _cartService = widget.cartService ?? CartService();
-  late final _deliveryRepo = widget.deliveryRepo ?? CooperativeDeliveryRepository();
+  late final _deliveryRepo =
+      widget.deliveryRepo ?? CooperativeDeliveryRepository();
   late final _coopRepo = widget.coopRepo ?? CooperativeOrderRepository();
 
   // The delivery rules (distance-based fee, Barangay Payanas only). Off until the Manager has
@@ -157,8 +158,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _delivery = status;
       _coopDetails = details;
       // A method that cannot be used is never left selected.
-      if (!_deliveryAvailable && _pickupAvailable) _method = _FulfillmentMethod.pickup;
-      if (!_pickupAvailable && _deliveryAvailable) _method = _FulfillmentMethod.delivery;
+      if (!_deliveryAvailable && _pickupAvailable) {
+        _method = _FulfillmentMethod.pickup;
+      }
+      if (!_pickupAvailable && _deliveryAvailable) {
+        _method = _FulfillmentMethod.delivery;
+      }
     });
     _refreshQuote();
   }
@@ -445,7 +450,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             height: 1,
                             indent: 14,
                             endIndent: 14,
-                            color: AppConstants.outline.withValues(alpha: 0.08),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.08),
                           ),
                       ],
                       Container(
@@ -463,7 +470,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               l10n.checkoutSubtotalLabel(widget.items.length),
                               style: GoogleFonts.inter(
                                 fontSize: 12,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                             Text(
@@ -471,7 +480,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: AppConstants.onSurface,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -492,7 +501,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 l10n.uoPaymentDeliveryFee,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: AppConstants.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               Text(
@@ -555,7 +566,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       bottomNavigationBar: SafeArea(
         child: ConstrainedBox(
           // Grows with the text size, so enlarged text is not cut off.
-          constraints: BoxConstraints(maxHeight: MediaQuery.textScalerOf(context).scale(96)),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.textScalerOf(context).scale(96),
+          ),
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(
@@ -568,7 +581,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               color: sagana.cardBackground,
               border: Border(
                 top: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.10),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.10),
                 ),
               ),
             ),
@@ -584,7 +599,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         l10n.checkoutTotal,
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       // A large total (items plus the delivery fee) shrinks to fit instead of wrapping.
@@ -597,7 +612,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           style: GoogleFonts.poppins(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: AppConstants.primaryGreen,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -636,13 +651,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget _sectionHeader(IconData icon, String title) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppConstants.primaryGreen),
+        Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 6),
         // Can wrap on a narrow screen or with large text instead of running off the edge.
         Expanded(
           child: Text(
             title,
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -717,7 +735,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   l10n.checkoutPickupAt,
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -735,7 +753,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   key: const Key('pickupAddress'),
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 // Only a real, entered number: never the placeholder.
@@ -746,7 +764,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     key: const Key('pickupContact'),
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -755,7 +773,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   l10n.uoCheckoutCashNote,
                   style: GoogleFonts.inter(
                     fontSize: 11.5,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -799,7 +817,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     l10n.checkoutNoAddressesPrompt,
                     style: GoogleFonts.inter(
                       fontSize: 13,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -862,7 +880,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 height: 1.4,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -887,7 +905,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             l10n.uoCheckoutQuoteLoading,
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -905,10 +923,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.local_shipping_outlined,
               size: 18,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -917,7 +935,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   height: 1.4,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -926,7 +944,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ],
@@ -996,7 +1014,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: AppConstants.outline.withValues(alpha: 0.3),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1077,7 +1097,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
@@ -1100,16 +1120,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           const SizedBox(height: 12),
           Divider(
             height: 1,
-            color: AppConstants.outline.withValues(alpha: 0.1),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              Icon(
                 Icons.info_outline_rounded,
                 size: 15,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1117,7 +1137,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   l10n.checkoutReviewNote,
                   style: GoogleFonts.inter(
                     fontSize: 11.5,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -1132,14 +1152,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: AppConstants.primaryGreen),
+        Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
             style: GoogleFonts.inter(
               fontSize: 12.5,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -1182,7 +1202,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: AppConstants.infoBlueBg.withValues(alpha: 0.5),
+                    color: context
+                        .adaptiveSurface(AppConstants.infoBlueBg)
+                        .withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                   ),
                   child: Text(
@@ -1192,7 +1214,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w600,
-                      color: AppConstants.infoBlueFg,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -1201,7 +1223,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   '${formatQuantityUnit(item.quantityKg, item.unit)} × ${formatPricePerUnit(item.pricePerKg, item.unit)}',
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1212,7 +1234,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ],
@@ -1251,7 +1273,9 @@ class _MethodChip extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? AppConstants.primaryGreen
-                  : AppConstants.outline.withValues(alpha: 0.2),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.2),
             ),
             boxShadow: selected
                 ? [
@@ -1267,7 +1291,9 @@ class _MethodChip extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: selected ? Colors.white : AppConstants.primaryGreen,
+                color: selected
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.primary,
                 size: 22,
               ),
               const SizedBox(height: 6),
@@ -1276,7 +1302,9 @@ class _MethodChip extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : AppConstants.primaryGreen,
+                  color: selected
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],
@@ -1317,7 +1345,7 @@ class _AddressOptionTile extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? AppConstants.primaryGreen
-                : AppConstants.outline.withValues(alpha: 0.15),
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -1326,7 +1354,7 @@ class _AddressOptionTile extends StatelessWidget {
           children: [
             Icon(
               selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
               size: 20,
             ),
             const SizedBox(width: 10),
@@ -1350,7 +1378,7 @@ class _AddressOptionTile extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -1367,7 +1395,7 @@ class _AddressOptionTile extends StatelessWidget {
                     address.addressLine,
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   if (address.contactNumber != null) ...[
@@ -1376,7 +1404,7 @@ class _AddressOptionTile extends StatelessWidget {
                       address.contactNumber!,
                       style: GoogleFonts.inter(
                         fontSize: 11.5,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

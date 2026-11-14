@@ -140,7 +140,11 @@ class _GuestPromptDialog extends StatelessWidget {
                   color: AppConstants.primaryGreen.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: AppConstants.primaryGreen, size: 28),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 28,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -158,7 +162,7 @@ class _GuestPromptDialog extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   height: 1.5,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 20),
@@ -184,7 +188,7 @@ class _GuestPromptDialog extends StatelessWidget {
                   continueLabel,
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -242,7 +246,7 @@ class GuestSampleBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
+          const Icon(
             Icons.info_outline_rounded,
             size: 18,
             color: AppConstants.amber,
@@ -254,7 +258,7 @@ class GuestSampleBanner extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 height: 1.4,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),

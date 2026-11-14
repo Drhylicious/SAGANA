@@ -74,7 +74,7 @@ String serializeSalesReportCsv(SalesReportData data, [ProductSalesReportData? pr
         t.marketType ?? '',
         t.farmerName,
         t.cropType,
-        t.cropName,
+        t.fromProgram ? '${t.cropName} (Cooperative Program)' : t.cropName,
         exportQuantity(t.quantityKg, t.unit),
         t.amount.toStringAsFixed(2),
         _dateFmt.format(t.saleDate),
@@ -116,7 +116,10 @@ String _serializeInventoryBatchesCsv(InventoryReportData data) {
       'Available (kg)',
       'Committed (kg)',
       'Sold (kg)',
+      'Rotten/Lost (kg)',
       'Status',
+      'Condition',
+      'Shelf Life',
     ]),
   );
   for (final b in data.batches) {
@@ -129,7 +132,10 @@ String _serializeInventoryBatchesCsv(InventoryReportData data) {
         exportQuantity(b.availableKg, b.unit),
         exportQuantity(b.reservedKg, b.unit),
         exportQuantity(b.soldKg, b.unit),
+        exportQuantity(b.spoiledKg, b.unit),
         batchStatusExportLabel(b.status),
+        b.conditionLabel,
+        b.shelfLifeExportLabel,
       ]),
     );
   }
@@ -149,7 +155,15 @@ String serializeHarvestReportCsv(
   final buffer = StringBuffer();
   buffer.writeln(_row(['Harvest Activity']));
   buffer.writeln(
-    _row(['Date', 'Farmer Name', 'Crop', 'Quantity (kg)', 'Batch Number']),
+    _row([
+      'Date',
+      'Farmer Name',
+      'Crop',
+      'Category',
+      'Quantity (kg)',
+      'Batch Number',
+      'Rotten/Lost (kg)',
+    ]),
   );
   for (final h in data.harvests) {
     buffer.writeln(
@@ -157,8 +171,10 @@ String serializeHarvestReportCsv(
         _dateFmt.format(h.harvestDate),
         h.farmerName,
         h.cropName,
+        h.cropCategory,
         exportQuantity(h.quantityKg, h.unit),
         formatBatchNumber(h.batchNumber),
+        exportQuantity(h.spoiledKg, h.unit),
       ]),
     );
   }

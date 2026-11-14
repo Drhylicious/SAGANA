@@ -371,7 +371,8 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
       );
     }
 
-    final isVerified = !_codeSent &&
+    final isVerified =
+        !_codeSent &&
         (_typedIsActive
             ? (widget.activeVerified ?? widget.verified)
             : (widget.verified && typed == _norm(widget.savedEmail)));
@@ -405,7 +406,7 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
                           style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppConstants.primaryGreen,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                 ),
@@ -416,7 +417,9 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
           if (_changing && !isVerified) ...[
             _note(
               const ValueKey('verify-email-note-current'),
-              l10n.emailChangeKeepsCurrent(widget.activeEmail ?? widget.savedEmail ?? ''),
+              l10n.emailChangeKeepsCurrent(
+                widget.activeEmail ?? widget.savedEmail ?? '',
+              ),
               cs,
             ),
             if (widget.signInEmail)
@@ -498,7 +501,9 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: _cooldown > 0 ? cs.outline : AppConstants.primaryGreen,
+                    color: _cooldown > 0
+                        ? cs.outline
+                        : Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -545,9 +550,13 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final color = verified ? AppConstants.successGreen : AppConstants.warningAmber;
+    final color = verified
+        ? AppConstants.successGreen
+        : AppConstants.warningAmber;
     return Container(
-      key: ValueKey(verified ? 'email-status-verified' : 'email-status-unverified'),
+      key: ValueKey(
+        verified ? 'email-status-verified' : 'email-status-unverified',
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
@@ -580,7 +589,10 @@ class _StatusChip extends StatelessWidget {
 /// server switched their sign-in address when the code was accepted). The cached
 /// session still names the old address, which later re-sign-ins such as Change
 /// Password would use, so it is refreshed here, then the person is told.
-Future<void> announceEmailSignInEnabled(BuildContext context, String? email) async {
+Future<void> announceEmailSignInEnabled(
+  BuildContext context,
+  String? email,
+) async {
   try {
     await Supabase.instance.client.auth.refreshSession();
   } catch (_) {
@@ -589,7 +601,9 @@ Future<void> announceEmailSignInEnabled(BuildContext context, String? email) asy
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(AppLocalizations.of(context).emailSignInEnabled(email ?? '')),
+      content: Text(
+        AppLocalizations.of(context).emailSignInEnabled(email ?? ''),
+      ),
       backgroundColor: AppConstants.midGreen,
       duration: const Duration(seconds: 6),
     ),

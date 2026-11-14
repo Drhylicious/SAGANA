@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,7 +9,6 @@ import '../../../data/models/harvest_model.dart';
 import '../../../data/models/farmer_crop_model.dart' hide HarvestFilter;
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_repository.dart';
-import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -44,7 +44,6 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   int _cropCount = 0;
   // Crop Items (seeds, seedlings, produce) a program gave this Farmer; listed from here, not under
   // Received Items.
-  int _programCropItemCount = 0;
   int _unreadCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
@@ -105,10 +104,6 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         _notifRepo.fetchUnreadCount(),
         _harvestRepo.fetchStats(),
         _cropRepo.fetchCrops(),
-        FarmerProfileRepository()
-            .fetchMyReceivedItems(cropItems: true)
-            .then((l) => l.length)
-            .catchError((_) => 0),
       ]);
       await _profileState.refresh();
       if (!mounted) return;
@@ -119,7 +114,6 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         _unreadCount = results[2] as int;
         _seasonHarvestCount = (results[3] as HarvestStats).seasonCount;
         _cropCount = crops.length;
-        _programCropItemCount = results[5] as int;
         _cropsById = {for (final c in crops) c.id: c};
         _isLoading = false;
       });
@@ -131,7 +125,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -145,7 +139,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                 // Content
                 Column(
                   children: [
-                    TopBarSpacer(height: 50),
+                    const TopBarSpacer(height: 50),
                     CachedDataNotice(
                       screen: 'harvests',
                       otherScreens: [
@@ -207,21 +201,6 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                               ),
                               const SizedBox(height: 16),
 
-                              // ── Crop Items from Programs ──────────────────
-                              // Seeds, seedlings and produce a program gave the Farmer (their
-                              // Item Type in Inventory is Crop Item). Tools and livestock stay
-                              // under Received Items in the profile.
-                              if (_programCropItemCount > 0 &&
-                                  !GuestModeService.active) ...[
-                                _ProgramCropTile(
-                                  count: _programCropItemCount,
-                                  onTap: () => context.pushRoute(
-                                    AppRoutes.receivedCropItems,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-
                               // Season/Records stats moved to Harvest
                               // History as part of its 3-card consolidation
                               // — no longer duplicated here.
@@ -237,7 +216,9 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                                         (l) => l.guestHarvestHistoryMessage,
                                         icon: Icons.history_rounded,
                                       )
-                                    : context.pushRoute(AppRoutes.harvestHistory),
+                                    : context.pushRoute(
+                                        AppRoutes.harvestHistory,
+                                      ),
                               ),
                             ],
                           ),
@@ -256,7 +237,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                     // Was "Harvest Hub" — the bottom-nav tab itself is
                     // just "Harvest" (navHarvest), so the on-screen title
                     // didn't match the tab that opens it.
-                    title: 'Harvest',
+                    title: AppLocalizations.of(context).navHarvest,
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
@@ -339,8 +320,10 @@ class _HeroCards extends StatelessWidget {
           ),
           icon: Icons.eco_rounded,
           iconBg: Colors.white.withValues(alpha: 0.20),
-          title: 'Record New Harvest',
-          subtitle: '$seasonHarvestCount harvests this year',
+          title: AppLocalizations.of(context).enhRecordNewHarvest,
+          subtitle: AppLocalizations.of(
+            context,
+          ).enhHarvestsThisYear((seasonHarvestCount).toString()),
           subtitleColor: AppConstants.onPrimaryContainer,
           onTap: onRecordHarvest,
         ),
@@ -356,8 +339,10 @@ class _HeroCards extends StatelessWidget {
           ),
           icon: Icons.grass_rounded,
           iconBg: Colors.white.withValues(alpha: 0.20),
-          title: 'Crop Roster',
-          subtitle: '$cropCount crops in your roster',
+          title: AppLocalizations.of(context).activityCropRoster,
+          subtitle: AppLocalizations.of(
+            context,
+          ).enhCropsInYourRoster((cropCount).toString()),
           subtitleColor: Colors.white.withValues(alpha: 0.85),
           onTap: onMyCrops,
         ),
@@ -373,10 +358,18 @@ class _HeroCards extends StatelessWidget {
           ),
           icon: Icons.inventory_2_rounded,
           iconBg: Colors.white.withValues(alpha: 0.20),
-          title: 'Manage Inventory',
+          title: AppLocalizations.of(context).enhManageInventory,
           subtitle: inventoryTotal > 0
-              ? '$inventoryTotal batches${inventoryLowStock > 0 ? ' • $inventoryLowStock low stock' : ''}'
-              : 'View stock levels',
+              ? AppLocalizations.of(context).enhBatches(
+                  (inventoryTotal).toString(),
+                  (inventoryLowStock > 0
+                          ? AppLocalizations.of(
+                              context,
+                            ).enhLowStockSuffix(inventoryLowStock.toString())
+                          : '')
+                      .toString(),
+                )
+              : AppLocalizations.of(context).enhViewStockLevels,
           subtitleColor: const Color(0xFFFFDDB5),
           onTap: onManageInventory,
         ),
@@ -527,11 +520,11 @@ class _RecentHarvestsSection extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Recent Harvests',
+                AppLocalizations.of(context).enhRecentHarvests,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -539,11 +532,11 @@ class _RecentHarvestsSection extends StatelessWidget {
             GestureDetector(
               onTap: onViewAll,
               child: Text(
-                'View All',
+                AppLocalizations.of(context).listingsAllButton,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -581,14 +574,16 @@ class _RecentHarvestsSection extends StatelessWidget {
                   Icon(
                     Icons.eco_outlined,
                     size: 40,
-                    color: AppConstants.outline.withValues(alpha: 0.50),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.50),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'No harvests yet',
+                    AppLocalizations.of(context).enhNoHarvestsYet,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -613,7 +608,9 @@ class _RecentHarvestsSection extends StatelessWidget {
                         if (e.key < harvests.length - 1)
                           Divider(
                             height: 1,
-                            color: AppConstants.outline.withValues(alpha: 0.08),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.08),
                           ),
                       ],
                     ),
@@ -654,13 +651,13 @@ class _HarvestTile extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Icon(
                         FarmerCropModel.iconForCategory(harvest.cropCategory),
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 20,
                       ),
                     )
                   : Icon(
                       FarmerCropModel.iconForCategory(harvest.cropCategory),
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                       size: 20,
                     ),
             ),
@@ -677,7 +674,7 @@ class _HarvestTile extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppConstants.charcoal,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -690,7 +687,7 @@ class _HarvestTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
                     fontSize: 10.5,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -705,12 +702,14 @@ class _HarvestTile extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                harvest.isSynced ? 'Synced' : 'Pending',
+                harvest.isSynced
+                    ? AppLocalizations.of(context).reportsSynced
+                    : AppLocalizations.of(context).adminDashKpiPending,
                 style: GoogleFonts.inter(
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
@@ -723,7 +722,7 @@ class _HarvestTile extends StatelessWidget {
                 _formatDateTime(harvest.harvestDate),
                 style: GoogleFonts.inter(
                   fontSize: 9,
-                  color: AppConstants.outline,
+                  color: Theme.of(context).colorScheme.outline,
                 ),
               ),
             ],
@@ -744,83 +743,4 @@ class _HarvestTile extends StatelessWidget {
 // individually-carded shimmer block, consistent with the tile-based list).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Crop Items from Programs — a row under the hero cards, shown only when a program
-// has given the Farmer a Crop Item (seeds, seedlings, produce).
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _ProgramCropTile extends StatelessWidget {
-  const _ProgramCropTile({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(
-            color: AppConstants.outline.withValues(alpha: 0.10),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF455A64).withValues(alpha: 0.06),
-              blurRadius: 10,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.volunteer_activism_rounded,
-                color: AppConstants.primaryGreen,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.receivedCropTitle,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.onSurface,
-                    ),
-                  ),
-                  Text(
-                    l10n.receivedItemsRowSubtitle(count),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppConstants.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppConstants.outline,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

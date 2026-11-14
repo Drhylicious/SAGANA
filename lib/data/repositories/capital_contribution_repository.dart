@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/client_id.dart';
 import '../services/offline_cache.dart';
 import '../models/contribution_model.dart';
 import '../services/offline_actions.dart';
@@ -47,15 +48,18 @@ class CapitalContributionRepository {
     String source = 'member_payment',
     String? note,
   }) {
+    final eventId = newClientId();
     return OfflineActions.run(
       kind: 'capital_record',
       payload: {
+        'eventId': eventId,
         'farmerId': farmerId,
         'amount': amount,
         'source': source,
         'note': note,
       },
       online: () => recordContributionOnline(
+        eventId: eventId,
         farmerId: farmerId,
         amount: amount,
         source: source,
@@ -66,12 +70,21 @@ class CapitalContributionRepository {
 
   /// The server write behind recordContribution(). Also run by offline replay.
   Future<void> recordContributionOnline({
+    String? eventId,
     required String farmerId,
     required double amount,
     String source = 'member_payment',
     String? note,
   }) async {
+    final id = eventId ?? newClientId();
+    final existing = await _client
+        .from('capital_contribution_events')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+    if (existing != null) return;
     await _client.from('capital_contribution_events').insert({
+      'id': id,
       'farmer_id': farmerId,
       'amount': amount,
       'source': source,
@@ -114,7 +127,9 @@ class CapitalContributionRepository {
 
   /// user id -> full name for the staff who recorded the entries. A failed
   /// lookup only leaves the names out; the ledger still loads.
-  Future<Map<String, String>> _recorderNames(List<Map<String, dynamic>> rows) async {
+  Future<Map<String, String>> _recorderNames(
+    List<Map<String, dynamic>> rows,
+  ) async {
     final ids = {
       for (final r in rows)
         if (r['recorded_by'] is String) r['recorded_by'] as String,
@@ -152,10 +167,12 @@ class CapitalContributionRepository {
       );
       final names = await _recorderNames(rows);
       return rows
-          .map((r) => CapitalContributionEvent.fromMap(
-                r,
-                recordedByName: names[r['recorded_by']],
-              ))
+          .map(
+            (r) => CapitalContributionEvent.fromMap(
+              r,
+              recordedByName: names[r['recorded_by']],
+            ),
+          )
           .toList();
     } catch (_) {
       return [];

@@ -6,8 +6,8 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../widgets/app_dialog.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/notification_day_groups.dart';
 import '../../widgets/notification_ui.dart';
@@ -25,6 +25,7 @@ class BuyerNotificationsScreen extends StatefulWidget {
 
 class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
   final _repository = NotificationRepository();
+  final _selection = NotificationSelection();
 
   bool _isLoading = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
@@ -45,6 +46,7 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
     if (!mounted) return;
     setState(() {
       _all = notifications;
+      _selection.clear();
       _isLoading = false;
     });
   }
@@ -62,9 +64,16 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
       if (index != -1) _all[index] = n.copyWith(isRead: true);
     });
     await _repository.markAsRead(n.id, queueWhenOffline: false);
+    AppEventService.instance.notify();
   }
 
+  /// Tap: selects/unselects while selecting; otherwise marks it read and goes
+  /// to the screen the notification is about.
   Future<void> _onNotifTap(NotificationModel n) async {
+    if (_selection.isActive) {
+      setState(() => _selection.toggle(n.id));
+      return;
+    }
     await _markAsRead(n);
     if (!mounted) return;
     if (n.routeOnTap != null) {
@@ -76,137 +85,101 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
     }
   }
 
-  Future<void> _delete(NotificationModel n) async {
+  /// Applies the one menu action (Mark as Read / Mark as Unread) to the
+  /// selected notifications, then leaves selection mode.
+  Future<void> _applyToSelection() async {
     if (_offlineBlocked()) return;
-    setState(() => _all.removeWhere((x) => x.id == n.id));
-    await _repository.deleteNotification(n.id, queueWhenOffline: false);
-  }
-
-  Future<void> _markAllRead() async {
-    if (_offlineBlocked()) return;
+    final markRead = _selection.offersMarkRead(_all);
+    final ids = _selection.picked(_all).map((n) => n.id).toSet();
     setState(() {
-      _all = _all.map((n) => n.copyWith(isRead: true)).toList();
+      _all = _all
+          .map((n) => ids.contains(n.id) ? n.copyWith(isRead: markRead) : n)
+          .toList();
+      _selection.clear();
     });
-    await _repository.markAllAsRead(queueWhenOffline: false);
-  }
-
-  Future<void> _markAllUnread() async {
-    if (_offlineBlocked()) return;
-    setState(() {
-      _all = _all.map((n) => n.copyWith(isRead: false)).toList();
-    });
-    await _repository.markAllAsUnread(queueWhenOffline: false);
-  }
-
-  /// Long-press: flips one notification between read and unread.
-  Future<void> _toggleRead(NotificationModel n) async {
-    if (_offlineBlocked()) return;
-    final nowRead = !n.isRead;
-    setState(() {
-      final index = _all.indexWhere((x) => x.id == n.id);
-      if (index != -1) _all[index] = n.copyWith(isRead: nowRead);
-    });
-    if (nowRead) {
-      await _repository.markAsRead(n.id, queueWhenOffline: false);
-    } else {
-      await _repository.markAsUnread(n.id, queueWhenOffline: false);
-    }
-  }
-
-  Future<void> _clearAll() async {
-    if (_offlineBlocked()) return;
-    final confirmed = await AppDialog.show<bool>(
-      context: context,
-      child: _ClearAllConfirmDialog(),
+    await Future.wait(
+      ids.map(
+        (id) => markRead
+            ? _repository.markAsRead(id, queueWhenOffline: false)
+            : _repository.markAsUnread(id, queueWhenOffline: false),
+      ),
     );
-    if (confirmed != true) return;
-    setState(() => _all = []);
-    await _repository.deleteAllNotifications(queueWhenOffline: false);
+    AppEventService.instance.notify();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final hasUnread = _all.any((n) => n.isUnread);
 
-    return Scaffold(
-      backgroundColor: sagana.scaffoldBackground,
-      body: Column(
-        children: [
-          SubPageTopBar(
-            title: l10n.sectionNotifications,
-            onBack: () => Navigator.of(context).pop(),
-            trailing: _all.isNotEmpty
-                ? NotificationMenuButton(
-                    hasUnread: hasUnread,
-                    hasRead: _all.any((n) => n.isRead),
-                    onMarkAllRead: _markAllRead,
-                    onMarkAllUnread: _markAllUnread,
-                    onClearAll: _clearAll,
-                  )
-                : null,
-          ),
-          CachedDataNotice(
-            screen: 'notifications',
-            isOnline: _isOnline,
-            offlineMessage: l10n.offlineBuyerBody,
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: _isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: SkeletonList(),
-                  )
-                : _all.isEmpty
-                ? _buildEmptyState()
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppConstants.spacingSafeH,
-                        8,
-                        AppConstants.spacingSafeH,
-                        32,
-                      ),
-                      children: notificationGroupChildren<NotificationModel>(
-                        items: _all,
-                        timeOf: (n) => n.createdAt,
-                        l10n: l10n,
-                        buildItem: (n) => Dismissible(
-                          key: ValueKey(n.id),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            decoration: BoxDecoration(
-                              color: AppConstants.errorRed,
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusLg,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.delete_outline_rounded,
-                              color: Colors.white,
-                            ),
-                          ),
-                          onDismissed: (_) => _delete(n),
-                          child: _NotificationTile(
-                            notification: n,
+    return PopScope(
+      canPop: !_selection.isActive,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(_selection.clear);
+      },
+      child: Scaffold(
+        backgroundColor: sagana.scaffoldBackground,
+        body: Column(
+          children: [
+            SubPageTopBar(
+              title: notificationTopBarTitle(
+                l10n,
+                l10n.sectionNotifications,
+                _selection,
+              ),
+              onBack: () => _selection.isActive
+                  ? setState(_selection.clear)
+                  : Navigator.of(context).pop(),
+              trailing: _selection.isActive
+                  ? NotificationSelectionMenu(
+                      markRead: _selection.offersMarkRead(_all),
+                      onApply: _applyToSelection,
+                    )
+                  : null,
+            ),
+            CachedDataNotice(
+              screen: 'notifications',
+              isOnline: _isOnline,
+              offlineMessage: l10n.offlineBuyerBody,
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
+                  : _all.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppConstants.spacingSafeH,
+                          8,
+                          AppConstants.spacingSafeH,
+                          32,
+                        ),
+                        children: notificationGroupChildren<NotificationModel>(
+                          items: _all,
+                          timeOf: (n) => n.createdAt,
+                          l10n: l10n,
+                          buildItem: (n) => NotificationCard(
+                            item: n,
+                            selected: _selection.contains(n.id),
+                            timeLabel: notificationTimeLabel(l10n, n.createdAt),
                             onTap: () => _onNotifTap(n),
-                            onLongPress: () => showNotificationReadSheet(
-                              context,
-                              isRead: n.isRead,
-                              onToggle: () => _toggleRead(n),
-                            ),
+                            onLongPress: () {
+                              if (_selection.isActive) return;
+                              setState(() => _selection.toggle(n.id));
+                            },
                           ),
                         ),
                       ),
                     ),
-                  ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -222,7 +195,9 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
             Icon(
               Icons.notifications_none_rounded,
               size: 56,
-              color: AppConstants.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -238,202 +213,8 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationTile extends StatelessWidget {
-  final NotificationModel notification;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-  const _NotificationTile({
-    required this.notification,
-    required this.onTap,
-    required this.onLongPress,
-  });
-
-  IconData get _icon {
-    switch (notification.type) {
-      case NotificationType.order:
-        return Icons.receipt_long_rounded;
-      case NotificationType.listing:
-        return Icons.storefront_rounded;
-      case NotificationType.price:
-        return Icons.trending_up_rounded;
-      case NotificationType.loan:
-        return Icons.account_balance_wallet_rounded;
-      case NotificationType.sync:
-        return Icons.sync_rounded;
-      case NotificationType.system:
-      case NotificationType.listingSubmitted:
-      case NotificationType.loanOverdue:
-      case NotificationType.memberPending:
-      case NotificationType.memberRegistered:
-      case NotificationType.memberUpdated:
-      case NotificationType.memberApproved:
-      case NotificationType.memberRejected:
-      case NotificationType.lowStock:
-      case NotificationType.stockDepleted:
-      case NotificationType.cropRequest:
-      case NotificationType.cooperativeOffer:
-      case NotificationType.program:
-      case NotificationType.capital:
-        return Icons.info_rounded;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: notification.isUnread
-              ? AppConstants.primaryGreen.withValues(alpha: 0.05)
-              : context.saganaColors.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: notification.isUnread
-              ? Border.all(
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
-                )
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(_icon, size: 18, color: AppConstants.primaryGreen),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notification.title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: notification.isUnread
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    notification.body,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppConstants.onSurfaceVariant,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notificationTimeLabel(l10n, notification.createdAt),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.onSurfaceVariant.withValues(
-                        alpha: 0.7,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (notification.isUnread)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppConstants.primaryGreen,
-                  shape: BoxShape.circle,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ClearAllConfirmDialog extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 40),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.saganaColors.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.buyerNotifClearDialogTitle,
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.buyerNotifClearDialogMessage,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppConstants.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: Text(l10n.cancel),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppConstants.errorRed,
-                    ),
-                    onPressed: () => Navigator.pop(context, true),
-                    child: Text(
-                      l10n.buyerNotifDialogClearAll,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
         ),

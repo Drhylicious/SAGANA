@@ -1,7 +1,7 @@
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../navigation/connectivity_page_observer.dart';
 import '../../../data/services/connectivity_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -85,6 +85,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   void _openDeliveryMap(LatLng point) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: RouteSettings(name: ConnectivityPage.deliveryMap.name),
         builder: (_) => OrderDeliveryMapScreen(point: point),
       ),
     );
@@ -148,7 +149,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final needsPhoto = order.isDelivery && order.status == 'out_for_delivery';
     final input = await showCashHandoverDialog(
       context,
-      subtitle: '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
+      subtitle:
+          '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
       itemsAmount: order.totalPrice,
       deliveryFee: order.isDelivery ? _feeDue : 0,
       needsPhoto: needsPhoto,
@@ -156,7 +158,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (input == null || !mounted) return;
     try {
       if (order.status == 'delivered') {
-        await _repo.recordPayment(orderId: widget.orderId, amount: input.amount, note: input.note);
+        await _repo.recordPayment(
+          orderId: widget.orderId,
+          amount: input.amount,
+          note: input.note,
+        );
       } else {
         await _repo.recordHandover(
           orderId: widget.orderId,
@@ -167,7 +173,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         );
       }
       if (!mounted) return;
-      AppToast.show(context, needsPhoto ? l10n.uoToastHandoverRecorded : l10n.uoToastPaymentRecorded);
+      AppToast.show(
+        context,
+        needsPhoto ? l10n.uoToastHandoverRecorded : l10n.uoToastPaymentRecorded,
+      );
       _load();
     } catch (e, st) {
       if (!mounted) return;
@@ -182,7 +191,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final order = _order!;
     final input = await showAssistedCompleteDialog(
       context,
-      subtitle: '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
+      subtitle:
+          '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
     );
     if (input == null || !mounted) return;
     try {
@@ -220,38 +230,38 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
-        return ManagementModalShell(
-          title: title,
-          subtitle: subtitle,
-          body: body,
-          footer: ManagementModalActions(
-            primaryLabel: primaryLabel,
-            isDestructive: isDestructive,
-            isLoading: isSaving,
-            onPrimary: () async {
-              setSheet(() => isSaving = true);
-              String? error;
-              try {
-                await action();
-              } catch (_) {
-                error = l10n.adminOrderDetailFailedTryAgain;
-              }
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              if (!mounted) return;
+          return ManagementModalShell(
+            title: title,
+            subtitle: subtitle,
+            body: body,
+            footer: ManagementModalActions(
+              primaryLabel: primaryLabel,
+              isDestructive: isDestructive,
+              isLoading: isSaving,
+              onPrimary: () async {
+                setSheet(() => isSaving = true);
+                String? error;
+                try {
+                  await action();
+                } catch (_) {
+                  error = l10n.adminOrderDetailFailedTryAgain;
+                }
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                content: Text(error ?? successMessage),
+                    content: Text(error ?? successMessage),
                     backgroundColor: error != null
                         ? AppConstants.errorRed
                         : AppConstants.midGreen,
-                behavior: SnackBarBehavior.floating,
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
-              if (error == null) _load();
-            },
-          ),
-        );
+                if (error == null) _load();
+              },
+            ),
+          );
         },
       ),
     );
@@ -274,9 +284,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : _order == null
-                    ? Center(
+                ? Center(
                     child: Text(
                       l10n.adminOrderDetailNotFound,
                       style: GoogleFonts.inter(
@@ -284,13 +297,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         color: cs.onSurfaceVariant,
                       ),
                     ),
-                      )
-                    : RefreshIndicator(
-                        color: AppConstants.primaryGreen,
-                        onRefresh: _load,
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                          children: [
+                  )
+                : RefreshIndicator(
+                    color: AppConstants.primaryGreen,
+                    onRefresh: _load,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                      children: [
                         // Fulfillment first — the very first thing an
                         // admin needs to know about an order is whether
                         // it needs to be delivered, and where.
@@ -304,81 +317,93 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 _order!.deliveryRecipientName,
                             deliveryLabel: _order!.deliveryLabel,
                             deliveryNotes: _order!.deliveryNotes,
-                            onViewMap: _order!.deliveryLatitude == null ||
+                            onViewMap:
+                                _order!.deliveryLatitude == null ||
                                     _order!.deliveryLongitude == null
                                 ? null
                                 : () => _openDeliveryMap(
-                                      LatLng(
-                                        _order!.deliveryLatitude!,
-                                        _order!.deliveryLongitude!,
-                                      ),
+                                    LatLng(
+                                      _order!.deliveryLatitude!,
+                                      _order!.deliveryLongitude!,
                                     ),
+                                  ),
                           ),
                           const SizedBox(height: 12),
                         ],
-                            _buildStatusCard(_order!, cs, l10n),
+                        _buildStatusCard(_order!, cs, l10n),
                         const SizedBox(height: 12),
-                            if (!_order!.isPending && !_order!.isCancelled && _order!.status != 'approved') ...[
-                              OrderPaymentCard(
-                                paymentStatus: _order!.paymentStatus,
-                                itemsTotal: _order!.totalPrice,
-                                amountCollected: _order!.amountCollected,
-                                deliveryFee: _order!.deliveryFeeCollected,
-                                paidAt: _order!.paidAt,
-                                recordedByName: _order!.paymentRecordedByName,
-                                recordedByRole: _order!.paymentRecordedByRole,
-                                staffView: true,
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            if (_order!.completionMethod == 'staff') ...[
-                              StaffCompletionCard(
-                                reason: _order!.staffCompletionReason,
-                                photoUrl: _order!.staffCompletionPhotoUrl,
-                                byName: _order!.staffCompletedByName,
-                                byRole: _order!.staffCompletedByRole,
-                                at: _order!.staffCompletedAt,
-                              ),
-                              if (_order!.staffCompletionPhotoUrl != null) ...[
-                                const SizedBox(height: 8),
-                                CoopDeliveryPhoto(url: _order!.staffCompletionPhotoUrl!),
-                              ],
-                              const SizedBox(height: 12),
-                            ],
-                            if (_order!.deliveryPhotoUrl != null) ...[
-                              _SectionCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(l10n.buyerOrderDeliveryPhotoTitle,
-                                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 10),
-                                    CoopDeliveryPhoto(url: _order!.deliveryPhotoUrl!),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            if (!_order!.isCancelled) ...[
-                              _buildTimeline(_order!),
-                              const SizedBox(height: 16),
-                            ],
-                            _buildBuyerCard(_order!, cs),
-                            const SizedBox(height: 16),
-                            _buildProductCard(_order!, cs, l10n),
-                            const SizedBox(height: 16),
-                            _buildSummaryCard(_order!, cs, l10n),
-                            const SizedBox(height: 16),
-                            // Who did each step, with name, role and time. Staff only:
-                            // the Buyer and Farmer see statuses, never staff identities.
-                            WorkflowActivityCard(
-                              entityType: 'order',
-                              entityId: _order!.id,
-                              refreshKey: _order!.status,
+                        if (!_order!.isPending &&
+                            !_order!.isCancelled &&
+                            _order!.status != 'approved') ...[
+                          OrderPaymentCard(
+                            paymentStatus: _order!.paymentStatus,
+                            itemsTotal: _order!.totalPrice,
+                            amountCollected: _order!.amountCollected,
+                            deliveryFee: _order!.deliveryFeeCollected,
+                            paidAt: _order!.paidAt,
+                            recordedByName: _order!.paymentRecordedByName,
+                            recordedByRole: _order!.paymentRecordedByRole,
+                            staffView: true,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (_order!.completionMethod == 'staff') ...[
+                          StaffCompletionCard(
+                            reason: _order!.staffCompletionReason,
+                            photoUrl: _order!.staffCompletionPhotoUrl,
+                            byName: _order!.staffCompletedByName,
+                            byRole: _order!.staffCompletedByRole,
+                            at: _order!.staffCompletedAt,
+                          ),
+                          if (_order!.staffCompletionPhotoUrl != null) ...[
+                            const SizedBox(height: 8),
+                            CoopDeliveryPhoto(
+                              url: _order!.staffCompletionPhotoUrl!,
                             ),
                           ],
+                          const SizedBox(height: 12),
+                        ],
+                        if (_order!.deliveryPhotoUrl != null) ...[
+                          _SectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.buyerOrderDeliveryPhotoTitle,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                CoopDeliveryPhoto(
+                                  url: _order!.deliveryPhotoUrl!,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (!_order!.isCancelled) ...[
+                          _buildTimeline(_order!),
+                          const SizedBox(height: 16),
+                        ],
+                        _buildBuyerCard(_order!, cs),
+                        const SizedBox(height: 16),
+                        _buildProductCard(_order!, cs, l10n),
+                        const SizedBox(height: 16),
+                        _buildSummaryCard(_order!, cs, l10n),
+                        const SizedBox(height: 16),
+                        // Who did each step, with name, role and time. Staff only:
+                        // the Buyer and Farmer see statuses, never staff identities.
+                        WorkflowActivityCard(
+                          entityType: "order",
+                          entityId: _order!.id,
+                          refreshKey: _order!.status,
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
@@ -402,11 +427,31 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final next = order.nextAction;
     if (next != null) {
       final (label, icon, onTap) = switch (next) {
-        StaffOrderAction.readyForPickup => (l10n.orderActionReadyForPickup, Icons.storefront_rounded, _confirmReady),
-        StaffOrderAction.outForDelivery => (l10n.orderActionOutForDelivery, Icons.local_shipping_outlined, _confirmOut),
-        StaffOrderAction.recordHandover => (l10n.uoActionRecordHandover, Icons.photo_camera_outlined, _recordHandover),
-        StaffOrderAction.recordPayment => (l10n.uoActionRecordPayment, Icons.payments_outlined, _recordHandover),
-        StaffOrderAction.completeForCustomer => (l10n.uoActionCompleteForCustomer, Icons.assignment_turned_in_outlined, _completeForCustomer),
+        StaffOrderAction.readyForPickup => (
+          l10n.orderActionReadyForPickup,
+          Icons.storefront_rounded,
+          _confirmReady,
+        ),
+        StaffOrderAction.outForDelivery => (
+          l10n.orderActionOutForDelivery,
+          Icons.local_shipping_outlined,
+          _confirmOut,
+        ),
+        StaffOrderAction.recordHandover => (
+          l10n.uoActionRecordHandover,
+          Icons.photo_camera_outlined,
+          _recordHandover,
+        ),
+        StaffOrderAction.recordPayment => (
+          l10n.uoActionRecordPayment,
+          Icons.payments_outlined,
+          _recordHandover,
+        ),
+        StaffOrderAction.completeForCustomer => (
+          l10n.uoActionCompleteForCustomer,
+          Icons.assignment_turned_in_outlined,
+          _completeForCustomer,
+        ),
       };
       return SafeArea(
         child: Padding(
@@ -445,7 +490,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final color = _statusColor(order.status);
     final subtitle = switch (order.status) {
       'pending' => l10n.adminOrderDetailAwaitingReview,
-      'approved' => order.isDelivery ? l10n.adminOrderNextOut : l10n.adminOrderNextReady,
+      'approved' =>
+        order.isDelivery ? l10n.adminOrderNextOut : l10n.adminOrderNextReady,
       'ready_for_pickup' => l10n.adminOrderWaitingPickup,
       'out_for_delivery' => l10n.adminOrderNextDelivered,
       'delivered' => l10n.adminOrderWaitingReceipt,
@@ -494,10 +540,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             Text(
               l10n.uoHandedOver,
               key: const Key('handedOverNote'),
-              style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
-          if ((order.isReadyForPickup || order.isDelivered) && order.isPaymentRecorded) ...[
+          if ((order.isReadyForPickup || order.isDelivered) &&
+              order.isPaymentRecorded) ...[
             const SizedBox(height: 10),
             Text(
               l10n.adminOrderWaitingForBuyerNote,
@@ -525,7 +576,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               order.notes!.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              'Reason: ${order.notes}',
+              AppLocalizations.of(context).enhReason((order.notes).toString()),
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
@@ -543,7 +594,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     // The journey follows the fulfillment method (see orderJourney).
     final journey = orderJourney(order.fulfillmentMethod);
     final steps = [for (final s in journey) adminOrderStatusLabel(l10n, s)];
-    final currentIndex = journey.indexOf(order.status).clamp(0, journey.length - 1);
+    final currentIndex = journey
+        .indexOf(order.status)
+        .clamp(0, journey.length - 1);
     return _SectionCard(
       child: Row(
         children: List.generate(steps.length * 2 - 1, (i) {
@@ -555,7 +608,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 height: 2,
                 color: isDone
                     ? AppConstants.primaryGreen
-                    : AppConstants.outline.withValues(alpha: 0.20),
+                    : Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.20),
               ),
             );
           }
@@ -571,18 +626,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   shape: BoxShape.circle,
                   color: isDone
                       ? AppConstants.primaryGreen
-                      : AppConstants.outline.withValues(alpha: 0.25),
+                      : Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.25),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 steps[stepIndex],
-                  style: GoogleFonts.inter(
+                style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: isDone
-                      ? AppConstants.primaryGreen
-                      : AppConstants.outline,
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline,
                 ),
               ),
             ],
@@ -676,7 +733,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           width: 64,
                           height: 64,
                           color: AppConstants.limeGreen,
-                ),
+                        ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -700,9 +757,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: Row(
                 children: [
                   if (order.marketType != null)
-                Expanded(
+                    Expanded(
                       child: _miniField(
-                        'Market Type',
+                        AppLocalizations.of(context).priceMarketTypeLabel,
                         order.marketTypeLabel,
                         cs,
                       ),
@@ -716,10 +773,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         order.category!,
                         cs,
                       ),
-                ),
-              ],
+                    ),
+                ],
+              ),
             ),
-          ),
           ],
           // Batch Reference + Freshness — admin-only inventory context,
           // same two-up row shape as above.
@@ -895,22 +952,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Flexible(
             child: Text(
               label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: bold ? 15 : 13,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-                  color: bold ? AppConstants.primaryGreen : cs.onSurfaceVariant,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: bold ? 15 : 13,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+                color: bold
+                    ? Theme.of(context).colorScheme.primary
+                    : cs.onSurfaceVariant,
               ),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             value,
-              style: GoogleFonts.poppins(
-                fontSize: bold ? 18 : 13,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-                color: bold ? AppConstants.primaryGreen : cs.onSurface,
+            style: GoogleFonts.poppins(
+              fontSize: bold ? 18 : 13,
+              fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+              color: bold
+                  ? Theme.of(context).colorScheme.primary
+                  : cs.onSurface,
             ),
           ),
         ],
@@ -919,19 +980,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   String _formatDate(DateTime d) {
-    const m = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+    final m = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${m[d.month - 1]} ${d.day}, ${d.year}';
   }
@@ -951,7 +1012,6 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return SubPageTopBar(title: title, onBack: onBack);
   }
 }

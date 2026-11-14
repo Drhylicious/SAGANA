@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
@@ -82,7 +81,9 @@ class CoopOfferStatusView {
         label: forFarmer
             ? l10n.coopStatusDeliverNow
             : l10n.coopStatusApprovedWaitingDelivery,
-        color: forFarmer ? AppConstants.warningAmber : AppConstants.successGreen,
+        color: forFarmer
+            ? AppConstants.warningAmber
+            : AppConstants.successGreen,
         icon: forFarmer
             ? Icons.local_shipping_outlined
             : Icons.check_circle_rounded,
@@ -262,7 +263,11 @@ class CoopPriceSummary extends StatelessWidget {
   final CooperativeOfferModel offer;
   final bool forFarmer;
 
-  const CoopPriceSummary({super.key, required this.offer, required this.forFarmer});
+  const CoopPriceSummary({
+    super.key,
+    required this.offer,
+    required this.forFarmer,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +293,10 @@ class CoopPriceSummary extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -297,7 +305,9 @@ class CoopPriceSummary extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: strong ? 15 : 13,
               fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-              color: strong ? AppConstants.primaryGreen : cs.onSurface,
+              color: strong
+                  ? Theme.of(context).colorScheme.primary
+                  : cs.onSurface,
             ),
           ),
         ],
@@ -307,7 +317,10 @@ class CoopPriceSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        row(l10n.coopQuantityLabel, coopKg(offer.offeredQuantityKg, offer.unit)),
+        row(
+          l10n.coopQuantityLabel,
+          coopKg(offer.offeredQuantityKg, offer.unit),
+        ),
         if (offer.askingPricePerKg != null)
           row(
             l10n.coopAskingPriceLabel,
@@ -671,7 +684,9 @@ class _CoopPriceDialog extends StatefulWidget {
 
 class _CoopPriceDialogState extends State<_CoopPriceDialog> {
   late final TextEditingController _price = TextEditingController(
-    text: widget.initialPrice == null ? '' : widget.initialPrice!.toStringAsFixed(2),
+    text: widget.initialPrice == null
+        ? ''
+        : widget.initialPrice!.toStringAsFixed(2),
   );
   final _note = TextEditingController();
   String? _error;
@@ -739,7 +754,10 @@ class _CoopPriceDialogState extends State<_CoopPriceDialog> {
               l10n.coopCurrentPriceHint(
                 coopPricePerKg(widget.currentPrice!, widget.unit),
               ),
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           if (v != null && v > 0)
             Padding(
@@ -752,7 +770,7 @@ class _CoopPriceDialogState extends State<_CoopPriceDialog> {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -950,7 +968,10 @@ class _CoopDeliveryDialogState extends State<_CoopDeliveryDialog> {
       return;
     }
     final note = _note.text.trim();
-    Navigator.pop(context, CoopDeliveryInput(photo, note.isEmpty ? null : note));
+    Navigator.pop(
+      context,
+      CoopDeliveryInput(photo, note.isEmpty ? null : note),
+    );
   }
 
   @override
@@ -1096,7 +1117,9 @@ class CoopHandoverBar extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
-        border: Border(top: BorderSide(color: cs.outline.withValues(alpha: 0.15))),
+        border: Border(
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -1155,7 +1178,11 @@ class CoopFarmerContact extends StatelessWidget {
   final CooperativeOfferModel offer;
   final bool compact;
 
-  const CoopFarmerContact({super.key, required this.offer, this.compact = false});
+  const CoopFarmerContact({
+    super.key,
+    required this.offer,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {

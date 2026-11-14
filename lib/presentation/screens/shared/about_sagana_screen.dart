@@ -47,74 +47,80 @@ class AboutSaganaScreen extends StatelessWidget {
 
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.aboutSagana, onBack: () => Navigator.of(context).pop()),
-          Expanded(child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppConstants.spacingSafeH,
-          8,
-          AppConstants.spacingSafeH,
-          40,
-        ),
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppConstants.primaryGreen.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.info_outline_rounded,
-              color: AppConstants.primaryGreen,
-              size: 28,
+          SubPageTopBar(
+            title: l10n.aboutSagana,
+            onBack: () => Navigator.of(context).pop(),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingSafeH,
+                8,
+                AppConstants.spacingSafeH,
+                40,
+              ),
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _roleSummary(l10n),
+                  textAlign: TextAlign.justify,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  l10n.aboutSaganaFullDescription,
+                  textAlign: TextAlign.justify,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Text(
+                  l10n.aboutSaganaBuiltBy,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  // No automatic status-bar padding: this list sits inside a bigger scroll view.
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.92,
+                  children: [
+                    for (int i = 1; i <= 4; i++)
+                      _developerCard(l10n, i, cs, sagana),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            _roleSummary(l10n),
-            textAlign: TextAlign.justify,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              height: 1.5,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            l10n.aboutSaganaFullDescription,
-            textAlign: TextAlign.justify,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              height: 1.6,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            l10n.aboutSaganaBuiltBy,
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            // No automatic status-bar padding: this list sits inside a bigger scroll view.
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.92,
-            children: [
-              for (int i = 1; i <= 4; i++) _developerCard(l10n, i, cs, sagana),
-            ],
-          ),
-        ],
-      )),
         ],
       ),
     );

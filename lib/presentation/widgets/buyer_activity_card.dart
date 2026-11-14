@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../data/models/buyer_activity_model.dart';
@@ -30,7 +29,7 @@ Map<String, List<BuyerActivityItem>> groupBuyerActivityByDate(
     } else if (itemDate == yesterday) {
       label = l10n.buyerActivityYesterday;
     } else {
-      label = DateFormat('MMMM d', l10n.localeName).format(item.timestamp);
+      label = activityDateLabel(item.timestamp, l10n.localeName, now: now);
     }
     groups.putIfAbsent(label, () => []).add(item);
   }

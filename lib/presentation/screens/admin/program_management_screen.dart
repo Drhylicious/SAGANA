@@ -1,6 +1,5 @@
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -28,6 +27,7 @@ import '../../widgets/labeled_text_field.dart';
 import '../../widgets/admin_program_card.dart';
 import '../../widgets/app_multi_select_field.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/record_details_sheet.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/program_history_sheet.dart';
 import '../../widgets/program_member_details.dart';
@@ -783,16 +783,26 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       const SizedBox(height: 12),
                       AppDropdownField<String>(
                         value: selectedPurpose,
-                        hintText: 'Select a purpose',
-                        labelText: 'Program Purpose *',
+                        hintText: AppLocalizations.of(
+                          context,
+                        ).enhSelectAPurpose,
+                        labelText: AppLocalizations.of(
+                          context,
+                        ).enhProgramPurpose,
                         items: const ['distribution', 'sales'],
-                        itemLabel: (v) =>
-                            v == 'sales' ? 'Product Sales' : 'Distribution',
+                        itemLabel: (v) => v == 'sales'
+                            ? AppLocalizations.of(
+                                context,
+                              ).reportsProductSalesShort
+                            : AppLocalizations.of(
+                                context,
+                              ).balikTangkilikDistributionTab,
                         onChanged: (v) => setSheet(
                           () => selectedPurpose = v ?? selectedPurpose,
                         ),
-                        validator: (v) =>
-                            v == null ? 'Purpose is required' : null,
+                        validator: (v) => v == null
+                            ? AppLocalizations.of(context).enhPurposeIsRequired
+                            : null,
                       ),
                     ],
                     if (isDistribution) ...[
@@ -858,8 +868,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                         ],
                         validator: (v) {
                           final t = (v ?? '').trim();
-                          if (t.isEmpty)
+                          if (t.isEmpty) {
                             return l10n.programMgmtMemberDiscountRequired;
+                          }
                           final n = double.tryParse(t);
                           return (n == null || n < 0 || n > 100)
                               ? l10n.programMgmtMemberDiscountInvalid
@@ -931,9 +942,152 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
 
   // Members is a full page (not a modal stacked on a modal): the member list,
   // the item distribution and the outcome status all work inline there.
+  // Read-only details of a program, with its members (tap the card). Editing
+  // and managing members stay on the card's own buttons.
+  void _showProgramDetails(CooperativeProgram p) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final members = _repo.fetchProgramMembers(p.id);
+    showRecordDetails(
+      context,
+      title: p.programName,
+      subtitle: _statusLabel(l10n, p.status),
+      imageUrl: p.imageUrl,
+      placeholderIcon: _typeIcon(p.programType),
+      sections: [
+        DetailSection(
+          title: l10n.detailsSectionInfo,
+          rows: [
+            DetailRow(
+              l10n.detailsPurpose,
+              p.isSalesProgram
+                  ? l10n.programMgmtFilterSales
+                  : l10n.programMgmtFilterDistribution,
+            ),
+            if (!p.isSalesProgram)
+              DetailRow(
+                l10n.detailsBenefit,
+                p.benefitType == 'revenue_share'
+                    ? l10n.detailsBenefitReturn
+                    : l10n.detailsBenefitFree,
+              ),
+            DetailRow(l10n.detailsStatus, _statusLabel(l10n, p.status)),
+            DetailRow(l10n.detailsSeason, '${p.seasonYear}'),
+            if (p.budget != null)
+              DetailRow(
+                l10n.detailsBudget,
+                '₱${p.budget!.toStringAsFixed(2)}',
+              ),
+            if ((p.distributionItemName ?? '').isNotEmpty)
+              DetailRow(l10n.detailsItemGiven, p.distributionItemName!),
+            if ((p.returnItemName ?? p.returnCropName ?? '').isNotEmpty)
+              DetailRow(
+                l10n.detailsFarmerReturns,
+                p.returnItemName ?? p.returnCropName!,
+              ),
+            if (p.isSalesProgram)
+              DetailRow(
+                l10n.detailsMemberDiscount,
+                '${formatQuantity(p.memberDiscountPercent)}%',
+              ),
+            if (p.createdAt != null)
+              DetailRow(l10n.detailsCreated, detailDate(p.createdAt!)),
+            if ((p.description ?? '').trim().isNotEmpty)
+              DetailRow(l10n.detailsDescription, p.description!.trim()),
+          ],
+        ),
+        // Members: tap the header to open or close; the list scrolls inside
+        // its own fixed height however many members there are.
+        DetailSection(
+          child: CollapsibleDetailSection(
+            title: l10n.detailsMembers(p.memberCount),
+            child: FutureBuilder<List<ProgramMember>>(
+            future: members,
+            builder: (_, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              }
+              final list = snap.data ?? const <ProgramMember>[];
+              if (list.isEmpty) {
+                return Text(
+                  l10n.detailsNoMembers,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
+                );
+              }
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
+                ),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < list.length; i++) ...[
+                      if (i > 0)
+                        Divider(
+                          height: 1,
+                          color: cs.outline.withValues(alpha: 0.10),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                list[i].farmerName,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              list[i].distributedAt != null
+                                  ? l10n.detailsMemberReceived(
+                                      detailDate(list[i].distributedAt!),
+                                    )
+                                  : l10n.detailsMemberEnrolled(
+                                      detailDate(list[i].enrolledAt),
+                                    ),
+                              style: GoogleFonts.inter(
+                                fontSize: 11.5,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showMembersSheet(CooperativeProgram program) {
     context
-        .push(AppRoutes.programMembers, extra: {'program': program})
+        .push(AppRoutes.programMembers, extra: {"program": program})
         .then((_) => _load());
   }
 
@@ -974,31 +1128,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
             trailing: _requestsMenu(l10n, cs),
           ),
 
-          if (!_isOnline)
-            Container(
-              color: AppConstants.warningAmber,
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.cloud_off_rounded,
-                    size: 14,
-                    color: AppConstants.charcoal,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    l10n.cropMgmtOfflineNotice,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.charcoal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
           Expanded(
             child: _isLoading
                 ? const Padding(
@@ -1023,34 +1152,44 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                         // Distribution Benefit/Loans is an odd count of 5.
                         if (_programs.isNotEmpty) ...[
                           ReportSectionCard(
-                            title: 'Program Overview',
+                            title: AppLocalizations.of(
+                              context,
+                            ).enhProgramOverview,
                             icon: Icons.star_rounded,
                             accent: AppConstants.programPurple,
                             child: _buildKpiSection([
                               ReportIconStatCard(
                                 icon: Icons.star_rounded,
                                 accent: AppConstants.programPurple,
-                                label: 'Total Programs',
+                                label: AppLocalizations.of(
+                                  context,
+                                ).enhTotalPrograms,
                                 value: '${_programs.length}',
                               ),
                               ReportIconStatCard(
                                 icon: Icons.play_circle_fill_rounded,
                                 accent: AppConstants.successGreen,
-                                label: 'Active',
+                                label: AppLocalizations.of(
+                                  context,
+                                ).farmerDetailsProgStatusActive,
                                 value:
                                     '${_programs.where((p) => p.status == 'active').length}',
                               ),
                               ReportIconStatCard(
                                 icon: Icons.storefront_rounded,
                                 accent: AppConstants.successGreen,
-                                label: 'Product Sales',
+                                label: AppLocalizations.of(
+                                  context,
+                                ).reportsProductSalesShort,
                                 value:
                                     '${_programs.where((p) => p.isSalesProgram).length}',
                               ),
                               ReportIconStatCard(
                                 icon: Icons.request_quote_rounded,
                                 accent: AppConstants.buyerBlue,
-                                label: 'Distribution Benefit/Loans',
+                                label: AppLocalizations.of(
+                                  context,
+                                ).enhDistributionBenefitLoans,
                                 value:
                                     '${_programs.where((p) => p.programPurpose == 'distribution').length}',
                               ),
@@ -1099,7 +1238,8 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                             child: Row(
                               children: [
                                 _PurposeChip(
-                                  label: l10n.reportsAll,
+                                  label:
+                                      '${l10n.reportsAll} (${_programs.length})',
                                   isSelected: _purposeFilter == null,
                                   onTap: () =>
                                       setState(() => _purposeFilter = null),
@@ -1109,7 +1249,8 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                 Padding(
                                   padding: const EdgeInsets.only(left: 8),
                                   child: _PurposeChip(
-                                    label: l10n.programMgmtFilterDistribution,
+                                    label:
+                                        '${l10n.programMgmtFilterDistribution} (${_programs.where((p) => p.programPurpose == 'distribution').length})',
                                     isSelected:
                                         _purposeFilter == 'distribution',
                                     onTap: () => setState(
@@ -1122,7 +1263,8 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                 Padding(
                                   padding: const EdgeInsets.only(left: 8),
                                   child: _PurposeChip(
-                                    label: l10n.programMgmtFilterSales,
+                                    label:
+                                        '${l10n.programMgmtFilterSales} (${_programs.where((p) => p.programPurpose == 'sales').length})',
                                     isSelected: _purposeFilter == 'sales',
                                     onTap: () => setState(
                                       () => _purposeFilter = 'sales',
@@ -1254,6 +1396,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
               statusLabel: _statusLabel(l10n, p.status),
               statusColor: _statusColor(p.status, cs),
               memberCountLabel: _memberCountLabel(l10n, p.memberCount),
+              onTap: () => _showProgramDetails(p),
               onMembers: () => _showMembersSheet(p),
               onHistory: () =>
                   showProgramHistory(context, program: p, repo: _repo),
@@ -1462,6 +1605,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   final _returnQtyCtrl = TextEditingController();
   bool _distSaving = false;
   String? _distError;
+  // Product Sales: the member search (by Farmer name).
+  String _memberQuery = '';
 
   @override
   void initState() {
@@ -1547,19 +1692,19 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   }
 
   String _formatDate(DateTime dt) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -1627,7 +1772,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     final q = member.returnQuantity ?? widget.program.returnQuantity;
     _returnQtyCtrl.text = q == null
         ? ''
-        : (q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2));
+        : (q == q.roundToDouble()
+              ? q.toStringAsFixed(0)
+              : q.toStringAsFixed(2));
     _returnError = null;
   }
 
@@ -1692,13 +1839,19 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       if (!mounted) return;
       setState(() => _distSaving = false);
       // Say the real reason in plain words (no stock, no return quantity, crop not available...).
-      _showSnack(friendlyError(l10n, e, st, l10n.programMgmtDistributeFailed), isError: true);
+      _showSnack(
+        friendlyError(l10n, e, st, l10n.programMgmtDistributeFailed),
+        isError: true,
+      );
     }
   }
 
   Widget _distributePanel(ProgramMember m, AppLocalizations l10n) {
     final eligible = _eligibleItems;
-    final names = itemPickerNames(eligible, typeLabel: (t) => itemTypeLabel(l10n, t));
+    final names = itemPickerNames(
+      eligible,
+      typeLabel: (t) => itemTypeLabel(l10n, t),
+    );
     final selected = _itemsById[_distItemId];
     if (eligible.isEmpty) return const SizedBox.shrink();
     return Container(
@@ -1760,17 +1913,23 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               key: const Key('distReturnQuantityField'),
               controller: _returnQtyCtrl,
               enabled: !_distSaving,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: const [DecimalInputFormatter()],
               decoration: InputDecoration(
                 isDense: true,
                 // The unit is the unit of what comes back (the item's Inventory setting, else the item itself).
                 labelText: selected == null
                     ? l10n.programMgmtReturnQtyLabel
-                    : l10n.programMgmtReturnQtyWithUnit((_returnItemFor(selected) ?? selected).unit),
+                    : l10n.programMgmtReturnQtyWithUnit(
+                        (_returnItemFor(selected) ?? selected).unit,
+                      ),
                 helperText: selected == null || _returnItemFor(selected) == null
                     ? null
-                    : l10n.programMgmtReturnsItem(_returnItemFor(selected)!.itemName),
+                    : l10n.programMgmtReturnsItem(
+                        _returnItemFor(selected)!.itemName,
+                      ),
                 helperMaxLines: 2,
                 hintText: '0.00',
                 errorText: _returnError,
@@ -1843,14 +2002,27 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           visualDensity: VisualDensity.compact,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          textStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
+          textStyle: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         child: sending
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-            : Text(remindedToday ? l10n.memRemindedToday : l10n.memRemindAction),
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(
+                remindedToday ? l10n.memRemindedToday : l10n.memRemindAction,
+              ),
       );
       final waiting = <Widget>[
-        Icon(Icons.hourglass_empty_rounded, size: 14, color: cs.onSurfaceVariant),
+        Icon(
+          Icons.hourglass_empty_rounded,
+          size: 14,
+          color: cs.onSurfaceVariant,
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -1871,18 +2043,28 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (stacked) ...[
-                  Row(key: Key('waitingDays_${m.id}'), crossAxisAlignment: CrossAxisAlignment.start, children: waiting),
+                  Row(
+                    key: Key('waitingDays_${m.id}'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: waiting,
+                  ),
                   const SizedBox(height: 6),
                   Align(alignment: Alignment.centerRight, child: remind),
                 ] else
-                  Row(key: Key('waitingDays_${m.id}'), children: [...waiting, const SizedBox(width: 6), remind]),
+                  Row(
+                    key: Key('waitingDays_${m.id}'),
+                    children: [...waiting, const SizedBox(width: 6), remind],
+                  ),
                 if (last != null)
                   Padding(
                     key: Key('lastReminded_${m.id}'),
                     padding: const EdgeInsets.only(top: 2, left: 20),
                     child: Text(
                       l10n.memLastReminded(_formatDate(last.sentAt)),
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
               ],
@@ -1899,12 +2081,19 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
         padding: const EdgeInsets.only(top: 8),
         child: Row(
           children: [
-            Icon(Icons.check_circle_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+            Icon(
+              Icons.check_circle_outline_rounded,
+              size: 14,
+              color: cs.onSurfaceVariant,
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 l10n.outcStageClosed,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -2022,7 +2211,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       _showSnack(l10n.memRemindSent(m.farmerName));
     } catch (e, st) {
       if (!mounted) return;
-      _showSnack(friendlyError(l10n, e, st, l10n.adminInvFailedTryAgain), isError: true);
+      _showSnack(
+        friendlyError(l10n, e, st, l10n.adminInvFailedTryAgain),
+        isError: true,
+      );
     }
     if (!mounted) return;
     final fresh = await widget.repo.fetchLastReminders(widget.program.id);
@@ -2048,12 +2240,19 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.hourglass_empty_rounded, size: 14, color: cs.onSurfaceVariant),
+              Icon(
+                Icons.hourglass_empty_rounded,
+                size: 14,
+                color: cs.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   l10n.memWaitingToReceive(days),
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -2065,12 +2264,21 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.assignment_return_outlined, size: 14, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.assignment_return_outlined,
+                    size: 14,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      l10n.programMgmtHarvestReturnLine('${formatQuantityGrouped(p.returnQuantity!)}${p.returnItemUnit != null ? ' ${p.returnItemUnit}' : ''}${p.returnItemName != null ? ' ${p.returnItemName}' : ''}'),
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      l10n.programMgmtHarvestReturnLine(
+                        '${formatQuantityGrouped(p.returnQuantity!)}${p.returnItemUnit != null ? ' ${p.returnItemUnit}' : ''}${p.returnItemName != null ? ' ${p.returnItemName}' : ''}',
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -2098,7 +2306,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       if (date.isEmpty) {
         text = l10n.memDetailsOutcomeSuccessful;
       } else if (!widget.program.isHarvestReturn && vq != null) {
-        text = l10n.memFinalSuccessfulVerified(date, '${formatQuantityGrouped(vq)} $vu'.trim());
+        text = l10n.memFinalSuccessfulVerified(
+          date,
+          '${formatQuantityGrouped(vq)} $vu'.trim(),
+        );
       } else {
         text = l10n.memFinalSuccessful(date);
       }
@@ -2115,20 +2326,40 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(success ? Icons.check_circle_rounded : Icons.cancel_rounded, size: 15, color: color),
+        Icon(
+          success ? Icons.check_circle_rounded : Icons.cancel_rounded,
+          size: 15,
+          color: color,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, height: 1.35, color: color),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+              color: color,
+            ),
           ),
         ),
         if (r != null) ...[
           const SizedBox(width: 6),
-          Text(l10n.outcViewAction, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
-          Icon(Icons.chevron_right_rounded, size: 16, color: cs.onSurfaceVariant),
+          Text(
+            l10n.outcViewAction,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 16,
+            color: cs.onSurfaceVariant,
+          ),
         ],
       ],
     );
@@ -2139,7 +2370,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           ? row
           : InkWell(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              onTap: () => context.push(AppRoutes.programOutcomeDetail, extra: {'report': r}).then((_) => _loadMembers()),
+              onTap: () => context
+                  .push(AppRoutes.programOutcomeDetail, extra: {'report': r})
+                  .then((_) => _loadMembers()),
               child: row,
             ),
     );
@@ -2151,9 +2384,22 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 13, color: color),
+        Icon(
+          done
+              ? Icons.check_circle_rounded
+              : Icons.radio_button_unchecked_rounded,
+          size: 13,
+          color: color,
+        ),
         const SizedBox(width: 4),
-        Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
       ],
     );
   }
@@ -2167,7 +2413,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     // running past the edge (big amounts, Tagalog, large text sizes).
     Widget stat(IconData icon, String text, {Color? color}) => LayoutBuilder(
       builder: (context, box) => ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: box.maxWidth.isFinite ? box.maxWidth : double.infinity),
+        constraints: BoxConstraints(
+          maxWidth: box.maxWidth.isFinite ? box.maxWidth : double.infinity,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2178,7 +2426,13 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             ),
             const SizedBox(width: 4),
             Flexible(
-              child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: color ?? cs.onSurface)),
+              child: Text(
+                text,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: color ?? cs.onSurface,
+                ),
+              ),
             ),
           ],
         ),
@@ -2190,7 +2444,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       child: s.orders == 0
           ? Text(
               l10n.memDetailsNoPurchases,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             )
           : Wrap(
               spacing: 14,
@@ -2199,18 +2456,29 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               children: [
                 stat(Icons.receipt_long_outlined, l10n.memStatOrders(s.orders)),
                 stat(Icons.payments_outlined, l10n.memStatSpent(peso(s.spent))),
-                stat(Icons.savings_outlined, l10n.memStatSaved(peso(s.saved)), color: AppConstants.successGreen),
+                stat(
+                  Icons.savings_outlined,
+                  l10n.memStatSaved(peso(s.saved)),
+                  color: AppConstants.successGreen,
+                ),
                 if (s.pending > 0)
                   Container(
                     key: Key('pendingChip_${m.id}'),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppConstants.warningAmber.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       l10n.memStatPending(s.pending),
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.warningAmber),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.warningAmber,
+                      ),
                     ),
                   ),
               ],
@@ -2351,7 +2619,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             if (!isSales && m.roundNo > 1) _roundNote(m, l10n),
             if (!isSales) _outcomeSection(m, l10n),
             if (!isSales) _afterOutcomeSection(m, l10n),
-            if (!isSales && toDistribute && !m.isDistributed) _waitingToReceive(m, l10n),
+            if (!isSales && toDistribute && !m.isDistributed)
+              _waitingToReceive(m, l10n),
             if (!isSales && toDistribute) ...[
               const SizedBox(height: 12),
               if (_distributingId == m.id)
@@ -2374,7 +2643,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
 
   /// Approves a Farmer's request for another distribution. There is no decline: they were already marked
   /// eligible. It starts the next round, which then appears under To Distribute.
-  Future<void> _approveRedistribution(ProgramMember m, RedistributionRequest req) async {
+  Future<void> _approveRedistribution(
+    ProgramMember m,
+    RedistributionRequest req,
+  ) async {
     if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     try {
@@ -2383,7 +2655,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       AppToast.show(context, l10n.memRedistributeDone(m.farmerName));
       _loadMembers();
     } catch (e, st) {
-      if (mounted) AppToast.show(context, friendlyError(l10n, e, st), isError: true);
+      if (mounted) {
+        AppToast.show(context, friendlyError(l10n, e, st), isError: true);
+      }
     }
   }
 
@@ -2411,7 +2685,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                 error = null;
               });
               try {
-                await widget.repo.redistributeMember(memberId: m.id, note: noteCtrl.text.trim());
+                await widget.repo.redistributeMember(
+                  memberId: m.id,
+                  note: noteCtrl.text.trim(),
+                );
                 if (ctx.mounted) Navigator.pop(ctx, true);
               } catch (e, st) {
                 if (!ctx.mounted) return;
@@ -2445,7 +2722,13 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                   if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(error!, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+                      child: Text(
+                        error!,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppConstants.errorRed,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -2462,7 +2745,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     noteCtrl.dispose();
     if (done == true) {
       if (!mounted) return;
-      AppToast.show(context, AppLocalizations.of(context).memRedistributeDone(m.farmerName));
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).memRedistributeDone(m.farmerName),
+      );
       _loadMembers();
     }
   }
@@ -2479,7 +2765,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           Expanded(
             child: Text(
               l10n.memRoundNote(m.roundNo),
-              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -2510,7 +2799,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       final res = _resolutions[m.id];
       final block = ResolutionSummaryBlock(
         resolution: res,
-        onSet: () async {
+        // Closed means closed: no change, no assistance, no loan, no second chance.
+        onSet: res?.resolution == FailedResolution.closedNoFurtherObligation
+            ? null
+            : () async {
           final changed = await showFailedResolutionSheet(
             context,
             repo: widget.repo,
@@ -2524,7 +2816,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       // Eligible for Reassessment: the Farmer's request waits here to be approved; staff can also start a new
       // distribution themselves.
       final request = _redistRequests[m.id];
-      if (res?.resolution == FailedResolution.eligibleForReassessment && widget.program.isHarvestReturn && request != null) {
+      if (res?.resolution == FailedResolution.eligibleForReassessment &&
+          widget.program.isHarvestReturn &&
+          request != null) {
         final cs = Theme.of(context).colorScheme;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2537,19 +2831,30 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               decoration: BoxDecoration(
                 color: AppConstants.buyerBlue.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.30)),
+                border: Border.all(
+                  color: AppConstants.buyerBlue.withValues(alpha: 0.30),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    AppLocalizations.of(context).memRedistRequestTitle(m.farmerName),
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
+                    AppLocalizations.of(
+                      context,
+                    ).memRedistRequestTitle(m.farmerName),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     request.note,
-                    style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
@@ -2558,7 +2863,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                       key: const Key('approveRedistributionButton'),
                       onPressed: () => _approveRedistribution(m, request),
                       icon: const Icon(Icons.check_rounded, size: 18),
-                      label: Text(AppLocalizations.of(context).memRedistApprove),
+                      label: Text(
+                        AppLocalizations.of(context).memRedistApprove,
+                      ),
                     ),
                   ),
                 ],
@@ -2567,7 +2874,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           ],
         );
       }
-      if (res?.resolution == FailedResolution.eligibleForReassessment && widget.program.isHarvestReturn) {
+      if (res?.resolution == FailedResolution.eligibleForReassessment &&
+          widget.program.isHarvestReturn) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2694,7 +3002,32 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       return Column(
         children: [
           ...notices,
-          Expanded(child: _list(_members, l10n.memEmptySales)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: TextField(
+              onChanged: (v) => setState(() => _memberQuery = v),
+              decoration: InputDecoration(
+                hintText: l10n.farmerMgmtSearchHint,
+                prefixIcon: const Icon(Icons.search_rounded),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _list(
+              _memberQuery.trim().isEmpty
+                  ? _members
+                  : _members
+                        .where(
+                          (m) => m.farmerName.toLowerCase().contains(
+                            _memberQuery.trim().toLowerCase(),
+                          ),
+                        )
+                        .toList(),
+              _memberQuery.trim().isEmpty
+                  ? l10n.memEmptySales
+                  : l10n.farmerMgmtNoFarmersFiltered,
+            ),
+          ),
         ],
       );
     }
@@ -2723,8 +3056,14 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               indicatorColor: AppConstants.primaryGreen,
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: cs.outline.withValues(alpha: 0.15),
-              labelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
-              unselectedLabelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500),
+              labelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedLabelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
               tabs: [
                 Tab(text: l10n.memTabToDistribute(toDistribute.length)),
                 Tab(text: l10n.memTabDistributed(handedOut.length)),
@@ -2733,7 +3072,11 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             Expanded(
               child: TabBarView(
                 children: [
-                  _list(toDistribute, l10n.memEmptyToDistribute, toDistribute: true),
+                  _list(
+                    toDistribute,
+                    l10n.memEmptyToDistribute,
+                    toDistribute: true,
+                  ),
                   _list(handedOut, l10n.memEmptyDistributed),
                 ],
               ),

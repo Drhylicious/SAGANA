@@ -25,10 +25,10 @@ import '../../widgets/username_availability_field.dart';
 // Gender labels are shared with the Register screen's translations
 // (registerGenderMale/Female/PreferNotToSay) rather than duplicated here.
 Map<String, String> _kGenderOptions(AppLocalizations l10n) => {
-      'male': l10n.registerGenderMale,
-      'female': l10n.registerGenderFemale,
-      'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
-    };
+  'male': l10n.registerGenderMale,
+  'female': l10n.registerGenderFemale,
+  'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+};
 
 /// Create Farmer Account (Manager and Officer). The same three steps as the
 /// Register screen: Personal Information, Address Information, Summary. The
@@ -45,35 +45,35 @@ class AddNewMemberScreen extends StatefulWidget {
 class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   static const _stepCount = 3;
 
-  final _repo    = AddMemberRepository();
+  final _repo = AddMemberRepository();
   final _formKey = GlobalKey<FormState>();
 
   // ── Controllers ────────────────────────────────────────────────────────────
-  final _usernameCtrl      = TextEditingController();
-  final _passwordCtrl      = TextEditingController();
-  final _surnameCtrl       = TextEditingController();
-  final _firstNameCtrl     = TextEditingController();
+  final _usernameCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _surnameCtrl = TextEditingController();
+  final _firstNameCtrl = TextEditingController();
   final _middleInitialCtrl = TextEditingController();
   String? _suffix; // Jr., Sr., II, III, IV or V; null = none
-  final _emailCtrl    = TextEditingController();
-  final _phoneCtrl    = TextEditingController();
-  final _streetCtrl   = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _streetCtrl = TextEditingController();
   final _buildingCtrl = TextEditingController();
-  final _houseNoCtrl  = TextEditingController();
+  final _houseNoCtrl = TextEditingController();
 
   // ── Form state ─────────────────────────────────────────────────────────────
   int _step = 0; // 0 Personal, 1 Address, 2 Summary
   DateTime? _dateOfBirth;
   String? _gender; // key of _kGenderOptions
-  bool    _obscurePassword = true;
+  bool _obscurePassword = true;
   String? _error;
 
   // Username availability, reported by UsernameAvailabilityField.
   UsernameStatus? _usernameStatus;
   bool _usernameChecking = false;
 
-  bool _isSaving  = false;
-  bool _isOnline  = true;
+  bool _isSaving = false;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -105,7 +105,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   void _generatePassword() {
     setState(() {
       _passwordCtrl.text = generateTemporaryPassword();
-      _obscurePassword   = false;
+      _obscurePassword = false;
     });
   }
 
@@ -120,14 +120,18 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
       return l10n.registerFixHighlightedFields;
     }
     final dob = _dateOfBirth;
-    if (dob == null || _gender == null) return l10n.registerFixHighlightedFields;
+    if (dob == null || _gender == null) {
+      return l10n.registerFixHighlightedFields;
+    }
     if (!AppUtils.isAtLeast18(dob)) return l10n.addMemberAgeRequirement;
     // The username must be confirmed free. A check that could not run
     // (UsernameStatus.error) is not a verdict: the database decides.
     if (_usernameChecking || _usernameStatus == null) {
       return l10n.registerCheckingUsername;
     }
-    if (_usernameStatus == UsernameStatus.taken) return l10n.registerUsernameTaken;
+    if (_usernameStatus == UsernameStatus.taken) {
+      return l10n.registerUsernameTaken;
+    }
     return null;
   }
 
@@ -162,17 +166,17 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   }
 
   String _fullName() => PersonName.compose(
-        firstName: _firstNameCtrl.text,
-        middleInitial: _middleInitialCtrl.text,
-        surname: _surnameCtrl.text,
-        suffix: _suffix,
-      );
+    firstName: _firstNameCtrl.text,
+    middleInitial: _middleInitialCtrl.text,
+    surname: _surnameCtrl.text,
+    suffix: _suffix,
+  );
 
   String _addressLine() => FarmerRegistrationAddress.composeLine(
-        houseNo: _houseNoCtrl.text,
-        building: _buildingCtrl.text,
-        street: _streetCtrl.text,
-      );
+    houseNo: _houseNoCtrl.text,
+    building: _buildingCtrl.text,
+    street: _streetCtrl.text,
+  );
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
@@ -206,19 +210,19 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
 
     final username = normalizeUsername(_usernameCtrl.text);
     final result = await _repo.createMember(
-      username:      username,
-      password:      _passwordCtrl.text.trim(),
-      surname:       _surnameCtrl.text,
-      firstName:     _firstNameCtrl.text,
+      username: username,
+      password: _passwordCtrl.text.trim(),
+      surname: _surnameCtrl.text,
+      firstName: _firstNameCtrl.text,
       middleInitial: _middleInitialCtrl.text,
-      suffix:        _suffix,
-      phoneNumber:   _phoneCtrl.text.trim(),
-      contactEmail:  _emailCtrl.text.trim(),
-      dateOfBirth:   _dateOfBirth,
-      gender:        _gender,
-      street:        _streetCtrl.text.trim(),
-      building:      _buildingCtrl.text.trim(),
-      houseNo:       _houseNoCtrl.text.trim(),
+      suffix: _suffix,
+      phoneNumber: _phoneCtrl.text.trim(),
+      contactEmail: _emailCtrl.text.trim(),
+      dateOfBirth: _dateOfBirth,
+      gender: _gender,
+      street: _streetCtrl.text.trim(),
+      building: _buildingCtrl.text.trim(),
+      houseNo: _houseNoCtrl.text.trim(),
     );
 
     if (!mounted) return;
@@ -228,10 +232,12 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
       await _showCreatedDialog(username);
       if (mounted) context.pop(true);
     } else if (result.isPartial) {
-      setState(() => _error = l10n.addMemberPartialIssue(
-            result.failedStep ?? '',
-            result.message ?? '',
-          ));
+      setState(
+        () => _error = l10n.addMemberPartialIssue(
+          result.failedStep ?? '',
+          result.message ?? '',
+        ),
+      );
       // Member account exists — still pop back so the staff member sees them.
       context.pop(true);
     } else {
@@ -292,7 +298,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 4),
@@ -319,7 +325,11 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   }
 
   /// Step 1: sign-in details and personal information.
-  Widget _personalFields(AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
+  Widget _personalFields(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -366,9 +376,8 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
             TemporaryPasswordField(
               controller: _passwordCtrl,
               obscure: _obscurePassword,
-              onToggleObscure: () => setState(
-                () => _obscurePassword = !_obscurePassword,
-              ),
+              onToggleObscure: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
               onGenerate: _generatePassword,
               requiredMessage: l10n.addMemberPasswordRequired,
               tooShortMessage: l10n.addMemberPasswordTooShort,
@@ -402,8 +411,8 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    hintText: 'name@example.com',
+                  decoration: InputDecoration(
+                    hintText: AppLocalizations.of(context).mlkBuyerEmailHint,
                   ),
                   validator: (v) {
                     final t = v?.trim() ?? '';
@@ -424,9 +433,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                 TextFormField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    hintText: '09XX XXX XXXX',
-                  ),
+                  decoration: const InputDecoration(hintText: '09XX XXX XXXX'),
                   validator: (v) {
                     final t = v?.trim() ?? '';
                     if (t.isEmpty) return null;
@@ -496,44 +503,44 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     final gender = _gender == null ? null : _kGenderOptions(l10n)[_gender];
 
     Widget header(String title, int stepTarget) => Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
             ),
-            TextButton(
-              onPressed: () => setState(() {
-                _step = stepTarget;
-                _error = null;
-              }),
-              child: Text(l10n.registerEdit),
-            ),
-          ],
-        );
+          ),
+        ),
+        TextButton(
+          onPressed: () => setState(() {
+            _step = stepTarget;
+            _error = null;
+          }),
+          child: Text(l10n.registerEdit),
+        ),
+      ],
+    );
 
     Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
-              ),
-            ],
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
           ),
-        );
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+          ),
+        ],
+      ),
+    );
 
     String date(DateTime d) =>
         '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -541,8 +548,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     return [
       header(l10n.registerStepPersonal, 0),
       row(l10n.fullName, _fullName()),
-      row(l10n.registerUsernameLabel.replaceAll(' *', ''),
-          normalizeUsername(_usernameCtrl.text)),
+      row(
+        l10n.registerUsernameLabel.replaceAll(' *', ''),
+        normalizeUsername(_usernameCtrl.text),
+      ),
       row(l10n.emailAddress, email.isEmpty ? notProvided : email),
       row(l10n.phoneNumber, phone.isEmpty ? notProvided : phone),
       row(l10n.addMemberDobLabel, dob == null ? notProvided : date(dob)),
@@ -557,9 +566,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
-    final cs     = Theme.of(context).colorScheme;
-    final l10n   = AppLocalizations.of(context);
-    final last   = _step == _stepCount - 1;
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final last = _step == _stepCount - 1;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -597,12 +606,16 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: cs.errorContainer.withValues(alpha: 0.50),
-                          borderRadius:
-                              BorderRadius.circular(AppConstants.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                         ),
                         child: Text(
                           _error!,
-                          style: GoogleFonts.inter(fontSize: 13, color: cs.error),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: cs.error,
+                          ),
                         ),
                       ),
                     ],
@@ -623,10 +636,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
               PrimaryButton(
                 label: last
                     ? (!_isOnline
-                        ? l10n.addMemberOffline
-                        : (_isSaving
-                            ? l10n.addMemberCreating
-                            : l10n.addMemberCreateButton))
+                          ? l10n.addMemberOffline
+                          : (_isSaving
+                                ? l10n.addMemberCreating
+                                : l10n.addMemberCreateButton))
                     : l10n.registerNext,
                 isLoading: _isSaving,
                 onPressed: last

@@ -1,3 +1,5 @@
+import '../services/offline_actions.dart'
+    show isOfflineConnectionFailure, OfflineActionBlocked;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/client_id.dart';
 import '../models/expense_model.dart';
@@ -109,10 +111,10 @@ class ExpenseRepository {
     return totals.entries
         .map(
           (e) => CategoryBreakdown(
-          category: e.key,
-          total: e.value,
-          percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
-          hasSubsidy: hasSubsidy.containsKey(e.key),
+            category: e.key,
+            total: e.value,
+            percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
+            hasSubsidy: hasSubsidy.containsKey(e.key),
           ),
         )
         .toList()
@@ -133,9 +135,14 @@ class ExpenseRepository {
     // Database key for this expense. Kept with the queued record so a replay
     // that finds the row already on the server is recognized, not duplicated.
     final clientId = newClientId();
+    final owner = _userId;
     final isOnline = await ConnectivityService.instance.checkConnectivity();
 
-    if (!isOnline) {
+    Future<ExpenseModel> queueLocally() async {
+      if (HiveService.getUserId() != owner ||
+          _client.auth.currentUser?.id != owner) {
+        throw const OfflineActionBlocked();
+      }
       final localId = await HiveService.savePendingExpense({
         'client_id': clientId,
         'name': name.trim(),
@@ -164,16 +171,22 @@ class ExpenseRepository {
       );
     }
 
-    return _addOnline(
-      clientId: clientId,
-      name: name,
-      category: category,
-      description: description,
-      amount: amount,
-      expenseDate: expenseDate,
-      isSubsidy: isSubsidy,
-      notes: notes,
-    );
+    if (!isOnline) return queueLocally();
+    try {
+      return await _addOnline(
+        clientId: clientId,
+        name: name,
+        category: category,
+        description: description,
+        amount: amount,
+        expenseDate: expenseDate,
+        isSubsidy: isSubsidy,
+        notes: notes,
+      );
+    } catch (error) {
+      if (!isOfflineConnectionFailure(error)) rethrow;
+      return queueLocally();
+    }
   }
 
   /// Performs the real farmer_expenses insert. Shared by the immediate

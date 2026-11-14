@@ -62,10 +62,16 @@ List<AdminListingModel> orderForApprovals(
 }
 
 /// Farmer > Listing: listings that are still live (Pending Approval and
-/// Available) come first; Sold Out, Disapproved and Withdrawn go to the bottom.
-/// The newest-first order is kept inside each group.
+/// Available) come first; the ones that can no longer take orders (Sold Out,
+/// Disapproved, Withdrawn, Unavailable) go to the bottom. The newest-first
+/// order is kept inside each group.
 int farmerListingGroup(MarketplaceListingModel listing) =>
-    (listing.isSoldOut || listing.isRejected || listing.isWithdrawn) ? 1 : 0;
+    (listing.isSoldOut ||
+        listing.isRejected ||
+        listing.isWithdrawn ||
+        listing.isShelfUnavailable)
+    ? 1
+    : 0;
 
 List<MarketplaceListingModel> orderForFarmerListings(
   Iterable<MarketplaceListingModel> listings,

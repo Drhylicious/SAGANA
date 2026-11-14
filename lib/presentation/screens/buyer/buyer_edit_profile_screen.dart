@@ -48,8 +48,10 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   // line shows the saved state (a typed-but-unsaved address is always Unverified).
   String? _savedEmail;
   String? _verifiedEmail;
-  bool get _emailVerified =>
-      ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
+  bool get _emailVerified => ContactEmail.isVerified(
+    contactEmail: _savedEmail,
+    verifiedEmail: _verifiedEmail,
+  );
 
   bool _isLoading = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
@@ -77,8 +79,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   }
 
   Future<void> _load() async {
-    final profile =
-        widget.initialProfile ?? await _repository.fetchProfile();
+    final profile = widget.initialProfile ?? await _repository.fetchProfile();
     if (!mounted) return;
     setState(() {
       _name.load(
@@ -147,7 +148,10 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
     final l10n = AppLocalizations.of(context);
     void fail(String message) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
     }
 
@@ -196,16 +200,17 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
     }
     // Same email check as registration: when the address was changed, its domain
     // must be able to receive mail. The database enforces format and uniqueness.
-    if (email.isNotEmpty && email.toLowerCase() != _originalEmail.toLowerCase()) {
+    if (email.isNotEmpty &&
+        email.toLowerCase() != _originalEmail.toLowerCase()) {
       final domain = await AuthService.checkEmailDomain(email);
       if (!mounted) return;
       if (domain == EmailDomainStatus.noMailServer) {
         ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.registerEmailDomainInvalid),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
+          SnackBar(
+            content: Text(l10n.registerEmailDomainInvalid),
+            backgroundColor: AppConstants.errorRed,
+          ),
+        );
         return;
       }
     }
@@ -287,7 +292,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -317,7 +322,9 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                           children: [
                             ProfileAvatar(
                               photoUrl: _photoUrl,
-                              displayName: _name.displayName(l10n.buyerDefaultName),
+                              displayName: _name.displayName(
+                                l10n.buyerDefaultName,
+                              ),
                               radius: 56,
                             ),
                             if (_isUploadingPhoto)
@@ -367,7 +374,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: AppConstants.primaryGreen,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                         ),
@@ -383,7 +390,8 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                           firstNameController: _name.firstName,
                           middleInitialController: _name.middleInitial,
                           suffix: _name.suffix,
-                          onSuffixChanged: (v) => setState(() => _name.suffix = v),
+                          onSuffixChanged: (v) =>
+                              setState(() => _name.suffix = v),
                           allowAllBlank: _name.legacyFullName != null,
                           legacyFullName: _name.legacyFullName,
                         ),
@@ -502,9 +510,11 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                                           .withValues(alpha: 0.1),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.lock_reset_rounded,
-                                      color: AppConstants.primaryGreen,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -524,8 +534,9 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                                           l10n.updatePasswordSubtitle,
                                           style: GoogleFonts.inter(
                                             fontSize: 11,
-                                            color:
-                                                AppConstants.onSurfaceVariant,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ],
@@ -533,9 +544,8 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                                   ),
                                   Icon(
                                     Icons.chevron_right_rounded,
-                                    color: AppConstants.outline.withValues(
-                                      alpha: 0.5,
-                                    ),
+                                    color: Theme.of(context).colorScheme.outline
+                                        .withValues(alpha: 0.5),
                                   ),
                                 ],
                               ),

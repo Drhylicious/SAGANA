@@ -449,8 +449,11 @@ void main() {
     test('no screen carries its own copy of the cooperative address', () {
       final hits = <String>[];
       for (final e in Directory('lib').listSync(recursive: true)) {
-        if (e is! File || !e.path.endsWith('.dart') || e.path.contains('l10n'))
+        if (e is! File ||
+            !e.path.endsWith('.dart') ||
+            e.path.contains('l10n')) {
           continue;
+        }
         final src = e.readAsStringSync();
         if (src.contains('cooperativeLocation')) hits.add(e.path);
       }

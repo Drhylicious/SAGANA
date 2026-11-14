@@ -136,15 +136,23 @@ class DeliveryChecklist {
   final bool pinSet;
   final bool contactReady;
   final bool bandsSet;
-  const DeliveryChecklist({required this.pinSet, required this.contactReady, required this.bandsSet});
+  const DeliveryChecklist({
+    required this.pinSet,
+    required this.contactReady,
+    required this.bandsSet,
+  });
 
   bool get complete => pinSet && contactReady && bandsSet;
 
   factory DeliveryChecklist.from(DeliveryStatus s) => DeliveryChecklist(
-        pinSet: !s.missing.contains(kDeliveryMissingPin),
-        contactReady: !s.missing.contains(kDeliveryMissingContact) && !s.missing.contains(kDeliveryMissingContactVerified),
-        bandsSet: !s.missing.contains(kDeliveryMissingBands) && !s.missing.contains(kDeliveryMissingDemoBands),
-      );
+    pinSet: !s.missing.contains(kDeliveryMissingPin),
+    contactReady:
+        !s.missing.contains(kDeliveryMissingContact) &&
+        !s.missing.contains(kDeliveryMissingContactVerified),
+    bandsSet:
+        !s.missing.contains(kDeliveryMissingBands) &&
+        !s.missing.contains(kDeliveryMissingDemoBands),
+  );
 }
 
 /// One distance band of the delivery fee: [minKm, maxKm) costs [fee] pesos.
@@ -187,13 +195,15 @@ BandsProblem? checkFeeBands(List<DeliveryFeeBand> bands) {
   if (bands.isEmpty) return BandsProblem.empty;
   final sorted = [...bands]..sort((a, b) => a.minKm.compareTo(b.minKm));
   for (final b in sorted) {
-    if (b.maxKm <= b.minKm || b.fee < 0 || b.minKm < 0)
+    if (b.maxKm <= b.minKm || b.fee < 0 || b.minKm < 0) {
       return BandsProblem.badRow;
+    }
   }
   if (sorted.first.minKm != 0) return BandsProblem.notFromZero;
   for (var i = 1; i < sorted.length; i++) {
-    if (sorted[i].minKm != sorted[i - 1].maxKm)
+    if (sorted[i].minKm != sorted[i - 1].maxKm) {
       return BandsProblem.gapOrOverlap;
+    }
   }
   return null;
 }

@@ -3,8 +3,10 @@ import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
+import 'shelf_life_repository.dart';
 import '../models/admin_log_message.dart';
 import '../models/listing_edit_request_model.dart';
+import '../models/shelf_life_model.dart';
 import '../../core/utils/app_utils.dart';
 import '../../core/utils/quantity_utils.dart';
 
@@ -52,6 +54,22 @@ class AdminListingModel {
   // was selected.
   final String? marketType;
 
+  /// Shelf life of the listing's harvest batch, and the listing's own
+  /// shelf-life state (discounted / unavailable). Staff only.
+  final BatchShelfLife? batchShelfLife;
+  final ListingShelfLife? shelfLife;
+
+  /// Set when this open listing's price is outside the crop's current
+  /// Reference Price Range: the Farmer has been asked to update it.
+  final ListingPriceRule? priceUpdateRule;
+  bool get priceUpdateRequired => priceUpdateRule != null;
+
+  /// Published, with quantity left, but past its shelf life and unconfirmed.
+  bool get isShelfUnavailable =>
+      status == 'approved' && remainingKg > 0 && (shelfLife?.unavailable ?? false);
+  bool get isShelfDiscounted =>
+      status == 'approved' && (shelfLife?.isDiscounted ?? false);
+
   const AdminListingModel({
     required this.id,
     required this.farmerId,
@@ -77,6 +95,9 @@ class AdminListingModel {
     this.farmerOutstandingLoan = 0,
     this.canonicalCropName,
     this.marketType,
+    this.batchShelfLife,
+    this.shelfLife,
+    this.priceUpdateRule,
   });
 
   // ── Computed helpers ──────────────────────────────────────────────────────
@@ -194,6 +215,9 @@ class AdminListingModel {
           .toDouble(),
       canonicalCropName: map['canonical_crop_name'] as String?,
       marketType: map['crop_type'] as String?,
+      batchShelfLife: BatchShelfLife.fromEmbed(map['batch_shelf_life']),
+      shelfLife: ListingShelfLife.fromEmbed(map['listing_shelf_life']),
+      priceUpdateRule: ListingPriceRule.fromMap(map['price_update_rule']),
     );
   }
 }
@@ -409,6 +433,21 @@ class AdminListingRepository {
               .toSet()
               .toList();
           final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
+          // Shelf life of each listing's harvest batch, and whether the listing
+          // was discounted or made unavailable for it (staff may read both).
+          final batchShelf = await _shelfRows(
+            'batch_shelf_life',
+            'batch_id',
+            batchIds,
+          );
+          final listingShelf = await _shelfRows(
+            'listing_shelf_life',
+            'listing_id',
+            rows.map((r) => r['id'] as String).toList(),
+          );
+          // Open listings whose price is outside a changed Reference Price Range.
+          final priceUpdates = await ShelfLifeRepository()
+              .fetchPriceUpdateRequired();
 
           final infoRows = await _client
               .from('user_information')
@@ -501,6 +540,9 @@ class AdminListingRepository {
               'farmer_photo_url': info['profile_photo_url'] as String?,
               'listing_photo_url': r['photo_url'],
               'batch_id': r['inventory_batch_id'],
+              'batch_shelf_life': batchId != null ? batchShelf[batchId] : null,
+              'listing_shelf_life': listingShelf[r['id']],
+              'price_update_rule': priceUpdates[r['id']],
               'batch_available_kg': _adjustedBatchAvailable(
                 batchId != null ? batchMap[batchId] : null,
                 r['status'] as String? ?? 'pending_review',
@@ -551,6 +593,26 @@ class AdminListingRepository {
   /// at most 1000 rows, which would silently cap every total. Withdrawn listings
   /// (a Farmer housekeeping action) are not counted, so All Listings equals the
   /// "All" chip of the All Listings screen.
+  /// Rows of a shelf-life table keyed by [keyColumn], for [ids]. Empty when the
+  /// table cannot be read (for example before the shelf-life SQL is applied),
+  /// so the listings still load without shelf-life data.
+  Future<Map<String, Map<String, dynamic>>> _shelfRows(
+    String table,
+    String keyColumn,
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return {};
+    try {
+      final rows = await _client.from(table).select().inFilter(keyColumn, ids);
+      return {
+        for (final r in rows)
+          r[keyColumn] as String: Map<String, dynamic>.from(r),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<ListingSummaryStats> fetchSummaryStats() async {
     try {
       final rows = await OfflineCache.load(
@@ -848,6 +910,18 @@ class AdminListingRepository {
         'farmer_photo_url': farmerPhoto,
         'listing_photo_url': row['photo_url'],
         'batch_id': row['inventory_batch_id'],
+        'batch_shelf_life': batchId == null
+            ? null
+            : (await _shelfRows('batch_shelf_life', 'batch_id', [
+                batchId,
+              ]))[batchId],
+        'listing_shelf_life': (await _shelfRows(
+          'listing_shelf_life',
+          'listing_id',
+          [listingId],
+        ))[listingId],
+        'price_update_rule':
+            (await ShelfLifeRepository().fetchPriceUpdateRequired())[listingId],
         'batch_available_kg': batchAvailableKg,
         'market_ref_price': marketRefPrice,
         'farmer_total_submissions': totalSubs,

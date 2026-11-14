@@ -170,7 +170,11 @@ class YearFilterSelector extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: cs.onSurfaceVariant),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: cs.onSurfaceVariant,
+            ),
           ],
         ),
       ),
@@ -316,7 +320,11 @@ class ReportHeroCard extends StatelessWidget {
                   color: AppConstants.primaryGreen.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                 ),
-                child: const Icon(Icons.bar_chart_rounded, size: 15, color: AppConstants.primaryGreen),
+                child: Icon(
+                  Icons.bar_chart_rounded,
+                  size: 15,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -352,7 +360,9 @@ class ReportHeroCard extends StatelessWidget {
                 for (var i = 0; i < allStats.length; i++)
                   _heroStat(
                     allStats[i],
-                    accent: allStats[i].accent ?? _fallbackAccents[i % _fallbackAccents.length],
+                    accent:
+                        allStats[i].accent ??
+                        _fallbackAccents[i % _fallbackAccents.length],
                     valueFontSize: i < primaryStats.length ? 17 : 15,
                     cs: cs,
                   ),
@@ -387,7 +397,11 @@ class ReportHeroCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   s.label,
-                  style: GoogleFonts.inter(fontSize: 10, height: 1.2, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    height: 1.2,
+                    color: cs.onSurfaceVariant,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -557,7 +571,10 @@ class ReportIconStatCard extends StatelessWidget {
             child: Text(
               label,
               maxLines: 1,
-              style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(height: 2),
@@ -588,7 +605,8 @@ class ReportIconStatCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
               ),
-              if (delta != null) Padding(padding: const EdgeInsets.only(left: 6), child: delta!),
+              if (delta != null)
+                Padding(padding: const EdgeInsets.only(left: 6), child: delta!),
             ],
           ),
         ],

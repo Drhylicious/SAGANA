@@ -1,6 +1,7 @@
+import '../../core/theme/sagana_colors.dart';
+import '../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/utils/quantity_utils.dart';
 import 'app_dropdown_field.dart';
 
@@ -96,7 +97,7 @@ class QuantityUnitField extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: _kQuantityFontSize,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 // A fixed line height, so the field's height comes from its own
                 // padding (below) and is the same in every renderer.
@@ -111,10 +112,12 @@ class QuantityUnitField extends StatelessWidget {
                     fontSize: _kQuantityFontSize,
                     height: _kQuantityLineHeight,
                     fontWeight: FontWeight.w400,
-                    color: AppConstants.outline.withValues(alpha: 0.60),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.60),
                   ),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: context.saganaColors.cardBackground,
                   isDense: false,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -147,13 +150,17 @@ class QuantityUnitField extends StatelessWidget {
               AppDropdownField<String>(
                 key: const Key('unitField'),
                 value: selectedUnit,
-                hintText: 'Select unit',
+                hintText: AppLocalizations.of(context).enhSelectUnit,
                 items: units,
                 itemLabel: (u) => u,
                 onChanged: unitLocked ? (_) {} : onUnitChanged,
-                validator: (u) => u == null ? 'Unit is required' : null,
+                validator: (u) => u == null
+                    ? AppLocalizations.of(context).adminInvUnitRequired
+                    : null,
                 // "+ Unit", the same compact row Price Management uses.
-                addNewLabel: unitLocked || onAddUnit == null ? null : addUnitLabel,
+                addNewLabel: unitLocked || onAddUnit == null
+                    ? null
+                    : addUnitLabel,
                 addNewShowIcon: false,
                 onAddNew: unitLocked ? null : onAddUnit,
               ),
@@ -180,7 +187,7 @@ class _Label extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 13,
           fontWeight: FontWeight.w500,
-          color: AppConstants.onSurfaceVariant,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );

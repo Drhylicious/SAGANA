@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'data/services/offline_read_client.dart';
 
 class SupabaseOptions {
   SupabaseOptions._();
@@ -11,6 +12,7 @@ class SupabaseOptions {
     await Supabase.initialize(
       url: projectUrl,
       publishableKey: publishableKey,
+      httpClient: OfflineReadClient(),
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
       ),

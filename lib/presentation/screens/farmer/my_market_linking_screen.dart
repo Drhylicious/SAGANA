@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -51,7 +52,8 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
   // and reopening the screen always work too.
   TableChangeWatcher? _watcher;
 
-  bool get _isApproved => _enrollment?.status == DaAmadEnrollmentStatus.approved;
+  bool get _isApproved =>
+      _enrollment?.status == DaAmadEnrollmentStatus.approved;
 
   DaAmadEnrollmentModel? _enrollment;
   bool _hasGinger = false;
@@ -155,8 +157,12 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not send your join request. Please try again.'),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(
+                context,
+              ).enhCouldNotSendYourJoinRequestPleaseTry,
+            ),
           ),
         );
       }
@@ -183,7 +189,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'market_linking_all',
                 isOnline: _isOnline,
@@ -191,7 +197,10 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
               ),
               Expanded(
                 child: _isLoadingGate
-                    ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      )
                     : _isApproved
                     // Approved: the tabs hold their own scrolling lists, each
                     // with its own pull-to-refresh.
@@ -209,7 +218,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'Market Linking',
+              title: AppLocalizations.of(context).marketDashKpiMarketLinking,
               // Moved out of the body (was a full-width banner dominating
               // the landing page) and into the header itself — visible,
               // but no longer competing with the actual page content.
@@ -375,7 +384,6 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
       ],
     );
   }
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -408,7 +416,7 @@ class _NoGingerCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'A Ginger Crop Is Required',
+            AppLocalizations.of(context).enhAGingerCropIsRequired,
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -417,7 +425,9 @@ class _NoGingerCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'DA-AMAD Market Linking is exclusive to Ginger. Add Ginger to your Crop Roster before you can join.',
+            AppLocalizations.of(
+              context,
+            ).enhDAAMADMarketLinkingIsExclusiveToGinger,
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
@@ -425,7 +435,7 @@ class _NoGingerCard extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => context.pushRoute(AppRoutes.cropListing),
-              child: const Text('Go to Crop Roster'),
+              child: Text(AppLocalizations.of(context).enhGoToCropRoster),
             ),
           ),
         ],
@@ -465,7 +475,7 @@ class _GingerPendingApprovalCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Ginger Crop Awaiting Approval',
+            AppLocalizations.of(context).enhGingerCropAwaitingApproval,
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -474,8 +484,9 @@ class _GingerPendingApprovalCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'You\'ve already requested Ginger for your Crop Roster — SP3 is still reviewing it. '
-            'You\'ll be able to join Market Linking once that\'s approved.',
+            AppLocalizations.of(
+              context,
+            ).enhYouVeAlreadyRequestedGingerForYourCrop,
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
@@ -483,7 +494,7 @@ class _GingerPendingApprovalCard extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton(
               onPressed: () => context.pushRoute(AppRoutes.cropListing),
-              child: const Text('View Crop Roster'),
+              child: Text(AppLocalizations.of(context).enhViewCropRoster),
             ),
           ),
         ],
@@ -526,7 +537,7 @@ class _EnrollmentIntroCard extends StatelessWidget {
           const Text('🌿', style: TextStyle(fontSize: 32)),
           const SizedBox(height: 12),
           Text(
-            'DA-AMAD Ginger Market Linking',
+            AppLocalizations.of(context).marketLinkDaAmadTitle,
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -535,8 +546,9 @@ class _EnrollmentIntroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'SP3 connects Ginger growers who have joined directly with DA-AMAD — an institutional buyer offering export '
-            'pricing, outside the open marketplace. Request to join once to participate; SP3 will review your request.',
+            AppLocalizations.of(
+              context,
+            ).enhSPConnectsGingerGrowersWhoHaveJoinedDirectly,
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
@@ -559,7 +571,9 @@ class _EnrollmentIntroCard extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      isResubmit ? 'Request to Join Again' : 'Request to Join',
+                      isResubmit
+                          ? AppLocalizations.of(context).joinRequestAgain
+                          : AppLocalizations.of(context).joinRequestAction,
                       style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
                     ),
             ),
@@ -606,7 +620,9 @@ class _RejectedBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your Previous Join Request Was Closed',
+                  AppLocalizations.of(
+                    context,
+                  ).enhYourPreviousJoinRequestWasClosed,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -625,7 +641,9 @@ class _RejectedBanner extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  'You can send a new join request below.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhYouCanSendANewJoinRequestBelow,
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onSurfaceVariant,
@@ -689,7 +707,7 @@ class _PendingEnrollmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'Join Request Under Review',
+            AppLocalizations.of(context).enhJoinRequestUnderReview,
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -698,7 +716,7 @@ class _PendingEnrollmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'SP3 is reviewing your DA-AMAD Ginger Market Linking join request. You\'ll be notified once it is approved.',
+            AppLocalizations.of(context).enhSPIsReviewingYourDAAMADGingerMarket,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
@@ -708,7 +726,9 @@ class _PendingEnrollmentCard extends StatelessWidget {
                 return Expanded(
                   child: Container(
                     height: 2,
-                    color: AppConstants.outline.withValues(alpha: 0.15),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.15),
                   ),
                 );
               }
@@ -728,7 +748,10 @@ class _PendingEnrollmentCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _stages[i ~/ 2],
+                    localizeBuiltinLabel(
+                      AppLocalizations.of(context),
+                      _stages[i ~/ 2],
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
@@ -779,7 +802,7 @@ class _EnrolledPill extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            'Joined',
+            AppLocalizations.of(context).marketLinkKpiEnrolled,
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -816,14 +839,14 @@ class _ApprovedNextStepCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.eco_rounded,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
             size: 28,
           ),
           const SizedBox(height: 12),
           Text(
-            'Next Step: Submit a Ginger Harvest',
+            AppLocalizations.of(context).enhNextStepSubmitAGingerHarvest,
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -832,8 +855,9 @@ class _ApprovedNextStepCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'You\'ve joined — you have nothing submitted for sale yet. Go to Manage Inventory, open a Ginger '
-            'batch, and tap "Submit to Sell" to start the process.',
+            AppLocalizations.of(
+              context,
+            ).enhYouVeJoinedYouHaveNothingSubmittedFor,
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
@@ -842,7 +866,7 @@ class _ApprovedNextStepCard extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: () => context.pushRoute(AppRoutes.manageInventory),
               icon: const Icon(Icons.inventory_2_outlined, size: 18),
-              label: const Text('Go to Manage Inventory'),
+              label: Text(AppLocalizations.of(context).enhGoToManageInventory),
             ),
           ),
         ],
@@ -868,12 +892,11 @@ class _SummaryCard extends StatelessWidget {
     final inProgress = s.inProgress;
     final completed = s.completed;
 
-
     Widget tile(IconData icon, String value, String label) => Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.14),
+          color: context.saganaColors.cardBackground.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
         child: Row(
@@ -929,7 +952,11 @@ class _SummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              tile(Icons.hourglass_top_rounded, '$inProgress', l10n.mlkStatInProgress),
+              tile(
+                Icons.hourglass_top_rounded,
+                '$inProgress',
+                l10n.mlkStatInProgress,
+              ),
               const SizedBox(width: 10),
               tile(Icons.scale_rounded, s.soldText, l10n.mlkStatKgSold),
             ],
@@ -937,9 +964,17 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              tile(Icons.inventory_2_outlined, s.remainingText, l10n.mlkStatKgRemaining),
+              tile(
+                Icons.inventory_2_outlined,
+                s.remainingText,
+                l10n.mlkStatKgRemaining,
+              ),
               const SizedBox(width: 10),
-              tile(Icons.check_circle_outline_rounded, '$completed', l10n.statCompleted),
+              tile(
+                Icons.check_circle_outline_rounded,
+                '$completed',
+                l10n.statCompleted,
+              ),
             ],
           ),
         ],
@@ -980,8 +1015,14 @@ class _RequestTabBar extends StatelessWidget {
         ),
         labelColor: Colors.white,
         unselectedLabelColor: cs.onSurfaceVariant,
-        labelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500),
+        labelStyle: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
         tabs: [
           Tab(height: 38, text: '${l10n.mlkInProgress} · $inProgressCount'),
           Tab(height: 38, text: '${l10n.statCompleted} · $completedCount'),
@@ -1019,7 +1060,11 @@ class _RequestList extends StatelessWidget {
             ? children
             : [
                 const SizedBox(height: 40),
-                Icon(emptyIcon, size: 44, color: cs.outline.withValues(alpha: 0.6)),
+                Icon(
+                  emptyIcon,
+                  size: 44,
+                  color: cs.outline.withValues(alpha: 0.6),
+                ),
                 const SizedBox(height: 14),
                 Text(
                   emptyTitle,
@@ -1063,12 +1108,18 @@ class _FarmerBuyerSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppConstants.warningAmber.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppConstants.warningAmber.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.hourglass_top_rounded, size: 16, color: AppConstants.warningAmber),
+          const Icon(
+            Icons.hourglass_top_rounded,
+            size: 16,
+            color: AppConstants.warningAmber,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1085,7 +1136,11 @@ class _FarmerBuyerSection extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   l10n.mlkAwaitingBuyerBody,
-                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -1157,7 +1212,11 @@ class _RequestCard extends StatelessWidget {
             Row(
               children: [
                 // The Farmer's own photo of this crop (what the Manager sees too).
-                MarketLinkingEntryPhoto(entry: entry, size: 48, useInitials: false),
+                MarketLinkingEntryPhoto(
+                  entry: entry,
+                  size: 48,
+                  useInitials: false,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1221,7 +1280,11 @@ class _RequestCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -1256,7 +1319,9 @@ class _RequestCard extends StatelessWidget {
               _CancellationNote(
                 icon: Icons.info_outline_rounded,
                 color: AppConstants.warningAmber,
-                text: l10n.mlkCancelDeclinedNote(entry.cancellationReviewNotes ?? ''),
+                text: l10n.mlkCancelDeclinedNote(
+                  entry.cancellationReviewNotes ?? '',
+                ),
               ),
             ],
             if (entry.canRequestCancellation) ...[
@@ -1269,7 +1334,10 @@ class _RequestCard extends StatelessWidget {
                   foregroundColor: cs.error,
                   side: BorderSide(color: cs.error.withValues(alpha: 0.6)),
                   minimumSize: const Size.fromHeight(44),
-                  textStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+                  textStyle: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
@@ -1287,7 +1355,11 @@ class _CancellationNote extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String text;
-  const _CancellationNote({required this.icon, required this.color, required this.text});
+  const _CancellationNote({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1308,7 +1380,11 @@ class _CancellationNote extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                height: 1.4,
+                color: cs.onSurface,
+              ),
             ),
           ),
         ],
@@ -1326,7 +1402,8 @@ class _CancellationRequestSheet extends StatefulWidget {
   const _CancellationRequestSheet({required this.entry, required this.repo});
 
   @override
-  State<_CancellationRequestSheet> createState() => _CancellationRequestSheetState();
+  State<_CancellationRequestSheet> createState() =>
+      _CancellationRequestSheetState();
 }
 
 class _CancellationRequestSheetState extends State<_CancellationRequestSheet> {
@@ -1377,7 +1454,11 @@ class _CancellationRequestSheetState extends State<_CancellationRequestSheet> {
         children: [
           Text(
             l10n.mlkCancelDialogBody,
-            style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              height: 1.4,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 14),
           Text(
@@ -1429,7 +1510,7 @@ class _ApprovalCelebrationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 40, 28, 32),

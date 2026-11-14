@@ -1,3 +1,5 @@
+import '../../../core/theme/sagana_colors.dart';
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -50,7 +52,9 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
     });
     _load();
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -92,9 +96,11 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
 
   List<CooperativeProgram> get _filtered {
     return _programs.where((p) {
-      final matchesPurpose = _purposeFilter == 'All' ||
+      final matchesPurpose =
+          _purposeFilter == 'All' ||
           (_purposeFilter == 'Sales' ? p.isSalesProgram : !p.isSalesProgram);
-      final matchesSearch = _searchQuery.isEmpty ||
+      final matchesSearch =
+          _searchQuery.isEmpty ||
           p.programName.toLowerCase().contains(_searchQuery);
       return matchesPurpose && matchesSearch;
     }).toList();
@@ -107,7 +113,7 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
       extra: entry != null
           ? {'entry': entry}
           : {
-              'program': program,
+              "program": program,
               'existingRequest': _requestsByProgram[program.id],
             },
     );
@@ -124,12 +130,12 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
     final filtered = _filtered;
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'programs_available',
                 isOnline: _isOnline,
@@ -141,12 +147,16 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                   controller: _searchController,
                   style: GoogleFonts.inter(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'Search programs...',
+                    hintText: AppLocalizations.of(
+                      context,
+                    ).programMgmtSearchHint,
                     prefixIcon: const Icon(Icons.search_rounded),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: context.saganaColors.cardBackground,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
@@ -162,28 +172,41 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                   itemCount: 3,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (_, i) {
-                    final label = ['All', 'Distribution', 'Sales'][i];
+                    final label = ["All", "Distribution", "Sales"][i];
                     final isSelected = label == _purposeFilter;
                     return GestureDetector(
                       onTap: () => setState(() => _purposeFilter = label),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppConstants.primaryGreen : Colors.white,
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          color: isSelected
+                              ? AppConstants.primaryGreen
+                              : context.saganaColors.cardBackground,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
                           border: Border.all(
                             color: isSelected
                                 ? AppConstants.primaryGreen
-                                : AppConstants.outline.withValues(alpha: 0.25),
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.outline.withValues(alpha: 0.25),
                           ),
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          label,
+                          '${localizeBuiltinLabel(AppLocalizations.of(context), label)} (${label == 'All' ? _programs.length : _programs.where((p) => label == 'Sales' ? p.isSalesProgram : !p.isSalesProgram).length})',
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: isSelected ? Colors.white : AppConstants.onSurfaceVariant,
+                            color: isSelected
+                                ? Colors.white
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -197,34 +220,44 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : filtered.isEmpty
-                          ? ListView(children: [
-                              const SizedBox(height: 120),
-                              Center(
-                                child: Text(
-                                  _programs.isEmpty
-                                      ? 'No active programs right now.'
-                                      : 'No programs match your search.',
-                                ),
+                      ? ListView(
+                          children: [
+                            const SizedBox(height: 120),
+                            Center(
+                              child: Text(
+                                _programs.isEmpty
+                                    ? AppLocalizations.of(
+                                        context,
+                                      ).enhNoActiveProgramsRightNow
+                                    : AppLocalizations.of(
+                                        context,
+                                      ).enhNoProgramsMatchYourSearch,
                               ),
-                            ])
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
-                              itemBuilder: (_, i) {
-                                final program = filtered[i];
-                                final entry = _enrolledByProgram[program.id];
-                                final request = _requestsByProgram[program.id];
-                                return _AvailableProgramCard(
-                                  program: program,
-                                  entry: entry,
-                                  request: request,
-                                  onTap: () => _openDetails(program),
-                                );
-                              },
                             ),
+                          ],
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) {
+                            final program = filtered[i];
+                            final entry = _enrolledByProgram[program.id];
+                            final request = _requestsByProgram[program.id];
+                            return _AvailableProgramCard(
+                              program: program,
+                              entry: entry,
+                              request: request,
+                              onTap: () => _openDetails(program),
+                            );
+                          },
+                        ),
                 ),
               ),
             ],
@@ -234,7 +267,7 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'Programs',
+              title: AppLocalizations.of(context).farmerDetailsTabPrograms,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -246,9 +279,9 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                   children: [
                     GestureDetector(
                       onTap: _openMyPrograms,
-                      child: const Icon(
+                      child: Icon(
                         Icons.assignment_turned_in_outlined,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 26,
                       ),
                     ),
@@ -257,15 +290,23 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                         top: -4,
                         right: -6,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: AppConstants.programPurple,
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusFull,
+                            ),
                           ),
                           child: Text(
                             '$_enrolledCount',
                             style: GoogleFonts.inter(
-                                fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -295,7 +336,9 @@ class _AvailableProgramCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = program.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple;
+    final accent = program.isSalesProgram
+        ? AppConstants.successGreen
+        : AppConstants.programPurple;
     // A single BoxDecoration can't mix a borderRadius with a non-uniform
     // Border (different colors per side) — Flutter throws "A borderRadius
     // can only be given on borders with uniform colors." at paint time.
@@ -317,18 +360,29 @@ class _AvailableProgramCard extends StatelessWidget {
               width: 4,
               decoration: BoxDecoration(
                 color: accent,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppConstants.radiusLg)),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(AppConstants.radiusLg),
+                ),
               ),
             ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: const BorderRadius.horizontal(right: Radius.circular(AppConstants.radiusLg)),
-                  border: Border.all(color: AppConstants.outline.withValues(alpha: 0.10)),
+                  color: context.saganaColors.cardBackground,
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(AppConstants.radiusLg),
+                  ),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.10),
+                  ),
                   boxShadow: [
-                    BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 8),
+                    BoxShadow(
+                      color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                      blurRadius: 8,
+                    ),
                   ],
                 ),
                 child: Row(
@@ -339,21 +393,29 @@ class _AvailableProgramCard extends StatelessWidget {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: (program.imageUrl != null && program.imageUrl!.isNotEmpty)
+                      child:
+                          (program.imageUrl != null &&
+                              program.imageUrl!.isNotEmpty)
                           ? Image.network(
                               program.imageUrl!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Icon(
-                                program.isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
+                                program.isSalesProgram
+                                    ? Icons.storefront_rounded
+                                    : Icons.volunteer_activism_rounded,
                                 color: accent,
                                 size: 22,
                               ),
                             )
                           : Icon(
-                              program.isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
+                              program.isSalesProgram
+                                  ? Icons.storefront_rounded
+                                  : Icons.volunteer_activism_rounded,
                               color: accent,
                               size: 22,
                             ),
@@ -363,17 +425,28 @@ class _AvailableProgramCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(program.programName,
-                              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+                          Text(
+                            program.programName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 2),
                           Text(
                             _stateLabel(AppLocalizations.of(context)),
-                            style: GoogleFonts.inter(fontSize: 11, color: _stateColor),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: _stateColor(context),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded, color: AppConstants.outline),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                   ],
                 ),
               ),
@@ -392,9 +465,9 @@ class _AvailableProgramCard extends StatelessWidget {
     return l10n.joinRequested;
   }
 
-  Color get _stateColor {
+  Color _stateColor(BuildContext context) {
     if (entry != null) return AppConstants.successGreen;
-    if (request == null) return AppConstants.onSurfaceVariant;
+    if (request == null) return Theme.of(context).colorScheme.onSurfaceVariant;
     if (request!.isPending) return AppConstants.warningAmber;
     if (request!.isRejected) return AppConstants.errorRed;
     return AppConstants.successGreen;

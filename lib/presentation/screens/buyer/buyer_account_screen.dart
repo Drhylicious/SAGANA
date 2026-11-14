@@ -106,7 +106,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'buyer_profile_info',
                 otherScreens: const [
@@ -247,7 +247,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: AppConstants.onSurface,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           if (hasContactEmail || hasPhone) ...[
@@ -292,7 +292,11 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   Widget _contactLine(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 13, color: AppConstants.onSurfaceVariant),
+        Icon(
+          icon,
+          size: 13,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -301,7 +305,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -387,7 +391,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             style: GoogleFonts.poppins(
               fontSize: 17,
               fontWeight: FontWeight.w800,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 2),
@@ -395,7 +399,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             label,
             style: GoogleFonts.inter(
               fontSize: 11,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -416,7 +420,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
           Icon(
             Icons.shopping_basket_outlined,
             size: 36,
-            color: AppConstants.primaryGreen.withValues(alpha: 0.6),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
           ),
           const SizedBox(height: 10),
           Text(
@@ -432,7 +436,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 14),
@@ -481,7 +485,7 @@ class _RecentActivitySection extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -511,14 +515,16 @@ class _RecentActivitySection extends StatelessWidget {
                 Icon(
                   Icons.history_rounded,
                   size: 36,
-                  color: AppConstants.outline.withValues(alpha: 0.5),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   l10n.buyerActivityEmpty,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

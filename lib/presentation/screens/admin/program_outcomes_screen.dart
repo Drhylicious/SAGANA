@@ -64,9 +64,19 @@ class _ProgramOutcomesScreenState extends State<ProgramOutcomesScreen>
   }
 
   String _fmt(DateTime d) {
-    const m = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    final m = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${m[d.month - 1]} ${d.day}, ${d.year}';
   }
@@ -84,7 +94,7 @@ class _ProgramOutcomesScreenState extends State<ProgramOutcomesScreen>
       case OutcomeStage.returned:
         return (l10n.outcStatusReturned, AppConstants.errorRed);
       case OutcomeStage.closed:
-        return (l10n.outcStageClosed, AppConstants.outline);
+        return (l10n.outcStageClosed, Theme.of(context).colorScheme.outline);
       case OutcomeStage.finalized:
         final failed = r.finalOutcome == 'failed';
         return (
@@ -111,22 +121,30 @@ class _ProgramOutcomesScreenState extends State<ProgramOutcomesScreen>
           label: l10n.outcStepReview,
           value: r.reviewDecision == null
               ? l10n.outcPendingShort
-              : (r.isReviewed ? l10n.outcDecisionValidated : l10n.outcDecisionReturned),
+              : (r.isReviewed
+                    ? l10n.outcDecisionValidated
+                    : l10n.outcDecisionReturned),
         ),
         RequestDetailRow(
           label: l10n.outcStepVerify,
           value: r.isVerified
-              ? (r.disputed ? l10n.outcFindingDisputes : l10n.outcFindingConfirms)
+              ? (r.disputed
+                    ? l10n.outcFindingDisputes
+                    : l10n.outcFindingConfirms)
               : l10n.outcPendingShort,
         ),
         if (r.isSuccessfulReport && r.quantityHarvested != null)
           RequestDetailRow(
             label: _plain(l10n.outcQtyHarvested),
             value:
-                '${r.quantityHarvested!.toStringAsFixed(2)} ${r.quantityUnit ?? ''}'.trim(),
+                '${r.quantityHarvested!.toStringAsFixed(2)} ${r.quantityUnit ?? ''}'
+                    .trim(),
           ),
         if (!r.isSuccessfulReport && r.failureCause != null)
-          RequestDetailRow(label: _plain(l10n.outcFailureCause), value: r.failureCause!),
+          RequestDetailRow(
+            label: _plain(l10n.outcFailureCause),
+            value: r.failureCause!,
+          ),
         RequestDetailRow(
           label: _plain(l10n.outcEvidence),
           value: l10n.outcPhotoCountShort(r.farmerPhotos.length),
@@ -144,25 +162,38 @@ class _ProgramOutcomesScreenState extends State<ProgramOutcomesScreen>
           onPressed: () => context
               .push(AppRoutes.programOutcomeDetail, extra: {'report': r})
               .then((_) => _load()),
-          child: Text(r.isFinalized ? l10n.outcViewAction : l10n.outcOpenReview),
+          child: Text(
+            r.isFinalized ? l10n.outcViewAction : l10n.outcOpenReview,
+          ),
         ),
       ),
     );
   }
 
-  Widget _tabList(List<OutcomeReport> shown, AppLocalizations l10n, ColorScheme cs) {
+  Widget _tabList(
+    List<OutcomeReport> shown,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     return RefreshIndicator(
       onRefresh: _load,
       child: shown.isEmpty
           ? ListView(
               children: [
                 const SizedBox(height: 80),
-                Icon(Icons.fact_check_outlined, size: 44, color: cs.onSurfaceVariant),
+                Icon(
+                  Icons.fact_check_outlined,
+                  size: 44,
+                  color: cs.onSurfaceVariant,
+                ),
                 const SizedBox(height: 10),
                 Center(
                   child: Text(
                     l10n.outcEmpty,
-                    style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],
@@ -206,17 +237,32 @@ class _ProgramOutcomesScreenState extends State<ProgramOutcomesScreen>
             ),
             Expanded(
               child: _loading
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : _failed
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.cloud_off_rounded, size: 40, color: cs.onSurfaceVariant),
+                          Icon(
+                            Icons.cloud_off_rounded,
+                            size: 40,
+                            color: cs.onSurfaceVariant,
+                          ),
                           const SizedBox(height: 8),
-                          Text(l10n.outcLoadFailed,
-                              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
-                          TextButton(onPressed: _load, child: Text(l10n.programHistoryRetry)),
+                          Text(
+                            l10n.outcLoadFailed,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _load,
+                            child: Text(l10n.programHistoryRetry),
+                          ),
                         ],
                       ),
                     )

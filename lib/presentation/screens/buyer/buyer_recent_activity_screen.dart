@@ -195,9 +195,8 @@ class _BuyerRecentActivityScreenState extends State<BuyerRecentActivityScreen> {
                                     AppConstants.radiusFull,
                                   ),
                                   border: Border.all(
-                                    color: AppConstants.outline.withValues(
-                                      alpha: 0.20,
-                                    ),
+                                    color: Theme.of(context).colorScheme.outline
+                                        .withValues(alpha: 0.20),
                                   ),
                                 ),
                                 child: Text(
@@ -205,7 +204,9 @@ class _BuyerRecentActivityScreenState extends State<BuyerRecentActivityScreen> {
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: AppConstants.primaryGreen,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                                 ),
                               ),

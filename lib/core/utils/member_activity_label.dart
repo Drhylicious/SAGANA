@@ -4,7 +4,8 @@ import '../../data/models/activity_text.dart';
 import '../../data/models/admin_legacy_generated.dart';
 import '../../data/models/staff_action_model.dart';
 import '../../data/services/staff_permission_service.dart';
-import '../../presentation/widgets/program_return_panel.dart' show resolutionLabel;
+import '../../presentation/widgets/program_return_panel.dart'
+    show resolutionLabel;
 import '../../presentation/widgets/staff_access_matrix.dart';
 import '../l10n/app_localizations.dart';
 
@@ -27,8 +28,12 @@ String? memberActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
     case 'user_roles':
       switch (e.operation) {
         case 'created':
-          if (after['role'] == 'officer') return l10n.staffActCreatedOfficer(name);
-          if (after['role'] == 'farmer') return l10n.staffActCreatedFarmer(name);
+          if (after['role'] == 'officer') {
+            return l10n.staffActCreatedOfficer(name);
+          }
+          if (after['role'] == 'farmer') {
+            return l10n.staffActCreatedFarmer(name);
+          }
           return null;
         case 'deleted':
           return l10n.staffActDeletedAccount(name);
@@ -37,12 +42,18 @@ String? memberActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
             final from = before['status'];
             final to = after['status'];
             if (to == 'suspended') return l10n.staffActSuspended(name);
-            if (to == 'active' && from == 'suspended') return l10n.staffActReactivated(name);
-            if (to == 'active' && from == 'pending') return l10n.staffActApproved(name);
+            if (to == 'active' && from == 'suspended') {
+              return l10n.staffActReactivated(name);
+            }
+            if (to == 'active' && from == 'pending') {
+              return l10n.staffActApproved(name);
+            }
             if (to == 'rejected') return l10n.staffActDisapproved(name);
             return null;
           }
-          if (after['must_change_password'] == true) return l10n.staffActPasswordReset(name);
+          if (after['must_change_password'] == true) {
+            return l10n.staffActPasswordReset(name);
+          }
           return null;
       }
       return null;
@@ -64,11 +75,15 @@ String? memberActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
       return l10n.staffActAccessChanged(
         name,
         staffModuleLabel(l10n, module),
-        level == StaffAccess.manage ? l10n.staffAccessManage : l10n.staffAccessView,
+        level == StaffAccess.manage
+            ? l10n.staffAccessManage
+            : l10n.staffAccessView,
       );
 
     case 'password_reset_requests':
-      return e.operation == 'updated' ? l10n.staffActPasswordRequest(name) : null;
+      return e.operation == 'updated'
+          ? l10n.staffActPasswordRequest(name)
+          : null;
 
     case 'user_information':
     case 'farmer_profiles':
@@ -196,12 +211,6 @@ String? staffThingLabel(AppLocalizations l10n, String? table) {
       return l10n.staffThingDeliverySettings;
     case 'delivery_fee_bands':
       return l10n.staffThingDeliveryFeeBands;
-    case 'cooperative_details':
-      return l10n.staffThingCooperativeDetails;
-    case 'delivery_settings':
-      return l10n.staffThingDeliverySettings;
-    case 'delivery_fee_bands':
-      return l10n.staffThingDeliveryFeeBands;
   }
   return null;
 }
@@ -211,7 +220,8 @@ String? staffThingLabel(AppLocalizations l10n, String? table) {
 /// language, the BOD reminder line for the system, and the app's own text for an
 /// export. Falls back to the database's description, so nothing is ever hidden.
 String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
-  final specific = memberActionHeadline(e, l10n) ?? programActionHeadline(e, l10n);
+  final specific =
+      memberActionHeadline(e, l10n) ?? programActionHeadline(e, l10n);
   if (specific != null) return specific;
 
   if (e.module == 'system') {
@@ -222,7 +232,8 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
       try {
         date = DateFormat.yMMMMd(l10n.localeName).format(meeting);
       } catch (_) {
-        date = '${meeting.year}-${meeting.month.toString().padLeft(2, '0')}-${meeting.day.toString().padLeft(2, '0')}';
+        date =
+            '${meeting.year}-${meeting.month.toString().padLeft(2, '0')}-${meeting.day.toString().padLeft(2, '0')}';
       }
       return l10n.staffActBodReminder(
         date,
@@ -237,7 +248,9 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   // translated from its key.
   if (e.tableName == null) {
     final message = parseLegacyAdminLog(e.description);
-    return message == null ? e.description : renderActivityMessage(l10n, message);
+    return message == null
+        ? e.description
+        : renderActivityMessage(l10n, message);
   }
 
   final coop = cooperativeSettingsHeadline(e, l10n);
@@ -248,11 +261,17 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   final ref = (e.reference ?? '').trim();
   switch (e.operation) {
     case 'created':
-      return ref.isEmpty ? l10n.staffActGenericAddedNoRef(thing) : l10n.staffActGenericAdded(thing, ref);
+      return ref.isEmpty
+          ? l10n.staffActGenericAddedNoRef(thing)
+          : l10n.staffActGenericAdded(thing, ref);
     case 'deleted':
-      return ref.isEmpty ? l10n.staffActGenericDeletedNoRef(thing) : l10n.staffActGenericDeleted(thing, ref);
+      return ref.isEmpty
+          ? l10n.staffActGenericDeletedNoRef(thing)
+          : l10n.staffActGenericDeleted(thing, ref);
     default:
-      return ref.isEmpty ? l10n.staffActGenericChangedNoRef(thing) : l10n.staffActGenericChanged(thing, ref);
+      return ref.isEmpty
+          ? l10n.staffActGenericChangedNoRef(thing)
+          : l10n.staffActGenericChanged(thing, ref);
   }
 }
 
@@ -261,13 +280,18 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
 /// changed. Null for any other row, which then keeps the generic wording.
 String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   // A cooperative decision on a Failed outcome: every one is kept, with who recorded it and when.
-  if (e.tableName == 'program_failure_resolutions' && e.operation == 'created') {
+  if (e.tableName == 'program_failure_resolutions' &&
+      e.operation == 'created') {
     final decision = (e.newValues ?? const <String, dynamic>{})['resolution'];
     if (decision is! String) return null;
     final who = (e.reference ?? '').trim();
-    return l10n.staffActDecisionRecorded(who.isEmpty ? '—' : who, resolutionLabel(l10n, decision));
+    return l10n.staffActDecisionRecorded(
+      who.isEmpty ? '—' : who,
+      resolutionLabel(l10n, decision),
+    );
   }
-  if (e.tableName == 'program_redistribution_requests' && e.operation == 'updated') {
+  if (e.tableName == 'program_redistribution_requests' &&
+      e.operation == 'updated') {
     final status = (e.newValues ?? const <String, dynamic>{})['status'];
     if (status == 'approved') {
       final who = (e.reference ?? '').trim();
@@ -277,7 +301,11 @@ String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   }
   // A second distribution: the new round, and the earlier round closing (both kept as history).
   if (e.tableName == 'program_members' && e.operation == 'created') {
-    final round = num.tryParse('${(e.newValues ?? const <String, dynamic>{})['round_no']}')?.toInt() ?? 1;
+    final round =
+        num.tryParse(
+          '${(e.newValues ?? const <String, dynamic>{})['round_no']}',
+        )?.toInt() ??
+        1;
     if (round > 1) {
       final who = (e.reference ?? '').trim();
       return l10n.staffActNewRound(who.isEmpty ? '—' : who, round);
@@ -289,7 +317,8 @@ String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   final after = e.newValues ?? const <String, dynamic>{};
   final ref = (e.reference ?? '').trim();
   final name = ref.isEmpty ? '—' : ref;
-  String qty(num v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+  String qty(num v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   if (after['status'] == 'completed' && before['status'] == 'active') {
     return l10n.staffActRoundClosed(name);
@@ -299,7 +328,10 @@ String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
     final item = '${after['distributed_item_name'] ?? ''}'.trim();
     final unit = '${after['distributed_unit'] ?? ''}'.trim();
     if (given == null || item.isEmpty) return null;
-    return l10n.staffActGaveItem([qty(given), if (unit.isNotEmpty) unit, item].join(' '), name);
+    return l10n.staffActGaveItem(
+      [qty(given), if (unit.isNotEmpty) unit, item].join(' '),
+      name,
+    );
   }
   if (after.containsKey('return_quantity')) {
     final to = num.tryParse('${after['return_quantity']}');
@@ -322,18 +354,29 @@ String? cooperativeSettingsHeadline(StaffActionEntry e, AppLocalizations l10n) {
     case 'cooperative_details':
       if (e.operation != 'updated') return null;
       final parts = <String>[
-        if (after.containsKey('latitude') || after.containsKey('longitude')) l10n.staffCoopPartLocation,
-        if (after.containsKey('contact_number') || after.containsKey('contact_is_placeholder')) l10n.staffCoopPartContact,
+        if (after.containsKey('latitude') || after.containsKey('longitude'))
+          l10n.staffCoopPartLocation,
+        if (after.containsKey('contact_number') ||
+            after.containsKey('contact_is_placeholder'))
+          l10n.staffCoopPartContact,
         if (after['contact_verified_at'] != null) l10n.staffCoopPartVerified,
       ];
-      return parts.isEmpty ? l10n.staffActCoopChangedPlain : l10n.staffActCoopChanged(parts.join(', '));
+      return parts.isEmpty
+          ? l10n.staffActCoopChangedPlain
+          : l10n.staffActCoopChanged(parts.join(', '));
     case 'delivery_settings':
       if (e.operation != 'updated') return null;
-      if (after['delivery_enabled'] is bool && after['delivery_enabled'] != before['delivery_enabled']) {
-        return after['delivery_enabled'] == true ? l10n.staffActDeliveryOn : l10n.staffActDeliveryOff;
+      if (after['delivery_enabled'] is bool &&
+          after['delivery_enabled'] != before['delivery_enabled']) {
+        return after['delivery_enabled'] == true
+            ? l10n.staffActDeliveryOn
+            : l10n.staffActDeliveryOff;
       }
-      if (after['pickup_enabled'] is bool && after['pickup_enabled'] != before['pickup_enabled']) {
-        return after['pickup_enabled'] == true ? l10n.staffActPickupOn : l10n.staffActPickupOff;
+      if (after['pickup_enabled'] is bool &&
+          after['pickup_enabled'] != before['pickup_enabled']) {
+        return after['pickup_enabled'] == true
+            ? l10n.staffActPickupOn
+            : l10n.staffActPickupOff;
       }
       return l10n.staffActDeliverySettingsChanged;
     case 'delivery_fee_bands':
@@ -342,8 +385,12 @@ String? cooperativeSettingsHeadline(StaffActionEntry e, AppLocalizations l10n) {
       final max = num.tryParse('${after['max_km']}');
       final fee = num.tryParse('${after['fee']}');
       if (min == null || max == null || fee == null) return null;
-      String km(num v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
-      return l10n.staffActFeeBandAdded('${km(min)}–${km(max)}', '₱${NumberFormat('#,##0.00').format(fee)}');
+      String km(num v) =>
+          v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+      return l10n.staffActFeeBandAdded(
+        '${km(min)}–${km(max)}',
+        '₱${NumberFormat('#,##0.00').format(fee)}',
+      );
   }
   return null;
 }
@@ -357,7 +404,10 @@ String? staffActionDetail(StaffActionEntry e, AppLocalizations l10n) {
     final before = e.oldValues ?? const <String, dynamic>{};
     final after = e.newValues ?? const <String, dynamic>{};
     if (after['status'] != null && before['status'] != after['status']) {
-      return l10n.staffLogStatusChange('${before['status'] ?? '—'}', '${after['status']}');
+      return l10n.staffLogStatusChange(
+        '${before['status'] ?? '—'}',
+        '${after['status']}',
+      );
     }
   }
   return null;

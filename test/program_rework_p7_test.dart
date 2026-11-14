@@ -130,10 +130,10 @@ void main() {
   });
 
   group('Wiring', () {
-    test('Loan Requests links to the assistance list and the screen checks the Loans module', () {
+    test('Loan Requests lists assistance requests and the card checks the Loans module', () {
       final loans = _read('lib/presentation/screens/admin/loan_requests_screen.dart');
-      expect(loans, contains('AppRoutes.assistanceRequests'));
-      final screen = _read('lib/presentation/screens/admin/assistance_requests_screen.dart');
+      expect(loans, contains('AssistanceRequestCard('));
+      final screen = _read('lib/presentation/widgets/assistance_request_card.dart');
       expect('requireManage(context, StaffModule.loans)'.allMatches(screen).length, 2);
       expect(screen, contains('assistBadge'));
     });

@@ -12,7 +12,9 @@ import 'app_settings_service.dart';
 import 'guest_mode_service.dart';
 import 'hive_service.dart';
 import 'market_types_service.dart';
+import 'push_notification_service.dart';
 import 'staff_permission_service.dart';
+import 'sync_service.dart';
 
 /// Thrown when a failed self-registration could not be rolled back. The
 /// account may still exist, so the user is asked to contact the cooperative.
@@ -125,7 +127,7 @@ class AuthService {
           .eq('user_id', response.user!.id)
           .single();
 
-        memberStatus = statusRow['status'] as String? ?? 'active';
+      memberStatus = statusRow['status'] as String? ?? 'active';
       if (role == 'farmer') {
         pendingAcknowledgement =
             statusRow['pending_acknowledgement'] as bool? ?? false;
@@ -138,19 +140,19 @@ class AuthService {
       // log in (they land on the Pending Applicant screen). Inactive is
       // derived, never a stored value, and never blocks anyone.
       if (role == 'farmer' && memberStatus == 'suspended') {
-          final reason = statusRow['suspension_reason'] as String?;
-          final until = statusRow['suspended_until'] as String?;
-          await _client.auth.signOut();
-          // The login screen shows the red suspension notice from this.
-          throw AccountSuspendedException(
-            SuspensionNotice(
-              reason: reason?.trim(),
-              suspendedUntil: until == null
-                  ? null
-                  : DateTime.parse(until).toLocal(),
-            ),
-          );
-        }
+        final reason = statusRow['suspension_reason'] as String?;
+        final until = statusRow['suspended_until'] as String?;
+        await _client.auth.signOut();
+        // The login screen shows the red suspension notice from this.
+        throw AccountSuspendedException(
+          SuspensionNotice(
+            reason: reason?.trim(),
+            suspendedUntil: until == null
+                ? null
+                : DateTime.parse(until).toLocal(),
+          ),
+        );
+      }
       mustChangePassword = statusRow['must_change_password'] as bool? ?? false;
     } catch (e) {
       // Re-throw a suspension (AccountSuspendedException); swallow only
@@ -212,6 +214,7 @@ class AuthService {
     // a failed or suspended login leaves the visitor exploring as before).
     GuestModeService.instance.exit();
 
+    unawaited(SyncService.syncPending());
     return userModel;
   }
 
@@ -397,7 +400,9 @@ class AuthService {
       if (!rolledBack) throw const RegistrationNotCancelledException();
       // The database's own validation messages (raised with RAISE EXCEPTION,
       // SQLSTATE P0001) are written for people; anything else is not.
-      if (e is PostgrestException && e.code == 'P0001' && e.message.isNotEmpty) {
+      if (e is PostgrestException &&
+          e.code == 'P0001' &&
+          e.message.isNotEmpty) {
         throw AuthException(e.message);
       }
       rethrow;
@@ -411,6 +416,9 @@ class AuthService {
     MarketTypes.instance.stop();
     StaffPermissions.instance.clear();
     GuestModeService.instance.exit();
+    // Stop pushing this user's notifications to this phone while the session
+    // can still authorise it.
+    await PushNotificationService.instance.unregister();
     await _client.auth.signOut();
     await HiveService.clearUserSession();
   }

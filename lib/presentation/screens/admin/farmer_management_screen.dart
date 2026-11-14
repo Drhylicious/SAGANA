@@ -1,3 +1,4 @@
+import '../../../core/utils/member_access.dart';
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
 import 'dart:async';
@@ -52,21 +53,17 @@ String _memberStatusLabel(AppLocalizations l10n, MemberStatus s) {
   }
 }
 
-String _loanStatusLabel(AppLocalizations l10n, LoanStatusSummary s) {
-  switch (s) {
-    case LoanStatusSummary.none:
-      return l10n.farmerMgmtLoanNone;
-    case LoanStatusSummary.active:
-      return l10n.farmerMgmtLoanActiveLabel;
-    case LoanStatusSummary.overdue:
-      return l10n.adminDashKpiOverdue;
-  }
-}
 
 String _sortOptionLabel(AppLocalizations l10n, FarmerSortOption o) {
   switch (o) {
     case FarmerSortOption.nameAZ:
       return l10n.farmerMgmtSortNameAZ;
+    case FarmerSortOption.nameZA:
+      return l10n.farmerMgmtSortNameZA;
+    case FarmerSortOption.newestMember:
+      return l10n.farmerMgmtSortNewest;
+    case FarmerSortOption.capitalContribution:
+      return l10n.farmerMgmtSortCapital;
     case FarmerSortOption.recentHarvest:
       return l10n.farmerMgmtSortRecentHarvest;
     case FarmerSortOption.loanBalance:
@@ -82,22 +79,22 @@ class FarmerManagementScreen extends StatefulWidget {
 }
 
 class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
-  final _repo        = FarmerManagementRepository();
+  final _repo = FarmerManagementRepository();
   final _accountRepo = AccountManagementRepository();
 
   // Applicants an Officer created: user id -> who created the account and when.
   // Self-registered applicants have no entry.
   Map<String, AccountSource> _sources = {};
-  final _searchCtrl  = TextEditingController();
+  final _searchCtrl = TextEditingController();
 
   List<FarmerMemberModel> _allFarmers = [];
-  List<String>             _cropNames = [];
+  List<String> _cropNames = [];
 
   FarmerFilterState _filter = const FarmerFilterState();
-  String            _searchQuery = '';
+  String _searchQuery = '';
 
   bool _isLoading = true;
-  bool _isOnline  = true;
+  bool _isOnline = true;
 
   static const int _pageSize = 20;
   int _visibleCount = _pageSize;
@@ -117,8 +114,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     });
     _searchCtrl.addListener(() {
       setState(() {
-        _searchQuery   = _searchCtrl.text;
-        _visibleCount  = _pageSize;
+        _searchQuery = _searchCtrl.text;
+        _visibleCount = _pageSize;
       });
     });
     _loadAll();
@@ -167,9 +164,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     if (!mounted) return;
     setState(() {
       _allFarmers = results[0] as List<FarmerMemberModel>;
-      _cropNames  = results[1] as List<String>;
-      _sources    = results[2] as Map<String, AccountSource>;
-      _isLoading  = false;
+      _cropNames = results[1] as List<String>;
+      _sources = results[2] as Map<String, AccountSource>;
+      _isLoading = false;
     });
   }
 
@@ -201,34 +198,34 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         // Both cards are the same height and start at the same top edge,
         // whatever the length of their descriptions.
         body: IntrinsicHeight(
-         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: _AddTypeCard(
-                icon: Icons.person_add_alt_1_rounded,
-                title: l10n.farmerMgmtAddFarmerTitle,
-                subtitle: l10n.farmerMgmtAddFarmerSubtitle,
-                onTap: () {
-                  _safePop(dialogContext);
-                  context.push(AppRoutes.addNewMember);
-                },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _AddTypeCard(
+                  icon: Icons.person_add_alt_1_rounded,
+                  title: l10n.farmerMgmtAddFarmerTitle,
+                  subtitle: l10n.farmerMgmtAddFarmerSubtitle,
+                  onTap: () {
+                    _safePop(dialogContext);
+                    context.push(AppRoutes.addNewMember);
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _AddTypeCard(
-                icon: Icons.badge_outlined,
-                title: l10n.farmerMgmtAddOfficerTitle,
-                subtitle: l10n.farmerMgmtAddOfficerSubtitle,
-                onTap: () {
-                  _safePop(dialogContext);
-                  context.push(AppRoutes.createOfficerAccount);
-                },
+              const SizedBox(width: 12),
+              Expanded(
+                child: _AddTypeCard(
+                  icon: Icons.badge_outlined,
+                  title: l10n.farmerMgmtAddOfficerTitle,
+                  subtitle: l10n.farmerMgmtAddOfficerSubtitle,
+                  onTap: () {
+                    _safePop(dialogContext);
+                    context.push(AppRoutes.createOfficerAccount);
+                  },
+                ),
               ),
-            ),
-          ],
-         ),
+            ],
+          ),
         ),
       ),
     );
@@ -238,11 +235,11 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     showManagementModal(
       context: context,
       builder: (_) => _FilterSheet(
-        initial:   _filter,
+        initial: _filter,
         cropNames: _cropNames,
         onApply: (f) => setState(() {
-          _filter        = f;
-          _visibleCount  = _pageSize;
+          _filter = f;
+          _visibleCount = _pageSize;
         }),
       ),
     );
@@ -264,7 +261,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     }
     switch (value) {
       case 'view':
-        context.push(AppRoutes.farmerDetails, extra: farmer.userId);
+        pushFarmerDetails(context, farmer.userId);
       case 'notice':
         context.push(AppRoutes.announcementDashboard);
       case 'payment':
@@ -283,10 +280,14 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       case 'issueLoan':
         context.push(AppRoutes.issueNewLoan, extra: farmer.userId);
       case 'approve':
-        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;
+        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) {
+          return;
+        }
         await _approveMember(farmer);
       case 'reject':
-        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;
+        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) {
+          return;
+        }
         await _rejectMember(farmer);
       case 'delete':
         if (HiveService.isOfficer) return;
@@ -381,7 +382,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: Text(l10n.farmerMgmtCancel),
             ),
             ElevatedButton(
@@ -391,7 +392,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
               ),
               child: Text(
                 l10n.farmerMgmtApproveAction,
-                  style: GoogleFonts.poppins(
+                style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
@@ -405,7 +406,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     if (confirmed != true) return;
 
     final result = await _repo.approveMember(
-      userId:   farmer.userId,
+      userId: farmer.userId,
       fullName: farmer.fullName,
     );
 
@@ -415,17 +416,17 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.farmerMgmtApprovedToast(farmer.fullName)),
-        backgroundColor: AppConstants.midGreen,
-        behavior: SnackBarBehavior.floating,
+          backgroundColor: AppConstants.midGreen,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       _loadAll();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-        content: Text(l10n.farmerMgmtApproveFailedToast(result.error ?? '')),
-        backgroundColor: AppConstants.errorRed,
-        behavior: SnackBarBehavior.floating,
+          content: Text(l10n.farmerMgmtApproveFailedToast(result.error ?? '')),
+          backgroundColor: AppConstants.errorRed,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -442,6 +443,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       actionLabel: l10n.farmerMgmtNext,
     );
     if (reason == null || reason.trim().isEmpty) return;
+    if (!mounted) return;
 
     // Step 2 — summary confirm.
     final confirmed = await confirmSummary(
@@ -463,9 +465,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-        content: Text(l10n.farmerMgmtRejectedToast(farmer.fullName)),
-        backgroundColor: AppConstants.charcoal,
-        behavior: SnackBarBehavior.floating,
+          content: Text(l10n.farmerMgmtRejectedToast(farmer.fullName)),
+          backgroundColor: AppConstants.charcoal,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       _loadAll();
@@ -473,9 +475,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-        content: Text(e.toString().replaceFirst('Exception: ', '')),
-        backgroundColor: AppConstants.errorRed,
-        behavior: SnackBarBehavior.floating,
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppConstants.errorRed,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -500,9 +502,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-        content: Text(l10n.farmerMgmtSuspendedToast(farmer.fullName)),
-        backgroundColor: AppConstants.charcoal,
-        behavior: SnackBarBehavior.floating,
+          content: Text(l10n.farmerMgmtSuspendedToast(farmer.fullName)),
+          backgroundColor: AppConstants.charcoal,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       _loadAll();
@@ -510,9 +512,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-        content: Text(e.toString().replaceFirst('Exception: ', '')),
-        backgroundColor: AppConstants.errorRed,
-        behavior: SnackBarBehavior.floating,
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppConstants.errorRed,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -520,9 +522,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final farmers = _filteredFarmers;
     final visible = farmers.take(_visibleCount).toList();
 
@@ -548,7 +550,10 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : Column(
                     children: [
                       // ── Controls, pinned above the list ──────────────────
@@ -566,7 +571,11 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                           searchController: _searchCtrl,
                           searchHint: l10n.farmerMgmtSearchHint,
                           onFilterTap: _showFilterSheet,
-                          filterActive: !_filter.isDefault,
+                          // The sheet only sorts now: the dot marks a sort
+                          // other than the default one.
+                          filterActive:
+                              _filter.sortBy !=
+                              const FarmerFilterState().sortBy,
                           // Active · Inactive · Suspended · Pending · Rejected,
                           // each tappable; the count comes from the loaded
                           // list so the derived Inactive count is accurate.
@@ -603,7 +612,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                               if (farmers.isEmpty)
                                 _EmptyState(
                                   hasFilters:
-                                      !_filter.isDefault || _searchQuery.isNotEmpty,
+                                      !_filter.isDefault ||
+                                      _searchQuery.isNotEmpty,
                                   cs: cs,
                                 )
                               else ...[
@@ -614,10 +624,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                                       farmer: f,
                                       cs: cs,
                                       sagana: sagana,
-                                      onTap: () => context.push(
-                                        AppRoutes.farmerDetails,
-                                        extra: f.userId,
-                                      ),
+                                      onTap: () =>
+                                          pushFarmerDetails(context, f.userId),
                                       source: _sources[f.userId],
                                       onMenuSelected: (value) =>
                                           _onMenuSelected(f, value),
@@ -716,42 +724,92 @@ class _FarmerCard extends StatelessWidget {
     )) {
       switch (action) {
         case MemberListAction.viewProfile:
-          entries.add(_menuItem('view', Icons.person_outline_rounded,
-              l10n.farmerMgmtActionViewProfile, cs.onSurface));
+          entries.add(
+            _menuItem(
+              'view',
+              Icons.person_outline_rounded,
+              l10n.farmerMgmtActionViewProfile,
+              cs.onSurface,
+            ),
+          );
         case MemberListAction.approve:
-          entries.add(_menuItem('approve', Icons.check_circle_rounded,
-              l10n.farmerMgmtActionApproveMembership, AppConstants.successGreen));
+          entries.add(
+            _menuItem(
+              'approve',
+              Icons.check_circle_rounded,
+              l10n.farmerMgmtActionApproveMembership,
+              AppConstants.successGreen,
+            ),
+          );
         case MemberListAction.disapprove:
           entries.add(const PopupMenuDivider());
-          entries.add(_menuItem('reject', Icons.cancel_rounded,
-              l10n.farmerMgmtRejectApplicationAction, AppConstants.errorRed));
+          entries.add(
+            _menuItem(
+              'reject',
+              Icons.cancel_rounded,
+              l10n.farmerMgmtRejectApplicationAction,
+              AppConstants.errorRed,
+            ),
+          );
         case MemberListAction.sendNotification:
-          entries.add(_menuItem('notice', Icons.campaign_outlined,
-              l10n.farmerMgmtActionSendNotification, cs.onSurface));
+          entries.add(
+            _menuItem(
+              'notice',
+              Icons.campaign_outlined,
+              l10n.farmerMgmtActionSendNotification,
+              cs.onSurface,
+            ),
+          );
         case MemberListAction.resetPassword:
-          entries.add(_menuItem('reset', Icons.lock_reset_rounded,
-              l10n.farmerMgmtActionResetPassword, cs.onSurface));
+          entries.add(
+            _menuItem(
+              'reset',
+              Icons.lock_reset_rounded,
+              l10n.farmerMgmtActionResetPassword,
+              cs.onSurface,
+            ),
+          );
         case MemberListAction.issueLoan:
-          entries.add(_menuItem('issueLoan', Icons.add_card_rounded,
-              l10n.farmerDetailsIssueLoanAction, cs.onSurface));
+          entries.add(
+            _menuItem(
+              'issueLoan',
+              Icons.add_card_rounded,
+              l10n.farmerDetailsIssueLoanAction,
+              cs.onSurface,
+            ),
+          );
         case MemberListAction.recordLoanPayment:
-          entries.add(_menuItem('payment', Icons.payments_outlined,
-              l10n.farmerMgmtActionRecordLoanPayment, cs.onSurface));
+          entries.add(
+            _menuItem(
+              'payment',
+              Icons.payments_outlined,
+              l10n.farmerMgmtActionRecordLoanPayment,
+              cs.onSurface,
+            ),
+          );
         case MemberListAction.toggleSuspend:
           final suspend = status.isEffectivelyActive;
           if (suspend) entries.add(const PopupMenuDivider());
-          entries.add(_menuItem(
-            'toggle',
-            suspend ? Icons.person_off_outlined : Icons.person_rounded,
-            suspend
-                ? l10n.farmerMgmtActionSetSuspended
-                : l10n.farmerMgmtActionSetActive,
-            suspend ? AppConstants.errorRed : cs.onSurface,
-          ));
+          entries.add(
+            _menuItem(
+              'toggle',
+              suspend ? Icons.person_off_outlined : Icons.person_rounded,
+              suspend
+                  ? l10n.farmerMgmtActionSetSuspended
+                  : l10n.farmerMgmtActionSetActive,
+              suspend ? AppConstants.errorRed : cs.onSurface,
+            ),
+          );
         case MemberListAction.deleteApplicant:
           entries.add(const PopupMenuDivider());
-          entries.add(_menuItem('delete', Icons.delete_outline_rounded,
-              l10n.farmerMgmtDeleteRejectedAction, AppConstants.errorRed));
+          entries.add(
+            _menuItem(
+              'delete',
+              Icons.delete_outline_rounded,
+              l10n.farmerMgmtDeleteRejectedAction,
+              AppConstants.errorRed,
+            ),
+          );
       }
     }
     return entries;
@@ -763,10 +821,7 @@ class _FarmerCard extends StatelessWidget {
     String label,
     Color color,
   ) {
-    return PopupMenuItem(
-      value: value,
-      child: _menuRow(icon, label, color),
-    );
+    return PopupMenuItem(value: value, child: _menuRow(icon, label, color));
   }
 
   @override
@@ -855,7 +910,10 @@ class _FarmerCard extends StatelessWidget {
                       // the menu sits at the far right edge of the card.
                       MemberTitleRow(
                         name: farmer.fullName,
-                        badge: _StatusBadge(status: farmer.memberStatus, cs: cs),
+                        badge: _StatusBadge(
+                          status: farmer.memberStatus,
+                          cs: cs,
+                        ),
                         // One popup-menu style for every status (same as
                         // Inventory's ⋯ menu). Only the actions change by status.
                         menu: SizedBox(
@@ -891,7 +949,8 @@ class _FarmerCard extends StatelessWidget {
                       ],
                       if (source != null &&
                           (farmer.memberStatus == MemberStatus.pending ||
-                              farmer.memberStatus == MemberStatus.rejected)) ...[
+                              farmer.memberStatus ==
+                                  MemberStatus.rejected)) ...[
                         const SizedBox(height: 6),
                         _SourceChip(source: source!),
                       ],
@@ -908,33 +967,36 @@ class _FarmerCard extends StatelessWidget {
             // scroll rather than Wrap so a farmer with many crops doesn't
             // blow out this card's height in the list.
             if (farmer.primaryCrops.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
+              Container(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 4,
-                          ),
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   border: Border.all(color: cs.outline.withValues(alpha: 0.25)),
-                        ),
-                        child: Text(
-                          l10n.farmerMgmtNoCropsRegistered,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                            color: cs.outline,
-                          ),
-                        ),
+                ),
+                child: Text(
+                  l10n.farmerMgmtNoCropsRegistered,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: cs.outline,
+                  ),
+                ),
               )
             else ...[
               Text(
-                '${farmer.primaryCrops.length} crop${farmer.primaryCrops.length == 1 ? '' : 's'}',
+                AppLocalizations.of(context).enhCrop(
+                  (farmer.primaryCrops.length).toString(),
+                  (farmer.primaryCrops.length == 1 ? '' : 's').toString(),
+                ),
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: cs.onSurfaceVariant,
                 ),
-                      ),
+              ),
               const SizedBox(height: 6),
               SizedBox(
                 height: 26,
@@ -943,26 +1005,26 @@ class _FarmerCard extends StatelessWidget {
                   itemCount: farmer.primaryCrops.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 6),
                   itemBuilder: (_, i) => Container(
-                            padding: const EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 4,
                     ),
-                            decoration: BoxDecoration(
-                              color: cs.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(
+                    decoration: BoxDecoration(
+                      color: cs.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(
                         AppConstants.radiusFull,
                       ),
-                            ),
+                    ),
                     alignment: Alignment.center,
-                            child: Text(
+                    child: Text(
                       farmer.primaryCrops[i],
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: cs.primary,
-                              ),
-                            ),
-            ),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: cs.primary,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1001,9 +1063,9 @@ class _FarmerCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color:
                             (farmer.isSynced
-                                ? AppConstants.successGreen
-                                : cs.outline)
-                            .withValues(alpha: 0.10),
+                                    ? AppConstants.successGreen
+                                    : cs.outline)
+                                .withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(
                           AppConstants.radiusFull,
                         ),
@@ -1168,7 +1230,7 @@ class _LoanIndicator extends StatelessWidget {
     }
 
     final isOverdue = farmer.loanStatus == LoanStatusSummary.overdue;
-    final color     = isOverdue ? cs.error : AppConstants.warningAmber;
+    final color = isOverdue ? cs.error : AppConstants.warningAmber;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1279,8 +1341,8 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
-    final cs     = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
 
     return ManagementModalShell(
       title: l10n.farmerMgmtFilterTitle,
@@ -1289,145 +1351,62 @@ class _FilterSheetState extends State<_FilterSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-            // Member Status
-            _FilterSectionLabel(label: l10n.farmerMgmtStatusSectionLabel, cs: cs),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _Chip(
-                  label: l10n.farmerMgmtAllFilter,
-                  active: _state.statusFilter == null,
-                onTap: () => setState(
-                  () => _state = _state.copyWith(statusFilter: null),
-                ),
-                  cs: cs,
-                ),
-                // Active / Inactive / Suspended / Pending / Rejected —
-                // Draft is intentionally not a filter (those rows aren't
-                // listed at all). Issue 5 / Decision D14.
-              ...MemberStatusExt.filterable.map(
-                (s) => _Chip(
-                      label: _memberStatusLabel(l10n, s),
-                      active: _state.statusFilter == s,
-                  onTap: () =>
-                      setState(() => _state = _state.copyWith(statusFilter: s)),
-                      cs: cs,
-                ),
-              ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Primary Crops
-            _FilterSectionLabel(label: l10n.farmerMgmtCropsSectionLabel, cs: cs),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _Chip(
-                  label: l10n.farmerMgmtAllCrops,
-                  active: _state.cropFilter == null,
-                  onTap: () =>
-                      setState(() => _state = _state.copyWith(cropFilter: null)),
-                  cs: cs,
-                ),
-              ...widget.cropNames.map(
-                (c) => _Chip(
-                      label: c,
-                      active: _state.cropFilter == c,
-                  onTap: () =>
-                      setState(() => _state = _state.copyWith(cropFilter: c)),
-                      cs: cs,
-                ),
-              ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Loan Status
-            _FilterSectionLabel(label: l10n.farmerMgmtLoanSectionLabel, cs: cs),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _Chip(
-                  label: l10n.farmerMgmtAllFilter,
-                  active: _state.loanFilter == null,
-                  onTap: () =>
-                      setState(() => _state = _state.copyWith(loanFilter: null)),
-                  cs: cs,
-                ),
-              ...LoanStatusSummary.values.map(
-                (loanStatus) => _Chip(
-                      label: _loanStatusLabel(l10n, loanStatus),
-                      active: _state.loanFilter == loanStatus,
-                      onTap: () => setState(
-                    () => _state = _state.copyWith(loanFilter: loanStatus),
-                  ),
-                      cs: cs,
-                ),
-              ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Sort By
-            _FilterSectionLabel(label: l10n.farmerMgmtSortBySectionLabel, cs: cs),
-            GridView.count(
-              shrinkWrap: true,
-              // No automatic status-bar padding: this list sits inside a bigger scroll view.
-              padding: EdgeInsets.zero,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 2.6,
-              children: FarmerSortOption.values.map((opt) {
-                final active = _state.sortBy == opt;
-                return GestureDetector(
-                  onTap: () =>
-                      setState(() => _state = _state.copyWith(sortBy: opt)),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: active
-                          ? cs.primary.withValues(alpha: 0.08)
-                          : cs.surfaceContainerHighest,
+          // Sort By
+          _FilterSectionLabel(label: l10n.farmerMgmtSortBySectionLabel, cs: cs),
+          GridView.count(
+            shrinkWrap: true,
+            // No automatic status-bar padding: this list sits inside a bigger scroll view.
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 2.6,
+            children: FarmerSortOption.values.map((opt) {
+              final active = _state.sortBy == opt;
+              return GestureDetector(
+                onTap: () =>
+                    setState(() => _state = _state.copyWith(sortBy: opt)),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? cs.primary.withValues(alpha: 0.08)
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                      border: Border.all(
-                        color: active
-                            ? cs.primary
-                            : cs.outline.withValues(alpha: 0.10),
-                        width: active ? 2 : 1,
-                      ),
+                    border: Border.all(
+                      color: active
+                          ? cs.primary
+                          : cs.outline.withValues(alpha: 0.10),
+                      width: active ? 2 : 1,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            _sortOptionLabel(l10n, opt),
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: active ? cs.primary : cs.onSurfaceVariant,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _sortOptionLabel(l10n, opt),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: active ? cs.primary : cs.onSurfaceVariant,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (active)
+                      ),
+                      if (active)
                         Icon(
                           Icons.check_circle_rounded,
                           size: 18,
                           color: cs.primary,
                         ),
-                      ],
-                    ),
+                    ],
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
       footer: Row(
@@ -1494,42 +1473,6 @@ class _FilterSectionLabel extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-
-  const _Chip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            color: active ? Colors.white : cs.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Farmer Actions Sheet (three-dot menu)

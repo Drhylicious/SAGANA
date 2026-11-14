@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -254,7 +255,7 @@ class PsgcAddressFields extends StatelessWidget {
             LengthLimitingTextInputFormatter(4),
           ],
           onChanged: (_) => onChanged(),
-          decoration: _decoration(_required(l10n.registerPostalLabel)),
+          decoration: _decoration(context, _required(l10n.registerPostalLabel)),
         ),
         if (postalInvalid)
           Padding(
@@ -272,34 +273,37 @@ class PsgcAddressFields extends StatelessWidget {
           controller: draft.streetCtrl,
           textCapitalization: TextCapitalization.words,
           onChanged: (_) => onChanged(),
-          decoration: _decoration(_required(l10n.registerStreetLabel)),
+          decoration: _decoration(context, _required(l10n.registerStreetLabel)),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: draft.buildingCtrl,
           textCapitalization: TextCapitalization.words,
           onChanged: (_) => onChanged(),
-          decoration: _decoration(l10n.registerBuildingLabel),
+          decoration: _decoration(context, l10n.registerBuildingLabel),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: draft.houseNoCtrl,
           onChanged: (_) => onChanged(),
-          decoration: _decoration(_required(l10n.registerHouseNoLabel)),
+          decoration: _decoration(
+            context,
+            _required(l10n.registerHouseNoLabel),
+          ),
         ),
       ],
     );
   }
 
-  InputDecoration _decoration(String label) {
+  InputDecoration _decoration(BuildContext context, String label) {
     return InputDecoration(
       labelText: label,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: context.saganaColors.cardBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         borderSide: BorderSide(
-          color: AppConstants.outline.withValues(alpha: 0.2),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
       contentPadding: const EdgeInsets.all(12),

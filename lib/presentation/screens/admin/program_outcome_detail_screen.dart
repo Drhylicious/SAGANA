@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../widgets/view_only_banner.dart';
@@ -78,7 +77,9 @@ class _ProgramOutcomeDetailScreenState
     // Pre-filled with what was agreed for this Farmer (member, else the program default); staff confirm or change it.
     final agreed = _r.agreedReturnQuantity;
     if (agreed != null) {
-      _returnQty.text = agreed == agreed.roundToDouble() ? agreed.toStringAsFixed(0) : agreed.toStringAsFixed(2);
+      _returnQty.text = agreed == agreed.roundToDouble()
+          ? agreed.toStringAsFixed(0)
+          : agreed.toStringAsFixed(2);
     }
     _loadUrls();
     _reload(silent: true);
@@ -96,7 +97,9 @@ class _ProgramOutcomeDetailScreenState
   }
 
   Future<void> _loadUrls() async {
-    final urls = await _repo.evidenceUrls(_r.photos.map((p) => p.path).toList());
+    final urls = await _repo.evidenceUrls(
+      _r.photos.map((p) => p.path).toList(),
+    );
     if (mounted) setState(() => _urls = urls);
   }
 
@@ -152,7 +155,11 @@ class _ProgramOutcomeDetailScreenState
     }
     // The note is required either way: why it is validated, or what the Farmer must fix.
     if (_reviewNote.text.trim().isEmpty) {
-      setState(() => _reviewError = _validate! ? l10n.outcReviewNoteRequired : l10n.outcReturnNoteRequired);
+      setState(
+        () => _reviewError = _validate!
+            ? l10n.outcReviewNoteRequired
+            : l10n.outcReturnNoteRequired,
+      );
       return;
     }
     setState(() => _reviewError = null);
@@ -173,7 +180,8 @@ class _ProgramOutcomeDetailScreenState
       return;
     }
     final qty = double.tryParse(_measuredQty.text.trim());
-    if (_r.isSuccessfulReport && (qty == null || qty <= 0 || _measuredUnit == null)) {
+    if (_r.isSuccessfulReport &&
+        (qty == null || qty <= 0 || _measuredUnit == null)) {
       setState(() => _verifyError = l10n.outcMeasuredRequired);
       return;
     }
@@ -248,18 +256,32 @@ class _ProgramOutcomeDetailScreenState
         returnQuantity: successful && _r.isHarvestReturn ? qty : null,
         returnUnit: successful && _r.isHarvestReturn ? _returnUnit : null,
         resolution: successful ? null : _decision,
-        resolutionNote: _decisionNote.text.trim().isEmpty ? null : _decisionNote.text.trim(),
+        resolutionNote: _decisionNote.text.trim().isEmpty
+            ? null
+            : _decisionNote.text.trim(),
       ),
-      successful && _r.isHarvestReturn ? l10n.outcFinalizedReturnDue : l10n.outcFinalized,
+      successful && _r.isHarvestReturn
+          ? l10n.outcFinalizedReturnDue
+          : l10n.outcFinalized,
     );
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   String _fmt(DateTime d) {
-    const m = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    final m = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${m[d.month - 1]} ${d.day}, ${d.year}';
   }
@@ -274,7 +296,12 @@ class _ProgramOutcomeDetailScreenState
     return at == null ? who : '$who · ${_fmt(at)}';
   }
 
-  Widget _card(String title, IconData icon, List<Widget> children, {Color? accent}) {
+  Widget _card(
+    String title,
+    IconData icon,
+    List<Widget> children, {
+    Color? accent,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final color = accent ?? AppConstants.primaryGreen;
     return Container(
@@ -313,7 +340,11 @@ class _ProgramOutcomeDetailScreenState
     );
   }
 
-  Widget _notice(String text, {Color? color, IconData icon = Icons.info_outline_rounded}) {
+  Widget _notice(
+    String text, {
+    Color? color,
+    IconData icon = Icons.info_outline_rounded,
+  }) {
     final c = color ?? AppConstants.buyerBlue;
     return Container(
       width: double.infinity,
@@ -328,7 +359,10 @@ class _ProgramOutcomeDetailScreenState
           Icon(icon, size: 16, color: c),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: GoogleFonts.inter(fontSize: 12, height: 1.4)),
+            child: Text(
+              text,
+              style: GoogleFonts.inter(fontSize: 12, height: 1.4),
+            ),
           ),
         ],
       ),
@@ -345,7 +379,9 @@ class _ProgramOutcomeDetailScreenState
         children: [
           for (final p in photos)
             GestureDetector(
-              onTap: _urls[p.path] == null ? null : () => _viewPhoto(_urls[p.path]!),
+              onTap: _urls[p.path] == null
+                  ? null
+                  : () => _viewPhoto(_urls[p.path]!),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 child: SizedBox(
@@ -353,15 +389,29 @@ class _ProgramOutcomeDetailScreenState
                   height: 92,
                   child: _urls[p.path] == null
                       ? Container(
-                          color: Colors.black12,
-                          child: const Icon(Icons.image_outlined, color: Colors.black38),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                         )
                       : Image.network(
                           _urls[p.path]!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                            color: Colors.black12,
-                            child: const Icon(Icons.broken_image_outlined, color: Colors.black38),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                 ),
@@ -395,7 +445,12 @@ class _ProgramOutcomeDetailScreenState
     );
   }
 
-  Widget _choice(String label, bool selected, Color color, VoidCallback? onTap) {
+  Widget _choice(
+    String label,
+    bool selected,
+    Color color,
+    VoidCallback? onTap,
+  ) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -403,10 +458,16 @@ class _ProgramOutcomeDetailScreenState
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
+            color: selected
+                ? color.withValues(alpha: 0.12)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             border: Border.all(
-              color: selected ? color : AppConstants.outline.withValues(alpha: 0.3),
+              color: selected
+                  ? color
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.3),
               width: selected ? 2 : 1,
             ),
           ),
@@ -416,7 +477,9 @@ class _ProgramOutcomeDetailScreenState
             style: GoogleFonts.poppins(
               fontSize: 12.5,
               fontWeight: FontWeight.w700,
-              color: selected ? color : AppConstants.onSurfaceVariant,
+              color: selected
+                  ? color
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -430,7 +493,10 @@ class _ProgramOutcomeDetailScreenState
           padding: const EdgeInsets.only(top: 6),
           child: Text(
             e,
-            style: GoogleFonts.inter(fontSize: 11, color: AppConstants.errorRed),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppConstants.errorRed,
+            ),
           ),
         );
 
@@ -444,7 +510,10 @@ class _ProgramOutcomeDetailScreenState
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : Text(label),
       ),
@@ -461,59 +530,76 @@ class _ProgramOutcomeDetailScreenState
     final item = r.itemName == null
         ? null
         : '${r.quantityGiven == null ? '' : '${_num(r.quantityGiven!)} '}${r.itemName}';
-    return _card(
-      l10n.outcFarmerReport,
-      Icons.assignment_outlined,
-      [
-        RequestDetailRow(label: l10n.reqFarmer, value: r.farmerName),
-        RequestDetailRow(label: l10n.reqProgram, value: r.programName),
-        if (item != null)
-          RequestDetailRow(label: l10n.reqReceived, value: item),
+    return _card(l10n.outcFarmerReport, Icons.assignment_outlined, [
+      RequestDetailRow(label: l10n.reqFarmer, value: r.farmerName),
+      RequestDetailRow(label: l10n.reqProgram, value: r.programName),
+      if (item != null) RequestDetailRow(label: l10n.reqReceived, value: item),
+      RequestDetailRow(
+        label: l10n.outcReportedOutcome,
+        value: r.isSuccessfulReport
+            ? l10n.outcStatusSuccessful
+            : l10n.outcStatusFailed,
+        valueColor: r.isSuccessfulReport
+            ? AppConstants.successGreen
+            : AppConstants.errorRed,
+      ),
+      RequestDetailRow(label: l10n.outcSubmittedOn, value: _fmt(r.submittedAt)),
+      if (r.plantedDate != null)
         RequestDetailRow(
-          label: l10n.outcReportedOutcome,
-          value: r.isSuccessfulReport ? l10n.outcStatusSuccessful : l10n.outcStatusFailed,
-          valueColor: r.isSuccessfulReport
-              ? AppConstants.successGreen
-              : AppConstants.errorRed,
+          label: _plain(l10n.outcPlantedDate),
+          value: _fmt(r.plantedDate!),
         ),
-        RequestDetailRow(label: l10n.outcSubmittedOn, value: _fmt(r.submittedAt)),
-        if (r.plantedDate != null)
-          RequestDetailRow(label: _plain(l10n.outcPlantedDate), value: _fmt(r.plantedDate!)),
-        if (r.isSuccessfulReport) ...[
-          if (r.quantityHarvested != null)
-            RequestDetailRow(
-              label: _plain(l10n.outcQtyHarvested),
-              value: '${_num(r.quantityHarvested!)} ${r.quantityUnit ?? ''}'.trim(),
-              emphasize: true,
-            ),
-          if (r.harvestDate != null)
-            RequestDetailRow(label: _plain(l10n.outcHarvestDate), value: _fmt(r.harvestDate!)),
-        ] else ...[
-          if (r.failureCause != null)
-            RequestDetailRow(label: _plain(l10n.outcFailureCause), value: r.failureCause!),
-          if (r.failureDate != null)
-            RequestDetailRow(label: _plain(l10n.outcFailureDate), value: _fmt(r.failureDate!)),
-        ],
-        if (r.areaPlanted != null)
+      if (r.isSuccessfulReport) ...[
+        if (r.quantityHarvested != null)
           RequestDetailRow(
-            label: l10n.outcAreaPlanted,
-            value: '${_num(r.areaPlanted!)} ${r.areaUnit == 'hectare' ? l10n.outcAreaUnitHa : l10n.outcAreaUnitSqm}',
+            label: _plain(l10n.outcQtyHarvested),
+            value: '${_num(r.quantityHarvested!)} ${r.quantityUnit ?? ''}'
+                .trim(),
+            emphasize: true,
           ),
-        const SizedBox(height: 8),
-        Text(
-          _plain(l10n.outcExplanation),
-          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
-        ),
-        const SizedBox(height: 2),
-        Text(r.explanation, style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
-        const SizedBox(height: 10),
-        Text(
-          _plain(l10n.outcEvidence),
-          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
-        ),
-        _photos(r.farmerPhotos),
+        if (r.harvestDate != null)
+          RequestDetailRow(
+            label: _plain(l10n.outcHarvestDate),
+            value: _fmt(r.harvestDate!),
+          ),
+      ] else ...[
+        if (r.failureCause != null)
+          RequestDetailRow(
+            label: _plain(l10n.outcFailureCause),
+            value: r.failureCause!,
+          ),
+        if (r.failureDate != null)
+          RequestDetailRow(
+            label: _plain(l10n.outcFailureDate),
+            value: _fmt(r.failureDate!),
+          ),
       ],
-    );
+      if (r.areaPlanted != null)
+        RequestDetailRow(
+          label: l10n.outcAreaPlanted,
+          value:
+              '${_num(r.areaPlanted!)} ${r.areaUnit == 'hectare' ? l10n.outcAreaUnitHa : l10n.outcAreaUnitSqm}',
+        ),
+      const SizedBox(height: 8),
+      Text(
+        _plain(l10n.outcExplanation),
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      const SizedBox(height: 2),
+      Text(r.explanation, style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+      const SizedBox(height: 10),
+      Text(
+        _plain(l10n.outcEvidence),
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      _photos(r.farmerPhotos),
+    ]);
   }
 
   Widget _reviewCard(AppLocalizations l10n) {
@@ -534,24 +620,53 @@ class _ProgramOutcomeDetailScreenState
         if (r.reviewNote != null && r.reviewNote!.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text('"${r.reviewNote}"',
-                style: GoogleFonts.inter(fontSize: 13, fontStyle: FontStyle.italic)),
+            child: Text(
+              '"${r.reviewNote}"',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ),
       ]);
     } else if (!r.isPending) {
       children.add(_notice(l10n.outcNotAvailable));
     } else {
       children.addAll([
-        Text(l10n.outcReviewHelp,
-            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+        Text(
+          l10n.outcReviewHelp,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            height: 1.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
-            _choice(l10n.outcValidate, _validate == true, AppConstants.successGreen,
-                _busy ? null : () => setState(() { _validate = true; _reviewError = null; })),
+            _choice(
+              l10n.outcValidate,
+              _validate == true,
+              AppConstants.successGreen,
+              _busy
+                  ? null
+                  : () => setState(() {
+                      _validate = true;
+                      _reviewError = null;
+                    }),
+            ),
             const SizedBox(width: 10),
-            _choice(l10n.outcReturnToFarmer, _validate == false, AppConstants.errorRed,
-                _busy ? null : () => setState(() { _validate = false; _reviewError = null; })),
+            _choice(
+              l10n.outcReturnToFarmer,
+              _validate == false,
+              AppConstants.errorRed,
+              _busy
+                  ? null
+                  : () => setState(() {
+                      _validate = false;
+                      _reviewError = null;
+                    }),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -560,15 +675,21 @@ class _ProgramOutcomeDetailScreenState
           maxLines: 2,
           enabled: !_busy,
           decoration: InputDecoration(
-            labelText: _validate == false ? l10n.outcReturnNoteLabel : l10n.outcReviewNoteLabel,
+            labelText: _validate == false
+                ? l10n.outcReturnNoteLabel
+                : l10n.outcReviewNoteLabel,
           ),
         ),
         _error(_reviewError),
         _submitButton(l10n.outcSaveReview, _submitReview),
       ]);
     }
-    return _card(l10n.outcStepReview, Icons.rule_rounded, children,
-        accent: r.isReviewed ? AppConstants.successGreen : AppConstants.buyerBlue);
+    return _card(
+      l10n.outcStepReview,
+      Icons.rule_rounded,
+      children,
+      accent: r.isReviewed ? AppConstants.successGreen : AppConstants.buyerBlue,
+    );
   }
 
   Widget _verificationCard(AppLocalizations l10n) {
@@ -578,32 +699,46 @@ class _ProgramOutcomeDetailScreenState
       children.addAll([
         RequestDetailRow(
           label: l10n.outcFinding,
-          value: r.disputed ? l10n.outcFindingDisputes : l10n.outcFindingConfirms,
-          valueColor: r.disputed ? AppConstants.errorRed : AppConstants.successGreen,
+          value: r.disputed
+              ? l10n.outcFindingDisputes
+              : l10n.outcFindingConfirms,
+          valueColor: r.disputed
+              ? AppConstants.errorRed
+              : AppConstants.successGreen,
         ),
         RequestDetailRow(
           label: l10n.outcDoneBy,
           value: _by(l10n, r.verifiedByName, 'officer', r.verifiedAt),
         ),
         if (r.fieldVisitDate != null)
-          RequestDetailRow(label: l10n.outcVisitDate, value: _fmt(r.fieldVisitDate!)),
+          RequestDetailRow(
+            label: l10n.outcVisitDate,
+            value: _fmt(r.fieldVisitDate!),
+          ),
         if (r.verifiedQuantity != null) ...[
           RequestDetailRow(
             label: l10n.outcMeasured,
-            value: '${_num(r.verifiedQuantity!)} ${r.verifiedUnit ?? ''}'.trim(),
+            value: '${_num(r.verifiedQuantity!)} ${r.verifiedUnit ?? ''}'
+                .trim(),
             emphasize: true,
           ),
           if (r.quantityHarvested != null)
             RequestDetailRow(
               label: l10n.outcFarmerReported,
-              value: '${_num(r.quantityHarvested!)} ${r.quantityUnit ?? ''}'.trim(),
+              value: '${_num(r.quantityHarvested!)} ${r.quantityUnit ?? ''}'
+                  .trim(),
             ),
         ],
         if (r.verificationNote != null && r.verificationNote!.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text('"${r.verificationNote}"',
-                style: GoogleFonts.inter(fontSize: 13, fontStyle: FontStyle.italic)),
+            child: Text(
+              '"${r.verificationNote}"',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ),
         _photos(r.fieldPhotos),
       ]);
@@ -611,16 +746,40 @@ class _ProgramOutcomeDetailScreenState
       children.add(_notice(l10n.outcNotAvailable));
     } else {
       children.addAll([
-        Text(l10n.outcVerifyHelp,
-            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+        Text(
+          l10n.outcVerifyHelp,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            height: 1.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
-            _choice(l10n.outcFindingConfirms, _confirms == true, AppConstants.successGreen,
-                _busy ? null : () => setState(() { _confirms = true; _verifyError = null; })),
+            _choice(
+              l10n.outcFindingConfirms,
+              _confirms == true,
+              AppConstants.successGreen,
+              _busy
+                  ? null
+                  : () => setState(() {
+                      _confirms = true;
+                      _verifyError = null;
+                    }),
+            ),
             const SizedBox(width: 10),
-            _choice(l10n.outcFindingDisputes, _confirms == false, AppConstants.errorRed,
-                _busy ? null : () => setState(() { _confirms = false; _verifyError = null; })),
+            _choice(
+              l10n.outcFindingDisputes,
+              _confirms == false,
+              AppConstants.errorRed,
+              _busy
+                  ? null
+                  : () => setState(() {
+                      _confirms = false;
+                      _verifyError = null;
+                    }),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -641,13 +800,22 @@ class _ProgramOutcomeDetailScreenState
               labelText: l10n.outcVisitDate,
               suffixIcon: const Icon(Icons.calendar_today_rounded, size: 18),
             ),
-            child: Text(_fmt(_visitDate), style: GoogleFonts.inter(fontSize: 14)),
+            child: Text(
+              _fmt(_visitDate),
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
           ),
         ),
         if (r.isSuccessfulReport) ...[
           const SizedBox(height: 12),
-          Text(l10n.outcMeasuredHint,
-              style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+          Text(
+            l10n.outcMeasuredHint,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.4,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 8),
           // Only the quantity is entered. The unit is the item's and is shown beside it.
           TextField(
@@ -666,8 +834,14 @@ class _ProgramOutcomeDetailScreenState
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                l10n.outcFarmerReportedLine('${_num(r.quantityHarvested!)} ${r.quantityUnit ?? ''}'.trim()),
-                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                l10n.outcFarmerReportedLine(
+                  '${_num(r.quantityHarvested!)} ${r.quantityUnit ?? ''}'
+                      .trim(),
+                ),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
         ],
@@ -679,8 +853,13 @@ class _ProgramOutcomeDetailScreenState
           decoration: InputDecoration(labelText: l10n.outcVerifyNoteLabel),
         ),
         const SizedBox(height: 12),
-        Text(l10n.outcFieldPhotos,
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+        Text(
+          l10n.outcFieldPhotos,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 6),
         OutcomePhotoPicker(
           photos: _fieldPhotos,
@@ -690,17 +869,29 @@ class _ProgramOutcomeDetailScreenState
         _submitButton(l10n.outcSaveVerification, _submitVerification),
       ]);
     }
-    return _card(l10n.outcStepVerify, Icons.agriculture_outlined, children,
-        accent: r.isVerified ? AppConstants.successGreen : AppConstants.buyerBlue);
+    return _card(
+      l10n.outcStepVerify,
+      Icons.agriculture_outlined,
+      children,
+      accent: r.isVerified ? AppConstants.successGreen : AppConstants.buyerBlue,
+    );
   }
 
   // Successful Harvest Return: the reviewer decides what the Farmer returns.
   List<Widget> _returnInputs(AppLocalizations l10n) => [
-    Text(l10n.outcReturnSection,
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+    Text(
+      l10n.outcReturnSection,
+      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
+    ),
     const SizedBox(height: 4),
-    Text(l10n.outcReturnSectionHelp(_r.returnItemName ?? ''),
-        style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+    Text(
+      l10n.outcReturnSectionHelp(_r.returnItemName ?? ''),
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        height: 1.4,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
     const SizedBox(height: 10),
     // Only the quantity is entered. The unit is the returned item's own (the one set when it was
     // distributed) and is shown beside the number, not chosen.
@@ -721,11 +912,19 @@ class _ProgramOutcomeDetailScreenState
 
   // Failed: the four cooperative decisions. None is chosen for the reviewer.
   List<Widget> _decisionInputs(AppLocalizations l10n) => [
-    Text(l10n.outcDecisionSection,
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+    Text(
+      l10n.outcDecisionSection,
+      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
+    ),
     const SizedBox(height: 4),
-    Text(l10n.outcDecisionHelp,
-        style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+    Text(
+      l10n.outcDecisionHelp,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        height: 1.4,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
     RadioGroup<String>(
       groupValue: _decision,
       onChanged: (v) {
@@ -743,8 +942,13 @@ class _ProgramOutcomeDetailScreenState
                 value: res,
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: Text(resolutionLabel(l10n, res),
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                title: Text(
+                  resolutionLabel(l10n, res),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
           ],
         ),
@@ -754,9 +958,7 @@ class _ProgramOutcomeDetailScreenState
       controller: _decisionNote,
       maxLines: 2,
       enabled: !_busy,
-      decoration: InputDecoration(
-        labelText: '${l10n.outcDecisionNoteLabel} *',
-      ),
+      decoration: InputDecoration(labelText: '${l10n.outcDecisionNoteLabel} *'),
     ),
     const SizedBox(height: 12),
   ];
@@ -770,7 +972,9 @@ class _ProgramOutcomeDetailScreenState
         RequestDetailRow(
           label: l10n.outcFinalOutcome,
           value: failed ? l10n.outcStatusFailed : l10n.outcStatusSuccessful,
-          valueColor: failed ? AppConstants.errorRed : AppConstants.successGreen,
+          valueColor: failed
+              ? AppConstants.errorRed
+              : AppConstants.successGreen,
           emphasize: true,
         ),
         RequestDetailRow(
@@ -780,12 +984,19 @@ class _ProgramOutcomeDetailScreenState
         if (r.finalNote != null && r.finalNote!.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text('"${r.finalNote}"',
-                style: GoogleFonts.inter(fontSize: 13, fontStyle: FontStyle.italic)),
+            child: Text(
+              '"${r.finalNote}"',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ),
       ]);
     } else if (r.isReturned) {
-      children.add(_notice(l10n.outcReturnedInfo, color: AppConstants.errorRed));
+      children.add(
+        _notice(l10n.outcReturnedInfo, color: AppConstants.errorRed),
+      );
     } else if (r.stage != OutcomeStage.readyToFinalize) {
       children.add(_notice(l10n.outcFinalWaiting));
     } else {
@@ -795,17 +1006,28 @@ class _ProgramOutcomeDetailScreenState
         if (r.disputed)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: _notice(l10n.outcDisputedInfo, color: AppConstants.warningAmber),
+            child: _notice(
+              l10n.outcDisputedInfo,
+              color: AppConstants.warningAmber,
+            ),
           ),
         if (locked == null)
           // Disputed success: the Manager chooses.
           Row(
             children: [
-              _choice(l10n.outcStatusSuccessful, successful, AppConstants.successGreen,
-                  _busy ? null : () => setState(() => _finalSuccessful = true)),
+              _choice(
+                l10n.outcStatusSuccessful,
+                successful,
+                AppConstants.successGreen,
+                _busy ? null : () => setState(() => _finalSuccessful = true),
+              ),
               const SizedBox(width: 10),
-              _choice(l10n.outcStatusFailed, !successful, AppConstants.errorRed,
-                  _busy ? null : () => setState(() => _finalSuccessful = false)),
+              _choice(
+                l10n.outcStatusFailed,
+                !successful,
+                AppConstants.errorRed,
+                _busy ? null : () => setState(() => _finalSuccessful = false),
+              ),
             ],
           )
         else
@@ -813,16 +1035,26 @@ class _ProgramOutcomeDetailScreenState
           RequestDetailRow(
             key: const Key('lockedFinalOutcome'),
             label: l10n.outcFinalOutcome,
-            value: successful ? l10n.outcStatusSuccessful : l10n.outcStatusFailed,
-            valueColor: successful ? AppConstants.successGreen : AppConstants.errorRed,
+            value: successful
+                ? l10n.outcStatusSuccessful
+                : l10n.outcStatusFailed,
+            valueColor: successful
+                ? AppConstants.successGreen
+                : AppConstants.errorRed,
             emphasize: true,
           ),
         if (locked != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              r.disputed ? l10n.outcFinalLockedDisputed : l10n.outcFinalLockedConfirmed,
-              style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+              r.disputed
+                  ? l10n.outcFinalLockedDisputed
+                  : l10n.outcFinalLockedConfirmed,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         const SizedBox(height: 10),
@@ -839,8 +1071,14 @@ class _ProgramOutcomeDetailScreenState
         _submitButton(l10n.outcFinalize, _submitFinal),
       ]);
     }
-    return _card(l10n.outcStepFinal, Icons.flag_outlined, children,
-        accent: r.isFinalized ? AppConstants.successGreen : AppConstants.buyerBlue);
+    return _card(
+      l10n.outcStepFinal,
+      Icons.flag_outlined,
+      children,
+      accent: r.isFinalized
+          ? AppConstants.successGreen
+          : AppConstants.buyerBlue,
+    );
   }
 
   @override

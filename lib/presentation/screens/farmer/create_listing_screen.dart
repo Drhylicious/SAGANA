@@ -1,7 +1,11 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../data/models/shelf_life_model.dart';
+import '../../../data/repositories/shelf_life_repository.dart';
+import '../../widgets/shelf_life_widgets.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/inventory_batch_model.dart';
@@ -65,6 +69,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   InventoryBatchModel? _selectedBatch;
 
   double? _marketPrice;
+  ListingPriceRule? _priceRule;
+  // True once the rule of the selected batch has been looked up. A batch whose
+  // crop has no Reference Price in the batch's own unit cannot be listed on
+  // the Marketplace (the database refuses it too); its other selling channels
+  // are not affected.
+  bool _priceRuleChecked = false;
+  bool get _missingReferencePrice =>
+      _selectedBatch != null && _priceRuleChecked && _priceRule == null;
+  final _shelfRepo = ShelfLifeRepository();
 
   // The listing is measured in the batch's own unit. A reference price is only
   // suggested when it is quoted in that same unit.
@@ -77,10 +90,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
@@ -94,13 +109,20 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     if (arg is InventoryBatchModel) _batchWasPreselected = true;
     _loadBatches(preselect: arg is InventoryBatchModel ? arg : null);
 
-    _quantityFocusNode.addListener(() => _selectAllOnFocus(_quantityFocusNode, _quantityController));
-    _priceFocusNode.addListener(() => _selectAllOnFocus(_priceFocusNode, _priceController));
+    _quantityFocusNode.addListener(
+      () => _selectAllOnFocus(_quantityFocusNode, _quantityController),
+    );
+    _priceFocusNode.addListener(
+      () => _selectAllOnFocus(_priceFocusNode, _priceController),
+    );
   }
 
   void _selectAllOnFocus(FocusNode node, TextEditingController controller) {
     if (node.hasFocus && controller.text.isNotEmpty) {
-      controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+      controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: controller.text.length,
+      );
     }
   }
 
@@ -119,7 +141,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final batches = await _inventoryRepo.fetchAvailableBatches();
     if (!mounted) return;
 
-    InventoryBatchModel? initial = preselect ?? (batches.isNotEmpty ? batches.first : null);
+    InventoryBatchModel? initial =
+        preselect ?? (batches.isNotEmpty ? batches.first : null);
 
     setState(() {
       _batches = batches;
@@ -137,16 +160,35 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       // whole number, which made a small batch show "0").
       _quantityController.text = formatQuantity(batch.availableKg);
       _marketPrice = null;
+      _priceRule = null;
+      _priceRuleChecked = false;
     });
-    final price = await _dashboardRepo.fetchLatestPriceForCrop(
-      batch.cropName,
-      priceType: batch.cropType,
-      unit: batch.unit,
-    );
-    if (!mounted) return;
+    final results = await Future.wait([
+      _dashboardRepo.fetchLatestPriceForCrop(
+        batch.cropName,
+        priceType: batch.cropType,
+        unit: batch.unit,
+      ),
+      // The Marketplace price rule from Price Management: a Fixed Price (the
+      // listing is created at it and the field is locked) or a Reference Price
+      // Range (the price must stay inside it). Null = no restriction.
+      _shelfRepo.lookupPriceRule(batch.id),
+    ]);
+    if (!mounted || _selectedBatch?.id != batch.id) return;
+    final price = results[0] as double?;
+    final lookup = results[1] as ({ListingPriceRule? rule, bool known});
+    final rule = lookup.rule;
     setState(() {
       _marketPrice = price;
-      if (price != null && _priceController.text.isEmpty) {
+      _priceRule = rule;
+      _priceRuleChecked = lookup.known;
+      final typed = parseDecimal(_priceController.text);
+      if (rule != null && rule.isFixed) {
+        _priceController.text = rule.max.toStringAsFixed(2);
+      } else if (rule != null && (typed == null || !rule.allows(typed))) {
+        // Start inside the range (its minimum); the Farmer may raise it.
+        _priceController.text = rule.min.toStringAsFixed(2);
+      } else if (price != null && _priceController.text.isEmpty) {
         _priceController.text = price.toStringAsFixed(2);
       }
     });
@@ -157,7 +199,25 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Future<void> _handleSubmit() async {
     if (_selectedBatch == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a batch to list.')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).enhPleaseSelectABatchToList,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_missingReferencePrice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).listingNoReferencePrice(
+              _selectedBatch!.cropName,
+              unitOrDefault(_selectedBatch!.unit),
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -177,9 +237,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   max: available,
                   unit: _selectedBatch!.unit,
                 ) ??
-                'Enter a valid quantity.',
+                AppLocalizations.of(context).retQtyInvalid,
           ),
         ),
+      );
+      return;
+    }
+
+    final rule = _priceRule;
+    if (price != null && rule != null && !rule.allows(price)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(listingPriceRuleText(context, rule))),
       );
       return;
     }
@@ -188,8 +256,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            priceErrorText(_priceController.text, label: 'Asking price') ??
-                'Enter a valid asking price.',
+            priceErrorText(
+                  _priceController.text,
+                  label: AppLocalizations.of(context).enhAskingPrice,
+                ) ??
+                AppLocalizations.of(context).enhEnterAValidAskingPrice,
           ),
         ),
       );
@@ -198,7 +269,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     if (_descriptionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description for this listing.')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).editListingDescriptionRequired,
+          ),
+        ),
       );
       return;
     }
@@ -219,7 +294,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           repo: _cropRepo,
           cropId: _selectedBatch!.cropId,
           cropName: _selectedBatch!.cropName,
-          why: 'list this on the Marketplace',
+          why: AppLocalizations.of(context).enhListThisOnTheMarketplace,
         );
         if (photoUrl == null || !mounted) return;
         setState(() {
@@ -260,13 +335,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       // case ("<crop> can only be sold through <channel> — …") is shown as is.
       final errorText = e.toString();
       final message = errorText.contains('Not enough available quantity')
-          ? 'Not enough available stock for that quantity. Please lower it and try again.'
-          : errorText.contains('can only be sold through') || isPhotoRequiredError(e)
-              ? friendlyErrorMessage(e)
-              : 'Failed to submit listing. Please try again.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+          ? AppLocalizations.of(
+              context,
+            ).enhNotEnoughAvailableStockForThatQuantityPlease
+          : errorText.contains('can only be sold through') ||
+                isPhotoRequiredError(e)
+          ? friendlyErrorMessage(e)
+          : AppLocalizations.of(context).enhFailedToSubmitListingPleaseTryAgain;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -279,7 +357,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       resizeToAvoidBottomInset: true,
       body: Column(
         children: [
@@ -288,107 +366,163 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
-                    if (!_isOnline) OfflineStatusCard(message: AppLocalizations.of(context).offlineListingSubmit),
+                    const TopBarSpacer(height: 72),
+                    if (!_isOnline)
+                      OfflineStatusCard(
+                        message: AppLocalizations.of(
+                          context,
+                        ).offlineListingSubmit,
+                      ),
                     Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Admin review banner
-                      const _AdminReviewBanner(),
-                      const SizedBox(height: 24),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Admin review banner
+                            const _AdminReviewBanner(),
+                            const SizedBox(height: 24),
 
-                      // ── Section 1: Batch source ─────────────────────────
-                      if (!_batchWasPreselected) ...[
-                        const _SectionLabel(number: 1, title: 'Choose What to Sell'),
-                        const SizedBox(height: 10),
-                        _isLoadingBatches
-                            ? const SkeletonBlock(height: 110)
-                            : _batches.isEmpty
-                                ? _NoBatchesNotice(onGoToInventory: () =>
-                                  context.pushReplacementRoute(AppRoutes.manageInventory))
-                                : _BatchSelector(
-                                    batches: _batches,
-                                    selected: _selectedBatch,
-                                    onSelected: _onBatchSelected,
-                                  ),
-                        const SizedBox(height: 24),
-                      ],
-                      if (_batchWasPreselected && _selectedBatch != null) ...[
-                        const _SectionLabel(number: 1, title: 'What You\'re Selling'),
-                        const SizedBox(height: 10),
-                        _PreselectedBatchBanner(batch: _selectedBatch!),
-                        const SizedBox(height: 24),
-                      ],
+                            // ── Section 1: Batch source ─────────────────────────
+                            if (!_batchWasPreselected) ...[
+                              _SectionLabel(
+                                number: 1,
+                                title: AppLocalizations.of(
+                                  context,
+                                ).enhChooseWhatToSell,
+                              ),
+                              const SizedBox(height: 10),
+                              _isLoadingBatches
+                                  ? const SkeletonBlock(height: 110)
+                                  : _batches.isEmpty
+                                  ? _NoBatchesNotice(
+                                      onGoToInventory: () =>
+                                          context.pushReplacementRoute(
+                                            AppRoutes.manageInventory,
+                                          ),
+                                    )
+                                  : _BatchSelector(
+                                      batches: _batches,
+                                      selected: _selectedBatch,
+                                      onSelected: _onBatchSelected,
+                                    ),
+                              const SizedBox(height: 24),
+                            ],
+                            if (_batchWasPreselected &&
+                                _selectedBatch != null) ...[
+                              _SectionLabel(
+                                number: 1,
+                                title: AppLocalizations.of(
+                                  context,
+                                ).enhWhatYouReSelling,
+                              ),
+                              const SizedBox(height: 10),
+                              _PreselectedBatchBanner(batch: _selectedBatch!),
+                              const SizedBox(height: 24),
+                            ],
 
-                      // Auto-filled details
-                      if (_selectedBatch != null) ...[
-                        _AutoFilledGrid(batch: _selectedBatch!),
-                        const SizedBox(height: 24),
-                      ],
+                            // Auto-filled details
+                            if (_selectedBatch != null) ...[
+                              _AutoFilledGrid(batch: _selectedBatch!),
+                              const SizedBox(height: 24),
+                            ],
 
-                      // ── Section 2: Price & quantity ─────────────────────
-                      const _SectionLabel(number: 2, title: 'Set Your Price & Quantity'),
-                      const SizedBox(height: 10),
-                      _FormCard(
-                        cropName: _selectedBatch?.cropName ?? '',
-                        photoUrl: _selectedBatch?.displayImageUrl,
-                        quantityController: _quantityController,
-                        priceController: _priceController,
-                        descriptionController: _descriptionController,
-                        quantityFocusNode: _quantityFocusNode,
-                        priceFocusNode: _priceFocusNode,
-                        maxQty: _selectedBatch?.availableKg,
-                        unit: _unit,
-                        marketPrice: _marketPrice,
-                        onChanged: () => setState(() {}),
+                            // ── Section 2: Price & quantity ─────────────────────
+                            _SectionLabel(
+                              number: 2,
+                              title: AppLocalizations.of(
+                                context,
+                              ).enhSetYourPriceQuantity,
+                            ),
+                            const SizedBox(height: 10),
+                            // No Reference Price for this crop in this unit:
+                            // say so before the Farmer fills the form in.
+                            if (_missingReferencePrice) ...[
+                              ShelfLifeNote(
+                                text: AppLocalizations.of(
+                                  context,
+                                ).listingNoReferencePrice(
+                                  _selectedBatch!.cropName,
+                                  unitOrDefault(_selectedBatch!.unit),
+                                ),
+                                color: AppConstants.errorRed,
+                                icon: Icons.sell_outlined,
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            _FormCard(
+                              cropName: _selectedBatch?.cropName ?? '',
+                              photoUrl: _selectedBatch?.displayImageUrl,
+                              quantityController: _quantityController,
+                              priceController: _priceController,
+                              descriptionController: _descriptionController,
+                              quantityFocusNode: _quantityFocusNode,
+                              priceFocusNode: _priceFocusNode,
+                              maxQty: _selectedBatch?.availableKg,
+                              unit: _unit,
+                              marketPrice: _marketPrice,
+                              priceRule: _priceRule,
+                              onChanged: () => setState(() {}),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // ── Section 3: Preview ───────────────────────────────
+                            _SectionLabel(
+                              number: 3,
+                              title: AppLocalizations.of(
+                                context,
+                              ).enhReviewBeforeSubmitting,
+                            ),
+                            const SizedBox(height: 10),
+                            _LivePreviewCard(
+                              cropName: _selectedBatch?.cropName ?? '',
+                              photoUrl: _selectedBatch?.displayImageUrl,
+                              quantity:
+                                  double.tryParse(
+                                    _quantityController.text.trim(),
+                                  ) ??
+                                  0,
+                              price:
+                                  double.tryParse(
+                                    _priceController.text.trim(),
+                                  ) ??
+                                  0,
+                              unit: _unit,
+                              estimatedRevenue: _estimatedRevenue,
+                            ),
+                            const SizedBox(height: 20),
+
+                            // ── What happens next preview ───────────────────────
+                            const _WhatHappensNextCard(),
+                            const SizedBox(height: 24),
+
+                            // Bottom actions
+                            _BottomActions(
+                              isOnline: _isOnline,
+                              isSubmitting: _isSubmitting,
+                              canSubmit: _selectedBatch != null && _isOnline,
+                              onSubmit: _handleSubmit,
+                              onViewListings: () => Navigator.of(context).pop(),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // ── Section 3: Preview ───────────────────────────────
-                      const _SectionLabel(number: 3, title: 'Review Before Submitting'),
-                      const SizedBox(height: 10),
-                      _LivePreviewCard(
-                        cropName: _selectedBatch?.cropName ?? '',
-                        photoUrl: _selectedBatch?.displayImageUrl,
-                        quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
-                        price: double.tryParse(_priceController.text.trim()) ?? 0,
-                        unit: _unit,
-                        estimatedRevenue: _estimatedRevenue,
-                      ),
-                      const SizedBox(height: 20),
-
-                      // ── What happens next preview ───────────────────────
-                      const _WhatHappensNextCard(),
-                      const SizedBox(height: 24),
-
-                      // Bottom actions
-                      _BottomActions(
-                        isOnline: _isOnline,
-                        isSubmitting: _isSubmitting,
-                        canSubmit: _selectedBatch != null && _isOnline,
-                        onSubmit: _handleSubmit,
-                        onViewListings: () => Navigator.of(context).pop(),
-                      ),
-                    ],
+                    ),
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: AppLocalizations.of(context).enhCreateListing,
+                    onBack: () => Navigator.of(context).pop(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
                   ),
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: FarmerTopBar(
-              title: 'Create Listing',
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
-            ),
-          ),
               ],
             ),
           ),
@@ -434,7 +568,7 @@ class _SectionLabel extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppConstants.charcoal,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ],
@@ -460,21 +594,47 @@ class _AdminReviewBanner extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppConstants.warningAmber.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.30)),
+            border: Border.all(
+              color: AppConstants.warningAmber.withValues(alpha: 0.30),
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded, color: AppConstants.warningAmber, size: 20),
+              const Icon(
+                Icons.info_outline_rounded,
+                color: AppConstants.warningAmber,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: RichText(
                   text: TextSpan(
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.4),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
                     children: [
-                      const TextSpan(text: 'Your listing will be reviewed by the '),
-                      TextSpan(text: 'SP3 Cooperative Manager', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
-                      const TextSpan(text: ' before becoming visible to buyers in the marketplace.'),
+                      TextSpan(
+                        text: AppLocalizations.of(
+                          context,
+                        ).enhYourListingWillBeReviewedByThe,
+                      ),
+                      TextSpan(
+                        text: AppLocalizations.of(
+                          context,
+                        ).enhSPCooperativeManager,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      TextSpan(
+                        text: AppLocalizations.of(
+                          context,
+                        ).enhBeforeBecomingVisibleToBuyersInTheMarketplace,
+                      ),
                     ],
                   ),
                 ),
@@ -502,16 +662,30 @@ class _PreselectedBatchBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppConstants.primaryGreen.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.20)),
+        border: Border.all(
+          color: AppConstants.primaryGreen.withValues(alpha: 0.20),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.inventory_2_outlined, color: AppConstants.primaryGreen, size: 20),
+          Icon(
+            Icons.inventory_2_outlined,
+            color: Theme.of(context).colorScheme.primary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '${batch.cropName} • ${formatQuantityUnit(batch.availableKg, batch.unit)} from ${formatBatchNumber(batch.batchNumber)}',
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
+              AppLocalizations.of(context).enhFrom(
+                (batch.cropName).toString(),
+                (formatQuantityUnit(batch.availableKg, batch.unit)).toString(),
+                (formatBatchNumber(batch.batchNumber)).toString(),
+              ),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
         ],
@@ -529,7 +703,11 @@ class _BatchSelector extends StatelessWidget {
   final InventoryBatchModel? selected;
   final ValueChanged<InventoryBatchModel> onSelected;
 
-  const _BatchSelector({required this.batches, required this.selected, required this.onSelected});
+  const _BatchSelector({
+    required this.batches,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -549,19 +727,32 @@ class _BatchSelector extends StatelessWidget {
               width: 168,
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               decoration: BoxDecoration(
-                color: isActive ? AppConstants.primaryGreen.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.60),
+                color: isActive
+                    ? AppConstants.primaryGreen.withValues(alpha: 0.06)
+                    : context.saganaColors.cardBackground.withValues(
+                        alpha: 0.60,
+                      ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isActive ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.20),
+                  color: isActive
+                      ? AppConstants.primaryGreen
+                      : Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.20),
                   width: isActive ? 2 : 1,
                 ),
               ),
               child: Stack(
                 children: [
                   if (isActive)
-                    const Positioned(
-                      top: 0, right: 0,
-                      child: Icon(Icons.check_circle_rounded, color: AppConstants.primaryGreen, size: 20),
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 20,
+                      ),
                     ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -570,26 +761,50 @@ class _BatchSelector extends StatelessWidget {
                       // two lines, and keeps clear of the selected-check icon.
                       Padding(
                         padding: const EdgeInsets.only(right: 22),
-                        child: Text(formatBatchNumber(batch.batchNumber),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                                color: isActive ? AppConstants.primaryGreen : AppConstants.outline)),
+                        child: Text(
+                          formatBatchNumber(batch.batchNumber),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isActive
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 3),
-                      Text(batch.cropName,
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1),
+                      Text(
+                        batch.cropName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.inventory_2_outlined, size: 12, color: AppConstants.outline),
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(formatQuantityUnit(batch.availableKg, batch.unit),
-                                style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant),
-                                overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              formatQuantityUnit(batch.availableKg, batch.unit),
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -614,22 +829,51 @@ class _NoBatchesNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.60),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.60),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+        ),
       ),
       child: Column(
         children: [
-          Icon(Icons.inventory_2_outlined, size: 32, color: AppConstants.outline.withValues(alpha: 0.60)),
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 32,
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.60),
+          ),
           const SizedBox(height: 10),
-          Text('No available inventory to list',
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppConstants.charcoal)),
+          Text(
+            AppLocalizations.of(context).enhNoAvailableInventoryToList,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text('Record a harvest first to build up inventory.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline)),
+          Text(
+            AppLocalizations.of(
+              context,
+            ).enhRecordAHarvestFirstToBuildUpInventory,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+          ),
           const SizedBox(height: 12),
-          TextButton(onPressed: onGoToInventory, child: Text('Go to Inventory', style: GoogleFonts.poppins(color: AppConstants.primaryGreen))),
+          TextButton(
+            onPressed: onGoToInventory,
+            child: Text(
+              AppLocalizations.of(context).issueLoanGoToInventory,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -652,11 +896,27 @@ class _AutoFilledGrid extends StatelessWidget {
     // sized chips fixes both the unevenness and the cramping a 4-in-a-row
     // fixed layout ran into once Market Type's longer label was added.
     final chips = <Widget>[
-      _DetailChip(label: 'Crop Name', value: batch.cropName),
-      if (batch.category != null) _DetailChip(label: 'Category', value: batch.category!),
-      _DetailChip(label: 'Market Type', value: marketTypeLabelFor(batch.cropType)),
-      _DetailChip(label: 'Batch Number', value: formatBatchNumber(batch.batchNumber)),
-      _DetailChip(label: 'Available Stock', value: formatQuantityUnit(batch.availableKg, batch.unit)),
+      _DetailChip(
+        label: AppLocalizations.of(context).priceCropNameLabel,
+        value: batch.cropName,
+      ),
+      if (batch.category != null)
+        _DetailChip(
+          label: AppLocalizations.of(context).buyerListingCategory,
+          value: batch.category!,
+        ),
+      _DetailChip(
+        label: AppLocalizations.of(context).priceMarketTypeLabel,
+        value: marketTypeLabelFor(batch.cropType),
+      ),
+      _DetailChip(
+        label: AppLocalizations.of(context).enhBatchNumber,
+        value: formatBatchNumber(batch.batchNumber),
+      ),
+      _DetailChip(
+        label: AppLocalizations.of(context).enhAvailableStock,
+        value: formatQuantityUnit(batch.availableKg, batch.unit),
+      ),
     ];
     return SizedBox(
       // 64 clipped the two-line chip content by ~1px on some font metrics
@@ -685,21 +945,38 @@ class _DetailChip extends StatelessWidget {
       width: 118,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppConstants.infoBlueBg.withValues(alpha: 0.30),
+        color: context
+            .adaptiveSurface(AppConstants.infoBlueBg)
+            .withValues(alpha: 0.30),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(label.toUpperCase(),
-              style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.outline, letterSpacing: 0.6)),
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.outline,
+              letterSpacing: 0.6,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value,
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.onSurface),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -721,6 +998,9 @@ class _FormCard extends StatelessWidget {
   final double? maxQty;
   final String unit;
   final double? marketPrice;
+
+  /// The price rule from Price Management for this batch (null = none).
+  final ListingPriceRule? priceRule;
   final VoidCallback onChanged;
 
   const _FormCard({
@@ -734,6 +1014,7 @@ class _FormCard extends StatelessWidget {
     required this.maxQty,
     required this.unit,
     required this.marketPrice,
+    required this.priceRule,
     required this.onChanged,
   });
 
@@ -746,10 +1027,17 @@ class _FormCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: context.saganaColors.cardBackground.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [BoxShadow(color: AppConstants.infoBlueFg.withValues(alpha: 0.05), blurRadius: 16)],
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.05),
+                blurRadius: 16,
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -758,7 +1046,7 @@ class _FormCard extends StatelessWidget {
               // farmer-editable field: per explicit product direction, the
               // listing title must reflect exactly what was selected in
               // Step 1, never a disconnected value a farmer typed in.
-              const _FieldLabel('Listing Title'),
+              _FieldLabel(AppLocalizations.of(context).enhListingTitle),
               const SizedBox(height: 8),
               _LockedField(value: cropName),
               const SizedBox(height: 18),
@@ -771,22 +1059,44 @@ class _FormCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _FieldLabel('Quantity ($unit)'),
+                        _FieldLabel(
+                          AppLocalizations.of(
+                            context,
+                          ).enhQuantity((unit).toString()),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: quantityController,
                           focusNode: quantityFocusNode,
                           onChanged: (_) => onChanged(),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           inputFormatters: [DecimalInputFormatter(max: maxQty)],
-                          style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                          decoration: _inputDecoration(hint: '0.00', suffix: unit),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          decoration: _inputDecoration(
+                            context,
+                            hint: '0.00',
+                            suffix: unit,
+                          ),
                         ),
-                        if (maxQty != null) Padding(
-                          padding: const EdgeInsets.only(top: 4, left: 2),
-                          child: Text('Max: ${formatQuantityUnit(maxQty!, unit)}',
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.outline)),
-                        ),
+                        if (maxQty != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 2),
+                            child: Text(
+                              AppLocalizations.of(context).enhMax(
+                                (formatQuantityUnit(maxQty!, unit)).toString(),
+                              ),
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -795,28 +1105,65 @@ class _FormCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _FieldLabel('Asking Price'),
+                        _FieldLabel(
+                          AppLocalizations.of(context).editListingFieldPrice,
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: priceController,
                           focusNode: priceFocusNode,
+                          // A Fixed Price cannot be typed over.
+                          readOnly: priceRule?.isLocked ?? false,
                           onChanged: (_) => onChanged(),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           inputFormatters: const [DecimalInputFormatter()],
-                          style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                          decoration: _inputDecoration(hint: '0.00', prefix: '₱', suffix: '/$unit'),
-                        ),
-                        if (marketPrice != null) Padding(
-                          padding: const EdgeInsets.only(top: 4, left: 2),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.trending_up_rounded, size: 11, color: AppConstants.warningAmber),
-                              const SizedBox(width: 3),
-                              Text('Market: ${formatPricePerUnit(marketPrice!, unit)}',
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.warningAmber)),
-                            ],
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: (priceRule?.isLocked ?? false)
+                                ? Theme.of(context).colorScheme.onSurfaceVariant
+                                : Theme.of(context).colorScheme.onSurface,
+                          ),
+                          decoration: _inputDecoration(
+                            context,
+                            hint: '0.00',
+                            prefix: '₱',
+                            suffix: '/$unit',
                           ),
                         ),
+                        if (priceRule != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 2),
+                            child: ListingPriceRuleNote(rule: priceRule!),
+                          )
+                        else if (marketPrice != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 2),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.trending_up_rounded,
+                                  size: 11,
+                                  color: AppConstants.warningAmber,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  AppLocalizations.of(context).enhMarket(
+                                    (formatPricePerUnit(
+                                      marketPrice!,
+                                      unit,
+                                    )).toString(),
+                                  ),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppConstants.warningAmber,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -831,11 +1178,18 @@ class _FormCard extends StatelessWidget {
               // listing detail / Submission Success screens.
               Row(
                 children: [
-                  const _FieldLabel('Description'),
+                  _FieldLabel(
+                    AppLocalizations.of(context).programMgmtFieldDescription,
+                  ),
                   const SizedBox(width: 4),
-                  Text('*',
-                      style: GoogleFonts.poppins(
-                          fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.errorRed)),
+                  Text(
+                    '*',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -845,10 +1199,22 @@ class _FormCard extends StatelessWidget {
                 minLines: 3,
                 maxLines: 5,
                 maxLength: 300,
-                style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                decoration: _inputDecoration(
-                  hint: 'Describe your product — quality, sourcing, sun-dried, etc.',
-                ).copyWith(counterStyle: GoogleFonts.inter(fontSize: 10, color: AppConstants.outline)),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                decoration:
+                    _inputDecoration(
+                      context,
+                      hint: AppLocalizations.of(
+                        context,
+                      ).editListingDescriptionHint,
+                    ).copyWith(
+                      counterStyle: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
               ),
               const SizedBox(height: 4),
 
@@ -857,7 +1223,7 @@ class _FormCard extends StatelessWidget {
               // direction, a listing must never carry a different image
               // than the crop's own registered photo, to avoid
               // inconsistent product images across the system.
-              const _FieldLabel('Product Photo'),
+              _FieldLabel(AppLocalizations.of(context).editListingFieldPhoto),
               const SizedBox(height: 8),
               _PhotoPreview(photoUrl: photoUrl),
             ],
@@ -867,27 +1233,48 @@ class _FormCard extends StatelessWidget {
     );
   }
 
-  InputDecoration _inputDecoration({required String hint, String? prefix, String? suffix}) {
+  InputDecoration _inputDecoration(
+    BuildContext context, {
+    required String hint,
+    String? prefix,
+    String? suffix,
+  }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.50)),
+      hintStyle: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.50),
+      ),
       prefixText: prefix,
-      prefixStyle: GoogleFonts.inter(fontSize: 13, color: AppConstants.outline),
+      prefixStyle: GoogleFonts.inter(
+        fontSize: 13,
+        color: Theme.of(context).colorScheme.outline,
+      ),
       suffixText: suffix,
-      suffixStyle: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
+      suffixStyle: GoogleFonts.inter(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.outline,
+      ),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: context.saganaColors.cardBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     );
@@ -902,7 +1289,11 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant),
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -921,18 +1312,27 @@ class _LockedField extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: AppConstants.outline.withValues(alpha: 0.08),
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_outline_rounded, size: 16, color: AppConstants.outline),
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 16,
+            color: Theme.of(context).colorScheme.outline,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -964,28 +1364,35 @@ class _PhotoPreview extends StatelessWidget {
             ? Image.network(
                 photoUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(),
+                errorBuilder: (_, __, ___) => _placeholder(context),
               )
-            : _placeholder(),
+            : _placeholder(context),
       ),
     );
   }
 
-  Widget _placeholder() => Container(
-        color: AppConstants.infoBlueBg,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 28),
-            const SizedBox(height: 6),
-            Text(
-              'No photo available',
-              style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
-            ),
-          ],
+  Widget _placeholder(BuildContext context) => Container(
+    color: context.adaptiveSurface(AppConstants.infoBlueBg),
+    alignment: Alignment.center,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.eco_rounded,
+          color: Theme.of(context).colorScheme.primary,
+          size: 28,
         ),
-      );
+        const SizedBox(height: 6),
+        Text(
+          AppLocalizations.of(context).enhNoPhotoAvailable,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1019,10 +1426,17 @@ class _LivePreviewCard extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: context.saganaColors.cardBackground.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [BoxShadow(color: AppConstants.infoBlueFg.withValues(alpha: 0.05), blurRadius: 16)],
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.05),
+                blurRadius: 16,
+              ),
+            ],
           ),
           child: Column(
             children: [
@@ -1034,10 +1448,16 @@ class _LivePreviewCard extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: SizedBox(
-                        width: 80, height: 80,
+                        width: 80,
+                        height: 80,
                         child: hasImage
-                            ? Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
-                            : _placeholder(),
+                            ? Image.network(
+                                photoUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _placeholder(context),
+                              )
+                            : _placeholder(context),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -1046,9 +1466,18 @@ class _LivePreviewCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(cropName.isEmpty ? 'Listing Title' : cropName,
-                              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(
+                            cropName.isEmpty
+                                ? AppLocalizations.of(context).enhListingTitle
+                                : cropName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1056,15 +1485,45 @@ class _LivePreviewCard extends StatelessWidget {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Qty: ${formatQuantityUnit(quantity, unit)}',
-                                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.outline)),
+                                  Text(
+                                    AppLocalizations.of(context).enhQty(
+                                      (formatQuantityUnit(
+                                        quantity,
+                                        unit,
+                                      )).toString(),
+                                    ),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.outline,
+                                    ),
+                                  ),
                                   Row(
-                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.baseline,
                                     textBaseline: TextBaseline.alphabetic,
                                     children: [
-                                      Text('₱${price.toStringAsFixed(2)}',
-                                          style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                                      Text(' /$unit', style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
+                                      Text(
+                                        '₱${price.toStringAsFixed(2)}',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                        ),
+                                      ),
+                                      Text(
+                                        ' /$unit',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -1079,18 +1538,39 @@ class _LivePreviewCard extends StatelessWidget {
               ),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppConstants.primaryGreen.withValues(alpha: 0.05),
-                  border: Border(top: BorderSide(color: AppConstants.primaryGreen.withValues(alpha: 0.10))),
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.10),
+                    ),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Estimated Total Revenue',
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant)),
-                    Text('₱${estimatedRevenue.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                    Text(
+                      AppLocalizations.of(context).enhEstimatedTotalRevenue,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      '₱${estimatedRevenue.toStringAsFixed(2)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1101,10 +1581,14 @@ class _LivePreviewCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() => Container(
-        color: AppConstants.infoBlueBg,
-        child: const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 30),
-      );
+  Widget _placeholder(BuildContext context) => Container(
+    color: context.adaptiveSurface(AppConstants.infoBlueBg),
+    child: Icon(
+      Icons.eco_rounded,
+      color: Theme.of(context).colorScheme.primary,
+      size: 30,
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1121,13 +1605,22 @@ class _WhatHappensNextCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'What Happens After You Submit',
-            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
+            AppLocalizations.of(context).enhWhatHappensAfterYouSubmit,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Your listing enters the cooperative Manager\'s review queue before it appears to buyers.',
-            style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+            AppLocalizations.of(
+              context,
+            ).enhYourListingEntersTheCooperativeManagerSReview,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 14),
           const StatusStepper(currentStep: -1),
@@ -1166,24 +1659,52 @@ class _BottomActions extends StatelessWidget {
           child: !isOnline
               ? DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppConstants.outline.withValues(alpha: 0.20),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.20),
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.cloud_off_rounded, color: AppConstants.outline.withValues(alpha: 0.60), size: 20),
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.60),
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
-                      Text('Go online to submit your listing',
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.outline.withValues(alpha: 0.70))),
+                      Text(
+                        AppLocalizations.of(
+                          context,
+                        ).enhGoOnlineToSubmitYourListing,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.70),
+                        ),
+                      ),
                     ],
                   ),
                 )
               : DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [AppConstants.primaryGreen, Color(0xFF2E7D32)]),
+                    gradient: const LinearGradient(
+                      colors: [AppConstants.primaryGreen, Color(0xFF2E7D32)],
+                    ),
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    boxShadow: [BoxShadow(color: AppConstants.primaryGreen.withValues(alpha: 0.30), blurRadius: 20, offset: const Offset(0, 8))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppConstants.primaryGreen.withValues(
+                          alpha: 0.30,
+                        ),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: ElevatedButton(
                     onPressed: (isSubmitting || !canSubmit) ? null : onSubmit,
@@ -1191,17 +1712,38 @@ class _BottomActions extends StatelessWidget {
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                       disabledBackgroundColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusLg,
+                        ),
+                      ),
                     ),
                     child: isSubmitting
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation(Colors.white)))
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                              const Icon(
+                                Icons.send_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
-                              Text('Submit for Review',
-                                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white)),
+                              Text(
+                                AppLocalizations.of(context).enhSubmitForReview,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ],
                           ),
                   ),
@@ -1215,15 +1757,23 @@ class _BottomActions extends StatelessWidget {
             onPressed: onViewListings,
             style: OutlinedButton.styleFrom(
               foregroundColor: AppConstants.primaryGreen,
-              side: const BorderSide(color: AppConstants.primaryGreen),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+              side: BorderSide(color: Theme.of(context).colorScheme.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.list_alt_rounded, size: 18),
                 const SizedBox(width: 8),
-                Text('View Listing', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(
+                  AppLocalizations.of(context).enhViewListing,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),

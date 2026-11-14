@@ -30,7 +30,7 @@ class StockFiguresRow extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 9,
               letterSpacing: 0.5,
-              color: AppConstants.outline,
+              color: Theme.of(context).colorScheme.outline,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -53,11 +53,23 @@ class StockFiguresRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        cell(l10n.stockFigureAvailable, batch.availableKg, AppConstants.successGreen),
-        cell(l10n.stockFigureReserved, batch.reservedKg, AppConstants.warningAmber),
+        cell(
+          l10n.stockFigureAvailable,
+          batch.availableKg,
+          AppConstants.successGreen,
+        ),
+        cell(
+          l10n.stockFigureReserved,
+          batch.reservedKg,
+          AppConstants.warningAmber,
+        ),
         cell(l10n.stockFigureSold, batch.soldKg, AppConstants.primaryGreen),
         if (batch.adjustedKg > 0)
-          cell(l10n.stockFigureAdjusted, batch.adjustedKg, AppConstants.outline),
+          cell(
+            l10n.stockFigureAdjusted,
+            batch.adjustedKg,
+            Theme.of(context).colorScheme.outline,
+          ),
       ],
     );
   }
@@ -167,7 +179,8 @@ class _StockHistorySheetState extends State<_StockHistorySheet> {
     widget.batch.id,
   );
 
-  void _retry() => setState(() => _future = _repo.fetchForBatch(widget.batch.id));
+  void _retry() =>
+      setState(() => _future = _repo.fetchForBatch(widget.batch.id));
 
   @override
   Widget build(BuildContext context) {
@@ -265,10 +278,7 @@ class _StockHistorySheetState extends State<_StockHistorySheet> {
                             color: cs.onSurfaceVariant,
                           ),
                         ),
-                        TextButton(
-                          onPressed: _retry,
-                          child: Text(l10n.retry),
-                        ),
+                        TextButton(onPressed: _retry, child: Text(l10n.retry)),
                       ],
                     ),
                   );

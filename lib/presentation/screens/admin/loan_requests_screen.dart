@@ -14,8 +14,9 @@ import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/loan_request_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/models/program_assistance_model.dart';
 import '../../../data/repositories/program_assistance_repository.dart';
-import '../../../routes/app_routes.dart';
+import '../../widgets/assistance_request_card.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/table_change_watcher.dart';
 import '../../widgets/app_toast.dart';
@@ -54,22 +55,13 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
   bool _loading = true;
   bool _failed = false;
   bool _isOnline = true;
-  // Failed-program assistance waiting for review (a separate list, not loans).
-  int _assistancePending = 0;
-
-  Future<void> _loadAssistanceCount() async {
-    try {
-      final rows = await ProgramAssistanceRepository().fetchAll(status: 'pending');
-      if (mounted) setState(() => _assistancePending = rows.length);
-    } catch (_) {
-      // The entry simply shows no count.
-    }
-  }
+  // Failed-program assistance requests, listed with the loan requests. They
+  // are NOT loans: their own records, their own review function, no repayment.
+  List<AssistanceRequest> _assistance = [];
 
   @override
   void initState() {
     super.initState();
-    _loadAssistanceCount();
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
@@ -77,7 +69,7 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
     _load();
     // A request arriving or being decided elsewhere appears without a refresh.
     _watcher = TableChangeWatcher(
-      tables: const ['loan_requests'],
+      tables: const ['loan_requests', 'program_assistance_requests'],
       onChange: () {
         if (mounted) _load(silent: true);
       },
@@ -100,9 +92,16 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
     }
     try {
       final rows = await _repo.fetchLoanRequests();
+      // Assistance is read separately: if it cannot be read, the loan requests
+      // are still shown.
+      List<AssistanceRequest> assistance = _assistance;
+      try {
+        assistance = await ProgramAssistanceRepository().fetchAll();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _all = rows;
+        _assistance = assistance;
         _loading = false;
         _failed = false;
       });
@@ -132,19 +131,66 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
         r.reviewerName,
         for (final i in r.items) i.itemName,
       ].whereType<String>().join(' ').toLowerCase();
-      return q.split(RegExp(r's+')).where((w) => w.isNotEmpty).every(haystack.contains);
+      return q
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .every(haystack.contains);
     }).toList();
   }
 
-  List<LoanRequestModel> get _visible => _statusFilter == null
-      ? _searched
-      : _searched.where((r) => r.status == _statusFilter).toList();
+  /// Assistance requests that match the search box (Farmer, program, request
+  /// or reference number, items). Withdrawn ones are not listed, as with loans.
+  List<AssistanceRequest> get _searchedAssistance {
+    final q = _search.trim().toLowerCase();
+    return _assistance.where((r) {
+      if (r.status == 'cancelled') return false;
+      if (q.isEmpty) return true;
+      final haystack = [
+        r.farmerName,
+        r.programName,
+        r.requestNumber,
+        r.assistanceReference,
+        r.reviewedByName,
+        for (final i in r.items) i.itemName,
+      ].whereType<String>().join(' ').toLowerCase();
+      return q
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .every(haystack.contains);
+    }).toList();
+  }
+
+  // An assistance request's status in this screen's terms ("rejected" is the
+  // same decision as a loan request's "disapproved").
+  static String _assistStatus(AssistanceRequest r) =>
+      r.status == 'rejected' ? 'disapproved' : r.status;
+
+  /// Loan requests and assistance requests in one list, newest first.
+  List<({LoanRequestModel? loan, AssistanceRequest? assistance})>
+  get _visible {
+    final rows =
+        <({
+          LoanRequestModel? loan,
+          AssistanceRequest? assistance,
+          DateTime at,
+        })>[
+          for (final r in _searched)
+            if (_statusFilter == null || r.status == _statusFilter)
+              (loan: r, assistance: null, at: r.requestedAt),
+          for (final a in _searchedAssistance)
+            if (_statusFilter == null || _assistStatus(a) == _statusFilter)
+              (loan: null, assistance: a, at: a.createdAt),
+        ]..sort((a, b) => b.at.compareTo(a.at));
+    return [for (final r in rows) (loan: r.loan, assistance: r.assistance)];
+  }
 
   /// The number on a chip: how many of the searched requests it would show, so the
   /// counts always match the list.
-  int _count(String? status) => status == null
-      ? _searched.length
-      : _searched.where((r) => r.status == status).length;
+  int _count(String? status) =>
+      _searched.where((r) => status == null || r.status == status).length +
+      _searchedAssistance
+          .where((a) => status == null || _assistStatus(a) == status)
+          .length;
 
   Future<void> _approve(LoanRequestModel request) async {
     if (!requireManage(context, StaffModule.loans)) return;
@@ -180,7 +226,10 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.loanReqAdminTitle, onBack: () => context.pop()),
+          SubPageTopBar(
+            title: l10n.loanReqAdminTitle,
+            onBack: () => context.pop(),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: TextField(
@@ -190,10 +239,18 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
               decoration: InputDecoration(
                 hintText: l10n.loanReqAdminSearchHint,
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: cs.outline,
+                  size: 22,
+                ),
                 suffixIcon: _search.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: cs.outline,
+                          size: 18,
+                        ),
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _search = '');
@@ -212,10 +269,24 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) {
                 final f = <({String? status, String label})>[
-                  (status: null, label: l10n.loanReqFilterAllCount(_count(null))),
-                  (status: 'pending', label: l10n.loanReqFilterPendingCount(_count('pending'))),
-                  (status: 'approved', label: l10n.loanReqFilterApprovedCount(_count('approved'))),
-                  (status: 'disapproved', label: l10n.loanReqFilterDisapprovedCount(_count('disapproved'))),
+                  (
+                    status: null,
+                    label: l10n.loanReqFilterAllCount(_count(null)),
+                  ),
+                  (
+                    status: 'pending',
+                    label: l10n.loanReqFilterPendingCount(_count('pending')),
+                  ),
+                  (
+                    status: 'approved',
+                    label: l10n.loanReqFilterApprovedCount(_count('approved')),
+                  ),
+                  (
+                    status: 'disapproved',
+                    label: l10n.loanReqFilterDisapprovedCount(
+                      _count('disapproved'),
+                    ),
+                  ),
                 ][i];
                 return Center(
                   child: LoanChoiceChip(
@@ -229,73 +300,14 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
               },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              onTap: () => context.push(AppRoutes.assistanceRequests).then((_) => _loadAssistanceCount()),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppConstants.programPurple.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(color: AppConstants.programPurple.withValues(alpha: 0.25)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.volunteer_activism_rounded, size: 18, color: AppConstants.programPurple),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.assistStaffEntry,
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
-                      ),
-                    ),
-                    if (_assistancePending > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppConstants.errorRed,
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                        ),
-                        child: Text(
-                          '$_assistancePending',
-                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
-                      ),
-                    const Icon(Icons.chevron_right_rounded),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          if (!_isOnline)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppConstants.warningAmber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.wifi_off_rounded, size: 16, color: AppConstants.snackbarWarning),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.loanReqNeedsOnline,
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
               child: _loading
-                  ? const Padding(padding: EdgeInsets.all(20), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: SkeletonList(),
+                    )
                   : _failed
                   ? _Message(
                       icon: Icons.error_outline_rounded,
@@ -315,12 +327,24 @@ class _LoanRequestsScreenState extends State<LoanRequestsScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
                       itemCount: visible.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _RequestCard(
-                        request: visible[i],
-                        canDecide: _isOnline,
-                        onApprove: () => _approve(visible[i]),
-                        onDisapprove: () => _disapprove(visible[i]),
-                      ),
+                      itemBuilder: (_, i) {
+                        final loan = visible[i].loan;
+                        if (loan == null) {
+                          // From Program Management (failed outcome): not a loan.
+                          return AssistanceRequestCard(
+                            key: ValueKey(visible[i].assistance!.id),
+                            request: visible[i].assistance!,
+                            canDecide: _isOnline,
+                            onChanged: () => _load(silent: true),
+                          );
+                        }
+                        return _RequestCard(
+                          request: loan,
+                          canDecide: _isOnline,
+                          onApprove: () => _approve(loan),
+                          onDisapprove: () => _disapprove(loan),
+                        );
+                      },
                     ),
             ),
           ),
@@ -357,27 +381,52 @@ class _Message extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
           body,
           textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: cs.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            height: 1.4,
+            color: cs.onSurfaceVariant,
+          ),
         ),
         if (actionLabel != null) ...[
           const SizedBox(height: 14),
-          Center(child: OutlinedButton(onPressed: onAction, child: Text(actionLabel!))),
+          Center(
+            child: OutlinedButton(
+              onPressed: onAction,
+              child: Text(actionLabel!),
+            ),
+          ),
         ],
       ],
     );
   }
 }
 
-({String label, Color color}) _statusStyle(AppLocalizations l10n, LoanRequestModel r) {
-  if (r.isApproved) return (label: l10n.loanReqStatusApproved, color: AppConstants.successGreen);
-  if (r.isDisapproved) return (label: l10n.loanReqStatusDisapproved, color: AppConstants.errorRed);
-  if (r.isCancelled) return (label: l10n.loanReqStatusCancelled, color: AppConstants.outline);
+({String label, Color color}) _statusStyle(
+  AppLocalizations l10n,
+  LoanRequestModel r,
+) {
+  if (r.isApproved) {
+    return (
+      label: l10n.loanReqStatusApproved,
+      color: AppConstants.successGreen,
+    );
+  }
+  if (r.isDisapproved) {
+    return (label: l10n.loanReqStatusDisapproved, color: AppConstants.errorRed);
+  }
+  if (r.isCancelled) {
+    return (label: l10n.loanReqStatusCancelled, color: AppConstants.outline);
+  }
   return (label: l10n.loanReqStatusPending, color: AppConstants.warningAmber);
 }
 
@@ -414,7 +463,9 @@ class _RequestCard extends StatelessWidget {
               ? AppConstants.errorRed.withValues(alpha: 0.35)
               : cs.outline.withValues(alpha: 0.12),
         ),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,14 +490,20 @@ class _RequestCard extends StatelessWidget {
                         r.requestNo,
                         if ((r.farmerPhone ?? '').isNotEmpty) r.farmerPhone!,
                       ].join(' · '),
-                      style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: style.color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
@@ -484,8 +541,12 @@ class _RequestCard extends StatelessWidget {
                         if (r.isPending && i.stockOnHand != null)
                           Text(
                             i.shortOnStock
-                                ? l10n.loanReqStockShort(formatQuantityUnit(i.stockOnHand!, i.unit))
-                                : l10n.loanReqInStock(formatQuantityUnit(i.stockOnHand!, i.unit)),
+                                ? l10n.loanReqStockShort(
+                                    formatQuantityUnit(i.stockOnHand!, i.unit),
+                                  )
+                                : l10n.loanReqInStock(
+                                    formatQuantityUnit(i.stockOnHand!, i.unit),
+                                  ),
                             style: GoogleFonts.inter(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w600,
@@ -500,7 +561,11 @@ class _RequestCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '₱${money.format(i.lineTotal)}',
-                    style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: cs.onSurface),
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ],
               ),
@@ -511,7 +576,10 @@ class _RequestCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   l10n.loanReqRequestedOn(date.format(r.requestedAt)),
-                  style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
               Text(
@@ -519,7 +587,7 @@ class _RequestCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],
@@ -528,7 +596,11 @@ class _RequestCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               '${l10n.loanReqFarmerNote}: ${r.notes!.trim()}',
-              style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: cs.onSurface,
+              ),
             ),
           ],
           if (r.isPending && r.hasStockShortage) ...[
@@ -536,12 +608,20 @@ class _RequestCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.warning_amber_rounded, size: 16, color: AppConstants.errorRed),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: AppConstants.errorRed,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     l10n.loanReqStockWarning,
-                    style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.errorRed),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppConstants.errorRed,
+                    ),
                   ),
                 ),
               ],
@@ -573,7 +653,9 @@ class _RequestCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: canDecide && !r.hasStockShortage ? onApprove : null,
+                    onPressed: canDecide && !r.hasStockShortage
+                        ? onApprove
+                        : null,
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size.fromHeight(44),
                       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -591,23 +673,36 @@ class _RequestCard extends StatelessWidget {
             const SizedBox(height: 10),
             if (r.isApproved || r.isDisapproved)
               Text(
-                (r.isApproved ? l10n.loanReqApprovedBy : l10n.loanReqDisapprovedBy)(
+                (r.isApproved
+                    ? l10n.loanReqApprovedBy
+                    : l10n.loanReqDisapprovedBy)(
                   reviewer.isEmpty ? '—' : reviewer,
                   r.decidedAt == null ? '' : date.format(r.decidedAt!),
                 ),
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
             if (r.isApproved && (r.loanReference ?? '').isNotEmpty)
               Text(
                 l10n.loanReqLoanIssuedRef(r.loanReference!),
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             if ((r.decisionNote ?? '').trim().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '${l10n.loanReqDecisionReason}: ${r.decisionNote!.trim()}',
-                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],
@@ -715,26 +810,41 @@ class _ApproveSheetState extends State<_ApproveSheet> {
           const SizedBox(height: 6),
           Text(
             '${l10n.loanReqTotal}: ₱${NumberFormat('#,##0.00').format(r.totalValue)}',
-            style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+            style: GoogleFonts.poppins(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 14),
           TextField(
             controller: _monthlyCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,9}(\.\d{0,2})?$'))],
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(
+                RegExp(r'^\d{0,9}(\.\d{0,2})?$'),
+              ),
+            ],
             enabled: !_saving,
             onChanged: (_) => setState(() => _fieldError = null),
             decoration: InputDecoration(
               labelText: l10n.loanReqMonthlyLabel,
               prefixText: '₱ ',
               errorText: _fieldError,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            l10n.loanReqFirstPayment(DateFormat('MMMM d, yyyy').format(_firstPayment)),
-            style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+            l10n.loanReqFirstPayment(
+              DateFormat('MMMM d, yyyy').format(_firstPayment),
+            ),
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -745,13 +855,19 @@ class _ApproveSheetState extends State<_ApproveSheet> {
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               labelText: l10n.loanReqApproveNote,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             l10n.loanReqApproveHint,
-            style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              height: 1.4,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: 10),
@@ -762,7 +878,13 @@ class _ApproveSheetState extends State<_ApproveSheet> {
                 color: AppConstants.errorRed.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
-              child: Text(_error!, style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.errorRed)),
+              child: Text(
+                _error!,
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  color: AppConstants.errorRed,
+                ),
+              ),
             ),
           ],
         ],
@@ -810,7 +932,10 @@ class _DisapproveSheetState extends State<_DisapproveSheet> {
       _error = null;
     });
     try {
-      await widget.repo.disapproveLoanRequest(request: widget.request, reason: reason);
+      await widget.repo.disapproveLoanRequest(
+        request: widget.request,
+        reason: reason,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -826,7 +951,8 @@ class _DisapproveSheetState extends State<_DisapproveSheet> {
     final l10n = AppLocalizations.of(context);
     return ManagementModalShell(
       title: l10n.loanReqDisapproveTitle,
-      subtitle: '${widget.request.farmerName ?? ''} · ${widget.request.requestNo}',
+      subtitle:
+          '${widget.request.farmerName ?? ''} · ${widget.request.requestNo}',
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,7 +969,9 @@ class _DisapproveSheetState extends State<_DisapproveSheet> {
               labelText: l10n.loanReqDisapproveReasonLabel,
               errorText: _error,
               errorMaxLines: 3,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
             ),
           ),
         ],

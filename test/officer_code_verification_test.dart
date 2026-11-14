@@ -1350,18 +1350,21 @@ void main() {
     void seed() {
       fake.on('GET /rest/v1/user_roles', (r) {
         final role = r.url.queryParameters['role']?.replaceFirst('eq.', '');
-        if (role == 'farmer')
+        if (role == 'farmer') {
           return [
             {'user_id': 'f-1', 'status': 'active'},
           ];
-        if (role == 'officer')
+        }
+        if (role == 'officer') {
           return [
             {'user_id': 'o-9', 'status': 'active'},
           ];
-        if (role == 'admin')
+        }
+        if (role == 'admin') {
           return [
             {'user_id': 'm-1', 'status': 'active'},
           ];
+        }
         return <Object?>[];
       });
       fake.on(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import '../../core/constants/app_constants.dart';
 import '../repositories/settings_repository.dart';
 
@@ -25,6 +27,8 @@ class AppSettingsService extends ChangeNotifier {
     final prefs = await _repo.loadPrefs(userId: userId);
     _themeMode = prefs.themeMode;
     _locale = Locale(prefs.localeCode);
+    await initializeDateFormatting(_locale.languageCode);
+    Intl.defaultLocale = _locale.languageCode;
   }
 
   // Called on successful login — reloads whichever preferences belong to
@@ -36,6 +40,8 @@ class AppSettingsService extends ChangeNotifier {
     final prefs = await _repo.loadPrefs(userId: userId);
     _themeMode = prefs.themeMode;
     _locale = Locale(prefs.localeCode);
+    await initializeDateFormatting(_locale.languageCode);
+    Intl.defaultLocale = _locale.languageCode;
     notifyListeners();
   }
 
@@ -49,6 +55,8 @@ class AppSettingsService extends ChangeNotifier {
   Future<void> setLocale(Locale locale) async {
     if (_locale == locale) return;
     _locale = locale;
+    await initializeDateFormatting(locale.languageCode);
+    Intl.defaultLocale = locale.languageCode;
     await _repo.saveLocale(locale.languageCode, userId: _currentUserId);
     notifyListeners();
   }

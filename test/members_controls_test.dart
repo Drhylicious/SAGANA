@@ -41,7 +41,14 @@ class _HostState extends State<_Host> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    const names = ['All', 'Active', 'Inactive', 'Suspended', 'Pending', 'Disapproved'];
+    const names = [
+      'All',
+      'Active',
+      'Inactive',
+      'Suspended',
+      'Pending',
+      'Disapproved',
+    ];
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -104,7 +111,7 @@ void main() {
     tester,
   ) async {
     await runIgnoringFontErrors(() async {
-      await _pump(tester, _Host(events: []));
+      await _pump(tester, const _Host(events: []));
       final add = _r(tester, 'members-add');
       final manage = _r(tester, 'members-manage');
       final search = _r(tester, 'members-search');
@@ -134,7 +141,7 @@ void main() {
 
   testWidgets('there is no "N Members" count pill', (tester) async {
     await runIgnoringFontErrors(() async {
-      await _pump(tester, _Host(events: []));
+      await _pump(tester, const _Host(events: []));
       expect(find.textContaining(RegExp(r'\d+ Members')), findsNothing);
     });
   });
@@ -153,33 +160,45 @@ void main() {
     });
   });
 
-  testWidgets('the chips stay on one line and scroll sideways to reach the last one', (
-    tester,
-  ) async {
-    await runIgnoringFontErrors(() async {
-      final events = <String>[];
-      await _pump(tester, _Host(events: events), width: 320);
-      final chipsBox = _r(tester, 'members-chips');
-      // One row: every visible chip shares the strip's height.
-      expect(chipsBox.height, MembersControls.chipHeight);
-      // The last chip is off screen until scrolled.
-      expect(find.textContaining('Disapproved:').hitTestable(), findsNothing);
-      // A long flick: the test font is wider than the real one.
-      await tester.drag(find.byKey(const ValueKey('members-chips')), const Offset(-3000, 0));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Disapproved:').hitTestable(), findsOneWidget);
-      await tester.tap(find.textContaining('Disapproved:'));
-      expect(events, ['chip:Disapproved']);
-      expect(tester.takeException(), isNull);
-    });
-  });
+  testWidgets(
+    'the chips stay on one line and scroll sideways to reach the last one',
+    (tester) async {
+      await runIgnoringFontErrors(() async {
+        final events = <String>[];
+        await _pump(tester, _Host(events: events), width: 320);
+        final chipsBox = _r(tester, 'members-chips');
+        // One row: every visible chip shares the strip's height.
+        expect(chipsBox.height, MembersControls.chipHeight);
+        // The last chip is off screen until scrolled.
+        expect(find.textContaining('Disapproved:').hitTestable(), findsNothing);
+        // A long flick: the test font is wider than the real one.
+        await tester.drag(
+          find.byKey(const ValueKey('members-chips')),
+          const Offset(-3000, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Disapproved:').hitTestable(),
+          findsOneWidget,
+        );
+        await tester.tap(find.textContaining('Disapproved:'));
+        expect(events, ['chip:Disapproved']);
+        expect(tester.takeException(), isNull);
+      });
+    },
+  );
 
   testWidgets('only the tapped chip is selected', (tester) async {
     await runIgnoringFontErrors(() async {
-      await _pump(tester, _Host(events: []));
+      await _pump(tester, const _Host(events: []));
       Color border(String label) {
         final box = tester.widget<Container>(
-          find.ancestor(of: find.textContaining('$label:'), matching: find.byType(Container)).first,
+          find
+              .ancestor(
+                of: find.textContaining('$label:'),
+                matching: find.byType(Container),
+              )
+              .first,
         );
         return ((box.decoration as BoxDecoration).border as Border).top.color;
       }
@@ -192,7 +211,10 @@ void main() {
       await tester.pump();
       expect(border('Inactive'), isNot(unselected));
       // Back to the start of the strip: "All" is no longer the selected one.
-      await tester.drag(find.byKey(const ValueKey('members-chips')), const Offset(3000, 0));
+      await tester.drag(
+        find.byKey(const ValueKey('members-chips')),
+        const Offset(3000, 0),
+      );
       await tester.pumpAndSettle();
       expect(border('All'), unselected);
     });
@@ -202,15 +224,24 @@ void main() {
     tester,
   ) async {
     await runIgnoringFontErrors(() async {
-      await _pump(tester, _Host(events: []));
+      await _pump(tester, const _Host(events: []));
       expect(find.byKey(const ValueKey('members-search-clear')), findsNothing);
-      await tester.enterText(find.byKey(const ValueKey('members-search')), 'aldrin');
+      await tester.enterText(
+        find.byKey(const ValueKey('members-search')),
+        'aldrin',
+      );
       await tester.pump();
-      expect(find.byKey(const ValueKey('members-search-clear')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('members-search-clear')),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(const ValueKey('members-search-clear')));
       await tester.pump();
       expect(
-        tester.widget<TextField>(find.byKey(const ValueKey('members-search'))).controller!.text,
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('members-search')))
+            .controller!
+            .text,
         '',
       );
     });
@@ -220,42 +251,43 @@ void main() {
     tester,
   ) async {
     await runIgnoringFontErrors(() async {
-      await _pump(tester, _Host(events: []));
+      await _pump(tester, const _Host(events: []));
       expect(find.byKey(const ValueKey('members-filter-dot')), findsNothing);
-      await _pump(tester, _Host(events: [], filterActive: true));
+      await _pump(tester, const _Host(events: [], filterActive: true));
       expect(find.byKey(const ValueKey('members-filter-dot')), findsOneWidget);
     });
   });
 
   for (final width in [320.0, 360.0, 412.0]) {
-    testWidgets('no overflow at ${width.toInt()} px, even with long Tagalog labels', (
-      tester,
-    ) async {
-      await runIgnoringFontErrors(() async {
-        await _pump(
-          tester,
-          _Host(
-            events: [],
-            add: 'Magdagdag ng Miyembro',
-            manage: 'Pamahalaan ang mga Account',
-            filterActive: true,
-          ),
-          width: width,
-        );
-        expect(tester.takeException(), isNull);
-        final add = _r(tester, 'members-add');
-        final manage = _r(tester, 'members-manage');
-        expect(manage.right, lessThanOrEqualTo(width - 20 + 0.5));
-        expect(add.left, greaterThanOrEqualTo(20 - 0.5));
-        expect((add.width - manage.width).abs(), lessThan(1));
-      });
-    });
+    testWidgets(
+      'no overflow at ${width.toInt()} px, even with long Tagalog labels',
+      (tester) async {
+        await runIgnoringFontErrors(() async {
+          await _pump(
+            tester,
+            const _Host(
+              events: [],
+              add: 'Magdagdag ng Miyembro',
+              manage: 'Pamahalaan ang mga Account',
+              filterActive: true,
+            ),
+            width: width,
+          );
+          expect(tester.takeException(), isNull);
+          final add = _r(tester, 'members-add');
+          final manage = _r(tester, 'members-manage');
+          expect(manage.right, lessThanOrEqualTo(width - 20 + 0.5));
+          expect(add.left, greaterThanOrEqualTo(20 - 0.5));
+          expect((add.width - manage.width).abs(), lessThan(1));
+        });
+      },
+    );
   }
 
   group('Members screen', () {
-    final src = File('lib/presentation/screens/admin/farmer_management_screen.dart')
-        .readAsStringSync()
-        .replaceAll('\r\n', '\n');
+    final src = File(
+      'lib/presentation/screens/admin/farmer_management_screen.dart',
+    ).readAsStringSync().replaceAll('\r\n', '\n');
 
     test('uses the new controls and no longer shows the member count', () {
       expect(src, contains('MembersControls('));
@@ -270,31 +302,49 @@ void main() {
       expect(src, contains('_setStatusFilter('));
     });
 
-    test('the controls are pinned above the list (outside the scrolling list)', () {
-      final controls = src.indexOf('MembersControls(');
-      final list = src.indexOf('RefreshIndicator(');
-      expect(controls, isNonNegative);
-      expect(controls, lessThan(list));
-    });
+    test(
+      'the controls are pinned above the list (outside the scrolling list)',
+      () {
+        final controls = src.indexOf('MembersControls(');
+        final list = src.indexOf('RefreshIndicator(');
+        expect(controls, isNonNegative);
+        expect(controls, lessThan(list));
+      },
+    );
 
-    test('member card: name, status and menu are ONE line (MemberTitleRow), contact lines beneath', () {
-      final row = src.indexOf('MemberTitleRow(');
-      final name = src.indexOf('name: farmer.fullName', row);
-      final badge = src.indexOf('badge: _StatusBadge(status: farmer.memberStatus', row);
-      final menu = src.indexOf('menu: SizedBox(', row);
-      final contact = src.indexOf('farmer.contactLines', row);
-      expect(row, isNonNegative);
-      expect(name, greaterThan(row));
-      expect(badge, greaterThan(name));
-      expect(menu, greaterThan(badge));
-      expect(contact, greaterThan(menu), reason: 'the contact lines come after the title row');
-      // The badge is no longer stacked under the name.
-      expect(
-        RegExp(r'SizedBox\(height: 5\),\s*_StatusBadge').hasMatch(src),
-        isFalse,
-      );
-      // One popup menu per card, and it is inside the title row.
-      expect('PopupMenuButton<String>('.allMatches(src.substring(src.indexOf('class _FarmerCard'))).length, 1);
-    });
+    test(
+      'member card: name, status and menu are ONE line (MemberTitleRow), contact lines beneath',
+      () {
+        final row = src.indexOf('MemberTitleRow(');
+        final name = src.indexOf('name: farmer.fullName', row);
+        final badge = src.indexOf(
+          'badge: _StatusBadge(status: farmer.memberStatus',
+          row,
+        );
+        final menu = src.indexOf('menu: SizedBox(', row);
+        final contact = src.indexOf('farmer.contactLines', row);
+        expect(row, isNonNegative);
+        expect(name, greaterThan(row));
+        expect(badge, greaterThan(name));
+        expect(menu, greaterThan(badge));
+        expect(
+          contact,
+          greaterThan(menu),
+          reason: 'the contact lines come after the title row',
+        );
+        // The badge is no longer stacked under the name.
+        expect(
+          RegExp(r'SizedBox\(height: 5\),\s*_StatusBadge').hasMatch(src),
+          isFalse,
+        );
+        // One popup menu per card, and it is inside the title row.
+        expect(
+          'PopupMenuButton<String>('
+              .allMatches(src.substring(src.indexOf('class _FarmerCard')))
+              .length,
+          1,
+        );
+      },
+    );
   });
 }

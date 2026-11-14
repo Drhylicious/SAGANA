@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/animations/staggered_entrance.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/l10n/system_notification_text.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -67,6 +67,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   int _unreadCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
 
   @override
   void initState() {
@@ -79,6 +80,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     AppEventService.instance.removeListener(_onHarvestRecorded);
     _profileState.removeListener(_onProfileStateChanged);
     super.dispose();
@@ -99,9 +101,10 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   }
 
   void _listenConnectivity() {
-    ConnectivityService.instance.onConnectivityChanged.listen((online) {
-      if (mounted) setState(() => _isOnline = online);
-    });
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((online) {
+          if (mounted) setState(() => _isOnline = online);
+        });
     _isOnline = ConnectivityService.instance.isOnline;
   }
 
@@ -288,8 +291,12 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     if (recentBroadcast != null) {
       items.add(
         PriorityItem(
-          title: recentBroadcast.title,
-          subtitle: recentBroadcast.body,
+          title: localizedNotificationTitle(l10n, recentBroadcast.title),
+          subtitle: localizedNotificationBody(
+            l10n,
+            recentBroadcast.title,
+            recentBroadcast.body,
+          ),
           icon: Icons.campaign_outlined,
           severity: PrioritySeverity.info,
           onTap: () => context.pushRoute(AppRoutes.farmerNotifications),
@@ -356,7 +363,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
           Expanded(
             child: Stack(
               children: [
-                TopBarSpacer(height: 72),
+                const TopBarSpacer(height: 72),
                 CachedDataNotice(
                   screen: DashboardRepository.activityCacheScreen(limit: 5),
                   otherScreens: DashboardRepository.summaryCacheScreens(),
@@ -371,7 +378,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                         onRefresh: _loadData,
                         child: CustomScrollView(
                           slivers: [
-                            SliverToBoxAdapter(
+                            const SliverToBoxAdapter(
                               child: TopBarSpacer(height: 72),
                             ),
 
@@ -420,7 +427,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                                 child: StaggeredEntrance(
                                   index: 1,
                                   child: _isLoading
-                                      ? SkeletonBlock(
+                                      ? const SkeletonBlock(
                                           width: double.infinity,
                                           height: 72,
                                         )
@@ -594,30 +601,30 @@ class _WelcomeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         isLoading
-            ? SkeletonBlock(width: 200, height: 28)
+            ? const SkeletonBlock(width: 200, height: 28)
             : Text(
                 '$greeting, $firstName!',
                 style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal,
+                  color: Theme.of(context).colorScheme.onSurface,
                   letterSpacing: -0.3,
                 ),
               ),
         const SizedBox(height: 4),
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.calendar_today_outlined,
               size: 14,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 6),
             Text(
               date,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -660,7 +667,7 @@ class _PriorityHeader extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -705,7 +712,7 @@ class _FarmerSectionHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 18, color: AppConstants.primaryGreen),
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 6),
         ],
         Flexible(
@@ -716,7 +723,7 @@ class _FarmerSectionHeader extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -785,12 +792,12 @@ class _YieldCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 6),
           isLoading
-              ? SkeletonBlock(width: 80, height: 24)
+              ? const SkeletonBlock(width: 80, height: 24)
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -800,7 +807,7 @@ class _YieldCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.charcoal,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -808,7 +815,7 @@ class _YieldCard extends StatelessWidget {
                       l10n.farmerDashKgUnit,
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -875,7 +882,7 @@ class _EarningsCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 6),
@@ -886,7 +893,7 @@ class _EarningsCard extends StatelessWidget {
               // "₱18..." on a narrow phone.
               Expanded(
                 child: isLoading
-                    ? SkeletonBlock(width: 90, height: 24)
+                    ? const SkeletonBlock(width: 90, height: 24)
                     : FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
@@ -936,7 +943,7 @@ class _EarningsCard extends StatelessWidget {
             '₱${_formatCompact(summary.monthlyEarnings)} / ₱${_formatCompact(summary.earningsGoal)}',
             style: GoogleFonts.inter(
               fontSize: 9,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             textAlign: TextAlign.right,
           ),
@@ -985,7 +992,7 @@ class _MarketRatesCarousel extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -993,7 +1000,7 @@ class _MarketRatesCarousel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (isLoading)
-          SkeletonBlock(width: double.infinity, height: 188)
+          const SkeletonBlock(width: double.infinity, height: 188)
         else if (rates.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -1003,7 +1010,7 @@ class _MarketRatesCarousel extends StatelessWidget {
                 Icon(
                   Icons.storefront_outlined,
                   size: 16,
-                  color: AppConstants.outline,
+                  color: Theme.of(context).colorScheme.outline,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1011,7 +1018,7 @@ class _MarketRatesCarousel extends StatelessWidget {
                     l10n.farmerDashNoMarketPrices,
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -1064,7 +1071,7 @@ class _MarketRateCard extends StatelessWidget {
       child: Container(
         width: 168,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.85),
+          color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
           boxShadow: [
@@ -1149,16 +1156,26 @@ class _MarketRateCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppConstants.charcoal,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    rate.formattedPrice,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
+                  // One line, always: a Reference Price Range
+                  // ("₱50.00–₱80.00/kg") is longer than one price and used to
+                  // wrap onto a second line, which overflowed this fixed-height
+                  // card. It now shrinks to fit the card's width instead.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      rate.formattedPrice,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1170,7 +1187,7 @@ class _MarketRateCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 10,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1214,7 +1231,7 @@ class _RecentActivitySection extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryContainer,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -1243,17 +1260,17 @@ class _RecentActivitySection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.inbox_outlined,
                     size: 40,
-                    color: AppConstants.outline,
+                    color: Theme.of(context).colorScheme.outline,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     l10n.farmerDashActivityEmpty,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1275,7 +1292,9 @@ class _RecentActivitySection extends StatelessWidget {
                         if (e.key < items.length - 1)
                           Divider(
                             height: 1,
-                            color: AppConstants.outline.withValues(alpha: 0.08),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.08),
                           ),
                       ],
                     ),
@@ -1309,7 +1328,7 @@ class _ActivityTile extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppConstants.charcoal,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 Text(
@@ -1318,7 +1337,7 @@ class _ActivityTile extends StatelessWidget {
                     fontSize: 11,
                     color: item.isAlert
                         ? AppConstants.errorRed
-                        : AppConstants.onSurfaceVariant,
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1336,7 +1355,7 @@ class _ActivityTile extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                     color: item.isAlert
                         ? AppConstants.errorRed
-                        : AppConstants.charcoal,
+                        : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               if (item.statusLabel != null)
@@ -1424,18 +1443,18 @@ class _ActivityIcon extends StatelessWidget {
         break;
       case ActivityType.profile:
         icon = Icons.person_outline_rounded;
-        bg = AppConstants.outline.withValues(alpha: 0.10);
-        fg = AppConstants.outline;
+        bg = Theme.of(context).colorScheme.outline.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.outline;
         break;
       case ActivityType.addressUpdated:
         icon = Icons.location_on_outlined;
-        bg = AppConstants.outline.withValues(alpha: 0.10);
-        fg = AppConstants.outline;
+        bg = Theme.of(context).colorScheme.outline.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.outline;
         break;
       case ActivityType.expenseAdded:
         icon = Icons.receipt_long_outlined;
-        bg = AppConstants.outline.withValues(alpha: 0.10);
-        fg = AppConstants.outline;
+        bg = Theme.of(context).colorScheme.outline.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.outline;
         break;
       case ActivityType.programEnrollment:
         icon = Icons.assignment_turned_in_outlined;
@@ -1454,8 +1473,8 @@ class _ActivityIcon extends StatelessWidget {
         break;
       case ActivityType.syncCompleted:
         icon = Icons.sync_rounded;
-        bg = AppConstants.outline.withValues(alpha: 0.10);
-        fg = AppConstants.outline;
+        bg = Theme.of(context).colorScheme.outline.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.outline;
         break;
     }
 

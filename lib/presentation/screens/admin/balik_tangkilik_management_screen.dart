@@ -1,5 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../navigation/connectivity_page_observer.dart';
 import '../../../data/services/connectivity_service.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:go_router/go_router.dart';
@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/app_error_message.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/balik_tangkilik_model.dart';
 import '../../../data/models/contribution_model.dart';
@@ -84,7 +85,10 @@ class _BalikTangkilikManagementScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return SubPageTopBar(title: l10n.reportsBalikTangkilikManagement, onBack: () => context.pop());
+    return SubPageTopBar(
+      title: l10n.reportsBalikTangkilikManagement,
+      onBack: () => context.pop(),
+    );
   }
 
   Widget _buildTabBar(
@@ -173,13 +177,13 @@ class _MemberAmountRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (subtitle != null)
-                    Text(
+                      Text(
                         subtitle!,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: cs.onSurfaceVariant,
                         ),
-                    ),
+                      ),
                   ],
                 ),
               ),
@@ -218,14 +222,18 @@ class _MemberAmountRow extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: _stat('Interest', currency.format(interestAmount), cs),
+                child: _stat(
+                  AppLocalizations.of(context).enhInterest,
+                  currency.format(interestAmount),
+                  cs,
+                ),
               ),
               // Option B — only shown when non-zero, so a farmer with no
               // Product Sales Program activity sees no change to this row.
               if (purchasePatronageAmount > 0)
                 Expanded(
                   child: _stat(
-                    'Purchase Patronage',
+                    AppLocalizations.of(context).enhPurchasePatronage,
                     currency.format(purchasePatronageAmount),
                     cs,
                   ),
@@ -455,11 +463,11 @@ class _SettingsTabState extends State<_SettingsTab> {
   void _showSnack(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-      content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
+        content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
             : AppConstants.midGreen,
-      behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
@@ -505,10 +513,10 @@ class _SettingsTabState extends State<_SettingsTab> {
               // same visual hierarchy.
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.handshake_rounded,
                     size: 16,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -557,7 +565,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -589,7 +597,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.info_outline_rounded,
                             size: 14,
                             color: AppConstants.warningAmber,
@@ -945,7 +953,7 @@ class _DistributionTabState extends State<_DistributionTab> {
               l10n.balikTangkilikConfirmDistribute,
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ),
@@ -966,7 +974,10 @@ class _DistributionTabState extends State<_DistributionTab> {
       );
     } on StateError catch (e) {
       if (!mounted) return;
-      _showSnack(e.message, isError: true);
+      _showSnack(
+        friendlyError(l10n, e, null, l10n.balikTangkilikDistributionError),
+        isError: true,
+      );
     } catch (_) {
       if (!mounted) return;
       _showSnack(l10n.balikTangkilikDistributionError, isError: true);
@@ -978,11 +989,11 @@ class _DistributionTabState extends State<_DistributionTab> {
   void _showSnack(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-      content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
+        content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
             : AppConstants.midGreen,
-      behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
@@ -1050,9 +1061,11 @@ class _DistributionTabState extends State<_DistributionTab> {
           else
             ..._summary.rows.map(
               (r) => _MemberAmountRow(
-                  farmerName: r.farmerName,
-                subtitle: '${r.sharePercent.toStringAsFixed(1)}% share',
-                  totalAmount: r.isPaid ? r.actualTotal : r.estimatedTotal,
+                farmerName: r.farmerName,
+                subtitle: AppLocalizations.of(
+                  context,
+                ).enhShare((r.sharePercent.toStringAsFixed(1)).toString()),
+                totalAmount: r.isPaid ? r.actualTotal : r.estimatedTotal,
                 balikTangkilikAmount: r.isPaid
                     ? (r.actualBalikTangkilik ?? 0)
                     : r.estimatedBalikTangkilik,
@@ -1062,7 +1075,7 @@ class _DistributionTabState extends State<_DistributionTab> {
                 purchasePatronageAmount: r.isPaid
                     ? (r.actualPurchasePatronage ?? 0)
                     : r.estimatedPurchasePatronage,
-                  isPaid: r.isPaid,
+                isPaid: r.isPaid,
               ),
             ),
           const SizedBox(height: AppConstants.spacingSectionV),
@@ -1290,6 +1303,7 @@ class _HistoryTabState extends State<_HistoryTab> {
   void _openYearDetail(DistributionHistoryYear year) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: RouteSettings(name: ConnectivityPage.distributionYear.name),
         builder: (_) => _HistoryYearScreen(year: year, repo: _repo),
       ),
     );
@@ -1334,52 +1348,52 @@ class _HistoryTabState extends State<_HistoryTab> {
           else
             ..._history.map(
               (year) => GestureDetector(
-                  onTap: () => _openYearDetail(year),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-                    padding: const EdgeInsets.all(AppConstants.spacingMd),
-                    decoration: BoxDecoration(
-                      color: sagana.cardBackground,
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                onTap: () => _openYearDetail(year),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                  padding: const EdgeInsets.all(AppConstants.spacingMd),
+                  decoration: BoxDecoration(
+                    color: sagana.cardBackground,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                     border: Border.all(
                       color: cs.outline.withValues(alpha: 0.10),
                     ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppConstants.primaryContainer,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppConstants.primaryContainer,
                           borderRadius: BorderRadius.circular(
                             AppConstants.radiusMd,
                           ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${year.year}',
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${year.year}',
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
                             color: Colors.white,
                           ),
-                          ),
                         ),
-                        const SizedBox(width: AppConstants.spacingMd),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.balikTangkilikYearLogTitle(year.year),
+                      ),
+                      const SizedBox(width: AppConstants.spacingMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.balikTangkilikYearLogTitle(year.year),
                               style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
                                 color: cs.onSurface,
                               ),
-                              ),
-                              Text(
+                            ),
+                            Text(
                               l10n.balikTangkilikYearLogSubtitle(
                                 year.memberCount,
                               ),
@@ -1387,15 +1401,15 @@ class _HistoryTabState extends State<_HistoryTab> {
                                 fontSize: 11,
                                 color: cs.onSurfaceVariant,
                               ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              currency.format(year.totalDistributed),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            currency.format(year.totalDistributed),
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
@@ -1406,12 +1420,12 @@ class _HistoryTabState extends State<_HistoryTab> {
                             Icons.chevron_right_rounded,
                             size: 18,
                             color: cs.onSurfaceVariant,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
+                ),
               ),
             ),
         ],
@@ -1480,10 +1494,16 @@ class _HistoryYearScreenState extends State<_HistoryYearScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.balikTangkilikYearLogTitle(widget.year.year), onBack: () => Navigator.of(context).pop()),
+          SubPageTopBar(
+            title: l10n.balikTangkilikYearLogTitle(widget.year.year),
+            onBack: () => Navigator.of(context).pop(),
+          ),
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
@@ -1543,7 +1563,9 @@ class _HistoryYearScreenState extends State<_HistoryYearScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Total Distributed',
+                                      AppLocalizations.of(
+                                        context,
+                                      ).enhTotalDistributed,
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         color: cs.onSurfaceVariant,
@@ -1564,7 +1586,9 @@ class _HistoryYearScreenState extends State<_HistoryYearScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    'Members',
+                                    AppLocalizations.of(
+                                      context,
+                                    ).adminNavMembers,
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
                                       color: cs.onSurfaceVariant,
@@ -1585,7 +1609,7 @@ class _HistoryYearScreenState extends State<_HistoryYearScreen> {
                         ),
                         const SizedBox(height: AppConstants.spacingSectionV),
                         Text(
-                          'Member Records',
+                          AppLocalizations.of(context).enhMemberRecords,
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w700,
                             fontSize: 15,
@@ -1663,10 +1687,10 @@ class _HistoryMemberCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
                       r.farmerName,
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w700,
@@ -1677,7 +1701,9 @@ class _HistoryMemberCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${r.sharePercent.toStringAsFixed(1)}% share',
+                      AppLocalizations.of(context).enhShare(
+                        (r.sharePercent.toStringAsFixed(1)).toString(),
+                      ),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: cs.onSurfaceVariant,
@@ -1722,12 +1748,12 @@ class _HistoryMemberCard extends StatelessWidget {
                 ],
               ),
             ],
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
           Container(height: 1, color: cs.outline.withValues(alpha: 0.10)),
           const SizedBox(height: AppConstants.spacingMd),
           Text(
-            'Payout Breakdown',
+            AppLocalizations.of(context).enhPayoutBreakdown,
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -1745,14 +1771,14 @@ class _HistoryMemberCard extends StatelessWidget {
               ),
               _breakdownStat(
                 l10n,
-                'Interest',
+                AppLocalizations.of(context).enhInterest,
                 currency.format(r.actualInterest ?? 0),
                 cs,
               ),
               if ((r.actualPurchasePatronage ?? 0) > 0)
                 _breakdownStat(
                   l10n,
-                  'Purchase Patronage',
+                  AppLocalizations.of(context).enhPurchasePatronage,
                   currency.format(r.actualPurchasePatronage ?? 0),
                   cs,
                 ),
@@ -1763,10 +1789,17 @@ class _HistoryMemberCard extends StatelessWidget {
           if (r.programDiscountAmount > 0) ...[
             const SizedBox(height: AppConstants.spacingSm),
             Text(
-              'Purchases: regular ${currency.format(r.programRegularAmount)} − '
-              'member discount ${currency.format(r.programDiscountAmount)} = '
-              'net paid ${currency.format(r.programPurchasesAmount)}',
-              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              AppLocalizations.of(
+                context,
+              ).enhPurchasesRegularMemberDiscountNetPaid(
+                (currency.format(r.programRegularAmount)).toString(),
+                (currency.format(r.programDiscountAmount)).toString(),
+                (currency.format(r.programPurchasesAmount)).toString(),
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
           if (r.payoutDecision != null) ...[
@@ -1851,25 +1884,33 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
     );
     final isCash = r.payoutDecision == 'pending_cash';
     final message = isCash
-        ? 'Confirm that ${r.farmerName} has received ${currency.format(r.payoutDecisionAmount ?? 0)} in cash?'
-        : 'Confirm adding ${currency.format(r.payoutDecisionAmount ?? 0)} to ${r.farmerName}\'s capital share? This cannot be undone.';
+        ? AppLocalizations.of(context).enhConfirmThatHasReceivedInCash(
+            (r.farmerName).toString(),
+            (currency.format(r.payoutDecisionAmount ?? 0)).toString(),
+          )
+        : AppLocalizations.of(
+            context,
+          ).enhConfirmAddingToSCapitalShareThisCannot(
+            (currency.format(r.payoutDecisionAmount ?? 0)).toString(),
+            (r.farmerName).toString(),
+          );
 
     final confirmed = await AppDialog.show<bool>(
       context: context,
       child: AlertDialog(
         title: Text(
-          'Confirm Payout Decision',
+          AppLocalizations.of(context).enhConfirmPayoutDecision,
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Confirm'),
+            child: Text(AppLocalizations.of(context).issueLoanConfirmItem),
           ),
         ],
       ),
@@ -1883,11 +1924,20 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
         year: widget.year,
       );
       if (!mounted) return;
-      AppToast.show(context, 'Payout decision confirmed for ${r.farmerName}.');
+      AppToast.show(
+        context,
+        AppLocalizations.of(
+          context,
+        ).enhPayoutDecisionConfirmedFor((r.farmerName).toString()),
+      );
       widget.onChanged();
     } catch (e) {
       if (!mounted) return;
-      AppToast.show(context, 'Could not confirm: $e', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhCouldNotConfirm((e).toString()),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -1898,23 +1948,25 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
       context: context,
       child: AlertDialog(
         title: Text(
-          'Reject Payout Decision',
+          AppLocalizations.of(context).enhRejectPayoutDecision,
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         content: Text(
-          'This sends the decision back so ${widget.row.farmerName} can submit a corrected choice. Continue?',
+          AppLocalizations.of(context).enhThisSendsTheDecisionBackSoCanSubmit(
+            (widget.row.farmerName).toString(),
+          ),
           style: GoogleFonts.inter(fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Reject',
-              style: TextStyle(color: AppConstants.errorRed),
+            child: Text(
+              AppLocalizations.of(context).commonReject,
+              style: const TextStyle(color: AppConstants.errorRed),
             ),
           ),
         ],
@@ -1931,12 +1983,18 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
       if (!mounted) return;
       AppToast.show(
         context,
-        'Payout decision rejected — ${widget.row.farmerName} can resubmit.',
+        AppLocalizations.of(context).enhPayoutDecisionRejectedCanResubmit(
+          (widget.row.farmerName).toString(),
+        ),
       );
       widget.onChanged();
     } catch (e) {
       if (!mounted) return;
-      AppToast.show(context, 'Could not reject: $e', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhCouldNotReject((e).toString()),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -1956,8 +2014,10 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
         r.payoutDecision == 'cash_confirmed';
     final amountLabel = currency.format(r.payoutDecisionAmount ?? 0);
     final choiceLabel = isCash
-        ? 'Keep as Cash — $amountLabel'
-        : 'Add to Capital — $amountLabel';
+        ? AppLocalizations.of(context).enhKeepAsCash((amountLabel).toString())
+        : AppLocalizations.of(
+            context,
+          ).enhAddToCapital((amountLabel).toString());
     final statusColor = isPending
         ? AppConstants.warningAmber
         : AppConstants.successGreen;
@@ -1982,8 +2042,8 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
                 color: statusColor,
               ),
               const SizedBox(width: 6),
-            Expanded(
-                          child: Text(
+              Expanded(
+                child: Text(
                   '${isPending ? "Pending: " : "Confirmed: "}$choiceLabel',
                   style: GoogleFonts.inter(
                     fontSize: 11,
@@ -2000,7 +2060,8 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: (_isBusy || !ConnectivityService.instance.isOnline)
+                    onPressed:
+                        (_isBusy || !ConnectivityService.instance.isOnline)
                         ? null
                         : _reject,
                     style: OutlinedButton.styleFrom(
@@ -2009,7 +2070,7 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
                       padding: const EdgeInsets.symmetric(vertical: 6),
                     ),
                     child: Text(
-                      'Reject',
+                      AppLocalizations.of(context).commonReject,
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -2020,7 +2081,8 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: (_isBusy || !ConnectivityService.instance.isOnline)
+                    onPressed:
+                        (_isBusy || !ConnectivityService.instance.isOnline)
                         ? null
                         : _confirm,
                     style: ElevatedButton.styleFrom(
@@ -2034,20 +2096,20 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
-                          ),
-                        )
+                            ),
+                          )
                         : Text(
-                            'Confirm',
+                            AppLocalizations.of(context).issueLoanConfirmItem,
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
                           ),
-                        ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
           ],
         ],
       ),

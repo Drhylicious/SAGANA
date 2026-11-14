@@ -91,9 +91,19 @@ class _ProgramEnrollmentRequestsScreenState
   }
 
   String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -119,13 +129,18 @@ class _ProgramEnrollmentRequestsScreenState
     final summary = item.isPending
         ? l10n.reqRequestedOn(_formatDate(item.submittedAt))
         : !item.hasRequest
-        ? l10n.reqEnrolledSummary(_formatDate(item.enrolledAt ?? item.submittedAt))
+        ? l10n.reqEnrolledSummary(
+            _formatDate(item.enrolledAt ?? item.submittedAt),
+          )
         : l10n.reqDecidedOn(_formatDate(item.reviewedAt ?? item.submittedAt));
 
     final details = <Widget>[
       RequestDetailRow(label: l10n.reqProgram, value: item.programName),
       if (item.programType != null && item.programType!.isNotEmpty)
-        RequestDetailRow(label: l10n.reqProgramType, value: _title(item.programType!)),
+        RequestDetailRow(
+          label: l10n.reqProgramType,
+          value: _title(item.programType!),
+        ),
       // A member enrolled without a request has no request dates to show.
       if (item.hasRequest)
         RequestDetailRow(
@@ -165,7 +180,8 @@ class _ProgramEnrollmentRequestsScreenState
             label: l10n.reqReceived,
             value: item.distributedAt != null
                 ? '${item.quantityGiven != null ? formatQuantity(item.quantityGiven!) : ''} '
-                      '${item.distributedItemName ?? ''}'.trim()
+                          '${item.distributedItemName ?? ''}'
+                      .trim()
                 : l10n.reqNoDistributionYet,
           ),
       ],
@@ -188,7 +204,8 @@ class _ProgramEnrollmentRequestsScreenState
     ];
 
     return RequestCard(
-      leading: (item.programImageUrl != null && item.programImageUrl!.isNotEmpty)
+      leading:
+          (item.programImageUrl != null && item.programImageUrl!.isNotEmpty)
           ? ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               child: SizedBox(
@@ -197,10 +214,8 @@ class _ProgramEnrollmentRequestsScreenState
                 child: Image.network(
                   item.programImageUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => RequestAvatar(
-                    name: item.farmerName ?? '?',
-                    color: color,
-                  ),
+                  errorBuilder: (_, __, ___) =>
+                      RequestAvatar(name: item.farmerName ?? '?', color: color),
                 ),
               ),
             )
@@ -253,23 +268,30 @@ class _ProgramEnrollmentRequestsScreenState
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.cloud_off_rounded, size: 40, color: cs.onSurfaceVariant),
+                          Icon(
+                            Icons.cloud_off_rounded,
+                            size: 40,
+                            color: cs.onSurfaceVariant,
+                          ),
                           const SizedBox(height: 8),
-                          Text(l10n.reqLoadFailed,
-                              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
-                          TextButton(onPressed: _load, child: Text(l10n.programHistoryRetry)),
+                          Text(
+                            l10n.reqLoadFailed,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _load,
+                            child: Text(l10n.programHistoryRetry),
+                          ),
                         ],
                       ),
                     )
                   : TabBarView(
                       controller: _tabController,
                       children: [
-                        _list(
-                          _pending,
-                          l10n,
-                          cs,
-                          empty: l10n.reqEmptyPending,
-                        ),
+                        _list(_pending, l10n, cs, empty: l10n.reqEmptyPending),
                         _list(
                           _enrolled,
                           l10n,
@@ -302,7 +324,10 @@ class _ProgramEnrollmentRequestsScreenState
             Center(
               child: Text(
                 empty,
-                style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -351,7 +376,11 @@ class _EnrollmentActionsState extends State<_EnrollmentActions> {
       children: [
         Text(
           l10n.reqApproveNote,
-          style: GoogleFonts.inter(fontSize: 11, height: 1.4, color: cs.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            height: 1.4,
+            color: cs.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 10),
         SizedBox(
@@ -363,7 +392,10 @@ class _EnrollmentActionsState extends State<_EnrollmentActions> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : Text(l10n.reqApprove),
           ),

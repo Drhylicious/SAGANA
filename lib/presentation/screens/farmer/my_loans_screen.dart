@@ -91,7 +91,8 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
       _unpaid.fold<double>(0, (sum, l) => sum + l.remainingBalance);
 
   /// What the unpaid loans were worth, and how much of it is already paid.
-  double get _borrowed => _unpaid.fold<double>(0, (sum, l) => sum + l.totalValue);
+  double get _borrowed =>
+      _unpaid.fold<double>(0, (sum, l) => sum + l.totalValue);
 
   double get _repaid => _unpaid.fold<double>(0, (sum, l) => sum + l.amountPaid);
 
@@ -101,18 +102,19 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
   /// The earliest payment date among the unpaid loans; the next BOD Saturday
   /// when no loan carries one.
   DateTime get _nextPaymentDate {
-    final dates = _unpaid
-        .map((l) => l.nextPaymentDate)
-        .whereType<DateTime>()
-        .toList()
-      ..sort();
+    final dates =
+        _unpaid.map((l) => l.nextPaymentDate).whereType<DateTime>().toList()
+          ..sort();
     return dates.isEmpty ? BodSchedule.upcoming() : dates.first;
   }
 
   /// One month's payment across the unpaid loans (never more than what is left).
   double get _expectedPayment => _unpaid.fold<double>(0, (sum, l) {
     if (l.monthlyPayment <= 0) return sum;
-    return sum + (l.monthlyPayment < l.remainingBalance ? l.monthlyPayment : l.remainingBalance);
+    return sum +
+        (l.monthlyPayment < l.remainingBalance
+            ? l.monthlyPayment
+            : l.remainingBalance);
   });
 
   Future<void> _requestLoan() async {
@@ -135,7 +137,7 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
             children: [
               const TopBarSpacer(height: 64),
               CachedDataNotice(
-                screen: 'loans',
+                screen: "loans",
                 isOnline: _isOnline,
                 offlineMessage: l10n.offlineLoans,
               ),
@@ -175,7 +177,9 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
                         viewAllLabel: l10n.loanMyViewAll,
                         onViewAll: _isLoading || _loans.isEmpty
                             ? null
-                            : () => context.pushRoute<void>(AppRoutes.myLoanHistory),
+                            : () => context.pushRoute<void>(
+                                AppRoutes.myLoanHistory,
+                              ),
                       ),
                       const SizedBox(height: 10),
                       if (_isLoading)
@@ -205,7 +209,9 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
                         viewAllLabel: l10n.loanMyViewAll,
                         onViewAll: _isLoading || allPayments.isEmpty
                             ? null
-                            : () => context.pushRoute<void>(AppRoutes.myPaymentHistory),
+                            : () => context.pushRoute<void>(
+                                AppRoutes.myPaymentHistory,
+                              ),
                       ),
                       const SizedBox(height: 10),
                       if (_isLoading)
@@ -219,7 +225,10 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
                         for (final row in recentPayments)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: FarmerPaymentRow(loan: row.loan, payment: row.payment),
+                            child: FarmerPaymentRow(
+                              loan: row.loan,
+                              payment: row.payment,
+                            ),
                           ),
                     ],
                   ),
@@ -311,7 +320,11 @@ class _OutstandingCard extends StatelessWidget {
                   color: accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                 ),
-                child: Icon(Icons.account_balance_wallet_rounded, size: 18, color: accent),
+                child: Icon(
+                  Icons.account_balance_wallet_rounded,
+                  size: 18,
+                  color: accent,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -322,16 +335,21 @@ class _OutstandingCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
               if (!isLoading && borrowed > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                   ),
                   child: Text(
                     l10n.loanMyRepaid((share * 100).round()),
@@ -346,11 +364,19 @@ class _OutstandingCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (isLoading)
-            Container(width: 180, height: 32, color: const Color(0xFFE8E8E8))
+            Container(
+              width: 180,
+              height: 32,
+              color: context.adaptiveSurface(const Color(0xFFE8E8E8)),
+            )
           else if (allPaid)
             Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: AppConstants.successGreen, size: 22),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppConstants.successGreen,
+                  size: 22,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -397,7 +423,10 @@ class _OutstandingCard extends StatelessWidget {
                     l10n.loanMyRepaidAmount(money.format(repaid)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(fontSize: 11.5, color: AppConstants.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -405,7 +434,10 @@ class _OutstandingCard extends StatelessWidget {
                   l10n.loanMyOfBorrowed(money.format(borrowed)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 11.5, color: AppConstants.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -477,7 +509,12 @@ class _CountTile extends StatelessWidget {
         children: [
           Text(
             '$count',
-            style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: fg, height: 1.1),
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: fg,
+              height: 1.1,
+            ),
           ),
           const SizedBox(height: 2),
           FittedBox(
@@ -489,7 +526,9 @@ class _CountTile extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: highlight ? Colors.white.withValues(alpha: 0.92) : AppConstants.onSurfaceVariant,
+                color: highlight
+                    ? Colors.white.withValues(alpha: 0.92)
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -544,7 +583,10 @@ class _NextPaymentCard extends StatelessWidget {
         ? LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: [AppConstants.errorRed.withValues(alpha: 0.92), const Color(0xFFB71C1C)],
+            colors: [
+              AppConstants.errorRed.withValues(alpha: 0.92),
+              const Color(0xFFB71C1C),
+            ],
           )
         : AppConstants.primaryButtonGradient;
 
@@ -563,7 +605,9 @@ class _NextPaymentCard extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      overdue ? Icons.warning_amber_rounded : Icons.event_available_rounded,
+                      overdue
+                          ? Icons.warning_amber_rounded
+                          : Icons.event_available_rounded,
                       color: Colors.white,
                       size: 20,
                     ),
@@ -572,7 +616,9 @@ class _NextPaymentCard extends StatelessWidget {
                       child: Text(
                         overdue
                             ? l10n.loanMyOverdueTitle(overdueCount)
-                            : (hasUnpaid ? l10n.loanMyNextPaymentTitle : l10n.loanMyNoPaymentDue),
+                            : (hasUnpaid
+                                  ? l10n.loanMyNextPaymentTitle
+                                  : l10n.loanMyNoPaymentDue),
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -582,10 +628,15 @@ class _NextPaymentCard extends StatelessWidget {
                     ),
                     if (hasUnpaid && !overdue)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppConstants.secondaryContainer,
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
                         ),
                         child: Text(
                           badge,
@@ -648,13 +699,19 @@ class _NextPaymentCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.14),
+                    color: context.saganaColors.cardBackground.withValues(
+                      alpha: 0.14,
+                    ),
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline_rounded, size: 16, color: Colors.white.withValues(alpha: 0.9)),
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -689,14 +746,20 @@ class _InputLoanInfoCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppConstants.infoBlueBg,
+        color: context.adaptiveSurface(AppConstants.infoBlueBg),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.agriculture_rounded, color: AppConstants.primaryGreen, size: 20),
+          Icon(
+            Icons.agriculture_rounded,
+            color: Theme.of(context).colorScheme.primary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -707,7 +770,7 @@ class _InputLoanInfoCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -716,7 +779,7 @@ class _InputLoanInfoCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 11.5,
                     height: 1.4,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -727,4 +790,3 @@ class _InputLoanInfoCard extends StatelessWidget {
     );
   }
 }
-

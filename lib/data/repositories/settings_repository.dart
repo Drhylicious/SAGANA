@@ -9,20 +9,14 @@ class SettingsPrefs {
   final ThemeMode themeMode;
   final String localeCode;
 
-  const SettingsPrefs({
-    required this.themeMode,
-    required this.localeCode,
-  });
+  const SettingsPrefs({required this.themeMode, required this.localeCode});
 
   static const defaults = SettingsPrefs(
     themeMode: ThemeMode.light,
     localeCode: AppConstants.localeEnglish,
   );
 
-  SettingsPrefs copyWith({
-    ThemeMode? themeMode,
-    String? localeCode,
-  }) {
+  SettingsPrefs copyWith({ThemeMode? themeMode, String? localeCode}) {
     return SettingsPrefs(
       themeMode: themeMode ?? this.themeMode,
       localeCode: localeCode ?? this.localeCode,
@@ -40,24 +34,28 @@ class SettingsRepository {
   // in the brief pre-login window (splash screen), where the unscoped
   // key is the safe fallback, matching this method's prior behavior.
   String _scopedKey(String baseKey, String? userId) =>
-      userId != null ? '${userId}::$baseKey' : baseKey;
+      userId != null ? '$userId::$baseKey' : baseKey;
 
   // ─── Load preferences from Hive ──────────────────────────────────────────
 
   Future<SettingsPrefs> loadPrefs({String? userId}) async {
     final box = await EncryptedBox.open(AppConstants.hiveBoxSettings);
-    final themeRaw = box.get(
-      _scopedKey(AppConstants.hiveKeyThemeMode, userId),
-      defaultValue: AppConstants.themeLight,
-    ) as String;
+    final themeRaw =
+        box.get(
+              _scopedKey(AppConstants.hiveKeyThemeMode, userId),
+              defaultValue: AppConstants.themeLight,
+            )
+            as String;
     return SettingsPrefs(
       themeMode: themeRaw == AppConstants.themeDark
           ? ThemeMode.dark
           : ThemeMode.light,
-      localeCode: box.get(
-        _scopedKey(AppConstants.hiveKeyLocale, userId),
-        defaultValue: AppConstants.localeEnglish,
-      ) as String,
+      localeCode:
+          box.get(
+                _scopedKey(AppConstants.hiveKeyLocale, userId),
+                defaultValue: AppConstants.localeEnglish,
+              )
+              as String,
     );
   }
 
@@ -65,9 +63,7 @@ class SettingsRepository {
     final box = await EncryptedBox.open(AppConstants.hiveBoxSettings);
     await box.put(
       _scopedKey(AppConstants.hiveKeyThemeMode, userId),
-      mode == ThemeMode.dark
-          ? AppConstants.themeDark
-          : AppConstants.themeLight,
+      mode == ThemeMode.dark ? AppConstants.themeDark : AppConstants.themeLight,
     );
   }
 
@@ -120,8 +116,6 @@ class SettingsRepository {
     );
 
     // Step 2: Update to new password
-    await _client.auth.updateUser(
-      UserAttributes(password: newPassword),
-    );
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
 }

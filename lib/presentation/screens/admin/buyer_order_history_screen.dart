@@ -28,10 +28,15 @@ class BuyerOrderHistoryScreen extends StatefulWidget {
   final String buyerId;
   final String? buyerName;
 
-  const BuyerOrderHistoryScreen({super.key, required this.buyerId, this.buyerName});
+  const BuyerOrderHistoryScreen({
+    super.key,
+    required this.buyerId,
+    this.buyerName,
+  });
 
   @override
-  State<BuyerOrderHistoryScreen> createState() => _BuyerOrderHistoryScreenState();
+  State<BuyerOrderHistoryScreen> createState() =>
+      _BuyerOrderHistoryScreenState();
 }
 
 class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
@@ -48,7 +53,9 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text),
+    );
     _load();
   }
 
@@ -70,24 +77,36 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
   }
 
   List<AdminOrderModel> _byStatus(String? status) {
-    var list = status == null ? _allOrders : _allOrders.where((o) => o.status == status);
+    var list = status == null
+        ? _allOrders
+        : _allOrders.where((o) => o.status == status);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      list = list.where((o) =>
-          o.cropName.toLowerCase().contains(q) ||
-          o.orderReference.toLowerCase().contains(q));
+      list = list.where(
+        (o) =>
+            o.cropName.toLowerCase().contains(q) ||
+            o.orderReference.toLowerCase().contains(q),
+      );
     }
     return list.toList();
   }
 
   String _emptyMessage(AppLocalizations l10n) {
     switch (_statusFilter) {
-      case 'pending': return l10n.buyerOrderHistoryNoPending;
-      case 'approved': return l10n.buyerOrderHistoryNoApproved;
-      case 'completed': return l10n.buyerOrderHistoryNoCompleted;
-      case 'cancelled': return l10n.buyerOrderHistoryNoCancelled;
-      case null: return l10n.buyerOrderHistoryNoOrdersYet;
-      default: return l10n.ordersEmptyStatus(adminOrderStatusLabel(l10n, _statusFilter!));
+      case 'pending':
+        return l10n.buyerOrderHistoryNoPending;
+      case 'approved':
+        return l10n.buyerOrderHistoryNoApproved;
+      case 'completed':
+        return l10n.buyerOrderHistoryNoCompleted;
+      case 'cancelled':
+        return l10n.buyerOrderHistoryNoCancelled;
+      case null:
+        return l10n.buyerOrderHistoryNoOrdersYet;
+      default:
+        return l10n.ordersEmptyStatus(
+          adminOrderStatusLabel(l10n, _statusFilter!),
+        );
     }
   }
 
@@ -128,14 +147,23 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
                 // Cooperative / All Listings / Order Management now — this
                 // screen was built after that redesign and was missed.
                 ListingStatusFilterChip(
-                  label: l10n.farmerMgmtAllFilter, active: _statusFilter == null,
-                  color: cs.primary, onTap: () => setState(() => _statusFilter = null), cs: cs,
+                  label: l10n.farmerMgmtAllFilter,
+                  // "Label (n)": how many orders the chip holds.
+                  count: _allOrders.length,
+                  active: _statusFilter == null,
+                  color: cs.primary,
+                  onTap: () => setState(() => _statusFilter = null),
+                  cs: cs,
                 ),
                 const SizedBox(width: 8),
                 for (final s in kOrderStatuses) ...[
                   ListingStatusFilterChip(
-                    label: adminOrderStatusLabel(l10n, s), active: _statusFilter == s,
-                    color: orderStatusColor(s), onTap: () => setState(() => _statusFilter = s), cs: cs,
+                    label: adminOrderStatusLabel(l10n, s),
+                    count: _allOrders.where((o) => o.status == s).length,
+                    active: _statusFilter == s,
+                    color: orderStatusColor(s),
+                    onTap: () => setState(() => _statusFilter = s),
+                    cs: cs,
                   ),
                   const SizedBox(width: 8),
                 ],
@@ -145,7 +173,10 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : _buildList(visible, _emptyMessage(l10n)),
           ),
         ],
@@ -156,8 +187,13 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
   Widget _buildList(List<AdminOrderModel> orders, String emptyMessage) {
     if (orders.isEmpty) {
       return Center(
-        child: Text(emptyMessage,
-            style: GoogleFonts.inter(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        child: Text(
+          emptyMessage,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       );
     }
     return RefreshIndicator(
@@ -198,7 +234,13 @@ class _OrderRow extends StatelessWidget {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border(left: BorderSide(color: _statusColor, width: 4)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -206,25 +248,60 @@ class _OrderRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(order.orderReference,
-                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
-                  Text(order.displayName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                  Text(formatQuantityUnit(order.quantityKg, order.unit),
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                  Text(
+                    order.orderReference,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    order.displayName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    formatQuantityUnit(order.quantityKg, order.unit),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(formatPesos(order.totalPrice),
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                Text(
+                  formatPesos(order.totalPrice),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                  child: Text(adminOrderStatusLabel(l10n, order.status).toUpperCase(),
-                      style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: _statusColor)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    adminOrderStatusLabel(l10n, order.status).toUpperCase(),
+                    style: GoogleFonts.inter(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      color: _statusColor,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -244,7 +321,6 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return SubPageTopBar(title: title, onBack: onBack);
   }
 }

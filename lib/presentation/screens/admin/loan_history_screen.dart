@@ -9,7 +9,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
-import '../../../data/services/connectivity_service.dart';
+
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart';
 import '../../widgets/loan_choice_chip.dart';
@@ -44,9 +44,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
   final _repo = AdminLoanRepository();
   final _searchController = TextEditingController();
 
-  bool _isOnline = true;
   bool _isLoading = true;
-  bool _offlineUnavailable = false;
 
   String? _statusFilter;
   ReportPeriod _period = ReportPeriod.allTime;
@@ -54,15 +52,13 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
 
   AllTimeLoanSummary _summary = AllTimeLoanSummary.empty();
   List<AdminLoanSummary> _loans = [];
+  // How many loans each status chip holds in the chosen period (null = All).
+  Map<String?, int> _statusCounts = const {};
 
   @override
   void initState() {
     super.initState();
     _statusFilter = widget.initialStatusFilter;
-    _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
     _load();
   }
 
@@ -90,17 +86,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
   Future<void> _load() async {
     setState(() {
       _isLoading = true;
-      _offlineUnavailable = false;
     });
-
-    if (!_isOnline) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _offlineUnavailable = true;
-      });
-      return;
-    }
 
     final results = await Future.wait([
       _repo.fetchAllTimeLoanSummary(),
@@ -108,12 +94,25 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         statusFilter: _statusFilter,
         issuedAfter: _periodCutoff(),
       ),
+      // Every status in the same period, for the count on each chip. With no
+      // status chosen the list above already is that, so it is not read twice.
+      if (_statusFilter != null)
+        _repo.fetchAllLoans(statusFilter: null, issuedAfter: _periodCutoff()),
     ]);
 
     if (!mounted) return;
+    final loans = results[1] as List<AdminLoanSummary>;
+    final everyStatus = results.length > 2
+        ? results[2] as List<AdminLoanSummary>
+        : loans;
     setState(() {
       _summary = results[0] as AllTimeLoanSummary;
-      _loans = results[1] as List<AdminLoanSummary>;
+      _loans = loans;
+      _statusCounts = {
+        null: everyStatus.length,
+        for (final status in const ['active', 'overdue', 'paid'])
+          status: everyStatus.where((l) => l.status == status).length,
+      };
       _isLoading = false;
     });
   }
@@ -150,7 +149,10 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    return SubPageTopBar(title: l10n.loanHistoryTitle, onBack: () => context.pop());
+    return SubPageTopBar(
+      title: l10n.loanHistoryTitle,
+      onBack: () => context.pop(),
+    );
   }
 
   Widget _buildBody(
@@ -159,14 +161,6 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    if (_offlineUnavailable) {
-      return _buildMessageState(
-        Icons.wifi_off_rounded,
-        l10n.loanHistoryUnavailableOffline,
-        cs,
-      );
-    }
-
     final visibleLoans = _loans.applySearch(_searchQuery);
 
     return RefreshIndicator(
@@ -192,7 +186,10 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           if (_isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SkeletonList(),
+              ),
             )
           else if (visibleLoans.isEmpty)
             _buildMessageState(
@@ -460,10 +457,10 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           // row's height is.
           return Center(
             child: LoanChoiceChip(
-              label: entry.value,
+              label: '${entry.value} (${_statusCounts[entry.key] ?? 0})',
               selected: _statusFilter == entry.key,
               onTap: () => _setStatusFilter(entry.key),
-              selectedColor: AppConstants.buyerBlue,
+              selectedColor: AppConstants.primaryGreen,
             ),
           );
         },
@@ -559,13 +556,13 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     final statusColor = loan.isPaid
         ? AppConstants.buyerBlue
         : loan.isOverdue
-            ? AppConstants.errorRed
-            : AppConstants.successGreen;
+        ? AppConstants.errorRed
+        : AppConstants.successGreen;
     final statusLabel = loan.isPaid
-        ? 'PAID'
+        ? AppLocalizations.of(context).balikTangkilikPaidBadge
         : loan.isOverdue
-        ? 'OVERDUE'
-        : 'ACTIVE';
+        ? AppLocalizations.of(context).farmerMgmtOverdueBadge
+        : AppLocalizations.of(context).farmerMgmtActiveBadge;
     final dueDate = loan.nextPaymentDate;
 
     return GestureDetector(
@@ -605,7 +602,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                     children: [
                       Text(
                         loan.farmerName,
-                          overflow: TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
@@ -614,7 +611,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                       ),
                       Text(
                         loan.referenceNo,
-                          overflow: TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: cs.onSurfaceVariant,
@@ -649,7 +646,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
               const SizedBox(height: AppConstants.spacingSm),
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.eco_rounded,
                     size: 13,
                     color: AppConstants.programPurple,
@@ -657,7 +654,9 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      'From Program Distribution: ${loan.sourceProgramName}',
+                      AppLocalizations.of(context).enhFromProgramDistribution(
+                        (loan.sourceProgramName).toString(),
+                      ),
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 10.5,
@@ -720,9 +719,9 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                       const SizedBox(height: 2),
                       Text(
                         DateFormat('MMM d, yyyy').format(dueDate),
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
                           color: loan.isOverdue
                               ? AppConstants.errorRed
                               : cs.onSurface,

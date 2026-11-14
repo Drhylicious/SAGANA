@@ -68,10 +68,10 @@ class _CreateOfficerAccountScreenState
   bool _usernameChecking = false;
 
   Map<String, String> _genderOptions(AppLocalizations l10n) => {
-        'male': l10n.registerGenderMale,
-        'female': l10n.registerGenderFemale,
-        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
-      };
+    'male': l10n.registerGenderMale,
+    'female': l10n.registerGenderFemale,
+    'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+  };
 
   // Temporary password — either auto-generated (AUTO button, from the secure
   // random source) or typed by the Manager, matching Create Farmer Account.
@@ -87,9 +87,10 @@ class _CreateOfficerAccountScreenState
     super.initState();
     AppTheme.applySystemOverlay(context);
     _isOnline = ConnectivityService.instance.isOnline;
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((v) {
+          if (mounted) setState(() => _isOnline = v);
+        });
   }
 
   @override
@@ -145,7 +146,7 @@ class _CreateOfficerAccountScreenState
             accountCreatedMessage(l10n, l10n.createOfficerCreated),
             style: GoogleFonts.inter(fontSize: 13),
           ),
-        backgroundColor: AppConstants.midGreen,
+          backgroundColor: AppConstants.midGreen,
         ),
       );
       context.pop(true);
@@ -162,8 +163,8 @@ class _CreateOfficerAccountScreenState
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: AppConstants.charcoal,
+        content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
+        backgroundColor: AppConstants.charcoal,
       ),
     );
   }
@@ -179,196 +180,218 @@ class _CreateOfficerAccountScreenState
 
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.createOfficerTitle, onBack: () => context.pop()),
-          Expanded(child: SafeArea(
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                children: [
-                  // ── Manager notice ──────────────────────────────────────
-                  ManagerNoticeCard(
-                    title: l10n.addMemberAdminNoticeTitle,
-                    body: l10n.createOfficerNotice,
-                  ),
-                  const SizedBox(height: 20),
+          SubPageTopBar(
+            title: l10n.createOfficerTitle,
+            onBack: () => context.pop(),
+          ),
+          Expanded(
+            child: SafeArea(
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  children: [
+                    // ── Manager notice ──────────────────────────────────────
+                    ManagerNoticeCard(
+                      title: l10n.addMemberAdminNoticeTitle,
+                      body: l10n.createOfficerNotice,
+                    ),
+                    const SizedBox(height: 20),
 
-                  // ── Account Credentials ─────────────────────────────────
-                  AccountFormSection(
-                    icon: Icons.lock_person_rounded,
-                    title: l10n.addMemberSectionCredentials,
-                    cs: cs,
-                    sagana: sagana,
-                    children: [
-                      AccountFieldLabel(label: l10n.createOfficerUsernameLabel, cs: cs),
-                      UsernameAvailabilityField(
-                        controller: _usernameCtrl,
-                        decorationBuilder: (suffix) => InputDecoration(
-                          hintText: l10n.registerUsernameHint,
-                          suffixIcon: suffix,
+                    // ── Account Credentials ─────────────────────────────────
+                    AccountFormSection(
+                      icon: Icons.lock_person_rounded,
+                      title: l10n.addMemberSectionCredentials,
+                      cs: cs,
+                      sagana: sagana,
+                      children: [
+                        AccountFieldLabel(
+                          label: l10n.createOfficerUsernameLabel,
+                          cs: cs,
                         ),
-                        onStatusChanged: (status, checking) {
-                          if (!mounted) return;
-                          setState(() {
-                            _usernameStatus = status;
-                            _usernameChecking = checking;
-                          });
-                        },
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4, left: 4),
-                        child: Text(
-                          l10n.createOfficerUsernameHelp,
+                        UsernameAvailabilityField(
+                          controller: _usernameCtrl,
+                          decorationBuilder: (suffix) => InputDecoration(
+                            hintText: l10n.registerUsernameHint,
+                            suffixIcon: suffix,
+                          ),
+                          onStatusChanged: (status, checking) {
+                            if (!mounted) return;
+                            setState(() {
+                              _usernameStatus = status;
+                              _usernameChecking = checking;
+                            });
+                          },
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 4),
+                          child: Text(
+                            l10n.createOfficerUsernameHelp,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        AccountFieldLabel(
+                          label: l10n.createOfficerPasswordLabel,
+                          cs: cs,
+                        ),
+                        TemporaryPasswordField(
+                          controller: _passwordCtrl,
+                          obscure: _obscurePassword,
+                          onToggleObscure: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                          onGenerate: _generatePassword,
+                          requiredMessage: l10n.addMemberPasswordRequired,
+                          tooShortMessage: l10n.createOfficerPasswordTooShort,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Personal Information ────────────────────────────────
+                    AccountFormSection(
+                      icon: Icons.person_rounded,
+                      title: l10n.addMemberSectionPersonal,
+                      cs: cs,
+                      sagana: sagana,
+                      children: [
+                        PersonNameFields(
+                          style: PersonNameFieldsStyle.form,
+                          surnameController: _surnameCtrl,
+                          firstNameController: _firstNameCtrl,
+                          middleInitialController: _middleInitialCtrl,
+                          suffix: _suffix,
+                          onSuffixChanged: (v) => setState(() => _suffix = v),
+                        ),
+                        const SizedBox(height: 14),
+                        // Email above Phone (every account form).
+                        AccountFieldLabel(
+                          label: l10n.createOfficerEmailLabel,
+                          cs: cs,
+                        ),
+                        TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          decoration: InputDecoration(
+                            hintText: AppLocalizations.of(
+                              context,
+                            ).mlkBuyerEmailHint,
+                          ),
+                          validator: (v) {
+                            final t = v?.trim() ?? '';
+                            if (t.isEmpty) return null;
+                            if (!isValidEmailFormat(t)) {
+                              return l10n.addMemberEmailInvalid;
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        AccountFieldLabel(
+                          label: l10n.createOfficerPhoneLabel,
+                          cs: cs,
+                        ),
+                        TextFormField(
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            hintText: '09XX XXX XXXX',
+                          ),
+                          validator: (v) {
+                            final t = v?.trim() ?? '';
+                            if (t.isEmpty) return null;
+                            if (normalizePhilippineMobile(t) == null) {
+                              return l10n.addMemberPhoneInvalid;
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        // Date of birth and gender are required, as on Create Farmer.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AccountFieldLabel(
+                                    label: '${l10n.addMemberDobLabel} *',
+                                    cs: cs,
+                                  ),
+                                  AccountDateOfBirthField(
+                                    value: _dateOfBirth,
+                                    onChanged: (d) =>
+                                        setState(() => _dateOfBirth = d),
+                                    hint: l10n.addMemberSelectHint,
+                                    requiredMessage: l10n.addMemberDobRequired,
+                                    underAgeMessage:
+                                        l10n.addMemberAgeRequirement,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AccountFieldLabel(
+                                    label: '${l10n.addMemberGenderLabel} *',
+                                    cs: cs,
+                                  ),
+                                  AccountGenderField(
+                                    value: _gender,
+                                    options: _genderOptions(l10n),
+                                    onChanged: (v) =>
+                                        setState(() => _gender = v),
+                                    hint: l10n.addMemberSelectHint,
+                                    requiredMessage:
+                                        l10n.addMemberGenderRequired,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Module Access ───────────────────────────────────────
+                    AccountFormSection(
+                      icon: Icons.admin_panel_settings_rounded,
+                      title: l10n.staffAccessSectionTitle,
+                      cs: cs,
+                      sagana: sagana,
+                      children: [
+                        Text(
+                          l10n.staffAccessSectionHint,
                           style: GoogleFonts.inter(
-                            fontSize: 11,
+                            fontSize: 12,
+                            height: 1.4,
                             color: cs.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      AccountFieldLabel(label: l10n.createOfficerPasswordLabel, cs: cs),
-                      TemporaryPasswordField(
-                        controller: _passwordCtrl,
-                        obscure: _obscurePassword,
-                        onToggleObscure: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
+                        const SizedBox(height: 12),
+                        StaffAccessMatrix(
+                          value: _access,
+                          enabled: !_isSaving,
+                          onChanged: (module, access) =>
+                              setState(() => _access[module] = access),
                         ),
-                        onGenerate: _generatePassword,
-                        requiredMessage: l10n.addMemberPasswordRequired,
-                        tooShortMessage: l10n.createOfficerPasswordTooShort,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Personal Information ────────────────────────────────
-                  AccountFormSection(
-                    icon: Icons.person_rounded,
-                    title: l10n.addMemberSectionPersonal,
-                    cs: cs,
-                    sagana: sagana,
-                    children: [
-                      PersonNameFields(
-                        style: PersonNameFieldsStyle.form,
-                        surnameController: _surnameCtrl,
-                        firstNameController: _firstNameCtrl,
-                        middleInitialController: _middleInitialCtrl,
-                        suffix: _suffix,
-                        onSuffixChanged: (v) => setState(() => _suffix = v),
-                      ),
-                      const SizedBox(height: 14),
-                      // Email above Phone (every account form).
-                      AccountFieldLabel(label: l10n.createOfficerEmailLabel, cs: cs),
-                      TextFormField(
-                        controller: _emailCtrl,
-                        keyboardType: TextInputType.emailAddress,
-                        autocorrect: false,
-                        decoration: const InputDecoration(
-                          hintText: 'name@example.com',
-                        ),
-                        validator: (v) {
-                          final t = v?.trim() ?? '';
-                          if (t.isEmpty) return null;
-                          if (!isValidEmailFormat(t)) {
-                            return l10n.addMemberEmailInvalid;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      AccountFieldLabel(label: l10n.createOfficerPhoneLabel, cs: cs),
-                      TextFormField(
-                        controller: _phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          hintText: '09XX XXX XXXX',
-                        ),
-                        validator: (v) {
-                          final t = v?.trim() ?? '';
-                          if (t.isEmpty) return null;
-                          if (normalizePhilippineMobile(t) == null) {
-                            return l10n.addMemberPhoneInvalid;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      // Date of birth and gender are required, as on Create Farmer.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AccountFieldLabel(
-                                  label: '${l10n.addMemberDobLabel} *',
-                                  cs: cs,
-                                ),
-                                AccountDateOfBirthField(
-                                  value: _dateOfBirth,
-                                  onChanged: (d) =>
-                                      setState(() => _dateOfBirth = d),
-                                  hint: l10n.addMemberSelectHint,
-                                  requiredMessage: l10n.addMemberDobRequired,
-                                  underAgeMessage: l10n.addMemberAgeRequirement,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AccountFieldLabel(
-                                  label: '${l10n.addMemberGenderLabel} *',
-                                  cs: cs,
-                                ),
-                                AccountGenderField(
-                                  value: _gender,
-                                  options: _genderOptions(l10n),
-                                  onChanged: (v) => setState(() => _gender = v),
-                                  hint: l10n.addMemberSelectHint,
-                                  requiredMessage: l10n.addMemberGenderRequired,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Module Access ───────────────────────────────────────
-                  AccountFormSection(
-                    icon: Icons.admin_panel_settings_rounded,
-                    title: l10n.staffAccessSectionTitle,
-                    cs: cs,
-                    sagana: sagana,
-                    children: [
-                      Text(
-                        l10n.staffAccessSectionHint,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          height: 1.4,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      StaffAccessMatrix(
-                        value: _access,
-                        enabled: !_isSaving,
-                        onChanged: (module, access) =>
-                            setState(() => _access[module] = access),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          )),
+          ),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -378,8 +401,8 @@ class _CreateOfficerAccountScreenState
             label: !_isOnline
                 ? l10n.addMemberOffline
                 : (_isSaving
-                    ? l10n.createOfficerCreating
-                    : l10n.createOfficerCreateButton),
+                      ? l10n.createOfficerCreating
+                      : l10n.createOfficerCreateButton),
             isLoading: _isSaving,
             onPressed: (!_isOnline || _isSaving) ? null : _submit,
             icon: Icons.person_add_alt_1_rounded,

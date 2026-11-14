@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/animations/app_page_transitions.dart';
@@ -56,7 +55,6 @@ import '../../presentation/screens/farmer/my_programs_screen.dart';
 import '../../presentation/screens/farmer/received_items_screen.dart';
 import '../../presentation/screens/farmer/report_outcome_screen.dart';
 import '../../presentation/screens/farmer/request_assistance_screen.dart';
-import '../../presentation/screens/admin/assistance_requests_screen.dart';
 import '../../presentation/screens/farmer/browse_programs_screen.dart';
 import '../../presentation/screens/farmer/program_details_screen.dart';
 import '../../data/models/farmer_profile_model.dart';
@@ -279,9 +277,10 @@ class AppRouter {
     }
   }
 
-  static GoRouter create() {
+  static GoRouter create({List<NavigatorObserver> observers = const []}) {
     return GoRouter(
       navigatorKey: rootNavigatorKey,
+      observers: observers,
       initialLocation: AppRoutes.splash,
       redirect: (context, state) {
         final path = state.matchedLocation;
@@ -523,14 +522,6 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.receivedCropItems,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: const ReceivedItemsScreen(cropItems: true),
-          ),
-        ),
-        GoRoute(
           path: AppRoutes.receivedItems,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -645,7 +636,10 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const ManageInventoryScreen(),
+            // A shelf-life notification passes the batch to check.
+            child: ManageInventoryScreen(
+              checkBatchId: s.extra is String ? s.extra as String : null,
+            ),
           ),
         ),
         GoRoute(
@@ -663,7 +657,8 @@ class AppRouter {
           // there is nothing to show, so send the user to their listings.
           redirect: (context, state) {
             final extra = state.extra;
-            if (extra is ListingSuccessArgs || extra is MarketplaceListingModel) {
+            if (extra is ListingSuccessArgs ||
+                extra is MarketplaceListingModel) {
               return null;
             }
             return AppRoutes.myListings;
@@ -816,7 +811,8 @@ class AppRouter {
               child: ProgramProductsScreen(
                 programId: extra?['programId'] as String? ?? '',
                 programName: extra?['programName'] as String? ?? 'Program',
-                memberDiscountPercent: (extra?['discount'] as num?)?.toDouble() ?? 0,
+                memberDiscountPercent:
+                    (extra?['discount'] as num?)?.toDouble() ?? 0,
                 justCreated: extra?['justCreated'] as bool? ?? false,
               ),
             );
@@ -866,7 +862,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const AssistanceRequestsScreen(),
+            // Assistance is reviewed inside Loan Requests now; an old link
+            // to this address opens that screen.
+            child: const LoanRequestsScreen(),
           ),
         ),
         GoRoute(
@@ -915,7 +913,10 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const PriceManagementScreen(),
+            // Crop Management's "Set Price" passes the crop to price.
+            child: PriceManagementScreen(
+              initialCropId: s.extra is String ? s.extra as String : null,
+            ),
           ),
         ),
         GoRoute(
@@ -1009,8 +1010,15 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
+            // The Farmer comes from the address (?id=…&tab=…), which
+            // survives a browser reload; a plain id passed as "extra" is still
+            // accepted.
             child: FarmerDetailsScreen(
-              farmerId: s.extra is String ? s.extra as String : '',
+              farmerId:
+                  s.uri.queryParameters['id'] ??
+                  (s.extra is String ? s.extra as String : ''),
+              initialTab:
+                  int.tryParse(s.uri.queryParameters['tab'] ?? '') ?? 0,
             ),
           ),
         ),
@@ -1170,7 +1178,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: AdminProgramOrderDetailScreen(orderId: s.extra is String ? s.extra as String : ''),
+            child: AdminProgramOrderDetailScreen(
+              orderId: s.extra is String ? s.extra as String : '',
+            ),
           ),
         ),
         GoRoute(
@@ -1350,9 +1360,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const AdminRoutePlaceholderScreen(
+            child: AdminRoutePlaceholderScreen(
               routeName: AppRoutes.memberPrograms,
-              label: 'Member Programs',
+              label: AppLocalizations.of(c).enhMemberPrograms,
             ),
           ),
         ),
@@ -1437,9 +1447,7 @@ class AppRouter {
                   path: AppRoutes.harvestHub,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: GuestAware(
-                      signedIn: () => const HarvestHubScreen(),
-                    ),
+                    child: GuestAware(signedIn: () => const HarvestHubScreen()),
                   ),
                 ),
               ],
@@ -1451,9 +1459,7 @@ class AppRouter {
                   path: AppRoutes.myListings,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: GuestAware(
-                      signedIn: () => const MyListingsScreen(),
-                    ),
+                    child: GuestAware(signedIn: () => const MyListingsScreen()),
                   ),
                 ),
               ],
@@ -1584,7 +1590,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: FarmerProgramOrderDetailScreen(orderId: s.extra is String ? s.extra as String : ''),
+            child: FarmerProgramOrderDetailScreen(
+              orderId: s.extra is String ? s.extra as String : '',
+            ),
           ),
         ),
         GoRoute(
@@ -1592,7 +1600,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: CooperativeProductDetailsScreen(product: s.extra as CooperativeProduct),
+            child: CooperativeProductDetailsScreen(
+              product: s.extra as CooperativeProduct,
+            ),
           ),
         ),
         GoRoute(
@@ -1830,9 +1840,8 @@ class AppRouter {
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
                     child: GuestAware(
-                      signedIn: () => MyOrdersScreen(
-                        initialTabIndex: s.extra as int? ?? 0,
-                      ),
+                      signedIn: () =>
+                          MyOrdersScreen(initialTabIndex: s.extra as int? ?? 0),
                       guest: (_) => const GuestOrdersScreen(),
                     ),
                   ),
@@ -1929,7 +1938,7 @@ class AppRouter {
                 final l10n = AppLocalizations.of(context);
                 return SupportInfoScreen(
                   icon: Icons.gavel_rounded,
-                  iconColor: AppConstants.onSurfaceVariant,
+                  iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
                   title: l10n.termsOfUse,
                   body: l10n.termsOfUseBody,
                 );

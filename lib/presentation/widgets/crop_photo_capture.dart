@@ -1,3 +1,4 @@
+import '../../core/l10n/app_localizations.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -30,7 +31,8 @@ class CapturedCropPhoto {
 Future<CapturedCropPhoto?> captureCropPhoto(BuildContext context) async {
   try {
     final picked = await ImagePicker().pickImage(
-      source: ImageSource.camera, // the camera only: there is no gallery or file source
+      source: ImageSource
+          .camera, // the camera only: there is no gallery or file source
       preferredCameraDevice: CameraDevice.rear,
       imageQuality: 80,
       maxWidth: 1600,
@@ -45,7 +47,7 @@ Future<CapturedCropPhoto?> captureCropPhoto(BuildContext context) async {
     if (context.mounted) {
       AppToast.show(
         context,
-        'The camera could not be opened. Allow camera access and try again.',
+        AppLocalizations.of(context).enhTheCameraCouldNotBeOpenedAllowCamera,
         isError: true,
       );
     }
@@ -61,20 +63,28 @@ class PhotoRequiredBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 2 : 3),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 2 : 3,
+      ),
       decoration: BoxDecoration(
         color: AppConstants.errorRed.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.45)),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.45),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.photo_camera_rounded,
-              size: compact ? 10 : 12, color: AppConstants.errorRed),
+          Icon(
+            Icons.photo_camera_rounded,
+            size: compact ? 10 : 12,
+            color: AppConstants.errorRed,
+          ),
           const SizedBox(width: 4),
           Text(
-            'Photo Required',
+            AppLocalizations.of(context).enhPhotoRequired,
             style: GoogleFonts.inter(
               fontSize: compact ? 9.5 : 10.5,
               fontWeight: FontWeight.w700,
@@ -125,7 +135,7 @@ Future<String?> requireCropPhotoToSell(
     if (context.mounted) {
       AppToast.show(
         context,
-        'Could not save the photo. Check your connection and try again.',
+        AppLocalizations.of(context).enhCouldNotSaveThePhotoCheckYourConnection,
         isError: true,
       );
     }
@@ -159,18 +169,31 @@ class _PhotoRequiredDialog extends StatelessWidget {
                 color: AppConstants.errorRed.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.photo_camera_rounded,
-                  color: AppConstants.errorRed, size: 24),
+              child: const Icon(
+                Icons.photo_camera_rounded,
+                color: AppConstants.errorRed,
+                size: 24,
+              ),
             ),
             const SizedBox(height: 14),
-            Text('Photo Required',
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              AppLocalizations.of(context).enhPhotoRequired,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
-              'To $why, take a photo of your actual $cropName. '
-              'It is taken with your camera, and it stays on this crop for every batch.',
+              AppLocalizations.of(context).enhToTakeAPhotoOfYourActualIt(
+                (why).toString(),
+                (cropName).toString(),
+              ),
               style: GoogleFonts.inter(
-                  fontSize: 13.5, height: 1.45, color: AppConstants.onSurfaceVariant),
+                fontSize: 13.5,
+                height: 1.45,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 20),
             Row(
@@ -179,14 +202,23 @@ class _PhotoRequiredDialog extends StatelessWidget {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: BorderSide(color: cs.outline.withValues(alpha: 0.30)),
+                      side: BorderSide(
+                        color: cs.outline.withValues(alpha: 0.30),
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
+                      ),
                     ),
                     onPressed: () => Navigator.pop(context, false),
-                    child: Text('Not Now',
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700, color: cs.onSurface)),
+                    child: Text(
+                      AppLocalizations.of(context).enhNotNow,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -195,8 +227,10 @@ class _PhotoRequiredDialog extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () => Navigator.pop(context, true),
                     icon: const Icon(Icons.photo_camera_rounded, size: 18),
-                    label: Text('Take Photo',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                    label: Text(
+                      AppLocalizations.of(context).enhTakePhoto,
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],

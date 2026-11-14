@@ -168,7 +168,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 const SizedBox(height: AppConstants.spacingMd),
                 _SalesTabs(
                   selected: _page,
-                  labels: [l10n.rptTabMarketplaceSales, l10n.rptTabProductSales],
+                  labels: [
+                    l10n.rptTabMarketplaceSales,
+                    l10n.rptTabProductSales,
+                  ],
                   onSelected: (i) => _pages.animateToPage(
                     i,
                     duration: const Duration(milliseconds: 250),
@@ -397,10 +400,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.receipt_long_rounded,
               size: 16,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 6),
             Expanded(
@@ -416,7 +419,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             if (all.isNotEmpty)
               Text(
                 l10n.rptShowingCount(filtered.length, all.length),
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
           ],
         ),
@@ -439,7 +445,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
   }
 
-  Widget _buildProductRow(ProductSaleRow r, ColorScheme cs, AppLocalizations l10n) {
+  Widget _buildProductRow(
+    ProductSaleRow r,
+    ColorScheme cs,
+    AppLocalizations l10n,
+  ) {
     return ReportRecordCard(
       onTap: () => _showProductSaleDetails(context, r, l10n),
       child: Column(
@@ -484,7 +494,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
   }
 
-  void _showProductSaleDetails(BuildContext context, ProductSaleRow r, AppLocalizations l10n) {
+  void _showProductSaleDetails(
+    BuildContext context,
+    ProductSaleRow r,
+    AppLocalizations l10n,
+  ) {
     showManagementModal<void>(
       context: context,
       builder: (_) => ManagementModalShell(
@@ -493,17 +507,32 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ReportDetailRow(label: l10n.rptProductSaleMember, value: r.farmerName),
+            ReportDetailRow(
+              label: l10n.rptProductSaleMember,
+              value: r.farmerName,
+            ),
             if ((r.programName ?? '').isNotEmpty)
-              ReportDetailRow(label: l10n.rptProductSaleProgram, value: r.programName!),
-            ReportDetailRow(label: l10n.rptQuantity, value: formatQuantityUnit(r.quantity, r.unit)),
-            ReportDetailRow(label: l10n.rptAmount, value: _money2.format(r.amount)),
+              ReportDetailRow(
+                label: l10n.rptProductSaleProgram,
+                value: r.programName!,
+              ),
+            ReportDetailRow(
+              label: l10n.rptQuantity,
+              value: formatQuantityUnit(r.quantity, r.unit),
+            ),
+            ReportDetailRow(
+              label: l10n.rptAmount,
+              value: _money2.format(r.amount),
+            ),
             ReportDetailRow(
               label: l10n.rptDate,
               value: DateFormat('MMM d, yyyy · h:mm a').format(r.saleDate),
             ),
             if (r.orderNumber.isNotEmpty)
-              ReportDetailRow(label: l10n.rptProductSaleOrder, value: r.orderNumber),
+              ReportDetailRow(
+                label: l10n.rptProductSaleOrder,
+                value: r.orderNumber,
+              ),
           ],
         ),
       ),
@@ -686,11 +715,19 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   ) {
     final filtered = _filteredTransactions;
     final channelOptions = <ReportFilterOption<String?>>[
-      ReportFilterOption<String?>(null, l10n.rptAllChannels),
+      // "Label (n)": how many transactions each chip holds.
+      ReportFilterOption<String?>(
+        null,
+        l10n.rptAllChannels,
+        count: _data.transactions.length,
+      ),
       for (final c in _data.channelTotals)
         ReportFilterOption<String?>(
           c.sellingType,
           _channelLabel(l10n, c.sellingType),
+          count: _data.transactions
+              .where((t) => t.sellingType == c.sellingType)
+              .length,
         ),
     ];
 
@@ -699,10 +736,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.receipt_long_rounded,
               size: 16,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 6),
             Expanded(
@@ -717,7 +754,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             ),
             if (_data.transactions.isNotEmpty)
               Text(
-                l10n.rptShowingCount(filtered.length, _data.transactions.length),
+                l10n.rptShowingCount(
+                  filtered.length,
+                  _data.transactions.length,
+                ),
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   color: cs.onSurfaceVariant,
@@ -864,7 +904,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             if (t.marketType != null)
               ReportDetailRow(label: l10n.rptMarketType, value: t.marketType!),
             if ((t.cropCategory ?? '').isNotEmpty)
-              ReportDetailRow(label: l10n.txnCropCategory, value: t.cropCategory!),
+              ReportDetailRow(
+                label: l10n.txnCropCategory,
+                value: t.cropCategory!,
+              ),
             if (t.referenceNo != null && t.referenceNo!.isNotEmpty)
               ReportDetailRow(
                 label: l10n.rptReferenceNo,
@@ -890,11 +933,15 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             // sale. Staff only.
             if ((t.recordedBy ?? '').isNotEmpty)
               ReportDetailRow(label: l10n.txnRecordedBy, value: t.recordedBy!),
+            // Sold from produce a Cooperative Program gave the Farmer.
+            if (t.fromProgram)
+              ReportDetailRow(label: l10n.rptSaleOrigin, value: l10n.cropFromProgram),
             if (t.buyerName != null && t.buyerName!.isNotEmpty)
               ReportDetailRow(
                 label: l10n.rptSoldTo,
                 value: t.buyerName!,
-                isLast: (t.buyerContact ?? '').trim().isEmpty &&
+                isLast:
+                    (t.buyerContact ?? '').trim().isEmpty &&
                     (t.buyerEmail ?? '').trim().isEmpty,
               ),
             if ((t.buyerContact ?? '').trim().isNotEmpty)
@@ -910,7 +957,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 isLast: true,
               ),
           ],
-
         ),
       ),
     );
@@ -919,7 +965,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
 /// The two sections of the Sales Report: tap a tab or swipe the page.
 class _SalesTabs extends StatelessWidget {
-  const _SalesTabs({required this.selected, required this.labels, required this.onSelected});
+  const _SalesTabs({
+    required this.selected,
+    required this.labels,
+    required this.onSelected,
+  });
 
   final int selected;
   final List<String> labels;
@@ -944,7 +994,10 @@ class _SalesTabs extends StatelessWidget {
                 onTap: () => onSelected(i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: selected == i ? cs.primary : Colors.transparent,
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),

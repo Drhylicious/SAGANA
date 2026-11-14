@@ -212,7 +212,10 @@ class RequestDetailRow extends StatelessWidget {
             flex: 4,
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -226,7 +229,9 @@ class RequestDetailRow extends StatelessWidget {
                 fontWeight: emphasize ? FontWeight.w700 : FontWeight.w600,
                 color:
                     valueColor ??
-                    (emphasize ? AppConstants.primaryGreen : cs.onSurface),
+                    (emphasize
+                        ? Theme.of(context).colorScheme.primary
+                        : cs.onSurface),
               ),
             ),
           ),

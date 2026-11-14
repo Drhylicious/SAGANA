@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -680,7 +679,7 @@ class _PendingListingCard extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            '⚠ Stock',
+                            AppLocalizations.of(context).enhStock107,
                             style: GoogleFonts.inter(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
@@ -825,7 +824,7 @@ class _PendingListingCard extends StatelessWidget {
         children: [
           if (listing.hasStockWarning)
             ClipRRect(
-              borderRadius: BorderRadius.horizontal(
+              borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(AppConstants.radiusLg),
               ),
               child: Container(width: 4, color: cs.error),
@@ -923,7 +922,9 @@ class _PriceIndicator extends StatelessWidget {
           color: color,
         ),
         Text(
-          '${pct.abs().toStringAsFixed(1)}% vs market',
+          AppLocalizations.of(
+            context,
+          ).enhVsMarket((pct.abs().toStringAsFixed(1)).toString()),
           style: GoogleFonts.inter(
             fontSize: 10,
             fontWeight: FontWeight.w700,
@@ -1098,7 +1099,7 @@ class _EditRequestCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.edit_note_rounded,
                   size: 15,
                   color: AppConstants.buyerBlue,

@@ -117,7 +117,7 @@ Future<pw.Document> buildSalesReportPdf(
             sellingChannelLabel(t.sellingType),
             t.marketType ?? '',
             t.farmerName,
-            t.cropName,
+            t.fromProgram ? '${t.cropName} (Cooperative Program)' : t.cropName,
             exportQuantity(t.quantityKg, t.unit),
             t.amount.toStringAsFixed(2),
             _dateFmt.format(t.saleDate),
@@ -203,22 +203,39 @@ Future<pw.Document> buildHarvestReportPdf(
             _dateFmt.format(h.harvestDate),
             h.farmerName,
             h.cropName,
+            h.cropCategory,
             exportQuantity(h.quantityKg, h.unit),
             formatBatchNumber(h.batchNumber),
+            exportQuantity(h.spoiledKg, h.unit),
         ],
       )
       .toList();
-  final batchRows = batches.batches
+  // Batches & Stock is printed as two tables so each stays readable on a
+  // portrait page: the quantities, then the status and condition. Both start
+  // with Farmer, Crop and Batch # so a row can be matched across them.
+  final batchQuantityRows = batches.batches
       .map(
         (b) => [
-            b.farmerName,
-            b.cropName,
-            formatBatchNumber(b.batchNumber),
-            exportQuantity(b.quantityKg, b.unit),
-            exportQuantity(b.availableKg, b.unit),
-            exportQuantity(b.reservedKg, b.unit),
-            exportQuantity(b.soldKg, b.unit),
-            batchStatusExportLabel(b.status),
+          b.farmerName,
+          b.cropName,
+          formatBatchNumber(b.batchNumber),
+          exportQuantity(b.quantityKg, b.unit),
+          exportQuantity(b.availableKg, b.unit),
+          exportQuantity(b.reservedKg, b.unit),
+          exportQuantity(b.soldKg, b.unit),
+          exportQuantity(b.spoiledKg, b.unit),
+        ],
+      )
+      .toList();
+  final batchConditionRows = batches.batches
+      .map(
+        (b) => [
+          b.farmerName,
+          b.cropName,
+          formatBatchNumber(b.batchNumber),
+          batchStatusExportLabel(b.status),
+          b.conditionLabel,
+          b.shelfLifeExportLabel,
         ],
       )
       .toList();
@@ -226,7 +243,9 @@ Future<pw.Document> buildHarvestReportPdf(
     title: 'Harvest Report',
     subtitle: _withScope(
       scopeText,
-      'Total Yield: ${data.totalYieldKg.toStringAsFixed(2)} kg — ${data.harvestCount} harvests',
+      'Total Yield: ${data.totalYieldKg.toStringAsFixed(2)} kg — ${data.harvestCount} harvests'
+      ' · Rotten/Lost: ${batches.totalSpoiledKg.toStringAsFixed(2)} kg'
+      '${data.programReceivedCount > 0 ? ' · Received from programs (not harvest): ${data.programReceivedKg.toStringAsFixed(2)} kg' : ''}',
     ),
     sections: [
       pw.Text(
@@ -234,10 +253,18 @@ Future<pw.Document> buildHarvestReportPdf(
         style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
       ),
       pw.SizedBox(height: 6),
-      _table(['Date', 'Farmer', 'Crop', 'Qty (kg)', 'Batch #'], harvestRows),
+      _table([
+        'Date',
+        'Farmer',
+        'Crop',
+        'Category',
+        'Qty (kg)',
+        'Batch #',
+        'Rotten/Lost (kg)',
+      ], harvestRows),
       pw.SizedBox(height: 16),
       pw.Text(
-        'Batches & Stock',
+        'Batches & Stock: Quantities',
         style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
       ),
       pw.SizedBox(height: 6),
@@ -249,8 +276,22 @@ Future<pw.Document> buildHarvestReportPdf(
         'Available (kg)',
         'Committed (kg)',
         'Sold (kg)',
+        'Rotten/Lost (kg)',
+      ], batchQuantityRows),
+      pw.SizedBox(height: 16),
+      pw.Text(
+        'Batches & Stock: Status and Condition',
+        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+      ),
+      pw.SizedBox(height: 6),
+      _table([
+        'Farmer',
+        'Crop',
+        'Batch #',
         'Status',
-      ], batchRows),
+        'Condition',
+        'Shelf Life',
+      ], batchConditionRows),
     ],
   );
 }

@@ -2,7 +2,7 @@ import '../l10n/app_localizations.dart';
 
 /// The Item Type Inventory Management gives every item (cooperative_inventory.item_type). It is the
 /// ONE classification Program Management, the Loan Item Catalog, Supply Chain and the Reports read:
-///   Seeds & Seedlings  - linked to a Crop Master crop; adds the crop to a Farmer's Crop Roster
+///   Planting Materials - (code 'seeds_seedlings') linked to a Crop Master crop; adds the crop to a Farmer's Crop Roster
 ///   Harvested Produce  - linked to a Crop Master crop; recorded in the Farmer's Harvest tab (received)
 ///   Non-Crop Item      - tools, livestock, fertilizer, feeds, supplies; recorded under My Programs only
 /// The Category never decides this.
@@ -36,7 +36,7 @@ String itemTypeOptionLabel(AppLocalizations l10n, String itemType) =>
 String itemTypeExportLabel(String? itemType) {
   switch (itemType) {
     case kItemTypeSeeds:
-      return 'Seeds & Seedlings';
+      return 'Planting Materials';
     case kItemTypeProduce:
       return 'Harvested Produce';
     default:

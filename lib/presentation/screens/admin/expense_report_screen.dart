@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -307,7 +308,10 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
         children: _data.categoryBreakdown.map((c) {
           final share = total > 0 ? c.total / total * 100 : null;
           return ReportBarRow(
-            label: c.category,
+            label: localizeBuiltinLabel(
+              AppLocalizations.of(context),
+              c.category,
+            ),
             valueText: _money0.format(c.total),
             fraction: c.percentOfMax,
             color: categoryColor(c.category),
@@ -338,9 +342,18 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   ) {
     final filtered = _filteredExpenses;
     final categoryOptions = <ReportFilterOption<String?>>[
-      ReportFilterOption<String?>(null, l10n.reportsAll),
+      // "Label (n)": how many expenses each chip holds.
+      ReportFilterOption<String?>(
+        null,
+        l10n.reportsAll,
+        count: _data.expenses.length,
+      ),
       for (final c in _data.categoryBreakdown)
-        ReportFilterOption<String?>(c.category, c.category),
+        ReportFilterOption<String?>(
+          c.category,
+          localizeBuiltinLabel(AppLocalizations.of(context), c.category),
+          count: _data.expenses.where((e) => e.category == c.category).length,
+        ),
     ];
 
     return Column(
@@ -480,13 +493,22 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
       context: context,
       builder: (sheetContext) => ManagementModalShell(
         title: expense.name,
-        subtitle: expense.category,
+        subtitle: localizeBuiltinLabel(
+          AppLocalizations.of(context),
+          expense.category,
+        ),
         body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ReportDetailRow(label: l10n.rptFarmer, value: expense.farmerName),
-            ReportDetailRow(label: l10n.rptCategory, value: expense.category),
+            ReportDetailRow(
+              label: l10n.rptCategory,
+              value: localizeBuiltinLabel(
+                AppLocalizations.of(context),
+                expense.category,
+              ),
+            ),
             if (expense.description.isNotEmpty)
               ReportDetailRow(
                 label: l10n.rptDescription,

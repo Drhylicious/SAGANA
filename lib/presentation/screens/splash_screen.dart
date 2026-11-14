@@ -1,3 +1,4 @@
+import '../../core/l10n/app_localizations.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -443,7 +444,9 @@ class _SplashScreenState extends State<SplashScreen>
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'Secure Gateway Active',
+                                        AppLocalizations.of(
+                                          context,
+                                        ).enhSecureGatewayActive,
                                         style: GoogleFonts.inter(
                                           fontSize: 10,
                                           color: AppConstants.onPrimaryContainer

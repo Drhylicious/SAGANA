@@ -112,7 +112,8 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   }
 
   // Rows of the chosen source (the status chips count inside it).
-  List<StaffOrderRow> get _inSource => filterStaffOrders(_allOrders, source: _sourceFilter);
+  List<StaffOrderRow> get _inSource =>
+      filterStaffOrders(_allOrders, source: _sourceFilter);
 
   // How many orders each status chip holds, inside the chosen source.
   Map<String, int> get _statusCounts {
@@ -123,8 +124,9 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
     return counts;
   }
 
-  int _sourceCount(String? source) =>
-      source == null ? _allOrders.length : _allOrders.where((o) => o.source == source).length;
+  int _sourceCount(String? source) => source == null
+      ? _allOrders.length
+      : _allOrders.where((o) => o.source == source).length;
 
   String _emptyMessage(AppLocalizations l10n) {
     switch (_statusFilter) {
@@ -141,7 +143,9 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
       case null:
         return l10n.buyerOrderHistoryNoOrdersYet;
       default:
-        return l10n.ordersEmptyStatus(adminOrderStatusLabel(l10n, _statusFilter!));
+        return l10n.ordersEmptyStatus(
+          adminOrderStatusLabel(l10n, _statusFilter!),
+        );
     }
   }
 
@@ -155,9 +159,18 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
       selected: _sourceFilter,
       resetTo: null,
       choices: [
-        FilterChoice<String?>(null, '${l10n.uoSourceAll} (${_sourceCount(null)})'),
-        FilterChoice<String?>(kOrderSourceMarketplace, '${l10n.uoSourceMarketplace} (${_sourceCount(kOrderSourceMarketplace)})'),
-        FilterChoice<String?>(kOrderSourceCooperative, '${l10n.uoSourceCooperative} (${_sourceCount(kOrderSourceCooperative)})'),
+        FilterChoice<String?>(
+          null,
+          '${l10n.uoSourceAll} (${_sourceCount(null)})',
+        ),
+        FilterChoice<String?>(
+          kOrderSourceMarketplace,
+          '${l10n.uoSourceMarketplace} (${_sourceCount(kOrderSourceMarketplace)})',
+        ),
+        FilterChoice<String?>(
+          kOrderSourceCooperative,
+          '${l10n.uoSourceCooperative} (${_sourceCount(kOrderSourceCooperative)})',
+        ),
       ],
     );
     if (result != null && mounted) setState(() => _sourceFilter = result.value);
@@ -200,7 +213,8 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
                     key: const Key('orderSettings'),
                     tooltip: l10n.dsTitle,
                     icon: const Icon(Icons.settings_outlined),
-                    onPressed: () => context.push(AppRoutes.adminDeliverySettings),
+                    onPressed: () =>
+                        context.push(AppRoutes.adminDeliverySettings),
                   ),
           ),
           CachedDataNotice(
@@ -270,7 +284,10 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : _buildList(visible, _emptyMessage(l10n)),
           ),
         ],
@@ -296,7 +313,8 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
         itemCount: orders.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) => _OrderRow(order: orders[i], onTap: () => _open(orders[i])),
+        itemBuilder: (context, i) =>
+            _OrderRow(order: orders[i], onTap: () => _open(orders[i])),
       ),
     );
   }
@@ -376,7 +394,7 @@ class _OrderRow extends StatelessWidget {
                             ? Icons.local_shipping_outlined
                             : Icons.storefront_rounded,
                         size: 12,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -386,7 +404,7 @@ class _OrderRow extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w600,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -414,7 +432,7 @@ class _OrderRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 const SizedBox(height: 4),

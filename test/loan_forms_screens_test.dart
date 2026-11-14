@@ -353,20 +353,20 @@ void main() {
     ftest('shows the four status chips and a Filter button', (tester) async {
       await show(tester, const LoanHistoryScreen(), size: wide);
 
-      for (final label in ['All', 'Active Loans', 'Overdue Loans', 'Paid']) {
+      for (final label in ['All (0)', 'Active Loans (0)', 'Overdue Loans (0)', 'Paid (0)']) {
         expect(find.widgetWithText(ChoiceChip, label), findsOneWidget, reason: label);
       }
       expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
       // Four chips: the Filter button is not one of them.
       expect(find.byType(ChoiceChip), findsNWidgets(4));
-      expect(isSelected(tester, 'All'), isTrue);
+      expect(isSelected(tester, 'All (0)'), isTrue);
 
       // Row 1: the search box with the Filter button beside it. Row 2: the chips.
       final search = tester.getRect(find.byType(TextField));
       final filter = tester.getRect(find.byIcon(Icons.tune_rounded));
       expect(filter.left, greaterThan(search.right));
       expect(filter.center.dy, closeTo(search.center.dy, 2));
-      for (final label in ['All', 'Active Loans', 'Overdue Loans', 'Paid']) {
+      for (final label in ['All (0)', 'Active Loans (0)', 'Overdue Loans (0)', 'Paid (0)']) {
         final chip = tester.getRect(find.widgetWithText(ChoiceChip, label));
         expect(chip.top, greaterThan(search.bottom), reason: label);
       }
@@ -375,12 +375,12 @@ void main() {
     ftest('choosing a status selects only that chip', (tester) async {
       await show(tester, const LoanHistoryScreen(), size: wide);
 
-      await tester.tap(find.text('Overdue Loans'));
+      await tester.tap(find.text('Overdue Loans (0)'));
       await tester.pump();
 
-      expect(isSelected(tester, 'Overdue Loans'), isTrue);
-      expect(isSelected(tester, 'All'), isFalse);
-      expect(isSelected(tester, 'Paid'), isFalse);
+      expect(isSelected(tester, 'Overdue Loans (0)'), isTrue);
+      expect(isSelected(tester, 'All (0)'), isFalse);
+      expect(isSelected(tester, 'Paid (0)'), isFalse);
     });
 
     ftest('the Filter button applies a period, shown as a tag that clears it', (
@@ -417,8 +417,8 @@ void main() {
           tester.getRect(find.widgetWithText(ChoiceChip, label));
 
       // One row, side by side, never on top of each other.
-      final allBefore = rectOf('All');
-      final activeBefore = rectOf('Active Loans');
+      final allBefore = rectOf('All (0)');
+      final activeBefore = rectOf('Active Loans (0)');
       expect(activeBefore.top, closeTo(allBefore.top, 1));
       expect(activeBefore.left, greaterThanOrEqualTo(allBefore.right));
 
@@ -430,13 +430,13 @@ void main() {
       expect(chipRow, findsOneWidget);
       await tester.drag(chipRow, const Offset(-600, 0));
       await tester.pump(const Duration(milliseconds: 500));
-      expect(rectOf('Paid').right, lessThanOrEqualTo(300));
-      expect(find.widgetWithText(ChoiceChip, 'All'), findsNothing); // scrolled out
+      expect(rectOf('Paid (0)').right, lessThanOrEqualTo(300));
+      expect(find.widgetWithText(ChoiceChip, 'All (0)'), findsNothing); // scrolled out
 
       // Each chip is still its own selectable button.
-      await tester.tap(find.text('Paid'));
+      await tester.tap(find.text('Paid (0)'));
       await tester.pump();
-      expect(isSelected(tester, 'Paid'), isTrue);
+      expect(isSelected(tester, 'Paid (0)'), isTrue);
     });
 
     ftest('fits a 360 px phone without overflow', (tester) async {

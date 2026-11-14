@@ -34,6 +34,10 @@ class FarmerCropModel {
   // The program that put this crop in the Roster (null: the Farmer added or requested it themselves).
   final String? sourceProgramId;
 
+  /// The crop's default shelf life in days (crop_master.shelf_life_days), which
+  /// a newly recorded harvest takes. Null when the cooperative has not set one.
+  final int? shelfLifeDays;
+
   const FarmerCropModel({
     required this.id,
     required this.farmerId,
@@ -49,6 +53,7 @@ class FarmerCropModel {
     this.requestStatus,
     this.requestNotes,
     this.sourceProgramId,
+    this.shelfLifeDays,
   });
 
   bool get hasHarvests => harvestCount > 0;
@@ -120,6 +125,7 @@ class FarmerCropModel {
       requestStatus: map['request_status'] as String?,
       requestNotes: map['request_notes'] as String?,
       sourceProgramId: map['source_program_id'] as String?,
+      shelfLifeDays: (map['shelf_life_days'] as num?)?.toInt(),
     );
   }
 
@@ -156,6 +162,7 @@ class FarmerCropModel {
       harvestCount: harvestCount ?? this.harvestCount,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      shelfLifeDays: shelfLifeDays,
     );
   }
 

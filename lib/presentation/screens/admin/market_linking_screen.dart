@@ -1,8 +1,6 @@
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -42,7 +40,14 @@ String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
 
 /// What the Manager/Officer list can be narrowed to. Each chip shows how many
 /// requests it holds.
-enum _MlFilter { all, cancellationRequests, waiting, buyerFound, completed, cancelled }
+enum _MlFilter {
+  all,
+  cancellationRequests,
+  waiting,
+  buyerFound,
+  completed,
+  cancelled,
+}
 
 class MarketLinkingScreen extends StatefulWidget {
   const MarketLinkingScreen({super.key});
@@ -170,7 +175,8 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
   void _showBuyerDetails(MarketLinkingModel entry) {
     showManagementModal(
       context: context,
-      builder: (_) => _BuyerDetailsSheet(entry: entry, repo: _repo, onSaved: _afterSave),
+      builder: (_) =>
+          _BuyerDetailsSheet(entry: entry, repo: _repo, onSaved: _afterSave),
     );
   }
 
@@ -180,7 +186,8 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
     if (!requireManage(context, StaffModule.marketplace)) return;
     showManagementModal(
       context: context,
-      builder: (_) => _CompleteSaleSheet(entry: entry, repo: _repo, onSaved: _afterSave),
+      builder: (_) =>
+          _CompleteSaleSheet(entry: entry, repo: _repo, onSaved: _afterSave),
     );
   }
 
@@ -247,7 +254,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               // ── Fixed header: Search bar -> Filter chips -> the list ─────
               // Type to find a request by farmer, crop, batch or buyer; the
               // chips (with their counts) narrow it further.
@@ -266,7 +273,9 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                         suffixIcon: _query.isEmpty
                             ? null
                             : IconButton(
-                                tooltip: AppLocalizations.of(context).mlkSearchClear,
+                                tooltip: AppLocalizations.of(
+                                  context,
+                                ).mlkSearchClear,
                                 icon: const Icon(Icons.close_rounded, size: 18),
                                 onPressed: () {
                                   _searchCtrl.clear();
@@ -274,7 +283,9 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                                 },
                               ),
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -285,7 +296,10 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                         for (final f in _MlFilter.values)
                           MarketplaceFilterOption(
                             value: f,
-                            label: _filterLabel(AppLocalizations.of(context), f),
+                            label: _filterLabel(
+                              AppLocalizations.of(context),
+                              f,
+                            ),
                             count: _counts[f] ?? 0,
                             color: _filterColor(context, f),
                           ),
@@ -299,7 +313,10 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                           children: [
@@ -310,22 +327,32 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                             // reaching this list is already actionable.
                             if (visible.isEmpty && _query.isNotEmpty)
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 40),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 40,
+                                ),
                                 child: Column(
                                   children: [
-                                    Icon(Icons.search_off_rounded, size: 40, color: cs.outline),
+                                    Icon(
+                                      Icons.search_off_rounded,
+                                      size: 40,
+                                      color: cs.outline,
+                                    ),
                                     const SizedBox(height: 10),
                                     Text(
-                                      AppLocalizations.of(context).mlkNoSearchResults,
+                                      AppLocalizations.of(
+                                        context,
+                                      ).mlkNoSearchResults,
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        color: cs.onSurfaceVariant,
+                                      ),
                                     ),
                                   ],
                                 ),
                               )
                             else if (visible.isEmpty)
                               _EmptyState(
-
                                 hasFilter: _filter != _MlFilter.all,
                                 cs: cs,
                                 sagana: sagana,
@@ -345,10 +372,16 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                                         ? () => _showCompleteSale(e)
                                         : null,
                                     onApproveCancellation: _isOnline
-                                        ? () => _reviewCancellation(e, approve: true)
+                                        ? () => _reviewCancellation(
+                                            e,
+                                            approve: true,
+                                          )
                                         : null,
                                     onDeclineCancellation: _isOnline
-                                        ? () => _reviewCancellation(e, approve: false)
+                                        ? () => _reviewCancellation(
+                                            e,
+                                            approve: false,
+                                          )
                                         : null,
                                     onDelete: _isOnline
                                         ? () => _confirmDelete(e)
@@ -373,7 +406,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
               onManageEnrollments: () =>
                   context.push(AppRoutes.daAmadEnrollment).then((_) => _load()),
               sagana: sagana,
-            cs: cs,
+              cs: cs,
             ),
           ),
         ],
@@ -403,8 +436,15 @@ class _TopAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SubPageTopBar(title: l10n.marketLinkTitle, onBack: onBack, trailing: IconButton( tooltip: l10n.mlkManageEnrollments,
- icon: Icon(Icons.how_to_reg_rounded, color: cs.primary), onPressed: onManageEnrollments, ));
+    return SubPageTopBar(
+      title: l10n.marketLinkTitle,
+      onBack: onBack,
+      trailing: IconButton(
+        tooltip: l10n.mlkManageEnrollments,
+        icon: Icon(Icons.how_to_reg_rounded, color: cs.primary),
+        onPressed: onManageEnrollments,
+      ),
+    );
   }
 }
 
@@ -442,7 +482,7 @@ Color _filterColor(BuildContext context, _MlFilter f) {
     case _MlFilter.completed:
       return AppConstants.successGreen;
     case _MlFilter.cancelled:
-      return AppConstants.outline;
+      return Theme.of(context).colorScheme.outline;
   }
 }
 
@@ -531,7 +571,10 @@ class _EntryCard extends StatelessWidget {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -573,7 +616,7 @@ class _EntryCard extends StatelessWidget {
                             style: onDeclineCancellation != null
                                 ? _ActionStyle.outlineDestructive
                                 : _ActionStyle.disabled,
-                          cs: cs,
+                            cs: cs,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -585,7 +628,7 @@ class _EntryCard extends StatelessWidget {
                             style: onApproveCancellation != null
                                 ? _ActionStyle.tertiary
                                 : _ActionStyle.disabled,
-                          cs: cs,
+                            cs: cs,
                           ),
                         ),
                       ],
@@ -616,11 +659,17 @@ class _EntryCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      isWaiting ? l10n.mlkHintAddBuyer : l10n.mlkHintCompleteSale,
+                      isWaiting
+                          ? l10n.mlkHintAddBuyer
+                          : l10n.mlkHintCompleteSale,
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         height: 1.4,
@@ -656,7 +705,7 @@ class _EntryCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    _timelineLabel(entry, l10n),
+                    _timelineLabel(context, entry, l10n),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(fontSize: 10.5, color: cs.outline),
@@ -678,7 +727,10 @@ class _EntryCard extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.history_rounded, size: 16),
                 label: Text(l10n.wfHistoryAction),
-                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
               ),
             ),
 
@@ -689,8 +741,10 @@ class _EntryCard extends StatelessWidget {
                 onTap: onBuyerDetails,
                 icon: Icons.person_add_alt_1_rounded,
                 label: l10n.mlkActionAddBuyer,
-                style: onBuyerDetails != null ? _ActionStyle.gradient : _ActionStyle.disabled,
-              cs: cs,
+                style: onBuyerDetails != null
+                    ? _ActionStyle.gradient
+                    : _ActionStyle.disabled,
+                cs: cs,
               ),
             ],
             if (isBuyerFound) ...[
@@ -699,16 +753,20 @@ class _EntryCard extends StatelessWidget {
                 onTap: onComplete,
                 icon: Icons.handshake_rounded,
                 label: l10n.mlkActionCompleteSale,
-                style: onComplete != null ? _ActionStyle.gradient : _ActionStyle.disabled,
-              cs: cs,
+                style: onComplete != null
+                    ? _ActionStyle.gradient
+                    : _ActionStyle.disabled,
+                cs: cs,
               ),
               const SizedBox(height: 10),
               _ActionButton(
                 onTap: onBuyerDetails,
                 icon: Icons.edit_outlined,
                 label: l10n.mlkActionEditBuyer,
-                style: onBuyerDetails != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
-              cs: cs,
+                style: onBuyerDetails != null
+                    ? _ActionStyle.tertiary
+                    : _ActionStyle.disabled,
+                cs: cs,
               ),
             ],
 
@@ -722,7 +780,7 @@ class _EntryCard extends StatelessWidget {
                 style: onDelete != null
                     ? _ActionStyle.outlineDestructive
                     : _ActionStyle.disabled,
-              cs: cs,
+                cs: cs,
               ),
             ],
           ],
@@ -731,20 +789,34 @@ class _EntryCard extends StatelessWidget {
     );
   }
 
-  String _timelineLabel(MarketLinkingModel e, AppLocalizations l10n) {
+  String _timelineLabel(
+    BuildContext context,
+    MarketLinkingModel e,
+    AppLocalizations l10n,
+  ) {
     if (e.completedAt != null) {
-      return l10n.marketLinkTimelineCompleted(_fmt(e.completedAt!));
+      return l10n.marketLinkTimelineCompleted(_fmt(context, e.completedAt!));
     }
     if (e.buyerFoundAt != null) {
-      return l10n.marketLinkTimelineBuyerFound(_fmt(e.buyerFoundAt!));
+      return l10n.marketLinkTimelineBuyerFound(_fmt(context, e.buyerFoundAt!));
     }
-    return l10n.marketLinkTimelineSubmitted(_fmt(e.submittedAt));
+    return l10n.marketLinkTimelineSubmitted(_fmt(context, e.submittedAt));
   }
 
-  String _fmt(DateTime dt) {
-    const m = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  String _fmt(BuildContext context, DateTime dt) {
+    final m = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${m[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -940,13 +1012,19 @@ class _BuyerDetailsSheetState extends State<_BuyerDetailsSheet> {
     final l10n = AppLocalizations.of(context);
     final email = _emailCtrl.text.trim();
     setState(() {
-      _nameError = _nameCtrl.text.trim().isEmpty ? l10n.mlkBuyerNameRequired : null;
-      _contactError = _contactCtrl.text.trim().isEmpty ? l10n.mlkBuyerContactRequired : null;
+      _nameError = _nameCtrl.text.trim().isEmpty
+          ? l10n.mlkBuyerNameRequired
+          : null;
+      _contactError = _contactCtrl.text.trim().isEmpty
+          ? l10n.mlkBuyerContactRequired
+          : null;
       _emailError = email.isNotEmpty && !_emailShape.hasMatch(email)
           ? l10n.mlkBuyerEmailInvalid
           : null;
     });
-    if (_nameError != null || _contactError != null || _emailError != null) return;
+    if (_nameError != null || _contactError != null || _emailError != null) {
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -984,12 +1062,20 @@ class _BuyerDetailsSheetState extends State<_BuyerDetailsSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 14,
+                color: cs.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   l10n.mlkBuyerNote,
-                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -1000,7 +1086,10 @@ class _BuyerDetailsSheetState extends State<_BuyerDetailsSheet> {
             controller: _nameCtrl,
             textCapitalization: TextCapitalization.words,
             onChanged: (_) => setState(() => _nameError = null),
-            decoration: InputDecoration(hintText: l10n.mlkBuyerFullNameHint, errorText: _nameError),
+            decoration: InputDecoration(
+              hintText: l10n.mlkBuyerFullNameHint,
+              errorText: _nameError,
+            ),
           ),
           const SizedBox(height: 12),
           _FieldLabel(label: l10n.mlkBuyerContact, cs: cs),
@@ -1008,7 +1097,10 @@ class _BuyerDetailsSheetState extends State<_BuyerDetailsSheet> {
             controller: _contactCtrl,
             keyboardType: TextInputType.phone,
             onChanged: (_) => setState(() => _contactError = null),
-            decoration: InputDecoration(hintText: l10n.mlkBuyerContactHint, errorText: _contactError),
+            decoration: InputDecoration(
+              hintText: l10n.mlkBuyerContactHint,
+              errorText: _contactError,
+            ),
           ),
           const SizedBox(height: 12),
           _FieldLabel(label: l10n.mlkBuyerEmail, cs: cs),
@@ -1016,7 +1108,10 @@ class _BuyerDetailsSheetState extends State<_BuyerDetailsSheet> {
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             onChanged: (_) => setState(() => _emailError = null),
-            decoration: InputDecoration(hintText: l10n.mlkBuyerEmailHint, errorText: _emailError),
+            decoration: InputDecoration(
+              hintText: l10n.mlkBuyerEmailHint,
+              errorText: _emailError,
+            ),
           ),
         ],
       ),
@@ -1046,7 +1141,8 @@ class _ReviewCancellationSheet extends StatefulWidget {
   });
 
   @override
-  State<_ReviewCancellationSheet> createState() => _ReviewCancellationSheetState();
+  State<_ReviewCancellationSheet> createState() =>
+      _ReviewCancellationSheetState();
 }
 
 class _ReviewCancellationSheetState extends State<_ReviewCancellationSheet> {
@@ -1075,7 +1171,9 @@ class _ReviewCancellationSheetState extends State<_ReviewCancellationSheet> {
       );
       if (!mounted) return;
       Navigator.pop(context);
-      widget.onDone(widget.approve ? l10n.mlkCancelApproved : l10n.mlkCancelDeclinedToast);
+      widget.onDone(
+        widget.approve ? l10n.mlkCancelApproved : l10n.mlkCancelDeclinedToast,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -1108,14 +1206,22 @@ class _ReviewCancellationSheetState extends State<_ReviewCancellationSheet> {
             ),
             child: Text(
               l10n.mlkCancelBanner(e.cancellationReason ?? ''),
-              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                height: 1.4,
+                color: cs.onSurface,
+              ),
             ),
           ),
           const SizedBox(height: 14),
           if (widget.approve)
             Text(
               l10n.mlkApproveBody,
-              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                height: 1.4,
+                color: cs.onSurfaceVariant,
+              ),
             )
           else ...[
             _FieldLabel(label: l10n.mlkDeclineReasonLabel, cs: cs),
@@ -1132,7 +1238,9 @@ class _ReviewCancellationSheetState extends State<_ReviewCancellationSheet> {
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: widget.approve ? l10n.mlkApproveConfirm : l10n.mlkDeclineConfirm,
+        primaryLabel: widget.approve
+            ? l10n.mlkApproveConfirm
+            : l10n.mlkDeclineConfirm,
         isDestructive: !widget.approve,
         isLoading: _isSaving,
         onPrimary: _submit,
@@ -1181,7 +1289,9 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
     final e = widget.entry;
     // The last agreed price is a sensible starting point; the quantity starts
     // as what is left (the Manager lowers it for a part-purchase).
-    _priceCtrl.text = e.pricePerKg != null ? e.pricePerKg!.toStringAsFixed(2) : '';
+    _priceCtrl.text = e.pricePerKg != null
+        ? e.pricePerKg!.toStringAsFixed(2)
+        : '';
     _qtyCtrl.text = _remaining > 0 ? formatQuantity(_remaining) : '';
   }
 
@@ -1207,7 +1317,10 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
         unit: widget.entry.unit,
         label: l10n.mlkSaleQtyLabel,
       );
-      _priceError = priceErrorText(_priceCtrl.text, label: l10n.mlkSalePriceLabel);
+      _priceError = priceErrorText(
+        _priceCtrl.text,
+        label: l10n.mlkSalePriceLabel,
+      );
     });
     if (_qtyError != null || _priceError != null) return;
 
@@ -1263,7 +1376,10 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
             width: 92,
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(
@@ -1306,20 +1422,26 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
                         e.cropName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 readOnlyRow(
                   l10n.mlkSaleBatchLabel,
-                  e.batchNumber != null ? formatBatchNumber(e.batchNumber) : '—',
+                  e.batchNumber != null
+                      ? formatBatchNumber(e.batchNumber)
+                      : '—',
                 ),
                 readOnlyRow(
                   l10n.mlkSaleBuyerLabel,
                   [
                     (e.buyerName ?? '').trim(),
-                    if ((e.buyerContact ?? '').trim().isNotEmpty) e.buyerContact!.trim(),
+                    if ((e.buyerContact ?? '').trim().isNotEmpty)
+                      e.buyerContact!.trim(),
                   ].join(' · '),
                 ),
                 const SizedBox(height: 4),
@@ -1328,7 +1450,10 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
                     formatQuantityUnit(_remaining, e.unit),
                     formatQuantityUnit(e.volumeKg ?? 0, e.unit),
                   ),
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -1343,7 +1468,9 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
                 label: l10n.mlkSaleQty(unitOrDefault(e.unit)),
                 child: TextFormField(
                   controller: _qtyCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: const [DecimalInputFormatter()],
                   onChanged: (_) => setState(() => _qtyError = null),
                   decoration: InputDecoration(
@@ -1358,7 +1485,9 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
                 label: l10n.mlkSalePrice(unitOrDefault(e.unit)),
                 child: TextFormField(
                   controller: _priceCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: const [DecimalInputFormatter()],
                   onChanged: (_) => setState(() => _priceError = null),
                   decoration: InputDecoration(
@@ -1393,14 +1522,19 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
             decoration: BoxDecoration(
               color: AppConstants.successGreen.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.30)),
+              border: Border.all(
+                color: AppConstants.successGreen.withValues(alpha: 0.30),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   l10n.mlkSaleTotal,
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -1415,9 +1549,14 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
                   const SizedBox(height: 2),
                   Text(
                     leftAfter > 0
-                        ? l10n.mlkSaleAfter(formatQuantityUnit(leftAfter, e.unit))
+                        ? l10n.mlkSaleAfter(
+                            formatQuantityUnit(leftAfter, e.unit),
+                          )
                         : l10n.mlkSaleCompletesRequest,
-                    style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ],
@@ -1434,12 +1573,20 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 14,
+                color: cs.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   '${l10n.mlkSaleReviewNote} ${l10n.mlkSaleOwnerNote}',
-                  style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    height: 1.4,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -1461,7 +1608,6 @@ class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
 
 // ─── Field Label ──────────────────────────────────────────────────────────────
 class _FieldLabel extends StatelessWidget {
-
   final String label;
   final ColorScheme cs;
   const _FieldLabel({required this.label, required this.cs});
@@ -1479,4 +1625,3 @@ class _FieldLabel extends StatelessWidget {
     ),
   );
 }
-

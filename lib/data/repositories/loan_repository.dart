@@ -16,18 +16,18 @@ class LoanRepository {
       final rows = await OfflineCache.load(
         screen: 'loans',
         fetch: () => _client
-          .from('farmer_loans')
-          // cooperative_programs(program_name) join added so
-          // LoanModel.sourceProgramName/isFromProgramDistribution — already
-          // populated on every Admin-side loan query — is also populated
-          // here, closing the gap where a farmer whose program distribution
-          // was converted to a loan (convert_program_distribution_to_loan())
-          // had no way to see that provenance on their own My Loans screen.
-          .select(
-            '*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)',
-          )
-          .eq('farmer_id', _userId)
-          .order('issued_date', ascending: false),
+            .from('farmer_loans')
+            // cooperative_programs(program_name) join added so
+            // LoanModel.sourceProgramName/isFromProgramDistribution — already
+            // populated on every Admin-side loan query — is also populated
+            // here, closing the gap where a farmer whose program distribution
+            // was converted to a loan (convert_program_distribution_to_loan())
+            // had no way to see that provenance on their own My Loans screen.
+            .select(
+              '*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)',
+            )
+            .eq('farmer_id', _userId)
+            .order('issued_date', ascending: false),
       );
 
       return rows.map((r) => LoanModel.fromMap(r)).toList();
@@ -45,9 +45,8 @@ class LoanRepository {
   // the catalog and submitting need a connection: the stock shown and checked has
   // to be the live one, so none of this is queued offline.
 
-  /// The loan catalog with the live stock on hand. Throws when offline.
+  /// Previously loaded stock is viewable offline; submission checks live stock.
   Future<List<LoanableItem>> fetchLoanableItems() async {
-    await ServerOnly.ensureOnline();
     final res = await _client.rpc('list_loanable_items') as List;
     return [
       for (final r in res)
@@ -102,7 +101,10 @@ class LoanRepository {
   /// Withdraws a request nobody has decided yet.
   Future<void> cancelLoanRequest(String requestId) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('cancel_loan_request', params: {'p_request_id': requestId});
+    await _client.rpc(
+      'cancel_loan_request',
+      params: {'p_request_id': requestId},
+    );
   }
 
   // ─── Total outstanding balance ────────────────────────────────────────────

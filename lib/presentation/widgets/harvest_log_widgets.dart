@@ -62,7 +62,7 @@ class HarvestCropChips extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: isActive
-                        ? AppConstants.primaryContainer
+                        ? Theme.of(context).colorScheme.primary
                         : cs.onSurfaceVariant,
                   ),
                 ),
@@ -98,7 +98,7 @@ class HarvestSummaryStats extends StatelessWidget {
           child: _StatCard(
             label: l10n.harvestSummaryTotalLabel,
             value: isLoading ? '—' : _fmtYield(stats['total_yield'] ?? 0),
-            unit: 'kg',
+            unit: "kg",
             valueColor: AppConstants.primaryGreen,
           ),
         ),
@@ -223,10 +223,26 @@ class HarvestLogEntry extends StatelessWidget {
     // both Farmer Harvest History and Admin's harvest screens
     // (harvest_report_screen.dart, farmer_harvest_history_screen.dart),
     // which also reuse this widget.
+    // A harvest whose unsold produce was reported as rotten is greyed out: it
+    // stays in the record, marked as a loss.
+    return Opacity(
+      opacity: harvest.isLost ? 0.55 : 1,
+      child: _card(context, cs, sagana, l10n),
+    );
+  }
+
+  Widget _card(
+    BuildContext context,
+    ColorScheme cs,
+    SaganaColors sagana,
+    AppLocalizations l10n,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: sagana.cardBackground,
+        color: harvest.isLost
+            ? cs.surfaceContainerHighest.withValues(alpha: 0.5)
+            : sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
@@ -246,15 +262,15 @@ class HarvestLogEntry extends StatelessWidget {
                   ? Image.network(
                       imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (_, __, ___) => Icon(
                         Icons.eco_rounded,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 24,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.eco_rounded,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                       size: 24,
                     ),
             ),
@@ -283,7 +299,7 @@ class HarvestLogEntry extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -300,26 +316,44 @@ class HarvestLogEntry extends StatelessWidget {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                // Produce a program gave the Farmer is marked: it was received, not harvested.
-                if (harvest.isReceivedFromProgram) ...[
+                // What was reported as rotten from this harvest (a loss).
+                if (harvest.spoiledKg > 0) ...[
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppConstants.buyerBlue.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      color: cs.outline.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.volunteer_activism_rounded, size: 11, color: AppConstants.buyerBlue),
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          size: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
                         const SizedBox(width: 4),
-                        Text(
-                          l10n.harvestReceivedChip,
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppConstants.buyerBlue,
+                        Flexible(
+                          child: Text(
+                            l10n.shelfLossLine(
+                              formatQuantityUnit(
+                                harvest.spoiledKg,
+                                harvest.unit,
+                              ),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],

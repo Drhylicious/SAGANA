@@ -121,9 +121,9 @@ class _FarmerCoopOffersScreenState extends State<FarmerCoopOffersScreen> {
                             children: [
                               for (final f in CoopOfferFilter.values) ...[
                                 ListingStatusFilterChip(
-                                  label: f == CoopOfferFilter.all
-                                      ? f.label(l10n, forFarmer: true)
-                                      : '${f.label(l10n, forFarmer: true)} (${_countFor(f)})',
+                                  // "Label (n)" on every chip, "All" included.
+                                  label: f.label(l10n, forFarmer: true),
+                                  count: _countFor(f),
                                   active: _filter == f,
                                   color: f.color(context, forFarmer: true),
                                   onTap: () => setState(() => _filter = f),

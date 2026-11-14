@@ -135,7 +135,7 @@ class _CooperativeInventoryHistoryState
       'item_name': l.coopInvCrop,
       'source': l.adminInvSourceLabel,
       'category': l.reportsCategories,
-      'unit': l.adminInvUnitLabel,
+      "unit": l.adminInvUnitLabel,
       'unit_cost': l.coopInvUnitCost,
       'reorder_level': l.adminInvReorderAt,
       'image_url': l.coopInvPhoto,
@@ -147,9 +147,7 @@ class _CooperativeInventoryHistoryState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            e.isManualAddition
-                ? l.coopInvManualAddition
-                : _action(e.action, l),
+            e.isManualAddition ? l.coopInvManualAddition : _action(e.action, l),
             style: Theme.of(context).textTheme.titleSmall,
           ),
           Text(_date(e.occurredAt, time: true)),

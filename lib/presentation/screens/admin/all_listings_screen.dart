@@ -1,7 +1,6 @@
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -17,8 +16,10 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/listing_order.dart';
-import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge, ListingMarketFilterRow;
+import '../../widgets/listing_filter_modal.dart'
+    show ListingMarketBadge, ListingMarketFilterRow;
 import '../../widgets/listing_status_badge.dart';
+import '../../widgets/shelf_life_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
@@ -52,12 +53,13 @@ class _AllListingsScreenState extends State<AllListingsScreen>
     WidgetsBinding.instance.addObserver(this);
     // Coming back online reloads, so Available / Sold Out catch up with orders
     // placed while this device was offline.
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (!mounted) return;
-      final cameOnline = v && !_isOnline;
-      setState(() => _isOnline = v);
-      if (cameOnline) _loadAll();
-    });
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((v) {
+          if (!mounted) return;
+          final cameOnline = v && !_isOnline;
+          setState(() => _isOnline = v);
+          if (cameOnline) _loadAll();
+        });
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text),
     );
@@ -124,8 +126,8 @@ class _AllListingsScreenState extends State<AllListingsScreen>
       final q = _searchQuery.toLowerCase();
       list = list.where(
         (l) =>
-          l.cropName.toLowerCase().contains(q) ||
-          l.farmerName.toLowerCase().contains(q) ||
+            l.cropName.toLowerCase().contains(q) ||
+            l.farmerName.toLowerCase().contains(q) ||
             (l.variety?.toLowerCase().contains(q) ?? false),
       );
     }
@@ -138,7 +140,13 @@ class _AllListingsScreenState extends State<AllListingsScreen>
   Future<void> _quickApprove(AdminListingModel listing) async {
     if (!requireManage(context, StaffModule.marketplace)) return;
     await _repo.approveListing(listing.id);
-    _showSnack('${listing.cropName} listing approved.', isSuccess: true);
+    if (!mounted) return;
+    _showSnack(
+      AppLocalizations.of(
+        context,
+      ).enhListingApproved((listing.cropName).toString()),
+      isSuccess: true,
+    );
     _loadAll();
   }
 
@@ -171,18 +179,23 @@ class _AllListingsScreenState extends State<AllListingsScreen>
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'listings_all_all_all_all',
                 isOnline: _isOnline,
-                offlineMessage: AppLocalizations.of(context).offlineListingActions,
+                offlineMessage: AppLocalizations.of(
+                  context,
+                ).offlineListingActions,
               ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadAll,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
                           children: [
@@ -303,7 +316,10 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SubPageTopBar(title: AppLocalizations.of(context).marketplaceAllListingsTitle, onBack: onBack);
+    return SubPageTopBar(
+      title: AppLocalizations.of(context).marketplaceAllListingsTitle,
+      onBack: onBack,
+    );
   }
 }
 
@@ -330,192 +346,217 @@ class _AllListingCard extends StatelessWidget {
     return SoldOutGrey(
       active: listing.isSoldOut,
       child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Always reserved, not just `if (listing.isPending)` — that
-            // conditional was shifting every other element in this Row
-            // (starting with the image) ~13px right only for pending
-            // cards, since non-pending cards never allocated this space
-            // at all. Same width for every card now; only the color
-            // changes, so the image lines up identically across every
-            // status.
-            Container(
-              width: 3,
-              margin: const EdgeInsets.only(right: 10),
-              decoration: BoxDecoration(
-                color:
-                    listingAccentColor(
-                      context,
-                      listingStateOf(
-                        status: listing.status,
-                        remainingKg: listing.remainingKg,
-                      ),
-                    ) ??
-                    Colors.transparent,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(AppConstants.radiusLg),
-                  bottomLeft: Radius.circular(AppConstants.radiusLg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Always reserved, not just `if (listing.isPending)` — that
+              // conditional was shifting every other element in this Row
+              // (starting with the image) ~13px right only for pending
+              // cards, since non-pending cards never allocated this space
+              // at all. Same width for every card now; only the color
+              // changes, so the image lines up identically across every
+              // status.
+              Container(
+                width: 3,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color:
+                      listingAccentColor(
+                        context,
+                        listingStateOf(
+                          status: listing.status,
+                          remainingKg: listing.remainingKg,
+                        ),
+                      ) ??
+                      Colors.transparent,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(AppConstants.radiusLg),
+                    bottomLeft: Radius.circular(AppConstants.radiusLg),
+                  ),
                 ),
               ),
-            ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              child: SizedBox(
-                width: 68,
-                height: 68,
-                child: listing.listingPhotoUrl != null
-                    ? Image.network(
-                        listing.listingPhotoUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _Thumb(cs: cs, crop: listing.cropName),
-                      )
-                    : _Thumb(cs: cs, crop: listing.cropName),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                child: SizedBox(
+                  width: 68,
+                  height: 68,
+                  child: listing.listingPhotoUrl != null
+                      ? Image.network(
+                          listing.listingPhotoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _Thumb(cs: cs, crop: listing.cropName),
+                        )
+                      : _Thumb(cs: cs, crop: listing.cropName),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          listing.variety != null
-                              ? '${listing.cropName} — ${listing.variety}'
-                              : listing.cropName,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            listing.variety != null
+                                ? '${listing.cropName} — ${listing.variety}'
+                                : listing.cropName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 6),
+                        ListingStatusBadge.forListing(
+                          context,
+                          status: listing.status,
+                          remainingKg: listing.remainingKg,
+                          shelfUnavailable: listing.isShelfUnavailable,
+                        ),
+                      ],
+                    ),
+                    // The Farmer has been asked to bring this price back inside
+                    // the changed Reference Price Range.
+                    if (listing.priceUpdateRequired) ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: ListingStatusBadge(
+                          label: AppLocalizations.of(
+                            context,
+                          ).priceUpdateRequiredTag,
+                          color: AppConstants.errorRed,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      ListingStatusBadge.forListing(
-                        context,
-                        status: listing.status,
-                        remainingKg: listing.remainingKg,
+                    ],
+                    // Shelf life of the harvest behind this listing (staff and
+                    // the Farmer only; never shown to Buyers).
+                    if (listing.batchShelfLife?.isTracked ?? false) ...[
+                      const SizedBox(height: 4),
+                      ShelfLifeLine(
+                        shelfLife: listing.batchShelfLife,
+                        dense: true,
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${listing.farmerName} • ${listing.submittedLabel}',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
+                    const SizedBox(height: 3),
+                    Text(
+                      '${listing.farmerName} • ${listing.submittedLabel}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (listing.marketType != null) ...[
-                    const SizedBox(height: 4),
-                    ListingMarketBadge(marketType: listing.marketType),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text.rich(
+                    if (listing.marketType != null) ...[
+                      const SizedBox(height: 4),
+                      ListingMarketBadge(marketType: listing.marketType),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text.rich(
                             TextSpan(
-                            children: [
-                              TextSpan(
-                                text:
-                                    formatPricePerUnit(
-                                      listing.pricePerKg,
-                                      listing.unit,
-                                    ),
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: cs.primary,
+                              children: [
+                                TextSpan(
+                                  text: formatPricePerUnit(
+                                    listing.pricePerKg,
+                                    listing.unit,
+                                  ),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: cs.primary,
+                                  ),
                                 ),
+                                TextSpan(
+                                  text:
+                                      '  •  ${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
-                            TextSpan(
-                                text:
-                                    '  •  ${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (listing.hasStockWarning) ...[
+                          const SizedBox(width: 6),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                size: 13,
+                                color: cs.error,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).marketplaceStockWarningBadge,
                                 style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: cs.onSurfaceVariant,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.error,
                                 ),
                               ),
                             ],
-                            ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (listing.hasStockWarning) ...[
-                        const SizedBox(width: 6),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              size: 13,
-                              color: cs.error,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              AppLocalizations.of(
-                                context,
-                              ).marketplaceStockWarningBadge,
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: cs.error,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (onQuickApprove != null)
-              GestureDetector(
-                onTap: onQuickApprove,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppConstants.successGreen.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 18,
-                    color: AppConstants.successGreen,
-                  ),
+                    ),
+                  ],
                 ),
-              )
-            else
-              Icon(Icons.chevron_right_rounded, color: cs.outline, size: 20),
-          ],
+              ),
+              const SizedBox(width: 8),
+              if (onQuickApprove != null)
+                GestureDetector(
+                  onTap: onQuickApprove,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppConstants.successGreen.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: AppConstants.successGreen,
+                    ),
+                  ),
+                )
+              else
+                Icon(Icons.chevron_right_rounded, color: cs.outline, size: 20),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -572,8 +613,8 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             hasSearch
-                  ? AppLocalizations.of(context).marketplaceNoListingsFiltered
-                  : AppLocalizations.of(context).marketplaceNoListingsYet,
+                ? AppLocalizations.of(context).marketplaceNoListingsFiltered
+                : AppLocalizations.of(context).marketplaceNoListingsYet,
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w600,

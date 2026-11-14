@@ -17,7 +17,8 @@ import 'view_only_banner.dart';
 // re-checks the rules; these widgets only collect the input and explain the
 // result in plain words.
 
-String returnStatusLabel(AppLocalizations l10n, String status) => switch (status) {
+String returnStatusLabel(AppLocalizations l10n, String status) =>
+    switch (status) {
       'partial' => l10n.retStatusPartial,
       'received' => l10n.retStatusReceived,
       'closed_short' => l10n.retStatusClosedShort,
@@ -25,13 +26,14 @@ String returnStatusLabel(AppLocalizations l10n, String status) => switch (status
     };
 
 Color returnStatusColor(String status) => switch (status) {
-      'received' => AppConstants.successGreen,
-      'closed_short' => AppConstants.onSurfaceVariant,
-      'partial' => AppConstants.warningAmber,
-      _ => AppConstants.buyerBlue,
-    };
+  'received' => AppConstants.successGreen,
+  'closed_short' => AppConstants.onSurfaceVariant,
+  'partial' => AppConstants.warningAmber,
+  _ => AppConstants.buyerBlue,
+};
 
-String resolutionLabel(AppLocalizations l10n, String resolution) => switch (resolution) {
+String resolutionLabel(AppLocalizations l10n, String resolution) =>
+    switch (resolution) {
       FailedResolution.closedNoFurtherObligation => l10n.resClosed,
       FailedResolution.eligibleForReassessment => l10n.resReassess,
       FailedResolution.referredForLoanAssessment => l10n.resReferred,
@@ -46,16 +48,20 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: color),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: GoogleFonts.inter(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    ),
+  );
 }
 
 /// The compact block on a member's card for a Successful Harvest Return: the status, what has arrived
@@ -63,7 +69,11 @@ class _StatusPill extends StatelessWidget {
 class ReturnSummaryBlock extends StatelessWidget {
   final ProgramReturn ret;
   final VoidCallback onManage;
-  const ReturnSummaryBlock({super.key, required this.ret, required this.onManage});
+  const ReturnSummaryBlock({
+    super.key,
+    required this.ret,
+    required this.onManage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,13 +100,19 @@ class ReturnSummaryBlock extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Icon(Icons.assignment_return_outlined, size: 18, color: color),
-              _StatusPill(label: returnStatusLabel(l10n, ret.status), color: color),
+              _StatusPill(
+                label: returnStatusLabel(l10n, ret.status),
+                color: color,
+              ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             ret.cropName,
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
@@ -105,7 +121,10 @@ class ReturnSummaryBlock extends StatelessWidget {
               formatReturnQuantity(ret.dueQuantity),
               ret.unit,
             ),
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -137,15 +156,23 @@ class ReturnSummaryBlock extends StatelessWidget {
 /// The compact block for a Failed outcome: the current resolution.
 class ResolutionSummaryBlock extends StatelessWidget {
   final FailedResolution? resolution;
-  final VoidCallback onSet;
-  const ResolutionSummaryBlock({super.key, required this.resolution, required this.onSet});
+  // Null when the decision is final (Closed): there is nothing left to set or change.
+  final VoidCallback? onSet;
+  const ResolutionSummaryBlock({
+    super.key,
+    required this.resolution,
+    required this.onSet,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final res = resolution?.resolution ?? FailedResolution.pendingCooperativeDecision;
+    final res =
+        resolution?.resolution ?? FailedResolution.pendingCooperativeDecision;
     final pending = res == FailedResolution.pendingCooperativeDecision;
-    final color = pending ? AppConstants.warningAmber : AppConstants.programPurple;
+    final color = pending
+        ? AppConstants.warningAmber
+        : AppConstants.programPurple;
     return Container(
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(12),
@@ -158,7 +185,8 @@ class ResolutionSummaryBlock extends StatelessWidget {
         builder: (context, box) {
           // Beside the text when there is room; below it on a narrow card or at a large text
           // size, so the button never pushes the text off the card.
-          final stacked = box.maxWidth / MediaQuery.textScalerOf(context).scale(1) < 250;
+          final stacked =
+              box.maxWidth / MediaQuery.textScalerOf(context).scale(1) < 250;
           final info = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -170,20 +198,28 @@ class ResolutionSummaryBlock extends StatelessWidget {
                   children: [
                     Text(
                       resolutionLabel(l10n, res),
-                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
                     ),
                     if ((resolution?.note ?? '').isNotEmpty)
                       Text(
                         resolution!.note!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                   ],
                 ),
               ),
             ],
           );
+          if (onSet == null) return info;
           final button = TextButton(
             onPressed: onSet,
             style: TextButton.styleFrom(
@@ -195,9 +231,17 @@ class ResolutionSummaryBlock extends StatelessWidget {
           return stacked
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [info, Align(alignment: Alignment.centerRight, child: button)],
+                  children: [
+                    info,
+                    Align(alignment: Alignment.centerRight, child: button),
+                  ],
                 )
-              : Row(children: [Expanded(child: info), button]);
+              : Row(
+                  children: [
+                    Expanded(child: info),
+                    button,
+                  ],
+                );
         },
       ),
     );
@@ -232,7 +276,8 @@ class _ReturnSheet extends StatefulWidget {
 class _ReturnSheetState extends State<_ReturnSheet> {
   _ReturnMode _mode = _ReturnMode.none;
   final _qty = TextEditingController();
-  final _text = TextEditingController(); // note (receipt) or reason (adjust / close)
+  final _text =
+      TextEditingController(); // note (receipt) or reason (adjust / close)
   bool _saving = false;
   String? _error;
 
@@ -253,8 +298,8 @@ class _ReturnSheetState extends State<_ReturnSheet> {
       _qty.text = m == _ReturnMode.receive
           ? formatReturnQuantity(r.remaining)
           : m == _ReturnMode.adjust
-              ? formatReturnQuantity(r.dueQuantity)
-              : '';
+          ? formatReturnQuantity(r.dueQuantity)
+          : '';
     });
   }
 
@@ -305,21 +350,22 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             note: text,
           );
         case _ReturnMode.adjust:
-          await widget.repo.adjustReturn(returnId: r.id, newQuantity: qty!, reason: text);
+          await widget.repo.adjustReturn(
+            returnId: r.id,
+            newQuantity: qty!,
+            reason: text,
+          );
         case _ReturnMode.close:
           await widget.repo.closeReturn(returnId: r.id, reason: text);
         case _ReturnMode.none:
           break;
       }
       if (!mounted) return;
-      AppToast.show(
-        context,
-        switch (_mode) {
-          _ReturnMode.receive => l10n.retReceiptSaved,
-          _ReturnMode.adjust => l10n.retAdjustSaved,
-          _ => l10n.retClosedSaved,
-        },
-      );
+      AppToast.show(context, switch (_mode) {
+        _ReturnMode.receive => l10n.retReceiptSaved,
+        _ReturnMode.adjust => l10n.retAdjustSaved,
+        _ => l10n.retClosedSaved,
+      });
       Navigator.of(context).pop(true);
     } catch (e, st) {
       if (!mounted) return;
@@ -343,8 +389,10 @@ class _ReturnSheetState extends State<_ReturnSheet> {
     final editing = r.isOpen && _mode != _ReturnMode.none;
     return ManagementModalShell(
       title: l10n.retSheetTitle,
-      subtitle: [if (r.farmerName != null) r.farmerName!, if (r.programName != null) r.programName!]
-          .join(' · '),
+      subtitle: [
+        if (r.farmerName != null) r.farmerName!,
+        if (r.programName != null) r.programName!,
+      ].join(' · '),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -373,21 +421,30 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   /// What is due, what has arrived and what is left, as three figures and a progress bar.
   Widget _summary(AppLocalizations l10n) {
     final color = returnStatusColor(r.status);
-    final progress =
-        r.dueQuantity <= 0 ? 0.0 : (r.receivedQuantity / r.dueQuantity).clamp(0.0, 1.0);
-    Widget stat(String label, double value, {bool emphasize = false}) => Expanded(
+    final progress = r.dueQuantity <= 0
+        ? 0.0
+        : (r.receivedQuantity / r.dueQuantity).clamp(0.0, 1.0);
+    Widget stat(String label, double value, {bool emphasize = false}) =>
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 '${formatReturnQuantity(value)} ${r.unit}',
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: emphasize ? color : AppConstants.onSurface,
+                  color: emphasize
+                      ? color
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
@@ -409,9 +466,17 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(r.cropName,
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
-              _StatusPill(label: returnStatusLabel(l10n, r.status), color: color),
+              Text(
+                r.cropName,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              _StatusPill(
+                label: returnStatusLabel(l10n, r.status),
+                color: color,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -419,7 +484,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             children: [
               stat(l10n.retStatDue, r.dueQuantity),
               stat(l10n.retStatReceived, r.receivedQuantity),
-              stat(l10n.retStatRemaining, r.isOpen ? r.remaining : 0, emphasize: r.isOpen),
+              stat(
+                l10n.retStatRemaining,
+                r.isOpen ? r.remaining : 0,
+                emphasize: r.isOpen,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -435,14 +504,25 @@ class _ReturnSheetState extends State<_ReturnSheet> {
           if (r.wasAdjusted) ...[
             const SizedBox(height: 8),
             Text(
-              l10n.retOriginallyDue(formatReturnQuantity(r.originalQuantity), r.unit),
-              style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+              l10n.retOriginallyDue(
+                formatReturnQuantity(r.originalQuantity),
+                r.unit,
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
           if ((r.closedReason ?? '').isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(r.closedReason!,
-                style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic)),
+            Text(
+              r.closedReason!,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ],
         ],
       ),
@@ -452,7 +532,10 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   /// One clear main action, the two lesser ones beneath it, and where the stock goes. All three buttons
   /// share one text style and one height, so nothing shrinks or looks different from its neighbour.
   Widget _actions(AppLocalizations l10n) {
-    final label = GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600);
+    final label = GoogleFonts.poppins(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
     final secondary = OutlinedButton.styleFrom(
       minimumSize: const Size(0, 48),
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -468,13 +551,20 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             onPressed: () => _open(_ReturnMode.receive),
             icon: const Icon(Icons.add_task_rounded, size: 18),
             label: Text(l10n.retActionReceive),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48), textStyle: label),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              textStyle: label,
+            ),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           l10n.retReceiveInfo(r.cropName),
-          style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            height: 1.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 16),
         Row(
@@ -483,7 +573,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               child: OutlinedButton(
                 style: secondary,
                 onPressed: () => _open(_ReturnMode.adjust),
-                child: Text(l10n.retActionAdjust, maxLines: 1, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  l10n.retActionAdjust,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -491,7 +585,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               child: OutlinedButton(
                 style: secondary,
                 onPressed: () => _open(_ReturnMode.close),
-                child: Text(l10n.retActionClose, maxLines: 1, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  l10n.retActionClose,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ],
@@ -509,17 +607,25 @@ class _ReturnSheetState extends State<_ReturnSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_modeTitle, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+        Text(
+          _modeTitle,
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 4),
         Text(
           info,
-          style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            height: 1.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 14),
         if (!isClose) ...[
           LabeledTextField(
             controller: _qty,
-            label: '${isReceive ? l10n.retQtyReceived(r.unit) : l10n.retNewQtyDue(r.unit)} *',
+            label:
+                '${isReceive ? l10n.retQtyReceived(r.unit) : l10n.retNewQtyDue(r.unit)} *',
             hint: '0.00',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             // Numbers only (one point, at most 2 decimals). A receipt can never be typed above what is
@@ -541,8 +647,13 @@ class _ReturnSheetState extends State<_ReturnSheet> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(_error!,
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+            child: Text(
+              _error!,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
+            ),
           ),
       ],
     );
@@ -555,12 +666,19 @@ class _ReturnSheetState extends State<_ReturnSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.retHistory,
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+        Text(
+          l10n.retHistory,
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 8),
         if (events.isEmpty)
-          Text(l10n.retNoHistory,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant))
+          Text(
+            l10n.retNoHistory,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          )
         else
           for (var i = 0; i < events.length; i++)
             IntrinsicHeight(
@@ -582,7 +700,10 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                         ),
                         if (i < events.length - 1)
                           Expanded(
-                            child: Container(width: 1.5, color: cs.outline.withValues(alpha: 0.25)),
+                            child: Container(
+                              width: 1.5,
+                              color: cs.outline.withValues(alpha: 0.25),
+                            ),
                           ),
                       ],
                     ),
@@ -596,13 +717,20 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   }
 
   Widget _eventTile(AppLocalizations l10n, ProgramReturnEvent e) {
-    final qty = formatReturnQuantity;
+    const qty = formatReturnQuantity;
     final text = switch (e.type) {
       'created' => l10n.retEventCreated(qty(e.quantityAfter ?? 0), r.unit),
-      'adjusted' =>
-        l10n.retEventAdjusted(qty(e.quantityBefore ?? 0), qty(e.quantityAfter ?? 0), r.unit),
+      'adjusted' => l10n.retEventAdjusted(
+        qty(e.quantityBefore ?? 0),
+        qty(e.quantityAfter ?? 0),
+        r.unit,
+      ),
       'receipt' => l10n.retEventReceipt(qty(e.quantity ?? 0), r.unit),
-      'closed' => l10n.retEventClosed(qty(e.quantityAfter ?? 0), qty(e.quantityBefore ?? 0), r.unit),
+      'closed' => l10n.retEventClosed(
+        qty(e.quantityAfter ?? 0),
+        qty(e.quantityBefore ?? 0),
+        r.unit,
+      ),
       _ => e.type,
     };
     final d = e.at;
@@ -613,12 +741,27 @@ class _ReturnSheetState extends State<_ReturnSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
-          if ((e.reason ?? '').isNotEmpty)
-            Text(e.reason!, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
           Text(
-            [when, if ((e.actorName ?? '').isNotEmpty) l10n.retBy(e.actorName!)].join(' · '),
-            style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant),
+            text,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          if ((e.reason ?? '').isNotEmpty)
+            Text(
+              e.reason!,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          Text(
+            [
+              when,
+              if ((e.actorName ?? '').isNotEmpty) l10n.retBy(e.actorName!),
+            ].join(' · '),
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -682,7 +825,8 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
     if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     // A note is required for the three decisions; optional while still pending.
-    if (_note.text.trim().isEmpty && _choice != FailedResolution.pendingCooperativeDecision) {
+    if (_note.text.trim().isEmpty &&
+        _choice != FailedResolution.pendingCooperativeDecision) {
       setState(() => _error = l10n.resNoteRequired);
       return;
     }
@@ -717,14 +861,30 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.resTitle,
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              l10n.resTitle,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(widget.farmerName,
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+            Text(
+              widget.farmerName,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 10),
-            Text(l10n.resInfo,
-                style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+            Text(
+              l10n.resInfo,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 8),
             RadioGroup<String>(
               groupValue: _choice,
@@ -738,8 +898,13 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
                       value: res,
                       contentPadding: EdgeInsets.zero,
                       dense: true,
-                      title: Text(resolutionLabel(l10n, res),
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                      title: Text(
+                        resolutionLabel(l10n, res),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -751,7 +916,8 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
               maxLines: 3,
               maxLength: 400,
               decoration: InputDecoration(
-                labelText: _choice == FailedResolution.pendingCooperativeDecision
+                labelText:
+                    _choice == FailedResolution.pendingCooperativeDecision
                     ? l10n.outcDecisionNoteLabel
                     : l10n.resNoteLabel,
                 border: const OutlineInputBorder(),
@@ -760,8 +926,13 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_error!,
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+                child: Text(
+                  _error!,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppConstants.errorRed,
+                  ),
+                ),
               ),
             SizedBox(
               width: double.infinity,
@@ -771,7 +942,11 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : Text(l10n.resSave),
               ),
             ),

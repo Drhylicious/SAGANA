@@ -9,6 +9,9 @@ import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/listing_repository.dart';
+import '../../../data/repositories/shelf_life_repository.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -119,6 +122,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       return;
     }
     if (!silent) setState(() => _isLoading = true);
+    // Shelf-life state first (expiry-day discount, unavailable listings); a
+    // silent refresh skips it, the full load already ran it.
+    if (!silent) await ShelfLifeRepository().process();
     final results = await Future.wait([
       _repo.fetchListings(),
       _notifRepo.fetchUnreadCount(),
@@ -197,9 +203,11 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     }
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'This action requires an internet connection. Please try again once you\'re back online.',
+            AppLocalizations.of(
+              context,
+            ).enhThisActionRequiresAnInternetConnectionPleaseTry,
           ),
           backgroundColor: AppConstants.snackbarWarning,
         ),
@@ -213,22 +221,28 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
         title: Text(
-          'Delete Listing?',
+          AppLocalizations.of(context).enhDeleteListing,
           style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'This will permanently delete the listing for ${listing.displayName}. This action cannot be undone.',
+          AppLocalizations.of(
+            context,
+          ).enhThisWillPermanentlyDeleteTheListingForThis(
+            (listing.displayName).toString(),
+          ),
           style: GoogleFonts.inter(
             fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
+              AppLocalizations.of(context).cancel,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
           ElevatedButton(
@@ -245,14 +259,22 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                 // directly instead of a generic failure text, so the
                 // farmer understands this isn't a bug to retry.
                 if (!mounted) return;
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(friendlyError(AppLocalizations.of(context), e))));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      friendlyError(AppLocalizations.of(context), e),
+                    ),
+                  ),
+                );
               } catch (_) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to delete. Please try again.'),
+                  SnackBar(
+                    content: Text(
+                      AppLocalizations.of(
+                        context,
+                      ).enhFailedToDeletePleaseTryAgain,
+                    ),
                   ),
                 );
               }
@@ -264,7 +286,10 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
             ),
-            child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
+            child: Text(
+              AppLocalizations.of(context).exportDeleteButton,
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -293,7 +318,11 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     }
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Go online to create a listing')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).enhGoOnlineToCreateAListing,
+          ),
+        ),
       );
       return;
     }
@@ -315,7 +344,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
+                    const TopBarSpacer(height: 72),
                     CachedDataNotice(
                       screen: 'my_listings',
                       isOnline: _isOnline,
@@ -362,7 +391,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                                   horizontal: 20,
                                 ),
                                 child: _isLoading
-                                    ? SkeletonBlock(height: 150)
+                                    ? const SkeletonBlock(height: 150)
                                     : _ListingOverviewCard(
                                         availableCount: _availableCount,
                                         totalSold: _totalSold,
@@ -407,8 +436,8 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                                     ? Column(
                                         children: List.generate(
                                           3,
-                                          (_) => Padding(
-                                            padding: const EdgeInsets.only(
+                                          (_) => const Padding(
+                                            padding: EdgeInsets.only(
                                               bottom: 14,
                                             ),
                                             child: SkeletonBlock(height: 140),
@@ -460,7 +489,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: _selectedTab == 0 ? 'Marketplace' : 'Listings',
+                    title: _selectedTab == 0
+                        ? AppLocalizations.of(context).navMarketplace
+                        : AppLocalizations.of(context).navListings,
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
@@ -534,7 +565,7 @@ class _ListingOverviewCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'Listing Overview',
+                AppLocalizations.of(context).enhListingOverview,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -570,8 +601,9 @@ class _ListingOverviewCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _statMini(
+                  context,
                   icon: Icons.storefront_outlined,
-                  label: 'Available Listings',
+                  label: AppLocalizations.of(context).enhAvailableListings,
                   value: '$availableCount',
                 ),
               ),
@@ -582,8 +614,9 @@ class _ListingOverviewCard extends StatelessWidget {
               ),
               Expanded(
                 child: _statMini(
+                  context,
                   icon: Icons.payments_outlined,
-                  label: 'Total Sold',
+                  label: AppLocalizations.of(context).enhTotalSold,
                   value: formatPesosCompact(totalSold),
                 ),
               ),
@@ -597,9 +630,13 @@ class _ListingOverviewCard extends StatelessWidget {
               _PriorityRow(
                 icon: Icons.pending_actions_rounded,
                 color: AppConstants.warningAmber,
-                title:
-                    '$pendingCount listing${pendingCount == 1 ? '' : 's'} pending approval',
-                subtitle: 'Awaiting Manager decision',
+                title: AppLocalizations.of(context).enhListingPendingApproval(
+                  (pendingCount).toString(),
+                  (pendingCount == 1 ? '' : 's').toString(),
+                ),
+                subtitle: AppLocalizations.of(
+                  context,
+                ).enhAwaitingManagerDecision,
                 onTap: onPendingTap,
               ),
           ],
@@ -608,7 +645,8 @@ class _ListingOverviewCard extends StatelessWidget {
     );
   }
 
-  Widget _statMini({
+  Widget _statMini(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
@@ -620,14 +658,18 @@ class _ListingOverviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 13, color: AppConstants.primaryGreen),
+              Icon(
+                icon,
+                size: 13,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -638,7 +680,7 @@ class _ListingOverviewCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 17,
               fontWeight: FontWeight.w700,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ],
@@ -691,7 +733,7 @@ class _PriorityRow extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppConstants.charcoal,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -701,7 +743,7 @@ class _PriorityRow extends StatelessWidget {
                     subtitle,
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -709,10 +751,10 @@ class _PriorityRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
               size: 18,
-              color: AppConstants.outline,
+              color: Theme.of(context).colorScheme.outline,
             ),
           ],
         ),
@@ -744,8 +786,16 @@ class _ListingTabs extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: _tab(context, 0, 'Marketplace')),
-          Expanded(child: _tab(context, 1, 'Listing')),
+          Expanded(
+            child: _tab(
+              context,
+              0,
+              AppLocalizations.of(context).navMarketplace,
+            ),
+          ),
+          Expanded(
+            child: _tab(context, 1, AppLocalizations.of(context).enhListing),
+          ),
         ],
       ),
     );
@@ -792,34 +842,41 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: InputDecoration(
-        hintText: 'Search your listings...',
+        hintText: AppLocalizations.of(context).enhSearchYourListings,
         hintStyle: GoogleFonts.inter(
           fontSize: 14,
-          color: AppConstants.outline.withValues(alpha: 0.60),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.60),
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search_rounded,
-          color: AppConstants.outline,
+          color: Theme.of(context).colorScheme.outline,
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.saganaColors.cardBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           borderSide: BorderSide(
-            color: AppConstants.outline.withValues(alpha: 0.20),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           borderSide: BorderSide(
-            color: AppConstants.outline.withValues(alpha: 0.20),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -845,68 +902,25 @@ class _FilterChips extends StatelessWidget {
     required this.onSelected,
   });
 
-  // "All" keeps its own solid-primary treatment (it is not one specific
-  // status); every other chip uses the same colour and wording as the status
-  // badge on the cards (listing_status_badge.dart), so the filter row and the
-  // cards speak the same language.
+  // The standard "Label (n)" chips used across SAGANA. Every chip carries its
+  // count, "All" included, and a zero is shown as (0). Each status keeps the
+  // colour and wording of the badge on the cards (listing_status_badge.dart),
+  // so the filter row and the cards speak the same language.
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: ListingFilter.values.map((f) {
-          final isActive = f == active;
-          final isAll = f == ListingFilter.all;
-          final count = countFor(f);
-          final name = listingFilterLabel(AppLocalizations.of(context), f);
-          final label = (f != ListingFilter.all && count > 0)
-              ? '$name ($count)'
-              : name;
-          final statusColor = listingFilterColor(context, f);
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onSelected(f),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? (isAll
-                            ? Theme.of(context).colorScheme.primary
-                            : statusColor.withValues(alpha: 0.15))
-                      : Theme.of(context).colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.70),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  border: Border.all(
-                    color: isActive
-                        ? statusColor
-                        : Theme.of(
-                            context,
-                          ).colorScheme.outline.withValues(alpha: 0.20),
-                    width: isActive ? 1.5 : 1,
-                  ),
-                ),
-                child: Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isActive
-                        ? (isAll
-                              ? Theme.of(context).colorScheme.onPrimary
-                              : statusColor)
-                        : Theme.of(context).colorScheme.outline,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    final l10n = AppLocalizations.of(context);
+    return MarketplaceFilterBar<ListingFilter>(
+      selected: active,
+      onSelected: onSelected,
+      options: [
+        for (final f in ListingFilter.values)
+          MarketplaceFilterOption(
+            value: f,
+            label: listingFilterLabel(l10n, f),
+            count: countFor(f),
+            color: listingFilterColor(context, f),
+          ),
+      ],
     );
   }
 }
@@ -1006,13 +1020,32 @@ class _StandardContent extends StatelessWidget {
                           context,
                           status: listing.status,
                           remainingKg: listing.remainingKg,
+                          shelfUnavailable: listing.isShelfUnavailable,
                         ),
+                        // The automatic expiry-day discount is on this listing.
+                        if (listing.isShelfDiscounted &&
+                            !listing.isShelfUnavailable)
+                          ListingStatusBadge(
+                            label: AppLocalizations.of(
+                              context,
+                            ).shelfTagDiscounted,
+                            color: AppConstants.warningAmber,
+                          ),
+                        // The Reference Price Range changed and this price is
+                        // now outside it.
+                        if (listing.priceUpdateRequired)
+                          ListingStatusBadge(
+                            label: AppLocalizations.of(
+                              context,
+                            ).priceUpdateRequiredTag,
+                            color: AppConstants.errorRed,
+                          ),
                         if (!showMenu)
                           Text(
                             AppUtils.formatListingDate(listing.createdAt),
                             style: GoogleFonts.inter(
                               fontSize: 11,
-                              color: AppConstants.outline,
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                           ),
                       ],
@@ -1021,10 +1054,10 @@ class _StandardContent extends StatelessWidget {
                   if (showMenu)
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.more_vert_rounded,
                         size: 20,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                       onSelected: (value) {
                         if (value == 'delete') onDelete();
@@ -1034,7 +1067,7 @@ class _StandardContent extends StatelessWidget {
                           value: 'delete',
                           child: _menuRow(
                             Icons.delete_outline_rounded,
-                            'Delete Listing',
+                            AppLocalizations.of(context).enhDeleteListing246,
                             AppConstants.errorRed,
                           ),
                         ),
@@ -1049,8 +1082,8 @@ class _StandardContent extends StatelessWidget {
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                   color: listing.isWithdrawn
-                      ? AppConstants.outline
-                      : AppConstants.charcoal,
+                      ? Theme.of(context).colorScheme.outline
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 4),
@@ -1064,46 +1097,106 @@ class _StandardContent extends StatelessWidget {
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: listing.isWithdrawn
-                          ? AppConstants.outline
-                          : AppConstants.primaryGreen,
+                          ? Theme.of(context).colorScheme.outline
+                          : Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   Text(
                     '/${unitOrDefault(listing.unit)}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: AppConstants.outline,
+                      color: Theme.of(context).colorScheme.outline,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 2),
               Text(
-                (listing.isLive || listing.isSold) && listing.submittedAt != null
-                    ? '${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)} • Submitted ${AppUtils.formatListingDate(listing.submittedAt!)}'
+                (listing.isLive || listing.isSold) &&
+                        listing.submittedAt != null
+                    ? AppLocalizations.of(context).enhSubmitted434(
+                        (listingQuantityLabel(
+                          AppLocalizations.of(context),
+                          status: listing.status,
+                          remainingKg: listing.remainingKg,
+                          volumeKg: listing.volumeKg,
+                          unit: listing.unit,
+                        )).toString(),
+                        (AppUtils.formatListingDate(
+                          listing.submittedAt!,
+                        )).toString(),
+                      )
                     : listing.isWithdrawn
                     ? '${formatPricePerUnit(listing.pricePerKg, listing.unit)} • ${formatQuantityUnit(listing.volumeKg, listing.unit)}'
-                    : 'Volume: ${formatQuantityUnit(listing.volumeKg, listing.unit)}',
+                    : AppLocalizations.of(context).enhVolume(
+                        (formatQuantityUnit(
+                          listing.volumeKg,
+                          listing.unit,
+                        )).toString(),
+                      ),
                 style: GoogleFonts.inter(
                   fontSize: 11,
-                  color: AppConstants.outline,
+                  color: Theme.of(context).colorScheme.outline,
                 ),
               ),
+              if (listing.priceUpdateRequired) ...[
+                const SizedBox(height: 4),
+                Text(
+                  AppLocalizations.of(context).priceUpdateRequiredHint(
+                    listing.priceUpdateRule!.min.toStringAsFixed(2),
+                    listing.priceUpdateRule!.max.toStringAsFixed(2),
+                    listing.priceUpdateRule!.unit,
+                  ),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.errorRed,
+                  ),
+                ),
+              ],
+              // Past its shelf life (or discounted for it): say what to do.
+              if (listing.isShelfUnavailable || listing.isShelfDiscounted) ...[
+                const SizedBox(height: 4),
+                Text(
+                  listing.isShelfUnavailable
+                      ? AppLocalizations.of(context).shelfListingUnavailableHint
+                      : AppLocalizations.of(
+                          context,
+                        ).shelfListingDiscountedHint(
+                          (listing.shelfLife?.preDiscountPrice ??
+                                  listing.pricePerKg)
+                              .toStringAsFixed(2),
+                        ),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: listing.isShelfUnavailable
+                        ? Theme.of(context).colorScheme.error
+                        : AppConstants.warningAmber,
+                  ),
+                ),
+              ],
               if (listing.isWithdrawn && listing.updatedAt != null) ...[
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.history_rounded,
                       size: 13,
-                      color: AppConstants.outline,
+                      color: Theme.of(context).colorScheme.outline,
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      'Removed on ${AppUtils.formatListingDate(listing.updatedAt!)}',
+                      AppLocalizations.of(context).enhRemovedOn(
+                        (AppUtils.formatListingDate(
+                          listing.updatedAt!,
+                        )).toString(),
+                      ),
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
                   ],
@@ -1112,12 +1205,12 @@ class _StandardContent extends StatelessWidget {
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(top: 4, left: 4),
+        Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
           child: Icon(
             Icons.chevron_right_rounded,
             size: 18,
-            color: AppConstants.outline,
+            color: Theme.of(context).colorScheme.outline,
           ),
         ),
       ],
@@ -1206,27 +1299,35 @@ class _EmptyState extends StatelessWidget {
             child: Icon(
               hasFilter ? Icons.search_off_rounded : Icons.storefront_outlined,
               size: 38,
-              color: AppConstants.outline.withValues(alpha: 0.60),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
             ),
           ),
           const SizedBox(height: 18),
           Text(
-            hasFilter ? 'No listings match this search' : 'No listings yet',
+            hasFilter
+                ? AppLocalizations.of(context).enhNoListingsMatchThisSearch
+                : AppLocalizations.of(context).marketplaceNoListingsYet,
             style: GoogleFonts.poppins(
               fontSize: 17,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             hasFilter
-                ? 'Try a different search term or filter'
-                : 'Create a listing from your inventory to start selling to buyers. Tap the + button to get started.',
+                ? AppLocalizations.of(
+                    context,
+                  ).enhTryADifferentSearchTermOrFilter
+                : AppLocalizations.of(
+                    context,
+                  ).enhCreateAListingFromYourInventoryToStart,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -1265,7 +1366,7 @@ class _CreateListingFab extends StatelessWidget {
           decoration: BoxDecoration(
             color: isOnline
                 ? null
-                : AppConstants.outline.withValues(alpha: 0.50),
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.50),
             gradient: isOnline
                 ? const LinearGradient(
                     begin: Alignment.topLeft,
@@ -1282,7 +1383,7 @@ class _CreateListingFab extends StatelessWidget {
                 color:
                     (isOnline
                             ? AppConstants.primaryGreen
-                            : AppConstants.outline)
+                            : Theme.of(context).colorScheme.outline)
                         .withValues(alpha: 0.30),
                 blurRadius: 20,
                 offset: const Offset(0, 8),

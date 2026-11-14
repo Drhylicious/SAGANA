@@ -102,7 +102,7 @@ void main() {
     test('a failed read is zero rather than a crash', () async {
       fake.on(
         'GET /rest/v1/program_product_purchases',
-        (_) => FakeError(500, 'boom'),
+        (_) => const FakeError(500, 'boom'),
       );
       final s = await AdminReportsRepository().fetchProductSalesForRange(
         DateTime(2026, 12, 1),
@@ -247,7 +247,10 @@ void main() {
         expect(o.revenue, 290); // 160 Marketplace + 130 Cooperative Products
         expect(o.suppliesIncoming, 5);
         expect(o.suppliesOutgoing, 3);
-        expect(o.totalSupplies, 8); // incoming + outgoing; in-progress orders are not counted
+        expect(
+          o.totalSupplies,
+          8,
+        ); // incoming + outgoing; in-progress orders are not counted
         expect(o.retailPrices, 40);
         final year = DateTime.now().year;
         String q(String t) => [
@@ -255,7 +258,10 @@ void main() {
           ...fake.calls('GET /rest/v1/$t'),
         ].map((r) => r.url.query).join(' | ');
         expect(q('cooperative_programs'), contains('season_year=eq.$year'));
-        expect(Uri.decodeQueryComponent(q('price_records')).replaceAll('"', ''), contains('price_type=in.(open_market,sp3_cooperative)')); // Public + Cooperative Market
+        expect(
+          Uri.decodeQueryComponent(q('price_records')).replaceAll('"', ''),
+          contains('price_type=in.(open_market,sp3_cooperative)'),
+        ); // Public + Cooperative Market
         expect(q('price_records'), contains('recorded_at=gte.'));
       });
 
@@ -357,12 +363,12 @@ void main() {
   });
 
   group('the exports follow the screen', () {
-    final marketplace = SalesReportData(
+    const marketplace = SalesReportData(
       totalRevenue: 2500,
       totalQuantityKg: 100,
       transactionCount: 0,
-      monthlyTrend: const [],
-      transactions: const [],
+      monthlyTrend: [],
+      transactions: [],
     );
     final products = ProductSalesReportData(
       summary: const ProductSalesSummary(amount: 112.5, orders: 1, buyers: 1),

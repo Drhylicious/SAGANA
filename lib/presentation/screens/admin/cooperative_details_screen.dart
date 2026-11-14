@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../navigation/connectivity_page_observer.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -105,6 +106,7 @@ class _CooperativeDetailsScreenState extends State<CooperativeDetailsScreen> {
     final l10n = AppLocalizations.of(context);
     final picked = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
+        settings: RouteSettings(name: ConnectivityPage.cooperativeMap.name),
         fullscreenDialog: true,
         builder: (_) => LocationPinPickerScreen(
           title: l10n.cdPinTitle,

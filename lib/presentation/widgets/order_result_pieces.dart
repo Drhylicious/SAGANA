@@ -14,11 +14,16 @@ import 'shared_widgets.dart';
 // hardcodes English.
 String orderStatusBadge(String status, AppLocalizations l10n) {
   switch (status) {
-    case 'pending':   return l10n.buyerOrdersStatusPending;
-    case 'approved':  return l10n.buyerOrdersStatusApproved;
-    case 'completed': return l10n.buyerOrdersStatusCompleted;
-    case 'cancelled': return l10n.buyerOrdersStatusCancelled;
-    default:          return status.toUpperCase();
+    case 'pending':
+      return l10n.buyerOrdersStatusPending;
+    case 'approved':
+      return l10n.buyerOrdersStatusApproved;
+    case 'completed':
+      return l10n.buyerOrdersStatusCompleted;
+    case 'cancelled':
+      return l10n.buyerOrdersStatusCancelled;
+    default:
+      return status.toUpperCase();
   }
 }
 
@@ -42,17 +47,29 @@ class OrderResultIcon extends StatelessWidget {
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeOutBack,
-      builder: (context, value, child) => Transform.scale(scale: value, child: child),
+      builder: (context, value, child) =>
+          Transform.scale(scale: value, child: child),
       child: Container(
-        width: 92, height: 92,
+        width: 92,
+        height: 92,
         alignment: Alignment.center,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.10)),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.10),
+        ),
         child: Container(
-          width: 68, height: 68,
+          width: 68,
+          height: 68,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Icon(icon, color: Colors.white, size: 36),
         ),
@@ -98,10 +115,14 @@ class OrderReferenceCard extends StatelessWidget {
 
   Color get _statusColor {
     switch (status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'completed': return AppConstants.primaryGreen;
-      case 'cancelled': return AppConstants.errorRed;
-      default: return AppConstants.warningAmber; // pending
+      case 'approved':
+        return AppConstants.successGreen;
+      case 'completed':
+        return AppConstants.primaryGreen;
+      case 'cancelled':
+        return AppConstants.errorRed;
+      default:
+        return AppConstants.warningAmber; // pending
     }
   }
 
@@ -120,12 +141,28 @@ class OrderReferenceCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(reference, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.onSurfaceVariant)),
+              Text(
+                reference,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                child: Text(orderStatusBadge(status, l10n),
-                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                child: Text(
+                  orderStatusBadge(status, l10n),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
               ),
             ],
           ),
@@ -135,17 +172,37 @@ class OrderReferenceCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                 child: photoUrl != null
-                    ? Image.network(photoUrl!, width: 48, height: 48, fit: BoxFit.cover)
-                    : Container(width: 48, height: 48, color: AppConstants.limeGreen),
+                    ? Image.network(
+                        photoUrl!,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        color: AppConstants.limeGreen,
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(displayName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                    Text('${formatQuantityUnit(quantityKg, unit)} × ${formatPricePerUnit(pricePerKg, unit)}',
-                        style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                    Text(
+                      displayName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${formatQuantityUnit(quantityKg, unit)} × ${formatPricePerUnit(pricePerKg, unit)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -162,9 +219,22 @@ class OrderReferenceCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(l10n.buyerOrdersTotalLabel, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant)),
-                Text('₱${totalPrice.toStringAsFixed(2)}',
-                    style: GoogleFonts.poppins(fontSize: 19, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                Text(
+                  l10n.buyerOrdersTotalLabel,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  '₱${totalPrice.toStringAsFixed(2)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -193,10 +263,21 @@ class OrderResultActions extends StatelessWidget {
       top: false,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 12, AppConstants.spacingSafeH, 16),
+        padding: const EdgeInsets.fromLTRB(
+          AppConstants.spacingSafeH,
+          12,
+          AppConstants.spacingSafeH,
+          16,
+        ),
         decoration: BoxDecoration(
           color: context.saganaColors.cardBackground,
-          border: Border(top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10))),
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.10),
+            ),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -222,8 +303,13 @@ class OrderResultActions extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () => context.go(AppRoutes.marketplaceBrowse),
-                  child: Text(l10n.buyerOrderSuccessContinueShopping,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    l10n.buyerOrderSuccessContinueShopping,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],

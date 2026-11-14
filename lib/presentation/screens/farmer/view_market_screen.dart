@@ -12,6 +12,8 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/price_display_widgets.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/skeleton.dart';
 import '../../../data/services/market_types_service.dart';
 import '../../widgets/shared_widgets.dart';
@@ -99,7 +101,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 72),
+              const TopBarSpacer(height: 72),
               CachedDataNotice(
                 screen: FarmerMarketRatesRepository.cacheScreen(),
                 isOnline: _isOnline,
@@ -154,34 +156,31 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
       null,
       ...MarketTypes.instance.activeTypes.map((t) => t.code),
     ];
+    // The standard "Label (n)" chips used across SAGANA; each count is the
+    // number of rates in that market (what the chip would show).
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: SizedBox(
-        height: 40,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSafeH,
-          ),
-          itemCount: types.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, index) {
-            final type = types[index];
-            return Center(
-              child: _MarketChip(
-                label: type == null
-                    ? l10n.buyerPriceFilterAll
-                    : MarketTypeDisplay.label(l10n, type),
-                color: type == null
-                    ? AppConstants.primaryGreen
-                    : MarketTypeDisplay.color(context, type),
-                selected: _marketType == type,
-                onTap: () => setState(() => _marketType = type),
-              ),
-            );
-          },
+      child: MarketplaceFilterBar<String?>(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.spacingSafeH,
         ),
+        selected: _marketType,
+        onSelected: (type) => setState(() => _marketType = type),
+        options: [
+          for (final type in types)
+            MarketplaceFilterOption(
+              value: type,
+              label: type == null
+                  ? l10n.buyerPriceFilterAll
+                  : MarketTypeDisplay.label(l10n, type),
+              count: type == null
+                  ? _rates.length
+                  : _rates.where((r) => r.priceType == type).length,
+              color: type == null
+                  ? AppConstants.primaryGreen
+                  : MarketTypeDisplay.color(context, type),
+            ),
+        ],
       ),
     );
   }
@@ -284,38 +283,6 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
 // Pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MarketChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _MarketChip({
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      labelStyle: GoogleFonts.inter(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: selected ? Colors.white : color,
-      ),
-      selectedColor: color,
-      backgroundColor: color.withValues(alpha: 0.10),
-      side: BorderSide(color: color.withValues(alpha: 0.3)),
-      showCheckmark: false,
-    );
-  }
-}
-
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String message;
@@ -357,7 +324,7 @@ class _EmptyState extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),

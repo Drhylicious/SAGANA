@@ -57,7 +57,6 @@ class AppRoutes {
   static const String myPrograms = '/farmer/profile/programs';
   static const String myProgramsEnrolled = '/farmer/profile/programs/enrolled';
   static const String receivedItems = '/farmer/profile/received-items';
-  static const String receivedCropItems = '/farmer/harvest/received-crops';
   static const String programDetails = '/farmer/profile/programs/detail';
   static const String myMarketLinking = '/farmer/profile/market-linking';
   static const String myTransactionHistory = '/farmer/profile/transactions';

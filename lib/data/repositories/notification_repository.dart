@@ -139,6 +139,7 @@ class NotificationRepository {
           .eq('user_id', _userId);
     } catch (e) {
       debugPrint('NotificationRepository.markAsRead failed: $e');
+      rethrow;
     }
   }
 
@@ -162,6 +163,7 @@ class NotificationRepository {
           .eq('is_read', false);
     } catch (e) {
       debugPrint('NotificationRepository.markAllAsRead failed: $e');
+      rethrow;
     }
   }
 
@@ -187,6 +189,7 @@ class NotificationRepository {
           .eq('user_id', _userId);
     } catch (e) {
       debugPrint('NotificationRepository.markAsUnread failed: $e');
+      rethrow;
     }
   }
 
@@ -209,6 +212,7 @@ class NotificationRepository {
           .eq('is_read', true);
     } catch (e) {
       debugPrint('NotificationRepository.markAllAsUnread failed: $e');
+      rethrow;
     }
   }
 
@@ -234,6 +238,7 @@ class NotificationRepository {
           .eq('user_id', _userId);
     } catch (e) {
       debugPrint('NotificationRepository.deleteNotification failed: $e');
+      rethrow;
     }
   }
 
@@ -253,6 +258,7 @@ class NotificationRepository {
       await _client.from('notifications').delete().eq('user_id', _userId);
     } catch (e) {
       debugPrint('NotificationRepository.deleteAllNotifications failed: $e');
+      rethrow;
     }
   }
 }

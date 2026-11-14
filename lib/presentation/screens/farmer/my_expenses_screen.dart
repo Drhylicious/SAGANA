@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -297,9 +298,14 @@ class _TotalCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
+                  color: context.saganaColors.cardBackground.withValues(
+                    alpha: 0.16,
+                  ),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
@@ -331,7 +337,9 @@ class _TotalCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
+              color: context.saganaColors.cardBackground.withValues(
+                alpha: 0.12,
+              ),
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
             child: Row(
@@ -346,7 +354,9 @@ class _TotalCard extends StatelessWidget {
                 Container(
                   width: 1,
                   height: 30,
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: context.saganaColors.cardBackground.withValues(
+                    alpha: 0.2,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -356,7 +366,9 @@ class _TotalCard extends StatelessWidget {
                         ? categoryIcon(top.category)
                         : Icons.category_outlined,
                     label: l10n.expnTopCategory,
-                    value: isLoading ? '—' : (top?.category ?? l10n.expnNoneYet),
+                    value: isLoading
+                        ? '—'
+                        : (top?.category ?? l10n.expnNoneYet),
                   ),
                 ),
               ],
@@ -372,7 +384,11 @@ class _HeroStat extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _HeroStat({required this.icon, required this.label, required this.value});
+  const _HeroStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -466,14 +482,17 @@ class _SectionHeader extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
         if (trailing != null)
           Text(
             trailing!,
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
       ],
     );
@@ -500,7 +519,9 @@ class _CategoryBreakdownCard extends StatelessWidget {
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.45),
         ),
         boxShadow: [
           BoxShadow(
@@ -517,7 +538,7 @@ class _CategoryBreakdownCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 14),
@@ -539,13 +560,19 @@ class _BreakdownRow extends StatelessWidget {
   final CategoryBreakdown item;
   final double share;
   final NumberFormat money;
-  const _BreakdownRow({required this.item, required this.share, required this.money});
+  const _BreakdownRow({
+    required this.item,
+    required this.share,
+    required this.money,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final subsidyOnly = item.hasSubsidy && item.total == 0;
-    final color = subsidyOnly ? AppConstants.successGreen : categoryColor(item.category);
+    final color = subsidyOnly
+        ? AppConstants.successGreen
+        : categoryColor(item.category);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -559,13 +586,16 @@ class _BreakdownRow extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      item.category,
+                      localizeBuiltinLabel(
+                        AppLocalizations.of(context),
+                        item.category,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -575,7 +605,7 @@ class _BreakdownRow extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppConstants.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -598,7 +628,9 @@ class _BreakdownRow extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 10.5,
                   fontWeight: subsidyOnly ? FontWeight.w700 : FontWeight.w500,
-                  color: subsidyOnly ? AppConstants.successGreen : AppConstants.outline,
+                  color: subsidyOnly
+                      ? AppConstants.successGreen
+                      : Theme.of(context).colorScheme.outline,
                 ),
               ),
             ],
@@ -650,12 +682,18 @@ class _SubsidyNote extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppConstants.successGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.22)),
+        border: Border.all(
+          color: AppConstants.successGreen.withValues(alpha: 0.22),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.volunteer_activism_rounded, size: 18, color: AppConstants.successGreen),
+          const Icon(
+            Icons.volunteer_activism_rounded,
+            size: 18,
+            color: AppConstants.successGreen,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -663,7 +701,7 @@ class _SubsidyNote extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 height: 1.4,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -697,7 +735,9 @@ class _ExpenseCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.45),
             ),
             boxShadow: [
               BoxShadow(
@@ -722,7 +762,7 @@ class _ExpenseCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 1),
@@ -732,7 +772,7 @@ class _ExpenseCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 11.5,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -740,7 +780,10 @@ class _ExpenseCard extends StatelessWidget {
                       '${e.category} · ${DateFormat('MMM d, yyyy').format(e.expenseDate)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(fontSize: 10.5, color: AppConstants.outline),
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
                   ],
                 ),
@@ -754,7 +797,9 @@ class _ExpenseCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: e.isSubsidy ? AppConstants.successGreen : AppConstants.onSurface,
+                      color: e.isSubsidy
+                          ? AppConstants.successGreen
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   if (e.isSubsidy || !e.isSynced) const SizedBox(height: 4),
@@ -835,7 +880,10 @@ class _ExpenseDetailSheet extends StatelessWidget {
     final rows = <MapEntry<String, String>>[
       MapEntry(l10n.expnDetailCategory, e.category),
       MapEntry(l10n.expnDetailDescription, e.description),
-      MapEntry(l10n.expnDetailDate, DateFormat('MMMM d, yyyy').format(e.expenseDate)),
+      MapEntry(
+        l10n.expnDetailDate,
+        DateFormat('MMMM d, yyyy').format(e.expenseDate),
+      ),
       MapEntry(
         l10n.expnDetailSubsidy,
         e.isSubsidy ? l10n.expnSubsidyYes : l10n.expnSubsidyNo,
@@ -845,7 +893,7 @@ class _ExpenseDetailSheet extends StatelessWidget {
 
     return ManagementModalShell(
       title: e.displayName,
-      subtitle: e.category,
+      subtitle: localizeBuiltinLabel(AppLocalizations.of(context), e.category),
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -865,20 +913,26 @@ class _ExpenseDetailSheet extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: e.isSubsidy ? AppConstants.successGreen : cs.onSurface,
+                    color: e.isSubsidy
+                        ? AppConstants.successGreen
+                        : cs.onSurface,
                   ),
                 ),
                 if (e.isSubsidy)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: _Pill(label: l10n.expnSubsidyTag, color: AppConstants.successGreen),
+                    child: _Pill(
+                      label: l10n.expnSubsidyTag,
+                      color: AppConstants.successGreen,
+                    ),
                   ),
               ],
             ),
           ),
           const SizedBox(height: 14),
           for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+            if (i > 0)
+              Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
@@ -888,7 +942,10 @@ class _ExpenseDetailSheet extends StatelessWidget {
                     width: 104,
                     child: Text(
                       rows[i].key,
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   Expanded(
@@ -911,7 +968,9 @@ class _ExpenseDetailSheet extends StatelessWidget {
         width: double.infinity,
         child: ElevatedButton(
           onPressed: () => Navigator.of(context).pop(),
-          style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(46),
+          ),
           child: Text(l10n.close),
         ),
       ),
@@ -940,10 +999,10 @@ class _EmptyState extends StatelessWidget {
               color: AppConstants.primaryGreen.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.receipt_long_rounded,
               size: 34,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 16),
@@ -952,14 +1011,17 @@ class _EmptyState extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             l10n.expnEmptyBody,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -1040,8 +1102,8 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
   Future<String?> _addNewCategory() async {
     final name = await promptForNewOptionName(
       context,
-      title: 'Add Expense Category',
-      hintText: 'e.g. Livestock Feed',
+      title: AppLocalizations.of(context).enhAddExpenseCategory,
+      hintText: AppLocalizations.of(context).enhEGLivestockFeed,
     );
     if (name == null) return null;
     final added = await widget.categoryRepo.addExpenseCategory(name);
@@ -1055,21 +1117,37 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
 
   Future<void> _save() async {
     if (_category == null) {
-      AppToast.show(context, 'Please select a category.', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhPleaseSelectACategory,
+        isError: true,
+      );
       return;
     }
     if (_nameController.text.trim().isEmpty) {
-      AppToast.show(context, 'Please enter a name.', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhPleaseEnterAName,
+        isError: true,
+      );
       return;
     }
     if (_descController.text.trim().isEmpty) {
-      AppToast.show(context, 'Please enter a description.', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhPleaseEnterADescription,
+        isError: true,
+      );
       return;
     }
     final amountText = _amountController.text.trim();
     final amount = double.tryParse(amountText) ?? 0;
     if (!_isSubsidy && (!isValidCurrencyValue(amountText) || amount <= 0)) {
-      AppToast.show(context, 'Please enter a valid amount.', isError: true);
+      AppToast.show(
+        context,
+        AppLocalizations.of(context).enhPleaseEnterAValidAmount,
+        isError: true,
+      );
       return;
     }
     setState(() => _isSaving = true);
@@ -1091,7 +1169,10 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
         // a dialog's own context renders behind the dialog, not in front
         // of it — see app_toast.dart's doc comment.
         if (!result.isSynced) {
-          AppToast.show(context, AppLocalizations.of(context).offlineSavedWillSync);
+          AppToast.show(
+            context,
+            AppLocalizations.of(context).offlineSavedWillSync,
+          );
         }
         // Broadcasts to Profile (and any other listening screen) so the
         // "This month's expenses" tile doesn't go stale after adding an
@@ -1104,7 +1185,11 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
     } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
-        AppToast.show(context, 'Failed to save. Please try again.', isError: true);
+        AppToast.show(
+          context,
+          AppLocalizations.of(context).adminProfileSaveError,
+          isError: true,
+        );
       }
     }
   }
@@ -1120,11 +1205,11 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       ),
       title: Text(
-        'Add New Expense',
+        AppLocalizations.of(context).enhAddNewExpense,
         style: GoogleFonts.poppins(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: AppConstants.primaryGreen,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
       content: SizedBox(
@@ -1137,23 +1222,24 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
               // Category
               AppDropdownField<String>(
                 value: _category,
-                hintText: 'Select a category',
-                labelText: 'Category',
+                hintText: AppLocalizations.of(context).commonSelectCategory,
+                labelText: AppLocalizations.of(context).buyerListingCategory,
                 items: _categories,
-                itemLabel: (c) => c,
+                itemLabel: (c) =>
+                    localizeBuiltinLabel(AppLocalizations.of(context), c),
                 onChanged: (v) => setState(() => _category = v),
-                addNewLabel: 'Add New Category',
+                addNewLabel: AppLocalizations.of(context).enhAddNewCategory,
                 onAddNew: _addNewCategory,
               ),
               const SizedBox(height: 16),
 
               // Name
               Text(
-                'Name',
+                AppLocalizations.of(context).programMgmtFieldName,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1161,7 +1247,7 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                 controller: _nameController,
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'e.g. Urea Fertilizer',
+                  hintText: AppLocalizations.of(context).enhEGUreaFertilizer,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
@@ -1175,11 +1261,11 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
 
               // Description
               Text(
-                'Description',
+                AppLocalizations.of(context).programMgmtFieldDescription,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1187,7 +1273,9 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                 controller: _descController,
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'e.g. Hired help for harvesting',
+                  hintText: AppLocalizations.of(
+                    context,
+                  ).enhEGHiredHelpForHarvesting,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
@@ -1201,17 +1289,19 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
 
               // Amount
               Text(
-                'Amount (₱)',
+                AppLocalizations.of(context).farmerDetailsAmountLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
@@ -1220,7 +1310,7 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                 decoration: InputDecoration(
                   prefixText: '₱ ',
                   filled: _isSubsidy,
-                  fillColor: const Color(0xFFF1F5F9),
+                  fillColor: context.adaptiveSurface(const Color(0xFFF1F5F9)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
@@ -1234,11 +1324,11 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
 
               // Date
               Text(
-                'Date',
+                AppLocalizations.of(context).rptDate,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1252,7 +1342,9 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                     border: Border.all(
-                      color: AppConstants.outline.withValues(alpha: 0.30),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.30),
                     ),
                   ),
                   child: Row(
@@ -1262,10 +1354,10 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                         DateFormat('MMM d, yyyy').format(_date),
                         style: GoogleFonts.inter(fontSize: 14),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.calendar_today_rounded,
                         size: 16,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ],
                   ),
@@ -1281,7 +1373,7 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE6F6FF),
+                  color: context.adaptiveSurface(const Color(0xFFE6F6FF)),
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Row(
@@ -1292,18 +1384,22 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Covered by Subsidy',
+                            AppLocalizations.of(context).enhCoveredBySubsidy,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: AppConstants.onSurface,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           Text(
-                            "This won't be added to your total.",
+                            AppLocalizations.of(
+                              context,
+                            ).enhThisWonTBeAddedToYourTotal,
                             style: GoogleFonts.inter(
                               fontSize: 11,
-                              color: AppConstants.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -1373,10 +1469,10 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                    : const FittedBox(
+                    : FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          'Save Expense',
+                          AppLocalizations.of(context).enhSaveExpense,
                           maxLines: 1,
                           softWrap: false,
                         ),
@@ -1389,4 +1485,3 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
     );
   }
 }
-

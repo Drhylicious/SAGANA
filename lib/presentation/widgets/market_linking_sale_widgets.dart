@@ -1,4 +1,6 @@
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
@@ -135,10 +137,14 @@ class MarketLinkingEntryPhoto extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: size * 0.32,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               )
-            : Icon(Icons.eco_rounded, size: size * 0.5, color: AppConstants.primaryGreen),
+            : Icon(
+                Icons.eco_rounded,
+                size: size * 0.5,
+                color: Theme.of(context).colorScheme.primary,
+              ),
       ),
     );
 
@@ -171,7 +177,10 @@ class MarketLinkingEntryPhoto extends StatelessWidget {
                 child: Text(
                   l10n.mlkPhotoCaption(entry.cropName, entry.farmerName),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -213,7 +222,9 @@ class MarketLinkingSaleProgress extends StatelessWidget {
     final unsold = roundQuantity(total - sold);
     final String right;
     if (entry.isActive) {
-      right = l10n.mlkLeftToSell(formatQuantityUnit(entry.remainingKg, entry.unit));
+      right = l10n.mlkLeftToSell(
+        formatQuantityUnit(entry.remainingKg, entry.unit),
+      );
     } else if (unsold > 0) {
       right = l10n.mlkReturnedToStock(formatQuantityUnit(unsold, entry.unit));
     } else {
@@ -248,7 +259,9 @@ class MarketLinkingSaleProgress extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: entry.isActive ? AppConstants.buyerBlue : cs.onSurfaceVariant,
+                    color: entry.isActive
+                        ? AppConstants.buyerBlue
+                        : cs.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -288,13 +301,9 @@ class MarketLinkingSalesList extends StatefulWidget {
 
 class _MarketLinkingSalesListState extends State<MarketLinkingSalesList> {
   static const _collapsedCount = 2;
-  static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
   bool _expanded = false;
 
-  static String _date(DateTime d) => '${_months[d.month - 1]} ${d.day}';
+  static String _date(DateTime d) => DateFormat.MMMd().format(d);
 
   /// True when [sale]'s buyer is not already shown in the request's Buyer
   /// Details, so the name is worth putting on that line: either this sale went to
@@ -302,7 +311,8 @@ class _MarketLinkingSalesListState extends State<MarketLinkingSalesList> {
   /// request shows no buyer at all. The same name (ignoring case and spacing) is
   /// never repeated.
   static bool _isOtherBuyer(MarketLinkingModel entry, MarketLinkingSale sale) {
-    String norm(String? v) => (v ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+    String norm(String? v) =>
+        (v ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
     final saleBuyer = norm(sale.buyerName);
     if (saleBuyer.isEmpty) return false;
     final requestBuyer = norm(entry.buyerName);
@@ -320,7 +330,9 @@ class _MarketLinkingSalesListState extends State<MarketLinkingSalesList> {
     final collapsible = sales.length > _collapsedCount;
     // Newest first, so the latest sale is always visible.
     final ordered = sales.reversed.toList();
-    final visible = (!collapsible || _expanded) ? ordered : ordered.take(_collapsedCount).toList();
+    final visible = (!collapsible || _expanded)
+        ? ordered
+        : ordered.take(_collapsedCount).toList();
 
     return Padding(
       padding: widget.padding,
@@ -330,7 +342,9 @@ class _MarketLinkingSalesListState extends State<MarketLinkingSalesList> {
         decoration: BoxDecoration(
           color: AppConstants.successGreen.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.20)),
+          border: Border.all(
+            color: AppConstants.successGreen.withValues(alpha: 0.20),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +399,10 @@ class _MarketLinkingSalesListState extends State<MarketLinkingSalesList> {
                           ].join(' · '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -410,11 +427,13 @@ class _MarketLinkingSalesListState extends State<MarketLinkingSalesList> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
-                    _expanded ? l10n.mlkShowLess : l10n.mlkShowAllSales(sales.length),
+                    _expanded
+                        ? l10n.mlkShowLess
+                        : l10n.mlkShowAllSales(sales.length),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ),
@@ -478,7 +497,9 @@ class MarketLinkingStageBar extends StatelessWidget {
                         color: i == 0
                             ? Colors.transparent
                             : (i < done
-                                  ? AppConstants.successGreen.withValues(alpha: 0.5)
+                                  ? AppConstants.successGreen.withValues(
+                                      alpha: 0.5,
+                                    )
                                   : cs.outline.withValues(alpha: 0.18)),
                       ),
                     ),
@@ -489,7 +510,9 @@ class MarketLinkingStageBar extends StatelessWidget {
                         color: i == labels.length - 1
                             ? Colors.transparent
                             : (i + 1 < done
-                                  ? AppConstants.successGreen.withValues(alpha: 0.5)
+                                  ? AppConstants.successGreen.withValues(
+                                      alpha: 0.5,
+                                    )
                                   : cs.outline.withValues(alpha: 0.18)),
                       ),
                     ),
@@ -544,17 +567,22 @@ class _Dot extends StatelessWidget {
         color: current ? AppConstants.primaryGreen : Colors.transparent,
         shape: BoxShape.circle,
         border: Border.all(
-          color: current ? AppConstants.primaryGreen : cs.outline.withValues(alpha: 0.35),
+          color: current
+              ? AppConstants.primaryGreen
+              : cs.outline.withValues(alpha: 0.35),
           width: 1.5,
         ),
       ),
       child: current
-          ? const Center(
+          ? Center(
               child: SizedBox(
                 width: 6,
                 height: 6,
                 child: DecoratedBox(
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: context.saganaColors.cardBackground,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
             )
@@ -602,7 +630,9 @@ class MarketLinkingBuyerBlock extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppConstants.buyerBlue.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.20)),
+        border: Border.all(
+          color: AppConstants.buyerBlue.withValues(alpha: 0.20),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -615,12 +645,15 @@ class MarketLinkingBuyerBlock extends StatelessWidget {
               color: cs.onSurfaceVariant,
             ),
           ),
-          line(Icons.person_outline_rounded, entry.buyerName!.trim(), strong: true),
+          line(
+            Icons.person_outline_rounded,
+            entry.buyerName!.trim(),
+            strong: true,
+          ),
           if ((entry.buyerContact ?? '').trim().isNotEmpty)
             line(Icons.phone_outlined, entry.buyerContact!.trim()),
           if ((entry.buyerEmail ?? '').trim().isNotEmpty)
             line(Icons.mail_outline_rounded, entry.buyerEmail!.trim()),
-
         ],
       ),
     );
@@ -661,7 +694,9 @@ class MarketLinkingSummary {
     return MarketLinkingSummary(
       inProgress: entries.where((e) => e.isActive).length,
       kgSold: roundQuantity(
-        entries.where((e) => isKg(e.unit)).fold<double>(0, (sum, e) => sum + e.soldKg),
+        entries
+            .where((e) => isKg(e.unit))
+            .fold<double>(0, (sum, e) => sum + e.soldKg),
       ),
       kgRemaining: roundQuantity(
         entries
@@ -676,7 +711,9 @@ class MarketLinkingSummary {
         for (final e in entries.where((e) => e.isActive && e.remainingKg > 0))
           (quantity: e.remainingKg, unit: e.unit),
       ]),
-      completed: entries.where((e) => e.status == MarketLinkingStatus.completed).length,
+      completed: entries
+          .where((e) => e.status == MarketLinkingStatus.completed)
+          .length,
     );
   }
 }
@@ -687,7 +724,11 @@ class MarketLinkingSummary {
 class AlignedLabeledField extends StatelessWidget {
   final String label;
   final Widget child;
-  const AlignedLabeledField({super.key, required this.label, required this.child});
+  const AlignedLabeledField({
+    super.key,
+    required this.label,
+    required this.child,
+  });
 
   /// Room for a label of two lines.
   static const double labelHeight = 34;

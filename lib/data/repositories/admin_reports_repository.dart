@@ -3,6 +3,8 @@ import '../services/offline_cache.dart';
 import '../../core/utils/order_reference.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/admin_reports_model.dart';
+import '../models/shelf_life_model.dart';
+import 'shelf_life_repository.dart';
 import 'completed_order_dates.dart';
 import 'crop_lookup.dart';
 import 'farmer_lookup.dart';
@@ -812,6 +814,10 @@ class AdminReportsRepository {
     final priceBySale = await _fetchOfferPricesBySale([
       for (final r in rows) r['id'] as String,
     ]);
+    final offerBatch = await _fetchOfferBatchBySale([
+      for (final r in rows) r['id'] as String,
+    ]);
+    final offerProgramBatches = await _programOriginBatchIds(offerBatch.values);
 
     return rows.map((row) {
       final info = farmerInfo[row['farmer_id']];
@@ -831,6 +837,7 @@ class AdminReportsRepository {
         cropCategory: crop?.category,
         pricePerKg: priceBySale[row['id'] as String],
         recordedBy: staffNames[row['recorded_by']],
+        fromProgram: offerProgramBatches.contains(offerBatch[row['id'] as String]),
       );
     }).toList();
   }
@@ -849,6 +856,46 @@ class AdminReportsRepository {
           if (r['agreed_price_per_kg'] != null)
             r['member_sales_transaction_id'] as String:
                 (r['agreed_price_per_kg'] as num).toDouble(),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// The batches (of these ids) that hold produce a Cooperative Program gave the Farmer, found through each
+  /// batch's harvest entry. A failed lookup just marks nothing.
+  Future<Set<String>> _programOriginBatchIds(Iterable<String?> batchIds) async {
+    final ids = batchIds.whereType<String>().toSet().toList();
+    if (ids.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('inventory_batches')
+          .select('id, harvest_records(source_type)')
+          .inFilter('id', ids);
+      bool fromProgram(Map r) {
+        final h = r['harvest_records'];
+        final first = h is List ? (h.isEmpty ? null : h.first) : h;
+        return first is Map && first['source_type'] == 'program_received';
+      }
+
+      return {for (final r in rows) if (fromProgram(r)) r['id'] as String};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// sale id -> the batch an accepted cooperative offer was made from.
+  Future<Map<String, String>> _fetchOfferBatchBySale(List<String> saleIds) async {
+    if (saleIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('cooperative_purchase_offers')
+          .select('member_sales_transaction_id, inventory_batch_id')
+          .inFilter('member_sales_transaction_id', saleIds);
+      return {
+        for (final r in rows)
+          if (r['inventory_batch_id'] != null)
+            r['member_sales_transaction_id'] as String: r['inventory_batch_id'] as String,
       };
     } catch (_) {
       return {};
@@ -915,9 +962,12 @@ class AdminReportsRepository {
         .toList();
     final listingRows = await _client
         .from('marketplace_listings')
-        .select('id, farmer_id, crop_name')
+        .select('id, farmer_id, crop_name, inventory_batch_id')
         .inFilter('id', listingIds);
     final listingMap = {for (final l in listingRows) l['id'] as String: l};
+    final listingProgramBatches = await _programOriginBatchIds(
+      listingRows.map((l) => l['inventory_batch_id'] as String?),
+    );
 
     final farmerIds = listingRows
         .map((l) => l['farmer_id'] as String)
@@ -968,6 +1018,7 @@ class AdminReportsRepository {
         pricePerKg: (row['price_per_kg'] as num?)?.toDouble(),
         buyerName: buyerNameById[row['buyer_id']],
         orderStatus: row['status'] as String?,
+        fromProgram: listingProgramBatches.contains(listing?['inventory_batch_id']),
       );
     }).toList();
   }
@@ -984,7 +1035,7 @@ class AdminReportsRepository {
     var query = _client
         .from('informal_sales')
         .select(
-          'id, farmer_id, crop_name, quantity_kg, unit, amount, buyer_name, sale_date',
+          'id, farmer_id, crop_name, quantity_kg, unit, amount, buyer_name, sale_date, inventory_batch_id',
         );
     if (startDate != null) {
       query = query.gte('sale_date', startDate.toIso8601String());
@@ -1001,6 +1052,9 @@ class AdminReportsRepository {
         .toList();
     final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
     final cropInfo = await _fetchCropInfoByName();
+    final informalProgramBatches = await _programOriginBatchIds(
+      rows.map((r) => r['inventory_batch_id'] as String?),
+    );
 
     return rows.map((row) {
       final info = farmerInfo[row['farmer_id']];
@@ -1018,6 +1072,7 @@ class AdminReportsRepository {
         marketType: crop?.marketType,
         cropCategory: crop?.category,
         buyerName: row['buyer_name'] as String?,
+        fromProgram: informalProgramBatches.contains(row['inventory_batch_id']),
       );
     }).toList();
   }
@@ -1046,7 +1101,7 @@ class AdminReportsRepository {
     }
 
     const base =
-        'id, farmer_id, crop_name, confirmed_volume_kg, price_per_kg, buyer_name, buyer_contact, completed_at, recorded_by';
+        'id, farmer_id, crop_name, confirmed_volume_kg, price_per_kg, buyer_name, buyer_contact, completed_at, recorded_by, inventory_batch_id';
     List<Map<String, dynamic>> rows;
     try {
       rows = await read('$base, buyer_email, unit');
@@ -1069,6 +1124,9 @@ class AdminReportsRepository {
       for (final r in rows)
         if (r['recorded_by'] != null) r['recorded_by'] as String,
     ]);
+    final linkingProgramBatches = await _programOriginBatchIds(
+      rows.map((r) => r['inventory_batch_id'] as String?),
+    );
 
     return rows.where((r) => r['completed_at'] != null).map((row) {
       final info = farmerInfo[row['farmer_id']];
@@ -1097,6 +1155,7 @@ class AdminReportsRepository {
         buyerEmail: row['buyer_email'] as String?,
         pricePerKg: pricePerKg,
         recordedBy: staffNames[row['recorded_by']],
+        fromProgram: linkingProgramBatches.contains(row['inventory_batch_id']),
       );
     }).toList();
   }
@@ -1139,10 +1198,16 @@ class AdminReportsRepository {
       final rows = await OfflineCache.load(
         screen: 'inventory_report',
         fetch: () async {
-          final raw = await _client
-              .from('inventory_batches')
-              .select('*')
-              .order('created_at', ascending: false);
+          // Each batch with its shelf-life row (what was reported as rotten);
+          // read without it on a database that has no shelf-life tables.
+          final raw = await withShelfLifeEmbed(
+            '*',
+            'batch_shelf_life(*)',
+            (columns) => _client
+                .from('inventory_batches')
+                .select(columns)
+                .order('created_at', ascending: false),
+          );
           if (raw.isEmpty) return <Map<String, dynamic>>[];
 
           final farmerIds = raw
@@ -1186,6 +1251,7 @@ class AdminReportsRepository {
       double totalAvailable = 0;
       double totalReserved = 0;
       double totalSold = 0;
+      double totalSpoiled = 0;
       int lowStockCount = 0;
       final cropTotals = <String, double>{};
       final batches = <InventoryReportRow>[];
@@ -1210,6 +1276,8 @@ class AdminReportsRepository {
           totalAvailable += available;
           totalReserved += reserved;
           totalSold += sold;
+          totalSpoiled +=
+              BatchShelfLife.fromEmbed(row['batch_shelf_life'])?.spoiledKg ?? 0;
           cropTotals[cropName] = (cropTotals[cropName] ?? 0) + available;
         }
         if (status == 'low_stock') lowStockCount++;
@@ -1228,6 +1296,10 @@ class AdminReportsRepository {
             unit: unitOrDefault(row['unit'] as String?),
             status: status,
             createdAt: DateTime.parse(row['created_at'] as String),
+            spoiledKg:
+                BatchShelfLife.fromEmbed(row['batch_shelf_life'])?.spoiledKg ??
+                0,
+            shelfLife: BatchShelfLife.fromEmbed(row['batch_shelf_life']),
           ),
         );
       }
@@ -1242,6 +1314,7 @@ class AdminReportsRepository {
         totalAvailableKg: totalAvailable,
         totalReservedKg: totalReserved,
         totalSoldKg: totalSold,
+        totalSpoiledKg: totalSpoiled,
         lowStockCount: lowStockCount,
         cropBreakdown: cropBreakdown,
         batches: batches,
@@ -1252,6 +1325,24 @@ class AdminReportsRepository {
   }
 
   // ─── Harvest Report ─────────────────────────────────────────────────────
+
+  /// What was reported as rotten from a harvest row that embeds its batch:
+  /// the quantity, and whether nothing of the harvest is left (Lost).
+  static ({double spoiled, bool lost}) _harvestLoss(Map<String, dynamic> row) {
+    final batches = row['inventory_batches'];
+    final batch = batches is List && batches.isNotEmpty
+        ? batches.first
+        : batches is Map
+        ? batches
+        : null;
+    if (batch is! Map) return (spoiled: 0, lost: false);
+    final spoiled =
+        BatchShelfLife.fromEmbed(batch['batch_shelf_life'])?.spoiledKg ?? 0;
+    final left =
+        ((batch['available_kg'] as num?)?.toDouble() ?? 0) +
+        ((batch['reserved_kg'] as num?)?.toDouble() ?? 0);
+    return (spoiled: spoiled, lost: spoiled > 0 && left <= 0);
+  }
 
   /// OfflineCache key for the harvest rows of [period] (matches the key written
   /// by fetchHarvestReport), so the harvest report screen can show the notice.
@@ -1269,14 +1360,26 @@ class AdminReportsRepository {
             'harvest_report_${window.startDate?.toIso8601String() ?? 'any'}_'
             '${window.endDate?.toIso8601String() ?? 'any'}',
         fetch: () async {
-          var query = _client.from('harvest_records').select('*').eq('source_type', 'self');
-          if (window.startDate != null) {
-            query = query.gte('harvest_date', _dateOnly(window.startDate!));
-          }
-          if (window.endDate != null) {
-            query = query.lte('harvest_date', _dateOnly(window.endDate!));
-          }
-          final raw = await query.order('harvest_date', ascending: false);
+          // Each harvest with its own batch and that batch's shelf-life row
+          // (what was reported as rotten); read without them on a database
+          // that has no shelf-life tables.
+          final raw = await withShelfLifeEmbed(
+            '*',
+            'inventory_batches(available_kg, reserved_kg, batch_shelf_life(*))',
+            (columns) {
+              var query = _client
+                  .from('harvest_records')
+                  .select(columns)
+                  .eq('source_type', 'self');
+              if (window.startDate != null) {
+                query = query.gte('harvest_date', _dateOnly(window.startDate!));
+              }
+              if (window.endDate != null) {
+                query = query.lte('harvest_date', _dateOnly(window.endDate!));
+              }
+              return query.order('harvest_date', ascending: false);
+            },
+          );
           if (raw.isEmpty) return <Map<String, dynamic>>[];
 
           final farmerIds = raw
@@ -1353,6 +1456,9 @@ class AdminReportsRepository {
             harvestDate: harvestDate,
             isSynced: isSynced,
             batchNumber: row['batch_number'] as String? ?? '—',
+            cropCategory: row['crop_category'] as String? ?? 'Other',
+            spoiledKg: _harvestLoss(row).spoiled,
+            isLost: _harvestLoss(row).lost,
           ),
         );
       }
@@ -1386,12 +1492,29 @@ class AdminReportsRepository {
         for (final channelRows in salesResults) {
           for (final row in channelRows) {
             // A kg figure: a sale measured in another unit is not added.
-            if (isKg(row.unit)) soldKgInPeriod += row.quantityKg;
+            // Produce a program gave the Farmer is not in the yield, so it is not in this comparison either.
+            if (isKg(row.unit) && !row.fromProgram) soldKgInPeriod += row.quantityKg;
           }
         }
       } catch (_) {
         // Falls through to 0 — yield figures above still stand on their own.
       }
+
+      // Produce Cooperative Programs gave Farmers in this period, on its own line (not production).
+      var programReceivedKg = 0.0;
+      var programReceivedCount = 0;
+      try {
+        var rq = _client
+            .from('harvest_records')
+            .select('quantity_kg, unit')
+            .eq('source_type', 'program_received');
+        if (window.startDate != null) rq = rq.gte('harvest_date', _dateOnly(window.startDate!));
+        if (window.endDate != null) rq = rq.lte('harvest_date', _dateOnly(window.endDate!));
+        for (final r in await rq) {
+          programReceivedCount++;
+          if (isKg(r['unit'] as String?)) programReceivedKg += (r['quantity_kg'] as num).toDouble();
+        }
+      } catch (_) {}
 
       return HarvestReportData(
         totalYieldKg: totalYield,
@@ -1401,6 +1524,8 @@ class AdminReportsRepository {
         cropBreakdown: cropBreakdown,
         harvests: harvests,
         soldKgInPeriod: soldKgInPeriod,
+        programReceivedKg: programReceivedKg,
+        programReceivedCount: programReceivedCount,
       );
     } catch (_) {
       return HarvestReportData.empty();

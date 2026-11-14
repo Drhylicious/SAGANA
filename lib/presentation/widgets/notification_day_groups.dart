@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import 'recent_activity_widgets.dart';
 
 /// The day a notification falls on, for the shared grouping used by every
-/// notification screen (Farmer, Buyer, Admin, and Officer).
+/// notification screen (Farmer, Buyer, Manager, and Officer).
 enum NotificationDay { today, yesterday, earlier }
 
 NotificationDay notificationDayOf(DateTime when, {DateTime? now}) {
@@ -18,9 +17,10 @@ NotificationDay notificationDayOf(DateTime when, {DateTime? now}) {
   return NotificationDay.earlier;
 }
 
-/// The notification list body: a label for each non-empty day group (Today,
-/// Yesterday, Earlier), then that group's items. Items keep the order the
-/// repository returned them in (newest first).
+/// The notification list body, newest first: "Today", "Yesterday", then one
+/// group per older date labelled like Recent Activity ("November 12", with the
+/// year only when it is not the current one). Empty groups are skipped. Items keep
+/// the order the repository returned them in.
 List<Widget> notificationGroupChildren<T>({
   required List<T> items,
   required DateTime Function(T item) timeOf,
@@ -29,34 +29,40 @@ List<Widget> notificationGroupChildren<T>({
   double itemGap = 8,
 }) {
   final now = DateTime.now();
-  final groups = <NotificationDay, List<T>>{
-    NotificationDay.today: [],
-    NotificationDay.yesterday: [],
-    NotificationDay.earlier: [],
-  };
-  for (final item in items) {
-    groups[notificationDayOf(timeOf(item), now: now)]!.add(item);
+  final sorted = [...items]..sort((a, b) => timeOf(b).compareTo(timeOf(a)));
+
+  // Group key -> items. Insertion order is newest first because of the sort.
+  final groups = <String, List<T>>{};
+  final labels = <String, String>{};
+  for (final item in sorted) {
+    final when = timeOf(item);
+    final String key;
+    final String label;
+    switch (notificationDayOf(when, now: now)) {
+      case NotificationDay.today:
+        key = 'today';
+        label = l10n.notifGroupToday;
+      case NotificationDay.yesterday:
+        key = 'yesterday';
+        label = l10n.notifGroupYesterday;
+      case NotificationDay.earlier:
+        // "November 12", or "November 12, 2025" when the year is not this one.
+        label = activityDateLabel(when, l10n.localeName, now: now);
+        key = label;
+    }
+    labels[key] = label;
+    (groups[key] ??= []).add(item);
   }
 
   final children = <Widget>[];
-  for (final day in NotificationDay.values) {
-    final group = groups[day]!;
-    if (group.isEmpty) continue;
-    children.add(NotificationGroupLabel(label: _dayLabel(l10n, day)));
+  groups.forEach((key, group) {
+    children.add(NotificationGroupLabel(label: labels[key]!));
     for (final item in group) {
       children.add(buildItem(item));
       children.add(SizedBox(height: itemGap));
     }
-  }
+  });
   return children;
-}
-
-String _dayLabel(AppLocalizations l10n, NotificationDay day) {
-  return switch (day) {
-    NotificationDay.today => l10n.notifGroupToday,
-    NotificationDay.yesterday => l10n.notifGroupYesterday,
-    NotificationDay.earlier => l10n.notifGroupEarlier,
-  };
 }
 
 /// Small caps label above a day group.
@@ -73,7 +79,7 @@ class NotificationGroupLabel extends StatelessWidget {
         style: GoogleFonts.inter(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: AppConstants.outline,
+          color: Theme.of(context).colorScheme.outline,
           letterSpacing: 0.6,
         ),
       ),

@@ -1,3 +1,5 @@
+import '../../../core/theme/sagana_colors.dart';
+import '../../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -72,8 +74,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (!mounted) return;
       setState(() {
         _isVerifying = false;
-        _codeError =
-            'Incorrect or expired code. Please try again or request a new one.';
+        _codeError = AppLocalizations.of(
+          context,
+        ).enhIncorrectOrExpiredCodePleaseTryAgainOr;
       });
     }
   }
@@ -86,7 +89,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'A new code was sent to ${widget.email}',
+            AppLocalizations.of(
+              context,
+            ).enhANewCodeWasSentTo((widget.email).toString()),
             style: GoogleFonts.inter(fontSize: 13),
           ),
           backgroundColor: AppConstants.midGreen,
@@ -101,7 +106,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not resend right now. Please try again shortly.',
+            AppLocalizations.of(
+              context,
+            ).enhCouldNotResendRightNowPleaseTryAgain,
             style: GoogleFonts.inter(fontSize: 13),
           ),
           backgroundColor: AppConstants.errorRed,
@@ -132,7 +139,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (!mounted) return;
       setState(() {
         _isSaving = false;
-        _formError = 'Could not update your password. Please try again.';
+        _formError = AppLocalizations.of(
+          context,
+        ).enhCouldNotUpdateYourPasswordPleaseTryAgain;
       });
     }
   }
@@ -140,13 +149,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Center(
-            child: SingleChildScrollView(child: _buildStage()),
-          ),
+          child: Center(child: SingleChildScrollView(child: _buildStage())),
         ),
       ),
     );
@@ -226,43 +233,57 @@ class _EnterCodeForm extends StatelessWidget {
               color: AppConstants.primaryGreen.withValues(alpha: 0.10),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.mark_email_read_outlined,
               size: 40,
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 24),
           Text(
-            'Enter Reset Code',
+            AppLocalizations.of(context).enhEnterResetCode,
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'We sent a code to $email.',
+            AppLocalizations.of(context).enhWeSentACodeTo((email).toString()),
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 28),
           TextFormField(
             controller: codeController,
             keyboardType: TextInputType.number,
-            maxLength: 12, // generous ceiling only — not an assumed exact length
+            maxLength:
+                12, // generous ceiling only — not an assumed exact length
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(fontSize: 20, letterSpacing: 4, fontWeight: FontWeight.w600),
-            decoration: resetFieldDecoration(hint: 'Enter code', icon: Icons.password_rounded).copyWith(
-              counterText: '',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              letterSpacing: 4,
+              fontWeight: FontWeight.w600,
             ),
+            decoration: resetFieldDecoration(
+              context: context,
+              hint: AppLocalizations.of(context).enhEnterCode,
+              icon: Icons.password_rounded,
+            ).copyWith(counterText: ''),
             validator: (v) {
               final trimmed = v?.trim() ?? '';
-              if (trimmed.isEmpty) return 'Enter the code we sent you';
+              if (trimmed.isEmpty) {
+                return AppLocalizations.of(context).enhEnterTheCodeWeSentYou;
+              }
               if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
-                return 'Code should contain numbers only';
+                return AppLocalizations.of(
+                  context,
+                ).enhCodeShouldContainNumbersOnly;
               }
               return null;
             },
@@ -272,7 +293,10 @@ class _EnterCodeForm extends StatelessWidget {
             Text(
               errorMessage!,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
             ),
           ],
           const SizedBox(height: 24),
@@ -297,8 +321,11 @@ class _EnterCodeForm extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      'Verify Code',
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                      AppLocalizations.of(context).enhVerifyCode,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
             ),
           ),
@@ -306,8 +333,13 @@ class _EnterCodeForm extends StatelessWidget {
           TextButton(
             onPressed: isResending ? null : onResend,
             child: Text(
-              isResending ? 'Sending...' : "Didn't get a code? Resend",
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.primaryGreen),
+              isResending
+                  ? AppLocalizations.of(context).joinSending
+                  : AppLocalizations.of(context).enhDidnTGetACodeResend,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
         ],
@@ -343,18 +375,21 @@ class _SuccessView extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Text(
-          'Password Updated',
+          AppLocalizations.of(context).enhPasswordUpdated,
           style: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: AppConstants.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Please log in with your new password.',
+          AppLocalizations.of(context).enhPleaseLogInWithYourNewPassword,
           textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 28),
         SizedBox(
@@ -370,8 +405,11 @@ class _SuccessView extends StatelessWidget {
               ),
             ),
             child: Text(
-              'Back to Login',
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+              AppLocalizations.of(context).enhBackToLogin,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),

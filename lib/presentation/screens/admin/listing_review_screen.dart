@@ -1,6 +1,5 @@
 import '../../widgets/view_only_banner.dart';
 import '../../../data/services/staff_permission_service.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../data/services/connectivity_service.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,6 +15,7 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge;
 import '../../widgets/listing_status_badge.dart';
+import '../../widgets/shelf_life_widgets.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -90,36 +90,41 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
-        return ManagementModalShell(
-          title: l10n.listingReviewApproveTitle,
-          subtitle: l10n.listingReviewApproveSubtitle,
+          return ManagementModalShell(
+            title: l10n.listingReviewApproveTitle,
+            subtitle: l10n.listingReviewApproveSubtitle,
             body: Text(l10n.listingReviewApproveBody),
-          footer: ManagementModalActions(
-            primaryLabel: l10n.listingReviewApprovePublishAction,
-            isDestructive: false,
-            isLoading: isSaving,
-            onPrimary: () async {
-              setSheet(() => isSaving = true);
-              setState(() => _isSaving = true);
-              String? error;
-              try {
-                await _repo.approveListing(widget.listingId);
-              } catch (e) {
-                error = friendlyError(l10n, e, null, l10n.listingReviewApproveFailed);
-              }
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              if (!mounted) return;
-              if (error == null) {
-                _showSnack(l10n.listingReviewApprovedToast, isSuccess: true);
-                context.pop(true);
-              } else {
-                setState(() => _isSaving = false);
-                _showSnack(error);
-              }
-            },
-          ),
-        );
+            footer: ManagementModalActions(
+              primaryLabel: l10n.listingReviewApprovePublishAction,
+              isDestructive: false,
+              isLoading: isSaving,
+              onPrimary: () async {
+                setSheet(() => isSaving = true);
+                setState(() => _isSaving = true);
+                String? error;
+                try {
+                  await _repo.approveListing(widget.listingId);
+                } catch (e) {
+                  error = friendlyError(
+                    l10n,
+                    e,
+                    null,
+                    l10n.listingReviewApproveFailed,
+                  );
+                }
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (!mounted) return;
+                if (error == null) {
+                  _showSnack(l10n.listingReviewApprovedToast, isSuccess: true);
+                  context.pop(true);
+                } else {
+                  setState(() => _isSaving = false);
+                  _showSnack(error);
+                }
+              },
+            ),
+          );
         },
       ),
     );
@@ -159,44 +164,44 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
-        return ManagementModalShell(
-          title: title,
-          body: TextFormField(
-            controller: noteCtrl,
-            maxLines: 4,
-            autofocus: true,
-            decoration: InputDecoration(hintText: hint),
-          ),
-          footer: ManagementModalActions(
-            primaryLabel: actionLabel,
-            isDestructive: isDestructive,
-            isLoading: isSaving,
-            onPrimary: () async {
-              if (noteCtrl.text.trim().isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text(l10n.listingReviewEnterNote)),
-                );
-                return;
-              }
-              setSheet(() => isSaving = true);
-              String? error;
-              try {
-                await onConfirm(noteCtrl.text.trim());
-              } catch (e) {
-                error = friendlyError(AppLocalizations.of(ctx), e, null, failureMessage);
-              }
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              if (!mounted) return;
-              if (error == null) {
-                _showSnack(successMessage, isSuccess: true);
-                context.pop(true);
-              } else {
-                _showSnack(error);
-              }
-            },
-          ),
-        );
+          return ManagementModalShell(
+            title: title,
+            body: TextFormField(
+              controller: noteCtrl,
+              maxLines: 4,
+              autofocus: true,
+              decoration: InputDecoration(hintText: hint),
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: actionLabel,
+              isDestructive: isDestructive,
+              isLoading: isSaving,
+              onPrimary: () async {
+                if (noteCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text(l10n.listingReviewEnterNote)),
+                  );
+                  return;
+                }
+                setSheet(() => isSaving = true);
+                String? error;
+                try {
+                  await onConfirm(noteCtrl.text.trim());
+                } catch (e) {
+                  error = friendlyError(l10n, e, null, failureMessage);
+                }
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (!mounted) return;
+                if (error == null) {
+                  _showSnack(successMessage, isSuccess: true);
+                  context.pop(true);
+                } else {
+                  _showSnack(error);
+                }
+              },
+            ),
+          );
         },
       ),
     );
@@ -231,7 +236,10 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
           children: [
             SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
             const Expanded(
-              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SkeletonList(),
+              ),
             ),
           ],
         ),
@@ -243,26 +251,32 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
         body: Column(
-        children: [
-          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
-          Expanded(child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline_rounded, size: 40, color: cs.outline),
-              const SizedBox(height: 12),
-              Text(
-                l10n.listingReviewNotFound,
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  color: cs.onSurfaceVariant,
+          children: [
+            SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 40,
+                      color: cs.outline,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.listingReviewNotFound,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        )),
-        ],
-      ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -283,105 +297,106 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
           // Details' cart bar.
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: () => _load(showSpinner: false),
                   child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  children: [
-                    // ── Status (same badge as All Listings) ───────────
-                    ListingStatusHeader(
-                      status: listing.status,
-                      remainingKg: listing.remainingKg,
-                      volumeKg: listing.volumeKg,
-                      unit: listing.unit,
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Hero / listing overview ───────────────────────
-                    _HeroSection(listing: listing, cs: cs, sagana: sagana),
-                    const SizedBox(height: 20),
-
-                    // ── Pricing Analysis ──────────────────────────────
-                    _SectionCard(
-                      icon: Icons.payments_outlined,
-                      title: l10n.listingReviewPricingAnalysisTitle,
-                      cs: cs,
-                      sagana: sagana,
-                      child: _PricingAnalysis(listing: listing, cs: cs),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Inventory Validation ──────────────────────────
-                    _SectionCard(
-                      icon: Icons.inventory_2_outlined,
-                      title: l10n.listingReviewInventoryValidationTitle,
-                      cs: cs,
-                      sagana: sagana,
-                      child: _InventoryValidation(listing: listing, cs: cs),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Farmer Context ────────────────────────────────
-                    _SectionCard(
-                      icon: Icons.person_outlined,
-                      title: l10n.listingReviewFarmerContextTitle,
-                      cs: cs,
-                      sagana: sagana,
-                      child: _FarmerContext(listing: listing, cs: cs),
-                    ),
-
-                    // ── Existing admin notes (if any) ─────────────────
-                    if (listing.adminNotes != null &&
-                        listing.adminNotes!.isNotEmpty) ...[
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                    children: [
+                      // ── Status (same badge as All Listings) ───────────
+                      ListingStatusHeader(
+                        status: listing.status,
+                        remainingKg: listing.remainingKg,
+                        volumeKg: listing.volumeKg,
+                        unit: listing.unit,
+                      ),
                       const SizedBox(height: 14),
+
+                      // ── Hero / listing overview ───────────────────────
+                      _HeroSection(listing: listing, cs: cs, sagana: sagana),
+                      const SizedBox(height: 20),
+
+                      // ── Pricing Analysis ──────────────────────────────
                       _SectionCard(
-                        icon: Icons.sticky_note_2_outlined,
-                        title: l10n.listingReviewAdminNotesTitle,
+                        icon: Icons.payments_outlined,
+                        title: l10n.listingReviewPricingAnalysisTitle,
                         cs: cs,
                         sagana: sagana,
-                        child: _AdminNotesCard(
-                          notes: listing.adminNotes!,
+                        child: _PricingAnalysis(listing: listing, cs: cs),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ── Inventory Validation ──────────────────────────
+                      _SectionCard(
+                        icon: Icons.inventory_2_outlined,
+                        title: l10n.listingReviewInventoryValidationTitle,
+                        cs: cs,
+                        sagana: sagana,
+                        child: _InventoryValidation(listing: listing, cs: cs),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ── Farmer Context ────────────────────────────────
+                      _SectionCard(
+                        icon: Icons.person_outlined,
+                        title: l10n.listingReviewFarmerContextTitle,
+                        cs: cs,
+                        sagana: sagana,
+                        child: _FarmerContext(listing: listing, cs: cs),
+                      ),
+
+                      // ── Existing admin notes (if any) ─────────────────
+                      if (listing.adminNotes != null &&
+                          listing.adminNotes!.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          icon: Icons.sticky_note_2_outlined,
+                          title: l10n.listingReviewAdminNotesTitle,
+                          cs: cs,
+                          sagana: sagana,
+                          child: _AdminNotesCard(
+                            notes: listing.adminNotes!,
+                            cs: cs,
+                          ),
+                        ),
+                      ],
+
+                      // ── Who did what, and when (staff only) ───────────
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed: () => context.push(
+                          AppRoutes.adminListingHistory,
+                          extra: {
+                            'listingId': listing.id,
+                            'title':
+                                listing.canonicalCropName ?? listing.cropName,
+                          },
+                        ),
+                        icon: const Icon(Icons.history_rounded, size: 18),
+                        label: Text(l10n.leViewHistory),
+                      ),
+
+                      // ── Decision actions (inline, scrolls with content) ─
+                      const SizedBox(height: 24),
+                      if (showActions)
+                        _ReviewActions(
+                          isSaving: _isSaving,
+                          onApprove: _confirmApprove,
+                          onReject: _showRejectSheet,
+                        )
+                      else
+                        // Either a genuinely non-pending listing, or a
+                        // pending one opened read-only from All Listings.
+                        _ReadOnlyStatus(
+                          listing: listing,
+                          forcedReadOnly: isPending && widget.readOnly,
                           cs: cs,
                         ),
-                      ),
                     ],
-
-                    // ── Who did what, and when (staff only) ───────────
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: () => context.push(
-                        AppRoutes.adminListingHistory,
-                        extra: {
-                          'listingId': listing.id,
-                          'title': listing.canonicalCropName ?? listing.cropName,
-                        },
-                      ),
-                      icon: const Icon(Icons.history_rounded, size: 18),
-                      label: Text(l10n.leViewHistory),
-                    ),
-
-                    // ── Decision actions (inline, scrolls with content) ─
-                    const SizedBox(height: 24),
-                    if (showActions)
-                      _ReviewActions(
-                        isSaving: _isSaving,
-                        onApprove: _confirmApprove,
-                        onReject: _showRejectSheet,
-                      )
-                    else
-                      // Either a genuinely non-pending listing, or a
-                      // pending one opened read-only from All Listings.
-                      _ReadOnlyStatus(
-                        listing: listing,
-                        forcedReadOnly: isPending && widget.readOnly,
-                        cs: cs,
-                      ),
-                  ],
-                ),
+                  ),
                 ),
               ),
             ],
@@ -586,7 +601,9 @@ class _HeroSection extends StatelessWidget {
                     Flexible(
                       fit: FlexFit.loose,
                       child: Text(
-                        '• Batch #${listing.id.substring(0, 8).toUpperCase()}',
+                        AppLocalizations.of(context).enhBatch(
+                          (listing.id.substring(0, 8).toUpperCase()).toString(),
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
@@ -897,6 +914,46 @@ class _InventoryValidation extends StatelessWidget {
               ? cs.error
               : (hasBatch ? AppConstants.successGreen : cs.outline),
         ),
+        if (listing.priceUpdateRequired) ...[
+          const SizedBox(height: 10),
+          ShelfLifeNote(
+            text: l10n.priceUpdateRequiredStaffNote(
+              listing.priceUpdateRule!.min.toStringAsFixed(2),
+              listing.priceUpdateRule!.max.toStringAsFixed(2),
+              listing.priceUpdateRule!.unit,
+            ),
+            color: cs.error,
+            icon: Icons.price_change_outlined,
+          ),
+        ],
+        // Shelf life of the harvest being listed (never shown to Buyers).
+        if (listing.batchShelfLife?.isTracked ?? false) ...[
+          const SizedBox(height: 8),
+          _ValidationRow(
+            label: l10n.shelfLifeLabel,
+            value: shelfLifeStatusText(l10n, listing.batchShelfLife),
+            cs: cs,
+            valueColor: shelfLifeColor(
+              context,
+              listing.batchShelfLife!.stage,
+            ),
+          ),
+        ],
+        if (listing.isShelfUnavailable || listing.isShelfDiscounted) ...[
+          const SizedBox(height: 10),
+          ShelfLifeNote(
+            text: listing.isShelfUnavailable
+                ? l10n.shelfStaffUnavailableNote
+                : l10n.shelfStaffDiscountedNote(
+                    (listing.shelfLife?.preDiscountPrice ?? listing.pricePerKg)
+                        .toStringAsFixed(2),
+                  ),
+            color: listing.isShelfUnavailable
+                ? cs.error
+                : AppConstants.warningAmber,
+            icon: Icons.timelapse_rounded,
+          ),
+        ],
         if (hasBatch) ...[
           const SizedBox(height: 10),
           ClipRRect(
@@ -1273,64 +1330,64 @@ class _ReviewActions extends StatelessWidget {
     // red-outlined below) instead of the previous 3-way split with
     // Request Changes squeezed in between.
     return Column(
-                          children: [
+      children: [
         SizedBox(
           width: double.infinity,
-                    child: GestureDetector(
-                      onTap: (isSaving || !ConnectivityService.instance.isOnline)
-                          ? null
-                          : onApprove,
-                      child: Container(
+          child: GestureDetector(
+            onTap: (isSaving || !ConnectivityService.instance.isOnline)
+                ? null
+                : onApprove,
+            child: Container(
               padding: const EdgeInsets.symmetric(vertical: 15),
-                        decoration: BoxDecoration(
-                          color: isSaving
+              decoration: BoxDecoration(
+                color: isSaving
                     ? AppConstants.successGreen.withValues(alpha: 0.50)
-                              : AppConstants.successGreen,
+                    : AppConstants.successGreen,
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                          boxShadow: [
-                            BoxShadow(
+                boxShadow: [
+                  BoxShadow(
                     color: AppConstants.successGreen.withValues(alpha: 0.25),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
-                            ),
-                          ],
+                  ),
+                ],
+              ),
+              child: isSaving
+                  ? const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
                         ),
-                        child: isSaving
-                            ? const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle_rounded,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
                           size: 18,
-                                    color: Colors.white,
-                                  ),
+                          color: Colors.white,
+                        ),
                         const SizedBox(width: 8),
                         Text(
-                                      l10n.listingReviewApproveTitle,
-                                      style: GoogleFonts.poppins(
+                          l10n.listingReviewApproveTitle,
+                          style: GoogleFonts.poppins(
                             fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                      ),
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+            ),
+          ),
+        ),
         const SizedBox(height: 12),
         SizedBox(
-                  width: double.infinity,
+          width: double.infinity,
           child: OutlinedButton(
             onPressed: (isSaving || !ConnectivityService.instance.isOnline)
                 ? null
@@ -1345,9 +1402,9 @@ class _ReviewActions extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               ),
             ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 const Icon(
                   Icons.cancel_outlined,
                   size: 18,
@@ -1355,18 +1412,18 @@ class _ReviewActions extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                          l10n.listingReviewRejectTitle,
-                          style: GoogleFonts.poppins(
+                  l10n.listingReviewRejectTitle,
+                  style: GoogleFonts.poppins(
                     fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w600,
                     color: AppConstants.errorRed,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1410,14 +1467,21 @@ class _ReadOnlyStatus extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded, size: 18, color: cs.onSurfaceVariant),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: cs.onSurfaceVariant,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               forcedReadOnly
                   ? l10n.listingReviewOpenFromPending
                   : l10n.listingReviewStatusNoAction(stateLabel.toLowerCase()),
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
         ],

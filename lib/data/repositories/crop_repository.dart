@@ -27,20 +27,31 @@ class CropRepository {
 
   Future<List<FarmerCropModel>> fetchCrops({bool approvedOnly = false}) async {
     try {
-      var query = _client
-          .from('farmer_crops')
-          .select(
-            '*, harvest_records(count), crop_requests(status, admin_notes), crop_master(crop_type, exclusive_channel)',
-          )
-          .eq('farmer_id', _userId);
-
-      if (approvedOnly) {
-        query = query.not('crop_master_id', 'is', null);
+      // [master] is the crop_master embed. The shelf life is asked for first;
+      // a database that does not have that column yet (the shelf-life SQL is
+      // run by hand) is read again without it, so the list still loads.
+      Future<List<Map<String, dynamic>>> read(String master) {
+        var query = _client
+            .from('farmer_crops')
+            .select(
+              '*, harvest_records(count), crop_requests(status, admin_notes), crop_master($master)',
+            )
+            .eq('farmer_id', _userId);
+        if (approvedOnly) {
+          query = query.not('crop_master_id', 'is', null);
+        }
+        return query.order('created_at', ascending: false);
       }
 
       final response = await OfflineCache.load(
         screen: approvedOnly ? 'farmer_crops_approved' : 'farmer_crops',
-        fetch: () => query.order('created_at', ascending: false),
+        fetch: () async {
+          try {
+            return await read('crop_type, exclusive_channel, shelf_life_days');
+          } on PostgrestException {
+            return await read('crop_type, exclusive_channel');
+          }
+        },
       );
 
       return response.map((row) {
@@ -69,6 +80,9 @@ class CropRepository {
           'request_notes': requestNotes,
           'crop_type': catalogCropType,
           'exclusive_channel': catalogExclusiveChannel,
+          'shelf_life_days': catalogMaster is Map
+              ? catalogMaster['shelf_life_days']
+              : null,
         });
       }).toList();
     } catch (_) {
@@ -79,13 +93,33 @@ class CropRepository {
   // ─── Fetch active catalog (for "Add Crop" / catalog matching) ─────────────
 
   Future<List<Map<String, dynamic>>> fetchCropCatalog() async {
+    const columns =
+        'id, crop_name, category, crop_type, exclusive_channel, image_url';
     try {
+      // Only crops whose shelf life is set: a crop without one is not ready
+      // for Farmers until the Manager sets it in Crop Management. The shelf
+      // life is read too, to show it on the list (never the Storage Life,
+      // which is the cooperative's own).
       final response = await _client
           .from('crop_master')
-          .select('id, crop_name, category, crop_type, exclusive_channel, image_url')
+          .select('$columns, shelf_life_days')
           .eq('is_active', true)
+          .not('shelf_life_days', 'is', null)
           .order('sort_order');
       return List<Map<String, dynamic>>.from(response);
+    } on PostgrestException catch (e) {
+      // A database without the shelf-life column yet: the full catalog.
+      if (!e.message.contains('shelf_life_days')) return [];
+      try {
+        final response = await _client
+            .from('crop_master')
+            .select(columns)
+            .eq('is_active', true)
+            .order('sort_order');
+        return List<Map<String, dynamic>>.from(response);
+      } catch (_) {
+        return [];
+      }
     } catch (_) {
       return [];
     }
@@ -128,6 +162,7 @@ class CropRepository {
     required String cropName,
     required String category,
     String? cropType,
+    int? shelfLifeDays,
   }) async {
     final trimmedName = cropName.trim();
 
@@ -175,14 +210,31 @@ class CropRepository {
         .select()
         .single();
 
-    await _client.from('crop_requests').insert({
+    final request = {
       'farmer_id': _userId,
       'farmer_crop_id': cropResponse['id'],
       'requested_name': trimmedName,
       'category': category,
       'crop_type': cropType,
       'status': 'pending',
-    });
+    };
+    // The Farmer's own shelf-life figure travels with the request and becomes
+    // the crop's shelf life when it is approved. A database that does not have
+    // the column yet still takes the request, without the figure.
+    try {
+      await _client.from('crop_requests').insert({
+        ...request,
+        if (shelfLifeDays != null) 'shelf_life_days': shelfLifeDays,
+      });
+    } on PostgrestException catch (e) {
+      final missingColumn =
+          shelfLifeDays != null &&
+          (e.code == 'PGRST204' ||
+              e.code == '42703' ||
+              e.message.contains('shelf_life_days'));
+      if (!missingColumn) rethrow;
+      await _client.from('crop_requests').insert(request);
+    }
 
     AppEventService.instance.notifyCropRequestSubmitted();
 
@@ -256,13 +308,26 @@ class CropRepository {
     required String cropId,
     required String cropName,
   }) async {
-    final url = await uploadCropPhoto(bytes, fileExtension);
+    final url = await uploadCropPhoto(
+      bytes,
+      fileExtension,
+      throwOnFailure: true,
+    );
     if (url == null) throw Exception('Photo upload failed.');
-    final saved = await updateCropPhoto(cropId, cropName, url);
+    final saved = await updateCropPhoto(
+      cropId,
+      cropName,
+      url,
+      throwOnFailure: true,
+    );
     if (!saved) throw Exception('Could not save the crop photo.');
   }
 
-  Future<String?> uploadCropPhoto(Uint8List bytes, String fileExtension) async {
+  Future<String?> uploadCropPhoto(
+    Uint8List bytes,
+    String fileExtension, {
+    bool throwOnFailure = false,
+  }) async {
     try {
       final path =
           '$_userId/crop_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
@@ -272,9 +337,10 @@ class CropRepository {
             path,
             bytes,
             fileOptions: const FileOptions(upsert: true),
-      );
+          );
       return _client.storage.from('crop_images').getPublicUrl(path);
     } catch (_) {
+      if (throwOnFailure) rethrow;
       return null;
     }
   }
@@ -296,11 +362,11 @@ class CropRepository {
   }
 
   Future<bool> updateCropPhoto(
-
     String cropId,
     String cropName,
-    String photoUrl,
-  ) async {
+    String photoUrl, {
+    bool throwOnFailure = false,
+  }) async {
     try {
       await _client
           .from('farmer_crops')
@@ -314,12 +380,15 @@ class CropRepository {
         await _client.from('farmer_crop_activity').insert({
           'farmer_id': _userId,
           'crop_id': cropId,
-          ...activityRowFields(AdminLogMessage('activityCropPhotoUpdated', {'crop': cropName})),
+          ...activityRowFields(
+            AdminLogMessage('activityCropPhotoUpdated', {'crop': cropName}),
+          ),
           'created_at': DateTime.now().toIso8601String(),
         });
       } catch (_) {}
       return true;
     } catch (_) {
+      if (throwOnFailure) rethrow;
       return false;
     }
   }
@@ -334,7 +403,8 @@ extension CropHarvestSummary on CropRepository {
     try {
       final rows = await _client
           .from('harvest_records')
-          .select('crop_id, quantity_kg').eq('source_type', 'self')
+          .select('crop_id, quantity_kg')
+          .eq('source_type', 'self')
           .eq('farmer_id', _userId);
       for (final row in rows) {
         final id = row['crop_id'] as String;

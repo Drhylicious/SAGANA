@@ -29,6 +29,10 @@ class ListingEditRequest {
   /// Null = the photo is not being changed.
   final String? proposedPhotoUrl;
 
+  /// Set when this is a shelf-life review: the remaining days the Farmer gives
+  /// the produce after checking it. Null for an ordinary edit.
+  final int? proposedShelfLifeDays;
+
   final String? reviewReason;
   final DateTime? reviewedAt;
   final DateTime createdAt;
@@ -65,6 +69,7 @@ class ListingEditRequest {
     required this.proposedPrice,
     required this.proposedDescription,
     this.proposedPhotoUrl,
+    this.proposedShelfLifeDays,
     this.reviewReason,
     this.reviewedAt,
     required this.createdAt,
@@ -97,6 +102,7 @@ class ListingEditRequest {
   bool get changesDescription =>
       (originalDescription ?? '').trim() != proposedDescription.trim();
   bool get changesPhoto => proposedPhotoUrl != null;
+  bool get isShelfLifeReview => proposedShelfLifeDays != null;
 
   /// The staff compare against what is published NOW; a Farmer-side copy has no
   /// current values and compares against the original.
@@ -127,6 +133,7 @@ class ListingEditRequest {
       proposedPrice: _num(m['proposed_price']),
       proposedDescription: m['proposed_description'] as String? ?? '',
       proposedPhotoUrl: m['proposed_photo_url'] as String?,
+      proposedShelfLifeDays: (m['proposed_shelf_life_days'] as num?)?.toInt(),
       reviewReason: m['review_reason'] as String?,
       reviewedAt: m['reviewed_at'] == null
           ? null

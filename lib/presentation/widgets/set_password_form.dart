@@ -1,3 +1,5 @@
+import '../../core/l10n/localized_labels.dart';
+import '../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
@@ -20,9 +22,9 @@ class SetPasswordForm extends StatelessWidget {
   final VoidCallback onToggleObscurePassword;
   final VoidCallback onToggleObscureConfirm;
   final VoidCallback onSubmit;
-  final String title;
-  final String subtitle;
-  final String submitLabel;
+  final String? title;
+  final String? subtitle;
+  final String? submitLabel;
 
   const SetPasswordForm({
     super.key,
@@ -36,9 +38,9 @@ class SetPasswordForm extends StatelessWidget {
     required this.onToggleObscurePassword,
     required this.onToggleObscureConfirm,
     required this.onSubmit,
-    this.title = 'Set a New Password',
-    this.subtitle = 'Choose a new password for your SAGANA account.',
-    this.submitLabel = 'Update Password',
+    this.title,
+    this.subtitle,
+    this.submitLabel,
   });
 
   @override
@@ -57,19 +59,30 @@ class SetPasswordForm extends StatelessWidget {
               color: AppConstants.primaryGreen.withValues(alpha: 0.10),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.lock_reset_rounded, size: 40, color: AppConstants.primaryGreen),
+            child: Icon(
+              Icons.lock_reset_rounded,
+              size: 40,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 24),
           Text(
-            title,
+            title ?? l10n.enhSetNewPasswordTitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            subtitle,
+            subtitle ?? l10n.enhSetNewPasswordBody,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 28),
           TextFormField(
@@ -77,10 +90,17 @@ class SetPasswordForm extends StatelessWidget {
             obscureText: obscurePassword,
             style: GoogleFonts.inter(fontSize: 14),
             decoration: resetFieldDecoration(
-              hint: 'New password',
+              context: context,
+              hint: AppLocalizations.of(context).enhNewPassword,
               icon: Icons.lock_outline_rounded,
               suffix: IconButton(
-                icon: Icon(obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: AppConstants.outline),
+                icon: Icon(
+                  obscurePassword
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
                 onPressed: onToggleObscurePassword,
               ),
             ),
@@ -99,21 +119,36 @@ class SetPasswordForm extends StatelessWidget {
             obscureText: obscureConfirm,
             style: GoogleFonts.inter(fontSize: 14),
             decoration: resetFieldDecoration(
-              hint: 'Confirm new password',
+              context: context,
+              hint: AppLocalizations.of(context).enhConfirmNewPassword,
               icon: Icons.lock_outline_rounded,
               suffix: IconButton(
-                icon: Icon(obscureConfirm ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: AppConstants.outline),
+                icon: Icon(
+                  obscureConfirm
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
                 onPressed: onToggleObscureConfirm,
               ),
             ),
             validator: (v) {
-              if (v != passwordController.text) return 'Passwords do not match';
+              if (v != passwordController.text) {
+                return AppLocalizations.of(context).registerPasswordMismatch;
+              }
               return null;
             },
           ),
           if (errorMessage != null) ...[
             const SizedBox(height: 12),
-            Text(errorMessage!, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+            Text(
+              errorMessage!,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
+            ),
           ],
           const SizedBox(height: 24),
           SizedBox(
@@ -123,14 +158,29 @@ class SetPasswordForm extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
               ),
               child: isSaving
                   ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     )
-                  : Text(submitLabel, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+                  : Text(
+                      localizeBuiltinLabel(
+                        AppLocalizations.of(context),
+                        submitLabel ?? l10n.updatePassword,
+                      ),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -139,19 +189,53 @@ class SetPasswordForm extends StatelessWidget {
   }
 }
 
-InputDecoration resetFieldDecoration({required String hint, required IconData icon, Widget? suffix}) {
+InputDecoration resetFieldDecoration({
+  required BuildContext context,
+  required String hint,
+  required IconData icon,
+  Widget? suffix,
+}) {
   return InputDecoration(
     hintText: hint,
-    hintStyle: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.50)),
+    hintStyle: GoogleFonts.inter(
+      fontSize: 14,
+      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.50),
+    ),
     filled: true,
-    fillColor: Colors.white,
-    prefixIcon: Icon(icon, size: 20, color: AppConstants.outline),
+    fillColor: context.saganaColors.cardBackground,
+    prefixIcon: Icon(
+      icon,
+      size: 20,
+      color: Theme.of(context).colorScheme.outline,
+    ),
     suffixIcon: suffix,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg), borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20))),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg), borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20))),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg), borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2)),
-    errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg), borderSide: const BorderSide(color: AppConstants.errorRed)),
-    focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg), borderSide: const BorderSide(color: AppConstants.errorRed, width: 2)),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+      ),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
+      ),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 2,
+      ),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      borderSide: const BorderSide(color: AppConstants.errorRed),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      borderSide: const BorderSide(color: AppConstants.errorRed, width: 2),
+    ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
   );
 }

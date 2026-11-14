@@ -1,7 +1,7 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/dashboard_summary_model.dart';
@@ -151,7 +151,11 @@ class _FarmerRecentActivityScreenState
       } else if (itemDate == yesterday) {
         label = AppLocalizations.of(context).buyerActivityYesterday;
       } else {
-        label = DateFormat('MMMM d', AppLocalizations.of(context).localeName).format(item.timestamp);
+        label = activityDateLabel(
+          item.timestamp,
+          AppLocalizations.of(context).localeName,
+          now: now,
+        );
       }
       groups.putIfAbsent(label, () => []).add(item);
     }
@@ -164,7 +168,7 @@ class _FarmerRecentActivityScreenState
     final dateKeys = grouped.keys.toList();
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -173,11 +177,15 @@ class _FarmerRecentActivityScreenState
                 // ── Content ──────────────────────────────────────────────
                 Column(
                   children: [
-                    TopBarSpacer(height: 72), // space for top bar
+                    const TopBarSpacer(height: 72), // space for top bar
                     CachedDataNotice(
-                      screen: DashboardRepository.activityCacheScreen(limit: _pageSize),
+                      screen: DashboardRepository.activityCacheScreen(
+                        limit: _pageSize,
+                      ),
                       isOnline: _isOnline,
-                      offlineMessage: AppLocalizations.of(context).offlineActivity,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineActivity,
                     ),
                     Expanded(
                       child: RefreshIndicator(
@@ -200,11 +208,18 @@ class _FarmerRecentActivityScreenState
                                     const SizedBox(height: 8),
                                     RecentActivitySearchBar(
                                       controller: _searchController,
-                                      hint: AppLocalizations.of(context).activitySearchHint,
+                                      hint: AppLocalizations.of(
+                                        context,
+                                      ).activitySearchHint,
                                     ),
                                     const SizedBox(height: 16),
                                     RecentActivityFilterChips<ActivityFilter>(
-                                      options: _filterOptions(context),
+                                      options: _filterOptions(context, {
+                                        for (final f in ActivityFilter.values)
+                                          f: _allItems
+                                              .where(f.matches)
+                                              .length,
+                                      }),
                                       active: _activeFilter,
                                       onSelected: _setFilter,
                                     ),
@@ -235,11 +250,12 @@ class _FarmerRecentActivityScreenState
                                 ),
                                 sliver: SliverList(
                                   delegate: SliverChildBuilderDelegate(
-                                    (_, __) => Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 12,
+                                    (_, __) => const Padding(
+                                      padding: EdgeInsets.only(bottom: 12),
+                                      child: SkeletonList(
+                                        count: 4,
+                                        rowHeight: 80,
                                       ),
-                                      child: SkeletonList(count: 4, rowHeight: 80),
                                     ),
                                     childCount: 5,
                                   ),
@@ -295,21 +311,29 @@ class _FarmerRecentActivityScreenState
                                             vertical: 10,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
+                                            color: context
+                                                .saganaColors
+                                                .cardBackground,
                                             borderRadius: BorderRadius.circular(
                                               AppConstants.radiusFull,
                                             ),
                                             border: Border.all(
-                                              color: AppConstants.outline
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .outline
                                                   .withValues(alpha: 0.20),
                                             ),
                                           ),
                                           child: Text(
-                                            AppLocalizations.of(context).loadMore,
+                                            AppLocalizations.of(
+                                              context,
+                                            ).loadMore,
                                             style: GoogleFonts.inter(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600,
-                                              color: AppConstants.primaryGreen,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
                                             ),
                                           ),
                                         ),
@@ -369,12 +393,20 @@ String _chipLabel(BuildContext context, ActivityFilter filter) {
 
 List<RecentActivityFilterOption<ActivityFilter>> _filterOptions(
   BuildContext context,
+  Map<ActivityFilter, int> counts,
 ) => [
   for (final filter in ActivityFilter.values)
-    RecentActivityFilterOption(value: filter, label: _chipLabel(context, filter)),
+    RecentActivityFilterOption(
+      value: filter,
+      label: _chipLabel(context, filter),
+      count: counts[filter],
+    ),
 ];
 
-RecentActivityCard _farmerActivityCard(BuildContext context, ActivityItem item) {
+RecentActivityCard _farmerActivityCard(
+  BuildContext context,
+  ActivityItem item,
+) {
   final l10n = AppLocalizations.of(context);
   final (icon, tone) = _farmerActivityIcon(item);
   return RecentActivityCard(
@@ -392,26 +424,76 @@ RecentActivityCard _farmerActivityCard(BuildContext context, ActivityItem item) 
 
 (IconData, RecentActivityIconTone) _farmerActivityIcon(ActivityItem item) =>
     switch (item.type) {
-      ActivityType.harvest => (Icons.agriculture_rounded, RecentActivityIconTone.primary),
-      ActivityType.listing => (Icons.verified_outlined, RecentActivityIconTone.primary),
-      ActivityType.orderPlaced => (Icons.shopping_cart_outlined, RecentActivityIconTone.accent),
+      ActivityType.harvest => (
+        Icons.agriculture_rounded,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.listing => (
+        Icons.verified_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.orderPlaced => (
+        Icons.shopping_cart_outlined,
+        RecentActivityIconTone.accent,
+      ),
       ActivityType.cropRequest => (
-          Icons.local_florist_outlined,
-          item.isAlert ? RecentActivityIconTone.alert : RecentActivityIconTone.primary,
-        ),
-      ActivityType.cropAdded => (Icons.grass_rounded, RecentActivityIconTone.primary),
-      ActivityType.informalSale => (Icons.sell_outlined, RecentActivityIconTone.accent),
-      ActivityType.cropPhotoUpdated => (Icons.photo_camera_outlined, RecentActivityIconTone.primary),
-      ActivityType.cooperativeOffer => (Icons.groups_outlined, RecentActivityIconTone.accent),
-      ActivityType.marketLinkingEnrollment => (Icons.handshake_outlined, RecentActivityIconTone.primary),
-      ActivityType.gingerBatchSubmission => (Icons.outbox_outlined, RecentActivityIconTone.accent),
-      ActivityType.profile => (Icons.person_outline_rounded, RecentActivityIconTone.neutral),
-      ActivityType.addressUpdated => (Icons.location_on_outlined, RecentActivityIconTone.neutral),
-      ActivityType.expenseAdded => (Icons.receipt_long_outlined, RecentActivityIconTone.neutral),
-      ActivityType.programEnrollment => (Icons.assignment_turned_in_outlined, RecentActivityIconTone.primary),
-      ActivityType.programPurchase => (Icons.shopping_bag_outlined, RecentActivityIconTone.accent),
-      ActivityType.capitalReinvestment => (Icons.savings_outlined, RecentActivityIconTone.primary),
-      ActivityType.syncCompleted => (Icons.sync_rounded, RecentActivityIconTone.neutral),
+        Icons.local_florist_outlined,
+        item.isAlert
+            ? RecentActivityIconTone.alert
+            : RecentActivityIconTone.primary,
+      ),
+      ActivityType.cropAdded => (
+        Icons.grass_rounded,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.informalSale => (
+        Icons.sell_outlined,
+        RecentActivityIconTone.accent,
+      ),
+      ActivityType.cropPhotoUpdated => (
+        Icons.photo_camera_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.cooperativeOffer => (
+        Icons.groups_outlined,
+        RecentActivityIconTone.accent,
+      ),
+      ActivityType.marketLinkingEnrollment => (
+        Icons.handshake_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.gingerBatchSubmission => (
+        Icons.outbox_outlined,
+        RecentActivityIconTone.accent,
+      ),
+      ActivityType.profile => (
+        Icons.person_outline_rounded,
+        RecentActivityIconTone.neutral,
+      ),
+      ActivityType.addressUpdated => (
+        Icons.location_on_outlined,
+        RecentActivityIconTone.neutral,
+      ),
+      ActivityType.expenseAdded => (
+        Icons.receipt_long_outlined,
+        RecentActivityIconTone.neutral,
+      ),
+      ActivityType.programEnrollment => (
+        Icons.assignment_turned_in_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.programPurchase => (
+        Icons.shopping_bag_outlined,
+        RecentActivityIconTone.accent,
+      ),
+      ActivityType.capitalReinvestment => (
+        Icons.savings_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.syncCompleted => (
+        Icons.sync_rounded,
+        RecentActivityIconTone.neutral,
+      ),
     };
 
 // Status colour is decided from the status kind, not the label text, so it

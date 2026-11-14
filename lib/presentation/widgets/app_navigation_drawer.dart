@@ -105,248 +105,345 @@ class AppNavigationDrawer extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Container(
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: sagana.scaffoldBackground,
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(AppConstants.radiusLg),
-                    bottomRight: Radius.circular(AppConstants.radiusLg),
-                  ),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(6, 0)),
-                  ],
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: sagana.scaffoldBackground,
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(AppConstants.radiusLg),
+              bottomRight: Radius.circular(AppConstants.radiusLg),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(6, 0),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              // ─── Branded profile header ─────────────────────────
+              // Deliberately OUTSIDE the FittedBox below: this always
+              // renders at natural 1:1 size, full width — it must
+              // never be subject to scale-down, since any scaling
+              // here (even slight) shrinks its width along with its
+              // height (BoxFit.scaleDown preserves aspect ratio),
+              // which is exactly what caused the stray white gap
+              // next to the green background in earlier passes. Only
+              // the body below (which is what can actually overflow)
+              // gets scaled if it doesn't fit.
+              //
+              // Top padding includes the status bar inset (SafeArea's
+              // top is disabled for this Container specifically) so
+              // the green background extends to the true top edge
+              // instead of leaving a gap above it, while the avatar/
+              // name stay clear of the status bar via this padding.
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  22 + MediaQuery.of(context).padding.top,
+                  16,
+                  20,
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
+                decoration: const BoxDecoration(
+                  gradient: AppConstants.primaryButtonGradient,
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(AppConstants.radiusLg),
+                  ),
+                ),
+                child: Row(
+                  // The photo and the name / email / phone group share one
+                  // centre line: a lone name sits in the middle of the
+                  // photo, and two or three lines are centred together as
+                  // a group. No space is kept for a line that is missing.
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // ─── Branded profile header ─────────────────────────
-                    // Deliberately OUTSIDE the FittedBox below: this always
-                    // renders at natural 1:1 size, full width — it must
-                    // never be subject to scale-down, since any scaling
-                    // here (even slight) shrinks its width along with its
-                    // height (BoxFit.scaleDown preserves aspect ratio),
-                    // which is exactly what caused the stray white gap
-                    // next to the green background in earlier passes. Only
-                    // the body below (which is what can actually overflow)
-                    // gets scaled if it doesn't fit.
-                    //
-                    // Top padding includes the status bar inset (SafeArea's
-                    // top is disabled for this Container specifically) so
-                    // the green background extends to the true top edge
-                    // instead of leaving a gap above it, while the avatar/
-                    // name stay clear of the status bar via this padding.
                     Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.fromLTRB(16, 22 + MediaQuery.of(context).padding.top, 16, 20),
-                      decoration: const BoxDecoration(
-                        gradient: AppConstants.primaryButtonGradient,
-                        borderRadius: BorderRadius.only(topRight: Radius.circular(AppConstants.radiusLg)),
+                      padding: const EdgeInsets.all(2.5),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          width: 1.5,
+                        ),
                       ),
-                      child: Row(
-                        // The photo and the name / email / phone group share one
-                        // centre line: a lone name sits in the middle of the
-                        // photo, and two or three lines are centred together as
-                        // a group. No space is kept for a line that is missing.
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(2.5),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
-                            ),
-                            child: ProfileAvatar(photoUrl: photoUrl, displayName: displayName, radius: 26),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              key: const ValueKey('drawer-profile-info'),
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName,
-                                  key: const ValueKey('drawer-profile-name'),
-                                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                for (final line in contactLines) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    line,
-                                    style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.85)),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
+                      child: ProfileAvatar(
+                        photoUrl: photoUrl,
+                        displayName: displayName,
+                        radius: 26,
                       ),
                     ),
-
-                    // ─── Body (non-scrolling, scales down only if needed) ─
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.topLeft,
-                            child: SizedBox(
-                              width: constraints.maxWidth,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  // Stretch, not start: this is the actual fix for
-                                  // the "horizontally compressed" report — with
-                                  // CrossAxisAlignment.start, SettingsCard (a plain
-                                  // Container with no explicit width) shrink-wraps
-                                  // to its widest row's content instead of filling
-                                  // the space this Column was already given, which
-                                  // is what left the visible unused margin to the
-                                  // right of every card. No padding numbers needed
-                                  // to change for this part — the fix is purely
-                                  // "let it use the width it already has."
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                  SectionLabel(label: l10n.sectionAccount, bottomSpacing: 6),
-                                  SettingsCard(children: [
-                                    SettingsRow(
-                                      icon: Icons.person_outline_rounded,
-                                      iconColor: AppConstants.primaryGreen,
-                                      title: l10n.editProfile,
-                                      onTap: onEditProfile,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    ),
-                                    if (onEditFarmDetails != null) ...[
-                                      const SettingsDivider(),
-                                      SettingsRow(
-                                        icon: Icons.agriculture_rounded,
-                                        iconColor: AppConstants.tertiaryContainer,
-                                        title: l10n.editFarmDetails,
-                                        onTap: onEditFarmDetails!,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                      ),
-                                    ],
-                                    if (onMyAddresses != null) ...[
-                                      const SettingsDivider(),
-                                      SettingsRow(
-                                        icon: Icons.location_on_outlined,
-                                        iconColor: AppConstants.buyerBlue,
-                                        title: l10n.buyerAddressesTitle,
-                                        onTap: onMyAddresses!,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                      ),
-                                    ],
-                                    if (onCooperativeDetails != null) ...[
-                                      const SettingsDivider(),
-                                      SettingsRow(
-                                        icon: Icons.apartment_rounded,
-                                        iconColor: AppConstants.programPurple,
-                                        title: l10n.cdTitle,
-                                        onTap: onCooperativeDetails!,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                      ),
-                                    ],
-                                  ]),
-                                  const SizedBox(height: 14),
-
-                                  SectionLabel(label: l10n.sectionAppPreferences, bottomSpacing: 6),
-                                  AnimatedBuilder(
-                                    animation: AppSettingsService.instance,
-                                    builder: (context, _) {
-                                      final isDark = AppSettingsService.instance.themeMode == ThemeMode.dark;
-                                      final isTagalog = AppSettingsService.instance.locale.languageCode == AppConstants.localeTagalog;
-                                      return SettingsCard(children: [
-                                        SettingsRow(
-                                          icon: Icons.dark_mode_outlined,
-                                          iconColor: AppConstants.charcoal,
-                                          title: l10n.appearance,
-                                          subtitle: isDark ? l10n.themeDark : l10n.themeLight,
-                                          showChevron: false,
-                                          trailing: Switch(
-                                            value: isDark,
-                                            onChanged: (v) => AppSettingsService.instance
-                                                .setThemeMode(v ? ThemeMode.dark : ThemeMode.light),
-                                          ),
-                                        ),
-                                        const SettingsDivider(),
-                                        SettingsRow(
-                                          icon: Icons.language_rounded,
-                                          iconColor: AppConstants.buyerBlue,
-                                          title: l10n.language,
-                                          subtitle: isTagalog ? l10n.languageTagalog : l10n.languageEnglish,
-                                          showChevron: false,
-                                          trailing: Switch(
-                                            value: isTagalog,
-                                            onChanged: (v) => AppSettingsService.instance.setLocale(
-                                              Locale(v ? AppConstants.localeTagalog : AppConstants.localeEnglish),
-                                            ),
-                                          ),
-                                        ),
-                                      ]);
-                                    },
-                                  ),
-                                  const SizedBox(height: 14),
-
-                                  SectionLabel(label: l10n.sectionSupportInfo, bottomSpacing: 6),
-                                  SettingsCard(children: [
-                                    SettingsRow(
-                                      icon: Icons.info_outline_rounded,
-                                      iconColor: AppConstants.primaryGreen,
-                                      title: l10n.aboutSagana,
-                                      onTap: onAboutSagana,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    ),
-                                    const SettingsDivider(),
-                                    SettingsRow(
-                                      icon: Icons.support_agent_rounded,
-                                      iconColor: AppConstants.buyerBlue,
-                                      title: l10n.aboutCooperative,
-                                      onTap: onAboutOrganization,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    ),
-                                    const SettingsDivider(),
-                                    SettingsRow(
-                                      icon: Icons.privacy_tip_outlined,
-                                      iconColor: AppConstants.amber,
-                                      title: l10n.privacyPolicy,
-                                      onTap: onPrivacyPolicy,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    ),
-                                    const SettingsDivider(),
-                                    SettingsRow(
-                                      icon: Icons.gavel_rounded,
-                                      iconColor: AppConstants.onSurfaceVariant,
-                                      title: l10n.termsOfUse,
-                                      onTap: onTermsOfUse,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    ),
-                                  ]),
-                                  const SizedBox(height: 14),
-
-                                  SettingsCard(children: [
-                                    SettingsRow(
-                                      icon: Icons.logout_rounded,
-                                      iconColor: AppConstants.errorRed,
-                                      title: l10n.adminProfileSignOut,
-                                      titleColor: AppConstants.errorRed,
-                                      showChevron: false,
-                                      onTap: onSignOut,
-                                    ),
-                                  ]),
-                                  ],
-                                ),
-                              ),
+                      child: Column(
+                        key: const ValueKey('drawer-profile-info'),
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            key: const ValueKey('drawer-profile-name'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
-                          );
-                        },
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          for (final line in contactLines) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              line,
+                              style: GoogleFonts.inter(
+                                fontSize: 11.5,
+                                color: Colors.white.withValues(alpha: 0.85),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
+
+              // ─── Body (non-scrolling, scales down only if needed) ─
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            // Stretch, not start: this is the actual fix for
+                            // the "horizontally compressed" report — with
+                            // CrossAxisAlignment.start, SettingsCard (a plain
+                            // Container with no explicit width) shrink-wraps
+                            // to its widest row's content instead of filling
+                            // the space this Column was already given, which
+                            // is what left the visible unused margin to the
+                            // right of every card. No padding numbers needed
+                            // to change for this part — the fix is purely
+                            // "let it use the width it already has."
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SectionLabel(
+                                label: l10n.sectionAccount,
+                                bottomSpacing: 6,
+                              ),
+                              SettingsCard(
+                                children: [
+                                  SettingsRow(
+                                    icon: Icons.person_outline_rounded,
+                                    iconColor: AppConstants.primaryGreen,
+                                    title: l10n.editProfile,
+                                    onTap: onEditProfile,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                  if (onEditFarmDetails != null) ...[
+                                    const SettingsDivider(),
+                                    SettingsRow(
+                                      icon: Icons.agriculture_rounded,
+                                      iconColor: AppConstants.tertiaryContainer,
+                                      title: l10n.editFarmDetails,
+                                      onTap: onEditFarmDetails!,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 4,
+                                          ),
+                                    ),
+                                  ],
+                                  if (onMyAddresses != null) ...[
+                                    const SettingsDivider(),
+                                    SettingsRow(
+                                      icon: Icons.location_on_outlined,
+                                      iconColor: AppConstants.buyerBlue,
+                                      title: l10n.buyerAddressesTitle,
+                                      onTap: onMyAddresses!,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 4,
+                                          ),
+                                    ),
+                                  ],
+                                  if (onCooperativeDetails != null) ...[
+                                    const SettingsDivider(),
+                                    SettingsRow(
+                                      icon: Icons.apartment_rounded,
+                                      iconColor: AppConstants.programPurple,
+                                      title: l10n.cdTitle,
+                                      onTap: onCooperativeDetails!,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 4,
+                                          ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+
+                              SectionLabel(
+                                label: l10n.sectionAppPreferences,
+                                bottomSpacing: 6,
+                              ),
+                              AnimatedBuilder(
+                                animation: AppSettingsService.instance,
+                                builder: (context, _) {
+                                  final isDark =
+                                      AppSettingsService.instance.themeMode ==
+                                      ThemeMode.dark;
+                                  final isTagalog =
+                                      AppSettingsService
+                                          .instance
+                                          .locale
+                                          .languageCode ==
+                                      AppConstants.localeTagalog;
+                                  return SettingsCard(
+                                    children: [
+                                      SettingsRow(
+                                        icon: Icons.dark_mode_outlined,
+                                        iconColor: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
+                                        title: l10n.appearance,
+                                        subtitle: isDark
+                                            ? l10n.themeDark
+                                            : l10n.themeLight,
+                                        showChevron: false,
+                                        trailing: Switch(
+                                          value: isDark,
+                                          onChanged: (v) => AppSettingsService
+                                              .instance
+                                              .setThemeMode(
+                                                v
+                                                    ? ThemeMode.dark
+                                                    : ThemeMode.light,
+                                              ),
+                                        ),
+                                      ),
+                                      const SettingsDivider(),
+                                      SettingsRow(
+                                        icon: Icons.language_rounded,
+                                        iconColor: AppConstants.buyerBlue,
+                                        title: l10n.language,
+                                        subtitle: isTagalog
+                                            ? l10n.languageTagalog
+                                            : l10n.languageEnglish,
+                                        showChevron: false,
+                                        trailing: Switch(
+                                          value: isTagalog,
+                                          onChanged: (v) => AppSettingsService
+                                              .instance
+                                              .setLocale(
+                                                Locale(
+                                                  v
+                                                      ? AppConstants
+                                                            .localeTagalog
+                                                      : AppConstants
+                                                            .localeEnglish,
+                                                ),
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 14),
+
+                              SectionLabel(
+                                label: l10n.sectionSupportInfo,
+                                bottomSpacing: 6,
+                              ),
+                              SettingsCard(
+                                children: [
+                                  SettingsRow(
+                                    icon: Icons.info_outline_rounded,
+                                    iconColor: AppConstants.primaryGreen,
+                                    title: l10n.aboutSagana,
+                                    onTap: onAboutSagana,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                  const SettingsDivider(),
+                                  SettingsRow(
+                                    icon: Icons.support_agent_rounded,
+                                    iconColor: AppConstants.buyerBlue,
+                                    title: l10n.aboutCooperative,
+                                    onTap: onAboutOrganization,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                  const SettingsDivider(),
+                                  SettingsRow(
+                                    icon: Icons.privacy_tip_outlined,
+                                    iconColor: AppConstants.amber,
+                                    title: l10n.privacyPolicy,
+                                    onTap: onPrivacyPolicy,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                  const SettingsDivider(),
+                                  SettingsRow(
+                                    icon: Icons.gavel_rounded,
+                                    iconColor: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                    title: l10n.termsOfUse,
+                                    onTap: onTermsOfUse,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+
+                              SettingsCard(
+                                children: [
+                                  SettingsRow(
+                                    icon: Icons.logout_rounded,
+                                    iconColor: AppConstants.errorRed,
+                                    title: l10n.adminProfileSignOut,
+                                    titleColor: AppConstants.errorRed,
+                                    showChevron: false,
+                                    onTap: onSignOut,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

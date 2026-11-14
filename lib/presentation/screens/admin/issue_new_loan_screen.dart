@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/client_id.dart';
+import '../../../core/utils/app_error_message.dart';
+import '../../../data/services/offline_actions.dart';
+import '../../../data/services/server_only.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -47,6 +50,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   bool _isOnline = true;
   bool _isLoadingRoster = true;
   bool _isSubmitting = false;
+  final String _submissionKey = newClientId();
 
   /// Set when the Manager taps Issue Loan: only then do the farmer and items
   /// show their "required" errors, so an untouched form is not covered in red.
@@ -186,6 +190,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) return;
     final l10n = AppLocalizations.of(context);
 
     // Missing farmer / items / monthly payment are shown inline, on the field
@@ -197,13 +202,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     final monthlyPayment = _enteredMonthlyPayment;
     if (monthlyPayment <= 0) return;
 
-    // Loan issuance is decided by the server (stock and reference numbers),
-    // so it is never kept on the device.
-    if (!_isOnline) {
-      _showSnack(l10n.serverOnlyOffline, isError: true);
-      return;
-    }
-
     setState(() => _isSubmitting = true);
 
     final nextPaymentDate = BodSchedule.upcoming(_issuedDate);
@@ -213,16 +211,36 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             'itemName': i.itemName,
             'inventoryItemId': i.inventoryItemId,
             'quantity': i.quantity,
-            'unit': i.unit,
+            "unit": i.unit,
             'unitPrice': i.unitPrice,
             'lineTotal': i.lineTotal,
           },
         )
         .toList();
 
+    final owner = HiveService.getUserId();
+    Future<void> queueLocally() async {
+      if (HiveService.getUserId() != owner) throw const OfflineActionBlocked();
+      await HiveService.savePendingLoanIssuance({
+        'farmerId': _selectedFarmer!.id,
+        'items': items,
+        'issuedDate': _issuedDate.toIso8601String(),
+        'monthlyPayment': monthlyPayment,
+        'nextPaymentDate': nextPaymentDate.toIso8601String(),
+        'notes': _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
+        'idempotencyKey': _submissionKey,
+      });
+      if (!mounted) return;
+      _showSnack(l10n.paymentQueuedOffline);
+      context.pop(true);
+    }
+
     try {
-      if (_isOnline) {
+      if (await ConnectivityService.instance.checkConnectivity()) {
         final result = await _repo.issueLoan(
+          idempotencyKey: _submissionKey,
           farmerId: _selectedFarmer!.id,
           items: items,
           issuedDate: _issuedDate,
@@ -235,8 +253,18 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         if (!mounted) return;
         _showSnack(l10n.issueLoanSuccess(result.referenceNo));
         context.pop(true);
+      } else {
+        await queueLocally();
       }
     } catch (e) {
+      if (isOfflineConnectionFailure(e) || e is ServerOnlyException) {
+        try {
+          await queueLocally();
+          return;
+        } catch (_) {
+          // Storage/session failures are reported below; never claim a save.
+        }
+      }
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       _showSnack(_describeIssueLoanError(e), isError: true);
@@ -255,10 +283,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   /// since those don't have a useful specific message to show.
   String _describeIssueLoanError(Object error) {
     final l10n = AppLocalizations.of(context);
-    if (error is PostgrestException && error.message.isNotEmpty) {
-      return error.message;
-    }
-    return l10n.issueLoanErrorGeneric;
+    return friendlyError(l10n, error, null, l10n.issueLoanErrorGeneric);
   }
 
   void _showSnack(String message, {bool isError = false}) {
@@ -839,7 +864,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.event_available_rounded, size: 18, color: cs.primary),
+                  Icon(
+                    Icons.event_available_rounded,
+                    size: 18,
+                    color: cs.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -943,7 +972,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                 label: l10n.issueLoanSubmit,
                 expand: false,
                 isLoading: _isSubmitting,
-                onPressed: (_isSubmitting || !_isOnline) ? null : _submit,
+                onPressed: _isSubmitting ? null : _submit,
               ),
             ],
           ),
@@ -1025,15 +1054,18 @@ class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
     final query = _query.trim().toLowerCase();
     final filtered = query.isEmpty
         ? _sorted
-        : _sorted.where((f) => f.fullName.toLowerCase().contains(query)).toList();
+        : _sorted
+              .where((f) => f.fullName.toLowerCase().contains(query))
+              .toList();
 
     // The dialog hugs the list instead of always filling most of the screen,
     // up to the shell's usual 62%. It is sized from the whole roster, not the
     // search result, so it does not change size while the Manager types.
     final screenHeight = MediaQuery.of(context).size.height;
-    final fraction = ((170 + 64 * widget.roster.length.clamp(1, 8)) / screenHeight)
-        .clamp(0.30, 0.62)
-        .toDouble();
+    final fraction =
+        ((170 + 64 * widget.roster.length.clamp(1, 8)) / screenHeight)
+            .clamp(0.30, 0.62)
+            .toDouble();
 
     return ManagementModalShell(
       title: widget.l10n.issueLoanSelectFarmer,
@@ -1213,7 +1245,11 @@ class _AddLoanItemModalBodyState extends State<AddLoanItemModalBody> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.inventory_2_outlined, size: 40, color: cs.onSurfaceVariant),
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 40,
+            color: cs.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text(
             title,
@@ -1427,7 +1463,9 @@ class _AddLoanItemModalBodyState extends State<AddLoanItemModalBody> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    currency.format(_roundCents(_quantity * _selected!.unitPrice)),
+                    currency.format(
+                      _roundCents(_quantity * _selected!.unitPrice),
+                    ),
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w700,
                       color: cs.onSurface,

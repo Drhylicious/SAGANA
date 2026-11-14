@@ -1,28 +1,28 @@
+import '../../core/l10n/app_localizations.dart';
+import '../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/theme/sagana_colors.dart';
+import 'listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Crop Category Chips
 // Shared "All + live categories" filter row, reused across Record New
-// Harvest, Crop Roster, and Harvest History (Farmer-Harvest tab revision
-// round, Revision B0) — one implementation instead of three, so the three
-// screens can never visually or behaviorally drift apart.
+// Harvest, Crop Roster, and Harvest History — one implementation instead of
+// three, so the three screens can never visually or behaviorally drift apart.
 //
-// Deliberately stateless: [categories] is supplied by the caller, which
-// already has its own top-level loading state and its own Future.wait()-
-// based load method (matching every other screen in this codebase) —
-// fetching categories there, alongside whatever else that screen already
-// loads, avoids a second, nested loading state living inside this widget.
-// "All" is prepended internally so every call site shares one literal
-// string instead of three independently-typed copies.
+// The row itself is the shared MarketplaceFilterBar: the same "Label (n)"
+// chip, height, spacing and selected state the Manager / Officer screens and
+// the Farmer's Manage Inventory use, so every filter row in the app looks and
+// behaves the same.
 //
-// Source of the category list: CategoryRepository.fetchCropCategories(),
-// which queries the live, admin-managed crop_categories table — so any
-// category an admin adds, or that a farmer's crop set gains (directly or
-// via crop-request approval), shows up the next time the screen loads,
-// with no separate sync step required.
+// Deliberately stateless: [categories] and [counts] are supplied by the
+// caller, which already holds the records it loaded, so the numbers always
+// follow what is on the screen. "All" is prepended internally so every call
+// site shares one literal string instead of three independently-typed copies.
+//
+// Source of the category list: the caller's own loaded crops / harvests (each
+// carries its category from the admin-managed crop_categories table).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class CropCategoryChips extends StatelessWidget {
@@ -32,62 +32,47 @@ class CropCategoryChips extends StatelessWidget {
   final String active;
   final ValueChanged<String> onSelected;
 
+  /// How many records each chip holds, keyed by category, with [all] for the
+  /// total. Shown as "Label (n)". A category missing from the map shows 0.
+  final Map<String, int> counts;
+
   const CropCategoryChips({
     super.key,
     required this.categories,
     required this.active,
     required this.onSelected,
+    required this.counts,
   });
+
+  /// The counts for a list of records: one per category plus the total.
+  static Map<String, int> countBy<T>(
+    Iterable<T> items,
+    String Function(T item) categoryOf,
+  ) {
+    final out = <String, int>{all: 0};
+    for (final item in items) {
+      out[all] = out[all]! + 1;
+      final category = categoryOf(item);
+      out[category] = (out[category] ?? 0) + 1;
+    }
+    return out;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    final options = [all, ...categories];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: options.map((category) {
-          final isActive = category == active;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onSelected(category),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppConstants.primaryContainer.withValues(alpha: 0.12)
-                      : sagana.cardBackground,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  border: isActive
-                      ? Border.all(
-                          color: AppConstants.primaryContainer.withValues(
-                            alpha: 0.30,
-                          ),
-                        )
-                      : null,
-                ),
-                child: Text(
-                  category,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isActive
-                        ? AppConstants.primaryContainer
-                        : cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    final l10n = AppLocalizations.of(context);
+    return MarketplaceFilterBar<String>(
+      selected: active,
+      onSelected: onSelected,
+      options: [
+        for (final category in [all, ...categories])
+          MarketplaceFilterOption(
+            value: category,
+            label: localizeBuiltinLabel(l10n, category),
+            count: counts[category] ?? 0,
+            color: AppConstants.primaryGreen,
+          ),
+      ],
     );
   }
 }

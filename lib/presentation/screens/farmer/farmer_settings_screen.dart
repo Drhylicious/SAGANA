@@ -59,20 +59,30 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   }
 
   Future<void> _setDarkMode(bool isDark) async {
-    await AppSettingsService.instance.setThemeMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    await AppSettingsService.instance.setThemeMode(
+      isDark ? ThemeMode.dark : ThemeMode.light,
+    );
     if (mounted) {
-      setState(() => _prefs = _prefs!.copyWith(themeMode: isDark ? ThemeMode.dark : ThemeMode.light));
+      setState(
+        () => _prefs = _prefs!.copyWith(
+          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+        ),
+      );
     }
   }
 
   Future<void> _setTagalog(bool isTagalog) async {
-    final code = isTagalog ? AppConstants.localeTagalog : AppConstants.localeEnglish;
+    final code = isTagalog
+        ? AppConstants.localeTagalog
+        : AppConstants.localeEnglish;
     await AppSettingsService.instance.setLocale(Locale(code));
     if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: code));
   }
 
   Future<void> _loadPrefs() async {
-    final prefs = await _settingsRepo.loadPrefs(userId: AppSettingsService.instance.currentUserId);
+    final prefs = await _settingsRepo.loadPrefs(
+      userId: AppSettingsService.instance.currentUserId,
+    );
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
@@ -85,11 +95,10 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   Future<void> _showSignOutDialog() async {
     final confirmed = await AppDialog.show<bool>(
       context: context,
-      child: const ConfirmDialog(
-        title: 'Sign Out?',
-        message: 'You will be signed out of SAGANA. '
-            'Offline records will remain on this device.',
-        confirmLabel: 'Sign Out',
+      child: ConfirmDialog(
+        title: AppLocalizations.of(context).signOutTitle,
+        message: AppLocalizations.of(context).signOutFarmerMessage,
+        confirmLabel: AppLocalizations.of(context).signOut,
       ),
     );
     if (confirmed == true) {
@@ -112,11 +121,14 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
         backgroundColor: sagana.scaffoldBackground,
         body: Stack(
           children: [
-            Column(
+            const Column(
               children: [
                 TopBarSpacer(height: 72),
-                const Expanded(
-                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  ),
                 ),
               ],
             ),
@@ -147,140 +159,162 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 64),
-                    if (!_isOnline) OfflineStatusCard(message: AppLocalizations.of(context).offlinePasswordNeedsInternet),
+                    const TopBarSpacer(height: 64),
+                    if (!_isOnline)
+                      OfflineStatusCard(
+                        message: AppLocalizations.of(
+                          context,
+                        ).offlinePasswordNeedsInternet,
+                      ),
                     Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 60),
-                  children: [
-                    // ── Account ───────────────────────────────────────────
-                    SectionLabel(label: l10n.sectionAccount),
-                    SettingsCard(
-                      children: [
-                        SettingsRow(
-                          icon: Icons.person_outline_rounded,
-                          iconColor: AppConstants.primaryGreen,
-                          title: l10n.editProfile,
-                          subtitle: l10n.editProfileSubtitle,
-                          onTap: () =>
-                              context.pushRoute(AppRoutes.farmerEditProfile),
-                        ),
-                        const SettingsDivider(),
-                        SettingsRow(
-                          icon: Icons.agriculture_rounded,
-                          iconColor: AppConstants.tertiaryContainer,
-                          title: l10n.editFarmDetails,
-                          subtitle: l10n.editFarmDetailsSubtitle,
-                          onTap: () =>
-                              context.pushRoute(AppRoutes.editFarmDetails),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    SectionLabel(label: l10n.sectionAppPreferences),
-                    SettingsCard(
-                      children: [
-                        SettingsRow(
-                          icon: Icons.dark_mode_outlined,
-                          iconColor: AppConstants.primaryGreen,
-                          title: l10n.appearance,
-                          subtitle: _themeLabel(l10n),
-                          showChevron: false,
-                          trailing: Switch(
-                            value: (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark,
-                            onChanged: _setDarkMode,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 60),
+                        children: [
+                          // ── Account ───────────────────────────────────────────
+                          SectionLabel(label: l10n.sectionAccount),
+                          SettingsCard(
+                            children: [
+                              SettingsRow(
+                                icon: Icons.person_outline_rounded,
+                                iconColor: AppConstants.primaryGreen,
+                                title: l10n.editProfile,
+                                subtitle: l10n.editProfileSubtitle,
+                                onTap: () => context.pushRoute(
+                                  AppRoutes.farmerEditProfile,
+                                ),
+                              ),
+                              const SettingsDivider(),
+                              SettingsRow(
+                                icon: Icons.agriculture_rounded,
+                                iconColor: AppConstants.tertiaryContainer,
+                                title: l10n.editFarmDetails,
+                                subtitle: l10n.editFarmDetailsSubtitle,
+                                onTap: () => context.pushRoute(
+                                  AppRoutes.editFarmDetails,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SettingsDivider(),
-                        SettingsRow(
-                          icon: Icons.language_rounded,
-                          iconColor: AppConstants.buyerBlue,
-                          title: l10n.language,
-                          subtitle: _languageLabel(l10n),
-                          showChevron: false,
-                          trailing: Switch(
-                            value: (_prefs?.localeCode ?? AppConstants.localeEnglish) == AppConstants.localeTagalog,
-                            onChanged: _setTagalog,
+                          const SizedBox(height: 20),
+
+                          SectionLabel(label: l10n.sectionAppPreferences),
+                          SettingsCard(
+                            children: [
+                              SettingsRow(
+                                icon: Icons.dark_mode_outlined,
+                                iconColor: AppConstants.primaryGreen,
+                                title: l10n.appearance,
+                                subtitle: _themeLabel(l10n),
+                                showChevron: false,
+                                trailing: Switch(
+                                  value:
+                                      (_prefs?.themeMode ?? ThemeMode.light) ==
+                                      ThemeMode.dark,
+                                  onChanged: _setDarkMode,
+                                ),
+                              ),
+                              const SettingsDivider(),
+                              SettingsRow(
+                                icon: Icons.language_rounded,
+                                iconColor: AppConstants.buyerBlue,
+                                title: l10n.language,
+                                subtitle: _languageLabel(l10n),
+                                showChevron: false,
+                                trailing: Switch(
+                                  value:
+                                      (_prefs?.localeCode ??
+                                          AppConstants.localeEnglish) ==
+                                      AppConstants.localeTagalog,
+                                  onChanged: _setTagalog,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
+                          const SizedBox(height: 20),
 
-                    // ── Support & Info ────────────────────────────────────
-                    SectionLabel(label: l10n.sectionSupportInfo),
-                    SettingsCard(
-                      children: [
-                        SettingsRow(
-                          icon: Icons.info_outline_rounded,
-                          iconColor: AppConstants.primaryGreen,
-                          title: l10n.aboutSagana,
-                          onTap: () => context.push(AppRoutes.aboutSagana),
-                        ),
-                        const SettingsDivider(),
-                        SettingsRow(
-                          icon: Icons.support_agent_rounded,
-                          iconColor: AppConstants.tertiaryContainer,
-                          title: l10n.aboutCooperative,
-                          onTap: () => context.push(AppRoutes.aboutCooperative),
-                        ),
-                        const SettingsDivider(),
-                        SettingsRow(
-                          icon: Icons.privacy_tip_outlined,
-                          iconColor: AppConstants.amber,
-                          title: l10n.privacyPolicy,
-                          onTap: () => context.push(AppRoutes.privacyPolicy),
-                        ),
-                        const SettingsDivider(),
-                        SettingsRow(
-                          icon: Icons.gavel_rounded,
-                          iconColor: AppConstants.onSurfaceVariant,
-                          title: l10n.termsOfUse,
-                          onTap: () => context.push(AppRoutes.termsOfUse),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-
-                    // ── Sign Out ──────────────────────────────────────────
-                    SignOutButton(label: l10n.signOut, onTap: _showSignOutDialog),
-                    const SizedBox(height: 24),
-
-                    // ── App branding ──────────────────────────────────────
-                    const AppBrandingBlock(),
-                    const SizedBox(height: 20),
-                    Center(
-                      child: Container(
-                        height: 4,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: AppConstants.outline.withValues(alpha: 0.20),
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
+                          // ── Support & Info ────────────────────────────────────
+                          SectionLabel(label: l10n.sectionSupportInfo),
+                          SettingsCard(
+                            children: [
+                              SettingsRow(
+                                icon: Icons.info_outline_rounded,
+                                iconColor: AppConstants.primaryGreen,
+                                title: l10n.aboutSagana,
+                                onTap: () =>
+                                    context.push(AppRoutes.aboutSagana),
+                              ),
+                              const SettingsDivider(),
+                              SettingsRow(
+                                icon: Icons.support_agent_rounded,
+                                iconColor: AppConstants.tertiaryContainer,
+                                title: l10n.aboutCooperative,
+                                onTap: () =>
+                                    context.push(AppRoutes.aboutCooperative),
+                              ),
+                              const SettingsDivider(),
+                              SettingsRow(
+                                icon: Icons.privacy_tip_outlined,
+                                iconColor: AppConstants.amber,
+                                title: l10n.privacyPolicy,
+                                onTap: () =>
+                                    context.push(AppRoutes.privacyPolicy),
+                              ),
+                              const SettingsDivider(),
+                              SettingsRow(
+                                icon: Icons.gavel_rounded,
+                                iconColor: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                title: l10n.termsOfUse,
+                                onTap: () => context.push(AppRoutes.termsOfUse),
+                              ),
+                            ],
                           ),
-                        ),
+                          const SizedBox(height: 28),
+
+                          // ── Sign Out ──────────────────────────────────────────
+                          SignOutButton(
+                            label: l10n.signOut,
+                            onTap: _showSignOutDialog,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // ── App branding ──────────────────────────────────────
+                          const AppBrandingBlock(),
+                          const SizedBox(height: 20),
+                          Center(
+                            child: Container(
+                              height: 4,
+                              width: 60,
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outline.withValues(alpha: 0.20),
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusFull,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
                   ],
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: l10n.settingsTitle,
-              onBack: () => context.popRoute(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
-            ),
-          ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: l10n.settingsTitle,
+                    onBack: () => context.popRoute(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
+                  ),
+                ),
               ],
             ),
           ),
@@ -289,4 +323,3 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
     );
   }
 }
-

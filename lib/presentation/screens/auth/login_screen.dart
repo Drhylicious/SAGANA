@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../widgets/shared_widgets.dart';
@@ -137,7 +138,9 @@ class _LoginScreenState extends State<LoginScreen>
       // A wrong pair for something typed as an EMAIL gets one extra sentence: an
       // email only signs in once it is verified, and the username always does.
       // (Said the same for every email, so it reveals nothing about accounts.)
-      final typedEmail = _emailPattern.hasMatch(_identifierController.text.trim());
+      final typedEmail = _emailPattern.hasMatch(
+        _identifierController.text.trim(),
+      );
       setState(
         () => _errorMessage = typedEmail && AuthService.isInvalidCredentials(e)
             ? AppLocalizations.of(context).loginEmailNotVerifiedHint
@@ -178,8 +181,11 @@ class _LoginScreenState extends State<LoginScreen>
       // has an email on file. Only a valid email that belongs to a SAGANA account
       // gets the reset-link flow.
       final isEmail = _emailPattern.hasMatch(identifier);
-      final canUseOtp = isEmail &&
-          await (widget.otpEligibility ?? AuthService.canUseOtpReset)(identifier);
+      final canUseOtp =
+          isEmail &&
+          await (widget.otpEligibility ?? AuthService.canUseOtpReset)(
+            identifier,
+          );
       if (!mounted) return;
       if (canUseOtp) {
         await _showAdminResetSheet(prefill: identifier);
@@ -319,7 +325,7 @@ class _LogoSection extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.saganaColors.cardBackground,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
@@ -343,7 +349,7 @@ class _LogoSection extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
             letterSpacing: -0.5,
           ),
         ),
@@ -351,11 +357,11 @@ class _LogoSection extends StatelessWidget {
         const SizedBox(height: 4),
 
         Text(
-          'Empowering the Future of Farming',
+          AppLocalizations.of(context).enhEmpoweringTheFutureOfFarming,
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -404,7 +410,7 @@ class _AuthCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: context.saganaColors.cardBackground.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.40),
@@ -424,7 +430,7 @@ class _AuthCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Identifier field
-                const _InputLabel('Username / Email'),
+                _InputLabel(AppLocalizations.of(context).enhUsernameEmail),
                 const SizedBox(height: 6),
                 _EmailField(
                   controller: identifierController,
@@ -434,7 +440,7 @@ class _AuthCard extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // Password field
-                const _InputLabel('Password'),
+                _InputLabel(AppLocalizations.of(context).password),
                 const SizedBox(height: 6),
                 _PasswordField(
                   controller: passwordController,
@@ -458,10 +464,10 @@ class _AuthCard extends StatelessWidget {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     child: Text(
-                      'Forgot Password?',
+                      AppLocalizations.of(context).enhForgotPassword,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -477,7 +483,7 @@ class _AuthCard extends StatelessWidget {
 
                 // Sign in button
                 AuthGradientButton(
-                  label: 'Sign In',
+                  label: AppLocalizations.of(context).registerSignIn,
                   isLoading: isLoading,
                   onPressed: onLogin,
                   gradientColors: const [
@@ -495,19 +501,21 @@ class _AuthCard extends StatelessWidget {
                     text: TextSpan(
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                       children: [
-                        const TextSpan(text: 'New to SAGANA? '),
+                        TextSpan(
+                          text: AppLocalizations.of(context).enhNewToSAGANA,
+                        ),
                         WidgetSpan(
                           child: GestureDetector(
                             onTap: onRegister,
                             child: Text(
-                              'Create an Account',
+                              AppLocalizations.of(context).enhCreateAnAccount,
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: AppConstants.primaryGreen,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -540,7 +548,7 @@ class _InputLabel extends StatelessWidget {
       style: GoogleFonts.poppins(
         fontSize: 14,
         fontWeight: FontWeight.w500,
-        color: AppConstants.onSurface,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }
@@ -560,9 +568,15 @@ class _EmailField extends StatelessWidget {
           ? TextInputType.text
           : TextInputType.emailAddress,
       autocorrect: false,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: authFieldDecoration(
-        hint: isUsername ? 'Enter your username or email' : 'manager@sp3.coop',
+        context: context,
+        hint: isUsername
+            ? AppLocalizations.of(context).enhEnterYourUsernameOrEmail
+            : 'manager@sp3.coop',
         icon: isUsername ? Icons.badge_outlined : Icons.mail_outline_rounded,
       ),
       // Judged from the text at validation time. (isUsername only changes the
@@ -589,8 +603,12 @@ class _PasswordField extends StatelessWidget {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: authFieldDecoration(
+        context: context,
         hint: '••••••••',
         icon: Icons.lock_outline_rounded,
         suffix: IconButton(
@@ -599,14 +617,20 @@ class _PasswordField extends StatelessWidget {
                 ? Icons.visibility_outlined
                 : Icons.visibility_off_outlined,
             size: 20,
-            color: AppConstants.outline,
+            color: Theme.of(context).colorScheme.outline,
           ),
           onPressed: onToggle,
         ),
       ),
       validator: (v) {
-        if (v == null || v.isEmpty) return 'Password is required';
-        if (v.length < 8) return 'Password must be at least 8 characters';
+        if (v == null || v.isEmpty) {
+          return AppLocalizations.of(context).addMemberPasswordRequired;
+        }
+        if (v.length < 8) {
+          return AppLocalizations.of(
+            context,
+          ).enhPasswordMustBeAtLeastCharacters;
+        }
         return null;
       },
     );
@@ -667,24 +691,30 @@ class _AdminNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.50),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.50),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+        ),
       ),
       child: Row(
         children: [
           Icon(
             Icons.info_outline_rounded,
             size: 16,
-            color: AppConstants.onSurfaceVariant.withValues(alpha: 0.7),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Manager access is managed by SP3 Cooperative staff.',
+              AppLocalizations.of(
+                context,
+              ).enhManagerAccessIsManagedBySPCooperativeStaff,
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -718,12 +748,18 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
   Future<void> _handleSend() async {
     final email = widget.emailController.text.trim();
     if (email.isEmpty) {
-      setState(() => _error = 'Please enter your email address');
+      setState(
+        () => _error = AppLocalizations.of(
+          context,
+        ).enhPleaseEnterYourEmailAddress,
+      );
       return;
     }
     final regex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
     if (!regex.hasMatch(email)) {
-      setState(() => _error = 'Enter a valid email address');
+      setState(
+        () => _error = AppLocalizations.of(context).enhEnterAValidEmailAddress,
+      );
       return;
     }
 
@@ -737,7 +773,9 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Could not send reset link. Please try again.';
+          _error = AppLocalizations.of(
+            context,
+          ).enhCouldNotSendResetLinkPleaseTryAgain;
           _isSending = false;
         });
       }
@@ -752,9 +790,9 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppConstants.radiusXl),
           ),
         ),
@@ -769,28 +807,32 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: AppConstants.outline.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
 
             Text(
-              'Reset Password',
+              AppLocalizations.of(context).farmerMgmtActionResetPassword,
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
 
             const SizedBox(height: 8),
 
             Text(
-              'Enter the email address linked to your SAGANA account. We\'ll send you a reset link.',
+              AppLocalizations.of(
+                context,
+              ).enhEnterTheEmailAddressLinkedToYourSAGANA,
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
 
@@ -801,7 +843,8 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
               keyboardType: TextInputType.emailAddress,
               style: GoogleFonts.inter(fontSize: 14),
               decoration: authFieldDecoration(
-                hint: 'Your email address',
+                context: context,
+                hint: AppLocalizations.of(context).enhYourEmailAddress,
                 icon: Icons.mail_outline_rounded,
               ),
             ),
@@ -843,7 +886,7 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                         ),
                       )
                     : Text(
-                        'Send Reset Link',
+                        AppLocalizations.of(context).enhSendResetLink,
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -880,8 +923,9 @@ class _ContactAdminSheet extends StatefulWidget {
 class _ContactAdminSheetState extends State<_ContactAdminSheet> {
   bool _isSubmitting = false;
   bool _requestSent = false;
-  late final TextEditingController _usernameCtrl =
-      TextEditingController(text: widget.username);
+  late final TextEditingController _usernameCtrl = TextEditingController(
+    text: widget.username,
+  );
 
   String get _username => _usernameCtrl.text.trim();
   bool get _hasUsername => _username.isNotEmpty;
@@ -901,9 +945,9 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
       child: SingleChildScrollView(
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(
+          decoration: BoxDecoration(
+            color: context.saganaColors.cardBackground,
+            borderRadius: const BorderRadius.vertical(
               top: Radius.circular(AppConstants.radiusXl),
             ),
           ),
@@ -918,7 +962,9 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: AppConstants.outline.withValues(alpha: 0.3),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -931,9 +977,9 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                   color: AppConstants.primaryGreen.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.support_agent_rounded,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   size: 28,
                 ),
               ),
@@ -941,22 +987,23 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
               const SizedBox(height: 16),
 
               Text(
-                'Need Help Signing In?',
+                AppLocalizations.of(context).enhNeedHelpSigningIn,
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.onSurface,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
 
               const SizedBox(height: 8),
 
               Text(
-                'You can request a temporary password from the SAGANA Manager. '
-                'The Manager will review your request and assist you.',
+                AppLocalizations.of(
+                  context,
+                ).enhYouCanRequestATemporaryPasswordFromThe,
                 style: GoogleFonts.inter(
                   fontSize: 14,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   height: 1.5,
                 ),
               ),
@@ -979,20 +1026,24 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        AppLocalizations.of(context).recoveryEmailVerifiedOnlyTitle,
+                        AppLocalizations.of(
+                          context,
+                        ).recoveryEmailVerifiedOnlyTitle,
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.onSurface,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        AppLocalizations.of(context).recoveryEmailVerifiedOnlyBody,
+                        AppLocalizations.of(
+                          context,
+                        ).recoveryEmailVerifiedOnlyBody,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           height: 1.45,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1007,7 +1058,9 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                   textInputAction: TextInputAction.done,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    labelText: AppLocalizations.of(context).recoveryUsernameLabel,
+                    labelText: AppLocalizations.of(
+                      context,
+                    ).recoveryUsernameLabel,
                     prefixIcon: const Icon(Icons.person_outline_rounded),
                   ),
                 ),
@@ -1024,7 +1077,9 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   child: Text(
-                    'Request sent. An SP3 Manager will assist you.',
+                    AppLocalizations.of(
+                      context,
+                    ).enhRequestSentAnSPManagerWillAssistYou,
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: AppConstants.successGreen,
@@ -1047,7 +1102,9 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Please enter your username on the login screen first.',
+                        AppLocalizations.of(
+                          context,
+                        ).enhPleaseEnterYourUsernameOnTheLoginScreen,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: AppConstants.errorRed,
@@ -1074,7 +1131,7 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                         ),
                       ),
                       child: Text(
-                        'Cancel',
+                        AppLocalizations.of(context).cancel,
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -1113,8 +1170,10 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                             )
                           : Text(
                               _requestSent
-                                  ? 'Request Sent'
-                                  : 'Request Temporary Password',
+                                  ? AppLocalizations.of(context).enhRequestSent
+                                  : AppLocalizations.of(
+                                      context,
+                                    ).enhRequestTemporaryPassword,
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
                                 fontSize: 13,

@@ -71,10 +71,14 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   String? _verifiedEmail; // the last address proven with a code
   /// The address a code would go to: the pending one, else the one in use.
   String? get _savedEmail => _pendingEmail ?? _activeEmail;
-  bool get _emailVerified =>
-      ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
-  bool get _activeVerified =>
-      ContactEmail.isVerified(contactEmail: _activeEmail, verifiedEmail: _verifiedEmail);
+  bool get _emailVerified => ContactEmail.isVerified(
+    contactEmail: _savedEmail,
+    verifiedEmail: _verifiedEmail,
+  );
+  bool get _activeVerified => ContactEmail.isVerified(
+    contactEmail: _activeEmail,
+    verifiedEmail: _verifiedEmail,
+  );
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -84,10 +88,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   String? _gender;
 
   Map<String, String> _genderOptions(AppLocalizations l10n) => {
-        'male': l10n.registerGenderMale,
-        'female': l10n.registerGenderFemale,
-        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
-      };
+    'male': l10n.registerGenderMale,
+    'female': l10n.registerGenderFemale,
+    'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+  };
 
   @override
   void initState() {
@@ -207,7 +211,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
     final l10n = AppLocalizations.of(context);
     void fail(String message) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
     }
 
@@ -229,7 +236,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
 
   /// Names [email] as the address to switch to (or clears the change when it is
   /// the one already in use). Shows the reason and returns false if refused.
-  Future<bool> _storePendingEmail(String email, void Function(String) fail) async {
+  Future<bool> _storePendingEmail(
+    String email,
+    void Function(String) fail,
+  ) async {
     final l10n = AppLocalizations.of(context);
     final result = await _verifier.setPendingEmail(email);
     if (!mounted) return false;
@@ -335,7 +345,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       if (typed != stored) {
         void fail(String message) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+            SnackBar(
+              content: Text(message),
+              backgroundColor: AppConstants.errorRed,
+            ),
           );
         }
 
@@ -343,7 +356,12 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
           // An Officer removing their contact email.
           await _repo.updateContactEmail('');
           await _verifier.setPendingEmail('');
-          if (mounted) setState(() { _activeEmail = null; _pendingEmail = null; });
+          if (mounted) {
+            setState(() {
+              _activeEmail = null;
+              _pendingEmail = null;
+            });
+          }
         } else if (!await _storePendingEmail(email, fail)) {
           if (mounted) setState(() => _isSaving = false);
           return;
@@ -374,7 +392,9 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       final l10n2 = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(readableDatabaseMessage(e) ?? l10n2.adminProfileSaveError),
+          content: Text(
+            readableDatabaseMessage(e) ?? l10n2.adminProfileSaveError,
+          ),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -391,183 +411,210 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
 
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.editProfile, onBack: () => Navigator.of(context).pop(), trailing: TextButton( onPressed: _isSaving ? null : _save, child: Text( l10n.adminProfileSaveChanges, style: GoogleFonts.poppins( fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen, ), ), )),
-          Expanded(child: _isLoading
-          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spacingSafeH,
-                16,
-                AppConstants.spacingSafeH,
-                40,
+          SubPageTopBar(
+            title: l10n.editProfile,
+            onBack: () => Navigator.of(context).pop(),
+            trailing: TextButton(
+              onPressed: _isSaving ? null : _save,
+              child: Text(
+                l10n.adminProfileSaveChanges,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
-              children: [
-                Center(
-                  child: Stack(
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppConstants.spacingSafeH,
+                      16,
+                      AppConstants.spacingSafeH,
+                      40,
+                    ),
                     children: [
-                      ProfileAvatar(
-                        photoUrl: _photoUrl,
-                        displayName: _name.displayName('Admin'),
-                        radius: 56,
+                      Center(
+                        child: Stack(
+                          children: [
+                            ProfileAvatar(
+                              photoUrl: _photoUrl,
+                              displayName: _name.displayName(
+                                AppLocalizations.of(context).staffRoleManager,
+                              ),
+                              radius: 56,
+                            ),
+                            if (_isUploadingPhoto)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black38,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: _pickPhoto,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: AppConstants.primaryGreen,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      if (_isUploadingPhoto)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black38,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _pickPhoto,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppConstants.primaryGreen,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: _isUploadingPhoto ? null : _pickPhoto,
+                          child: Text(
+                            l10n.adminProfileChangePhoto,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      SectionLabel(label: l10n.sectionPersonalInformation),
+                      const SizedBox(height: 8),
+                      Form(
+                        key: _nameFormKey,
+                        child: PersonNameFields(
+                          style: PersonNameFieldsStyle.profile,
+                          surnameController: _name.surname,
+                          firstNameController: _name.firstName,
+                          middleInitialController: _name.middleInitial,
+                          suffix: _name.suffix,
+                          onSuffixChanged: (v) =>
+                              setState(() => _name.suffix = v),
+                          allowAllBlank: _name.legacyFullName != null,
+                          legacyFullName: _name.legacyFullName,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _emailController,
+                        label: l10n.emailAddress,
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      ContactEmailVerification(
+                        emailController: _emailController,
+                        savedEmail: _savedEmail,
+                        verified: _emailVerified,
+                        activeEmail: _activeEmail,
+                        activeVerified: _activeVerified,
+                        // A Manager signs in with this address.
+                        signInEmail: !_isOfficer,
+                        requiresPasswordWhenChanged: !_isOfficer,
+                        isOnline: ConnectivityService.instance.isOnline,
+                        verifier: _verifier,
+                        saveEmail: _saveEmailForVerification,
+                        onSignInEmailChanged: _isOfficer
+                            ? () => announceEmailSignInEnabled(
+                                context,
+                                _savedEmail,
+                              )
+                            : _onSignInEmailChanged,
+                        onVerified: () {
+                          setState(() {
+                            // The proven address is now the one in use.
+                            _activeEmail = _savedEmail;
+                            _pendingEmail = null;
+                            _verifiedEmail = _activeEmail;
+                          });
+                          AdminProfileStateService.instance.refresh();
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _phoneController,
+                        label: l10n.adminProfilePhoneNumber,
+                        hint: '09XXXXXXXXX',
+                        prefixIcon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _LabeledDateField(
+                              label: l10n.addMemberDobLabel,
+                              hintText: l10n.addMemberSelectHint,
+                              valueText: _dobController.text,
+                              onTap: _pickDateOfBirth,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppDropdownField<String>(
+                              value: _gender,
+                              hintText: l10n.addMemberSelectHint,
+                              labelText: l10n.addMemberGenderLabel,
+                              items: _genderOptions(l10n).keys.toList(),
+                              itemLabel: (key) => _genderOptions(l10n)[key]!,
+                              onChanged: (v) => setState(() => _gender = v),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      SectionLabel(label: l10n.sectionSecurity),
+                      const SizedBox(height: 8),
+                      SettingsCard(
+                        children: [
+                          SettingsRow(
+                            icon: Icons.lock_reset_rounded,
+                            iconColor: AppConstants.primaryGreen,
+                            title: l10n.changePassword,
+                            subtitle: l10n.updateYourPassword,
+                            onTap: () => AppDialog.show<void>(
+                              context: context,
+                              child: ChangePasswordDialog(
+                                onSuccess: () => AdminActivityRepository().log(
+                                  module: 'profile',
+                                  actionType: 'password_changed',
+                                  message: const AdminLogMessage(
+                                    'adminLogPasswordChanged',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton(
-                    onPressed: _isUploadingPhoto ? null : _pickPhoto,
-                    child: Text(
-                      l10n.adminProfileChangePhoto,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppConstants.primaryGreen,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SectionLabel(label: l10n.sectionPersonalInformation),
-                const SizedBox(height: 8),
-                Form(
-                  key: _nameFormKey,
-                  child: PersonNameFields(
-                    style: PersonNameFieldsStyle.profile,
-                    surnameController: _name.surname,
-                    firstNameController: _name.firstName,
-                    middleInitialController: _name.middleInitial,
-                    suffix: _name.suffix,
-                    onSuffixChanged: (v) => setState(() => _name.suffix = v),
-                    allowAllBlank: _name.legacyFullName != null,
-                    legacyFullName: _name.legacyFullName,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  controller: _emailController,
-                  label: l10n.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                ContactEmailVerification(
-                  emailController: _emailController,
-                  savedEmail: _savedEmail,
-                  verified: _emailVerified,
-                  activeEmail: _activeEmail,
-                  activeVerified: _activeVerified,
-                  // A Manager signs in with this address.
-                  signInEmail: !_isOfficer,
-                  requiresPasswordWhenChanged: !_isOfficer,
-                  isOnline: ConnectivityService.instance.isOnline,
-                  verifier: _verifier,
-                  saveEmail: _saveEmailForVerification,
-                  onSignInEmailChanged: _isOfficer
-                      ? () => announceEmailSignInEnabled(context, _savedEmail)
-                      : _onSignInEmailChanged,
-                  onVerified: () {
-                    setState(() {
-                      // The proven address is now the one in use.
-                      _activeEmail = _savedEmail;
-                      _pendingEmail = null;
-                      _verifiedEmail = _activeEmail;
-                    });
-                    AdminProfileStateService.instance.refresh();
-                  },
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  controller: _phoneController,
-                  label: l10n.adminProfilePhoneNumber,
-                  hint: '09XXXXXXXXX',
-                  prefixIcon: Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _LabeledDateField(
-                        label: l10n.addMemberDobLabel,
-                        hintText: l10n.addMemberSelectHint,
-                        valueText: _dobController.text,
-                        onTap: _pickDateOfBirth,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppDropdownField<String>(
-                        value: _gender,
-                        hintText: l10n.addMemberSelectHint,
-                        labelText: l10n.addMemberGenderLabel,
-                        items: _genderOptions(l10n).keys.toList(),
-                        itemLabel: (key) => _genderOptions(l10n)[key]!,
-                        onChanged: (v) => setState(() => _gender = v),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SectionLabel(label: l10n.sectionSecurity),
-                const SizedBox(height: 8),
-                SettingsCard(
-                  children: [
-                  SettingsRow(
-                    icon: Icons.lock_reset_rounded,
-                    iconColor: AppConstants.primaryGreen,
-                    title: l10n.changePassword,
-                    subtitle: l10n.updateYourPassword,
-                      onTap: () => AppDialog.show<void>(
-                        context: context,
-                        child: ChangePasswordDialog(
-                          onSuccess: () => AdminActivityRepository().log(
-                            module: 'profile',
-                            actionType: 'password_changed',
-                            message: const AdminLogMessage('adminLogPasswordChanged'),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  ),
-              ],
-            )),
+          ),
         ],
       ),
     );
@@ -605,8 +652,8 @@ class _LabeledDateField extends StatelessWidget {
       children: [
         Text(
           label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 6),

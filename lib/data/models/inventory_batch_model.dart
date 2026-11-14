@@ -1,4 +1,5 @@
 import '../../core/utils/quantity_utils.dart';
+import 'shelf_life_model.dart';
 
 class InventoryBatchModel {
   final String id;
@@ -39,6 +40,13 @@ class InventoryBatchModel {
   final String? category;
   final DateTime createdAt;
   final DateTime? harvestDate;
+  // True only for produce a Cooperative Program gave the Farmer (its harvest entry is 'program_received').
+  // A later harvest of the same crop is a separate batch and is never marked.
+  final bool fromProgram;
+
+  /// This batch's own shelf-life tracking (null when the crop has no shelf
+  /// life set and no loss was reported). Farmer and staff only.
+  final BatchShelfLife? shelfLife;
 
   const InventoryBatchModel({
     required this.id,
@@ -61,6 +69,8 @@ class InventoryBatchModel {
     this.category,
     required this.createdAt,
     this.harvestDate,
+    this.fromProgram = false,
+    this.shelfLife,
   });
 
   double get stockPercent =>
@@ -92,6 +102,8 @@ class InventoryBatchModel {
     category: category,
     createdAt: createdAt,
     harvestDate: harvestDate,
+    fromProgram: fromProgram,
+    shelfLife: shelfLife,
   );
 
   bool get isAvailable => status == 'available' || status == 'low_stock';
@@ -99,6 +111,16 @@ class InventoryBatchModel {
   bool get isReserved => status == 'reserved';
   bool get isSoldOut => status == 'sold_out';
   bool get isWithdrawn => status == 'withdrawn';
+
+  /// Part or all of this batch was reported as rotten (a loss).
+  bool get hasLoss => (shelfLife?.spoiledKg ?? 0) > 0;
+
+  /// Everything that was left was reported as rotten: nothing can be sold.
+  bool get isLost => hasLoss && availableKg <= 0 && reservedKg <= 0;
+
+  /// Recorded past its shelf life and not confirmed yet: no selling channel
+  /// accepts it until the Farmer confirms the produce.
+  bool get isOnShelfLifeHold => shelfLife?.hold ?? false;
 
   factory InventoryBatchModel.fromMap(Map<String, dynamic> map) {
     DateTime? parseDate(dynamic value) {
@@ -109,14 +131,17 @@ class InventoryBatchModel {
     }
 
     DateTime? harvestDate;
+    var fromProgram = false;
     final harvestRecords = map['harvest_records'];
     if (harvestRecords is List && harvestRecords.isNotEmpty) {
       final first = harvestRecords.first;
       if (first is Map) {
         harvestDate = parseDate(first['harvest_date']);
+        fromProgram = first['source_type'] == 'program_received';
       }
     } else if (harvestRecords is Map) {
       harvestDate = parseDate(harvestRecords['harvest_date']);
+      fromProgram = harvestRecords['source_type'] == 'program_received';
     }
 
     return InventoryBatchModel(
@@ -140,6 +165,8 @@ class InventoryBatchModel {
       category: map['category'] as String?,
       createdAt: parseDate(map['created_at']) ?? DateTime.now(),
       harvestDate: harvestDate,
+      fromProgram: fromProgram,
+      shelfLife: BatchShelfLife.fromEmbed(map['batch_shelf_life']),
     );
   }
 }

@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import '../../../core/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -65,7 +66,9 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   bool get _isEnrolled => widget.entry != null;
 
   String get _programName =>
-      widget.entry?.programName ?? widget.program?.programName ?? 'Program';
+      widget.entry?.programName ??
+      widget.program?.programName ??
+      AppLocalizations.of(context).adminCalEventProgram;
   String? get _description =>
       widget.entry?.programDescription ?? widget.program?.description;
   String? get _imageUrl =>
@@ -77,16 +80,21 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   String get _programType =>
       widget.entry?.programType ?? widget.program?.programType ?? 'other';
   String? get _distributionCategory =>
-      widget.entry?.distributionCategory ?? widget.program?.distributionCategory;
+      widget.entry?.distributionCategory ??
+      widget.program?.distributionCategory;
 
   String get _programTypeLabel {
     final t = _programType;
-    if (t.isEmpty) return 'Other';
+    if (t.isEmpty) return AppLocalizations.of(context).suspendReasonOther;
     return t[0].toUpperCase() + t.substring(1);
   }
 
-  String get _programPurposeLabel => _isSalesProgram ? 'Sales' : 'Distribution';
-  String get _benefitTypeLabel => _isRevenueShare ? 'Revenue Share' : 'Grant';
+  String get _programPurposeLabel => _isSalesProgram
+      ? AppLocalizations.of(context).adminDashStatSalesAllTime
+      : AppLocalizations.of(context).balikTangkilikDistributionTab;
+  String get _benefitTypeLabel => _isRevenueShare
+      ? AppLocalizations.of(context).enhRevenueShare
+      : AppLocalizations.of(context).enhGrant;
 
   Future<void> _requestEnrollment() async {
     final programId = widget.program?.id;
@@ -110,7 +118,12 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
       // The database's own sentence (for example: you already have a request), not the raw exception.
       AppToast.show(
         context,
-        friendlyError(AppLocalizations.of(context), e, st, AppLocalizations.of(context).adminInvFailedTryAgain),
+        friendlyError(
+          AppLocalizations.of(context),
+          e,
+          st,
+          AppLocalizations.of(context).adminInvFailedTryAgain,
+        ),
         isError: true,
       );
     } finally {
@@ -121,12 +134,12 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
@@ -147,30 +160,40 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                     // internal cooperative figure, not farmer-facing.
                     _SectionCard(
                       icon: Icons.info_outline_rounded,
-                      title: 'Program Details',
+                      title: AppLocalizations.of(context).enhProgramDetails,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _InfoRow(
                             icon: Icons.category_outlined,
-                            label: 'Program Type',
+                            label: AppLocalizations.of(context).enhProgramType,
                             value: _programTypeLabel,
                           ),
                           _InfoRow(
                             icon: Icons.swap_horiz_rounded,
-                            label: 'Program Purpose',
+                            label: AppLocalizations.of(
+                              context,
+                            ).enhProgramPurpose459,
                             value: _programPurposeLabel,
                             isLast: _isSalesProgram,
                           ),
                           if (!_isSalesProgram) ...[
                             _InfoRow(
                               icon: Icons.inventory_2_outlined,
-                              label: 'Distribution Category',
-                              value: _distributionCategory ?? 'Not specified',
+                              label: AppLocalizations.of(
+                                context,
+                              ).enhDistributionCategory,
+                              value:
+                                  _distributionCategory ??
+                                  AppLocalizations.of(
+                                    context,
+                                  ).commonNotSpecified,
                             ),
                             _InfoRow(
                               icon: Icons.card_giftcard_rounded,
-                              label: 'Benefit Type',
+                              label: AppLocalizations.of(
+                                context,
+                              ).enhBenefitType,
                               value: _benefitTypeLabel,
                               isLast: true,
                             ),
@@ -183,17 +206,27 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                     if (_isSalesProgram && _memberDiscount > 0) ...[
                       _SectionCard(
                         icon: Icons.local_offer_outlined,
-                        title: AppLocalizations.of(context).catMemberBenefitTitle,
+                        title: AppLocalizations.of(
+                          context,
+                        ).catMemberBenefitTitle,
                         child: Text(
                           _isEnrolled
-                              ? AppLocalizations.of(context).catMemberBenefitEnrolled(
-                                  _memberDiscount == _memberDiscount.roundToDouble()
+                              ? AppLocalizations.of(
+                                  context,
+                                ).catMemberBenefitEnrolled(
+                                  _memberDiscount ==
+                                          _memberDiscount.roundToDouble()
                                       ? _memberDiscount.toStringAsFixed(0)
-                                      : _memberDiscount.toStringAsFixed(1))
-                              : AppLocalizations.of(context).catMemberBenefitNotEnrolled(
-                                  _memberDiscount == _memberDiscount.roundToDouble()
+                                      : _memberDiscount.toStringAsFixed(1),
+                                )
+                              : AppLocalizations.of(
+                                  context,
+                                ).catMemberBenefitNotEnrolled(
+                                  _memberDiscount ==
+                                          _memberDiscount.roundToDouble()
                                       ? _memberDiscount.toStringAsFixed(0)
-                                      : _memberDiscount.toStringAsFixed(1)),
+                                      : _memberDiscount.toStringAsFixed(1),
+                                ),
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             color: AppConstants.successGreen,
@@ -207,14 +240,16 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
 
                     _SectionCard(
                       icon: Icons.description_outlined,
-                      title: 'About This Program',
+                      title: AppLocalizations.of(context).enhAboutThisProgram,
                       child: Text(
                         (_description != null && _description!.isNotEmpty)
                             ? _description!
-                            : 'No description provided.',
+                            : AppLocalizations.of(
+                                context,
+                              ).enhNoDescriptionProvided,
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.4,
                         ),
                       ),
@@ -233,7 +268,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'Program Details',
+              title: AppLocalizations.of(context).enhProgramDetails,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -257,8 +292,13 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
             _StatusChip(label: _enrollmentStatusLabel(entry.enrollmentStatus)),
             const SizedBox(width: 8),
             Text(
-              AppLocalizations.of(context).farmerProgEnrolledOn(_formatDate(entry.enrolledAt)),
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+              AppLocalizations.of(
+                context,
+              ).farmerProgEnrolledOn(_formatDate(entry.enrolledAt)),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -268,19 +308,28 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
       if (_isSalesProgram)
         _SectionCard(
           icon: Icons.storefront_rounded,
-          title: 'Product Sales Program',
+          title: AppLocalizations.of(context).reportsYearSettingsProgram,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'This program lets you purchase cooperative-stocked products.',
-                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                AppLocalizations.of(
+                  context,
+                ).enhThisProgramLetsYouPurchaseCooperativeStockedProducts,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 AppLocalizations.of(context).uoProductsInMarketplace,
                 key: const Key('productsInMarketplace'),
-                style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -288,11 +337,14 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
       else ...[
         _SectionCard(
           icon: Icons.local_shipping_outlined,
-          title: 'Distribution',
+          title: AppLocalizations.of(context).balikTangkilikDistributionTab,
           child: !entry.isDistributed
               ? Text(
-                  'Awaiting distribution.',
-                  style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                  AppLocalizations.of(context).enhAwaitingDistribution,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,13 +358,21 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                             .trim(),
                         _formatDate(entry.distributedAt!),
                       ),
-                      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                     if (_isRevenueShare) ...[
                       const SizedBox(height: 8),
                       if (entry.isSettled)
                         Text(
-                          'Returned ₱${entry.amountReturned?.toStringAsFixed(2)} on ${_formatDate(entry.settledAt!)}',
+                          AppLocalizations.of(context).enhReturnedOn(
+                            (entry.amountReturned?.toStringAsFixed(
+                              2,
+                            )).toString(),
+                            (_formatDate(entry.settledAt!)).toString(),
+                          ),
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -322,9 +382,22 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                       else
                         Text(
                           entry.returnQuantity != null
-                              ? 'Harvest return: ${formatQuantity(entry.returnQuantity!)} ${entry.returnUnitShown ?? ''} ${entry.returnName ?? ''}'.trim()
-                              : 'A harvest return is expected by the cooperative.',
-                          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.warningAmber),
+                              ? AppLocalizations.of(context)
+                                    .enhHarvestReturn(
+                                      (formatQuantity(
+                                        entry.returnQuantity!,
+                                      )).toString(),
+                                      (entry.returnUnitShown ?? '').toString(),
+                                      (entry.returnName ?? '').toString(),
+                                    )
+                                    .trim()
+                              : AppLocalizations.of(
+                                  context,
+                                ).enhAHarvestReturnIsExpectedByTheCooperative,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppConstants.warningAmber,
+                          ),
                         ),
                     ],
                   ],
@@ -335,7 +408,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
         if (entry.distributionOutcome != null) ...[
           _SectionCard(
             icon: Icons.insights_rounded,
-            title: 'Outcome',
+            title: AppLocalizations.of(context).memDetailsOutcome,
             child: _OutcomeBody(entry: entry),
           ),
           const SizedBox(height: 16),
@@ -356,13 +429,20 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
         children: [
           Text(
             l10n.catShopNote,
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             l10n.uoProductsInMarketplace,
             key: const Key('productsInMarketplace'),
-            style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              fontStyle: FontStyle.italic,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -385,7 +465,10 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                 children: [
                   Text(
                     AppLocalizations.of(context).joinNotYet,
-                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -402,79 +485,116 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                 ],
               )
             : request.isPending
-                ? Row(
+            ? Row(
+                children: [
+                  const Icon(
+                    Icons.hourglass_top_rounded,
+                    size: 18,
+                    color: AppConstants.warningAmber,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      AppLocalizations.of(context).joinRequestPending,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppConstants.warningAmber,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : request.isApproved
+            ? Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 18,
+                    color: AppConstants.successGreen,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      AppLocalizations.of(context).joinRequestApproved,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppConstants.successGreen,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      const Icon(Icons.hourglass_top_rounded,
-                          size: 18, color: AppConstants.warningAmber),
+                      const Icon(
+                        Icons.cancel_outlined,
+                        size: 18,
+                        color: AppConstants.errorRed,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          AppLocalizations.of(context).joinRequestPending,
-                          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.warningAmber),
-                        ),
-                      ),
-                    ],
-                  )
-                : request.isApproved
-                ? Row(
-                    children: [
-                      const Icon(Icons.check_circle_rounded,
-                          size: 18, color: AppConstants.successGreen),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          AppLocalizations.of(context).joinRequestApproved,
-                          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.successGreen),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.cancel_outlined,
-                              size: 18, color: AppConstants.errorRed),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              request.adminNotes != null && request.adminNotes!.isNotEmpty
-                                  ? AppLocalizations.of(context).joinLastClosedWhy(request.adminNotes!)
-                                  : AppLocalizations.of(context).joinLastClosed,
-                              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.errorRed),
-                            ),
+                          request.adminNotes != null &&
+                                  request.adminNotes!.isNotEmpty
+                              ? AppLocalizations.of(
+                                  context,
+                                ).joinLastClosedWhy(request.adminNotes!)
+                              : AppLocalizations.of(context).joinLastClosed,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppConstants.errorRed,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: PrimaryButton(
-                          label: _isRequesting
-                              ? AppLocalizations.of(context).joinSending
-                              : AppLocalizations.of(context).joinRequestAgain,
-                          isLoading: _isRequesting,
-                          icon: Icons.send_rounded,
-                          onPressed: _isRequesting ? null : _requestEnrollment,
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: PrimaryButton(
+                      label: _isRequesting
+                          ? AppLocalizations.of(context).joinSending
+                          : AppLocalizations.of(context).joinRequestAgain,
+                      isLoading: _isRequesting,
+                      icon: Icons.send_rounded,
+                      onPressed: _isRequesting ? null : _requestEnrollment,
+                    ),
+                  ),
+                ],
+              ),
       ),
     ];
   }
 
   String _enrollmentStatusLabel(String status) {
     switch (status) {
-      case 'withdrawn': return 'Withdrawn';
-      case 'completed': return 'Completed';
-      default: return 'Active';
+      case 'withdrawn':
+        return AppLocalizations.of(context).listingStateWithdrawn;
+      case 'completed':
+        return AppLocalizations.of(context).statCompleted;
+      default:
+        return AppLocalizations.of(context).farmerDetailsProgStatusActive;
     }
   }
 
   String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 }
@@ -490,8 +610,11 @@ class _OutcomeBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This distribution did not succeed.',
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.errorRed),
+            AppLocalizations.of(context).enhThisDistributionDidNotSucceed,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppConstants.errorRed,
+            ),
           ),
           if (entry.hasConvertedLoan) ...[
             const SizedBox(height: 12),
@@ -500,10 +623,12 @@ class _OutcomeBody extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () => context.pushRoute(AppRoutes.myLoans),
                 icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                label: const Text('View in My Loans'),
+                label: Text(AppLocalizations.of(context).enhViewInMyLoans),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppConstants.primaryGreen,
-                  side: const BorderSide(color: AppConstants.primaryGreen),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
@@ -514,13 +639,19 @@ class _OutcomeBody extends StatelessWidget {
     }
     if (entry.isOutcomeThriving) {
       return Text(
-        'This distribution was successful.',
-        style: GoogleFonts.inter(fontSize: 13, color: AppConstants.successGreen),
+        AppLocalizations.of(context).enhThisDistributionWasSuccessful,
+        style: GoogleFonts.inter(
+          fontSize: 13,
+          color: AppConstants.successGreen,
+        ),
       );
     }
     return Text(
-      'Outcome not yet recorded.',
-      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+      AppLocalizations.of(context).enhOutcomeNotYetRecorded,
+      style: GoogleFonts.inter(
+        fontSize: 13,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -529,14 +660,20 @@ class _HeaderCard extends StatelessWidget {
   final String name;
   final String? imageUrl;
   final bool isSalesProgram;
-  const _HeaderCard({required this.name, this.imageUrl, required this.isSalesProgram});
+  const _HeaderCard({
+    required this.name,
+    this.imageUrl,
+    required this.isSalesProgram,
+  });
 
   @override
   Widget build(BuildContext context) {
     // A purpose-tinted hero band (green for Sales, purple for Distribution)
     // rather than a bare Row on the page's own off-white background —
     // gives the top of the screen some color instead of white-on-white.
-    final accent = isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple;
+    final accent = isSalesProgram
+        ? AppConstants.successGreen
+        : AppConstants.programPurple;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -544,7 +681,10 @@ class _HeaderCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: 0.16), accent.withValues(alpha: 0.05)],
+          colors: [
+            accent.withValues(alpha: 0.16),
+            accent.withValues(alpha: 0.05),
+          ],
         ),
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: accent.withValues(alpha: 0.20)),
@@ -556,11 +696,18 @@ class _HeaderCard extends StatelessWidget {
             height: 68,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.saganaColors.cardBackground,
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.25),
+                width: 1.5,
+              ),
               boxShadow: [
-                BoxShadow(color: accent.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 3)),
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
               ],
             ),
             clipBehavior: Clip.antiAlias,
@@ -569,13 +716,17 @@ class _HeaderCard extends StatelessWidget {
                     imageUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Icon(
-                      isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
+                      isSalesProgram
+                          ? Icons.storefront_rounded
+                          : Icons.volunteer_activism_rounded,
                       color: accent,
                       size: 30,
                     ),
                   )
                 : Icon(
-                    isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
+                    isSalesProgram
+                        ? Icons.storefront_rounded
+                        : Icons.volunteer_activism_rounded,
                     color: accent,
                     size: 30,
                   ),
@@ -587,18 +738,36 @@ class _HeaderCard extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                   ),
                   child: Text(
-                    isSalesProgram ? 'Sales Program' : 'Distribution Program',
-                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: accent),
+                    isSalesProgram
+                        ? AppLocalizations.of(
+                            context,
+                          ).farmerDetailsProgSalesPurpose
+                        : AppLocalizations.of(
+                            context,
+                          ).farmerDetailsProgDistributionPurpose,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
                   ),
                 ),
               ],
@@ -629,22 +798,35 @@ class _InfoRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : Border(bottom: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10))),
+            : Border(
+                bottom: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.10),
+                ),
+              ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: AppConstants.primaryGreen),
+          Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           Text(
             value,
-            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
         ],
       ),
@@ -656,7 +838,11 @@ class _SectionCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final Widget child;
-  const _SectionCard({required this.icon, required this.title, required this.child});
+  const _SectionCard({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -664,11 +850,17 @@ class _SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.10)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.10),
+        ),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: const Color(0xFF455A64).withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -682,12 +874,20 @@ class _SectionCard extends StatelessWidget {
                   color: AppConstants.primaryGreen.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                 ),
-                child: Icon(icon, size: 14, color: AppConstants.primaryGreen),
+                child: Icon(
+                  icon,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ],
           ),
@@ -713,7 +913,11 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.programPurple),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppConstants.programPurple,
+        ),
       ),
     );
   }

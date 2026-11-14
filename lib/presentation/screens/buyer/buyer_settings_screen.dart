@@ -32,7 +32,9 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
   }
 
   Future<void> _loadPrefs() async {
-    final prefs = await _settingsRepo.loadPrefs(userId: AppSettingsService.instance.currentUserId);
+    final prefs = await _settingsRepo.loadPrefs(
+      userId: AppSettingsService.instance.currentUserId,
+    );
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
@@ -41,28 +43,42 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
   }
 
   String _languageLabel(AppLocalizations l10n) =>
-      (_prefs?.localeCode ?? AppConstants.localeEnglish) == AppConstants.localeTagalog
-          ? l10n.languageTagalog
-          : l10n.languageEnglish;
+      (_prefs?.localeCode ?? AppConstants.localeEnglish) ==
+          AppConstants.localeTagalog
+      ? l10n.languageTagalog
+      : l10n.languageEnglish;
 
   String _themeLabel(AppLocalizations l10n) =>
-      (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark ? l10n.themeDark : l10n.themeLight;
+      (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark
+      ? l10n.themeDark
+      : l10n.themeLight;
 
   Future<void> _setDarkMode(bool isDark) async {
-    await AppSettingsService.instance.setThemeMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    await AppSettingsService.instance.setThemeMode(
+      isDark ? ThemeMode.dark : ThemeMode.light,
+    );
     if (mounted) {
-      setState(() => _prefs = _prefs!.copyWith(themeMode: isDark ? ThemeMode.dark : ThemeMode.light));
+      setState(
+        () => _prefs = _prefs!.copyWith(
+          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+        ),
+      );
     }
   }
 
   Future<void> _setTagalog(bool isTagalog) async {
-    final code = isTagalog ? AppConstants.localeTagalog : AppConstants.localeEnglish;
+    final code = isTagalog
+        ? AppConstants.localeTagalog
+        : AppConstants.localeEnglish;
     await AppSettingsService.instance.setLocale(Locale(code));
     if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: code));
   }
 
   Future<void> _confirmLogout() async {
-    final confirmed = await AppDialog.show<bool>(context: context, child: const _LogoutConfirmDialog());
+    final confirmed = await AppDialog.show<bool>(
+      context: context,
+      child: const _LogoutConfirmDialog(),
+    );
     if (confirmed == true) {
       await AuthService.logout();
       if (!mounted) return;
@@ -80,9 +96,15 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
         backgroundColor: sagana.scaffoldBackground,
         body: Column(
           children: [
-            SubPageTopBar(title: l10n.settingsTitle, onBack: () => Navigator.of(context).pop()),
+            SubPageTopBar(
+              title: l10n.settingsTitle,
+              onBack: () => Navigator.of(context).pop(),
+            ),
             const Expanded(
-              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SkeletonList(),
+              ),
             ),
           ],
         ),
@@ -94,89 +116,113 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
 
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.settingsTitle, onBack: () => Navigator.of(context).pop()),
-          OfflineStatusCard(title: l10n.offlineStatusTitle, message: l10n.offlineBuyerBody),
-          Expanded(child: ListView(
-        padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 40),
-        children: [
-          SectionLabel(label: l10n.sectionAccount),
-          SettingsCard(children: [
-            SettingsRow(
-              icon: Icons.person_outline_rounded,
-              iconColor: AppConstants.primaryGreen,
-              title: l10n.editProfile,
-              subtitle: l10n.editProfileSubtitle,
-              onTap: () => context.push(AppRoutes.buyerEditProfile),
-            ),
-          ]),
-          const SizedBox(height: 20),
-
-          SectionLabel(label: l10n.sectionAppPreferences),
-          SettingsCard(children: [
-            SettingsRow(
-              icon: Icons.dark_mode_outlined,
-              iconColor: AppConstants.primaryGreen,
-              title: l10n.appearance,
-              subtitle: _themeLabel(l10n),
-              showChevron: false,
-              trailing: Switch(
-                value: (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark,
-                onChanged: _setDarkMode,
+          SubPageTopBar(
+            title: l10n.settingsTitle,
+            onBack: () => Navigator.of(context).pop(),
+          ),
+          OfflineStatusCard(
+            title: l10n.offlineStatusTitle,
+            message: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingSafeH,
+                8,
+                AppConstants.spacingSafeH,
+                40,
               ),
-            ),
-            const SettingsDivider(),
-            SettingsRow(
-              icon: Icons.language_rounded,
-              iconColor: AppConstants.buyerBlue,
-              title: l10n.language,
-              subtitle: _languageLabel(l10n),
-              showChevron: false,
-              trailing: Switch(
-                value: (_prefs?.localeCode ?? AppConstants.localeEnglish) == AppConstants.localeTagalog,
-                onChanged: _setTagalog,
-              ),
-            ),
-          ]),
-          const SizedBox(height: 20),
+              children: [
+                SectionLabel(label: l10n.sectionAccount),
+                SettingsCard(
+                  children: [
+                    SettingsRow(
+                      icon: Icons.person_outline_rounded,
+                      iconColor: AppConstants.primaryGreen,
+                      title: l10n.editProfile,
+                      subtitle: l10n.editProfileSubtitle,
+                      onTap: () => context.push(AppRoutes.buyerEditProfile),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
 
-          SectionLabel(label: l10n.sectionSupportInfo),
-          SettingsCard(children: [
-            SettingsRow(
-              icon: Icons.info_outline_rounded,
-              iconColor: AppConstants.primaryGreen,
-              title: l10n.aboutSagana,
-              onTap: () => context.push(AppRoutes.aboutSagana),
-            ),
-            const SettingsDivider(),
-            SettingsRow(
-              icon: Icons.support_agent_rounded,
-              iconColor: AppConstants.tertiaryContainer,
-              title: l10n.aboutCooperative,
-              onTap: () => context.push(AppRoutes.aboutCooperative),
-            ),
-            const SettingsDivider(),
-            SettingsRow(
-              icon: Icons.privacy_tip_outlined,
-              iconColor: AppConstants.amber,
-              title: l10n.privacyPolicy,
-              onTap: () => context.push(AppRoutes.privacyPolicy),
-            ),
-            const SettingsDivider(),
-            SettingsRow(
-              icon: Icons.gavel_rounded,
-              iconColor: AppConstants.onSurfaceVariant,
-              title: l10n.termsOfUse,
-              onTap: () => context.push(AppRoutes.termsOfUse),
-            ),
-          ]),
-          const SizedBox(height: 28),
+                SectionLabel(label: l10n.sectionAppPreferences),
+                SettingsCard(
+                  children: [
+                    SettingsRow(
+                      icon: Icons.dark_mode_outlined,
+                      iconColor: AppConstants.primaryGreen,
+                      title: l10n.appearance,
+                      subtitle: _themeLabel(l10n),
+                      showChevron: false,
+                      trailing: Switch(
+                        value:
+                            (_prefs?.themeMode ?? ThemeMode.light) ==
+                            ThemeMode.dark,
+                        onChanged: _setDarkMode,
+                      ),
+                    ),
+                    const SettingsDivider(),
+                    SettingsRow(
+                      icon: Icons.language_rounded,
+                      iconColor: AppConstants.buyerBlue,
+                      title: l10n.language,
+                      subtitle: _languageLabel(l10n),
+                      showChevron: false,
+                      trailing: Switch(
+                        value:
+                            (_prefs?.localeCode ??
+                                AppConstants.localeEnglish) ==
+                            AppConstants.localeTagalog,
+                        onChanged: _setTagalog,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
 
-          SignOutButton(label: l10n.logOut, onTap: _confirmLogout),
-          const SizedBox(height: 24),
+                SectionLabel(label: l10n.sectionSupportInfo),
+                SettingsCard(
+                  children: [
+                    SettingsRow(
+                      icon: Icons.info_outline_rounded,
+                      iconColor: AppConstants.primaryGreen,
+                      title: l10n.aboutSagana,
+                      onTap: () => context.push(AppRoutes.aboutSagana),
+                    ),
+                    const SettingsDivider(),
+                    SettingsRow(
+                      icon: Icons.support_agent_rounded,
+                      iconColor: AppConstants.tertiaryContainer,
+                      title: l10n.aboutCooperative,
+                      onTap: () => context.push(AppRoutes.aboutCooperative),
+                    ),
+                    const SettingsDivider(),
+                    SettingsRow(
+                      icon: Icons.privacy_tip_outlined,
+                      iconColor: AppConstants.amber,
+                      title: l10n.privacyPolicy,
+                      onTap: () => context.push(AppRoutes.privacyPolicy),
+                    ),
+                    const SettingsDivider(),
+                    SettingsRow(
+                      icon: Icons.gavel_rounded,
+                      iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                      title: l10n.termsOfUse,
+                      onTap: () => context.push(AppRoutes.termsOfUse),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
 
-          const AppBrandingBlock(),
-        ],
-      )),
+                SignOutButton(label: l10n.logOut, onTap: _confirmLogout),
+                const SizedBox(height: 24),
+
+                const AppBrandingBlock(),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -203,20 +249,46 @@ class _LogoutConfirmDialog extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 40),
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Log Out?', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text(
+              AppLocalizations.of(context).enhLogOut,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text('You\'ll need to sign in again to place new orders.',
-                textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+            Text(
+              AppLocalizations.of(context).enhYouLlNeedToSignInAgainTo,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 18),
             Row(
               children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'))),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(AppLocalizations.of(context).cancel),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: PrimaryButton(label: 'Log Out', height: 44, onPressed: () => Navigator.pop(context, true))),
+                Expanded(
+                  child: PrimaryButton(
+                    label: AppLocalizations.of(context).logOut,
+                    height: 44,
+                    onPressed: () => Navigator.pop(context, true),
+                  ),
+                ),
               ],
             ),
           ],

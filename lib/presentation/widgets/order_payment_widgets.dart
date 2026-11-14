@@ -99,7 +99,7 @@ class WaitingForPaymentCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     height: 1.4,
-                    color: AppConstants.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -180,7 +180,7 @@ class OrderPaymentCard extends StatelessWidget {
                 paid ? Icons.verified_outlined : Icons.payments_outlined,
                 size: 18,
                 color: paid
-                    ? AppConstants.primaryGreen
+                    ? Theme.of(context).colorScheme.primary
                     : AppConstants.warningAmber,
               ),
               const SizedBox(width: 8),
@@ -284,10 +284,10 @@ class StaffCompletionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.assignment_turned_in_outlined,
                 size: 18,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 8),
               Expanded(

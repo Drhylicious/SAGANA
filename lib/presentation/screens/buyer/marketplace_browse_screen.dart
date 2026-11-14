@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,7 +12,8 @@ import '../../../data/services/cart_service.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/top_bar_spacer.dart';
-import '../../widgets/animated_pressable.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/guest_prompt.dart';
@@ -176,7 +178,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: BuyerMarketplaceRepository.listingsCacheScreen(
                   limit: _pageSize,
@@ -283,7 +285,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                 hintText: l10n.buyerBrowseSearchHint,
                 prefixIcon: const Icon(Icons.search_rounded),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: context.saganaColors.cardBackground,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   borderSide: BorderSide.none,
@@ -317,52 +319,30 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     final cats = _availableCategories;
     if (cats.length <= 1) return const SizedBox(height: 12);
 
+    // The header already leaves 12 below the search bar, so 2 more makes the
+    // 14 gap the Farmer Marketplace has; 12 here + the grid's 4 makes its 16
+    // below the chips.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: SizedBox(
-        height: 34,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSafeH,
-          ),
-          itemCount: cats.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, i) {
-            final cat = cats[i];
-            final isSelected = cat == _selectedCategory;
-            return AnimatedPressable(
-              onTap: () => setState(() => _selectedCategory = cat),
-              scaleDown: 0.95,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppConstants.primaryGreen : Colors.white,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppConstants.primaryGreen
-                        : AppConstants.outline.withValues(alpha: 0.25),
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  cat,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isSelected
-                        ? Colors.white
-                        : AppConstants.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            );
-          },
+      padding: const EdgeInsets.only(top: 2, bottom: 12),
+      // The standard "Label (n)" chips. The list loads a page at a time, so a
+      // count is the number of listings of that category loaded so far.
+      child: MarketplaceFilterBar<String>(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.spacingSafeH,
         ),
+        selected: _selectedCategory,
+        onSelected: (cat) => setState(() => _selectedCategory = cat),
+        options: [
+          for (final cat in cats)
+            MarketplaceFilterOption(
+              value: cat,
+              label: localizeBuiltinLabel(AppLocalizations.of(context), cat),
+              count: cat == 'All'
+                  ? _allListings.length
+                  : _allListings.where((l) => l.category == cat).length,
+              color: AppConstants.primaryGreen,
+            ),
+        ],
       ),
     );
   }
@@ -400,7 +380,9 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
             Icon(
               Icons.storefront_outlined,
               size: 56,
-              color: AppConstants.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -421,7 +403,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -485,9 +467,9 @@ class _CartIconButton extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.shopping_cart_outlined,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
             size: 26,
           ),
           onPressed: onTap,

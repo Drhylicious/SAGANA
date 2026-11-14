@@ -179,14 +179,18 @@ class _ProductBuyNowSheetState extends State<ProductBuyNowSheet> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800,
-                                    color: AppConstants.primaryGreen,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                                 ),
                                 Text(
                                   '/$unit',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    color: AppConstants.onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -201,7 +205,9 @@ class _ProductBuyNowSheetState extends State<ProductBuyNowSheet> {
                               ),
                               style: GoogleFonts.inter(
                                 fontSize: 12,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],

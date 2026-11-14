@@ -9,6 +9,7 @@ import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../routes/app_routes.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/notification_day_groups.dart';
 import '../../widgets/notification_ui.dart';
@@ -25,6 +26,7 @@ class FarmerNotificationsScreen extends StatefulWidget {
 
 class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
   final _repo = NotificationRepository();
+  final _selection = NotificationSelection();
 
   List<NotificationModel> _notifications = [];
   bool _isLoading = true;
@@ -53,11 +55,13 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
       _loadFailed = false;
     });
     try {
-      final items =
-          await _repo.fetchNotifications().timeout(const Duration(seconds: 15));
+      final items = await _repo.fetchNotifications().timeout(
+        const Duration(seconds: 15),
+      );
       if (!mounted) return;
       setState(() {
         _notifications = items;
+        _selection.clear();
         _isLoading = false;
       });
     } catch (_) {
@@ -69,57 +73,22 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     }
   }
 
-
-  int get _unreadCount => _notifications.where((n) => n.isUnread).length;
-
-  Future<void> _markAllRead() async {
-    await _repo.markAllAsRead();
-    setState(() {
-      _notifications = _notifications
-          .map((n) => n.copyWith(isRead: true))
-          .toList();
-    });
-    AppEventService.instance.notify();
-  }
-
-  Future<void> _markAllUnread() async {
-    await _repo.markAllAsUnread();
-    setState(() {
-      _notifications = _notifications
-          .map((n) => n.copyWith(isRead: false))
-          .toList();
-    });
-    AppEventService.instance.notify();
-  }
-
-  /// Long-press: flips one notification between read and unread.
-  Future<void> _toggleRead(NotificationModel n) async {
-    final nowRead = !n.isRead;
-    if (nowRead) {
-      await _repo.markAsRead(n.id);
-    } else {
-      await _repo.markAsUnread(n.id);
-    }
-    setState(() {
-      _notifications = _notifications
-          .map((x) => x.id == n.id ? x.copyWith(isRead: nowRead) : x)
-          .toList();
-    });
-    AppEventService.instance.notify();
-  }
-
-  Future<void> _markRead(String id) async {
-    await _repo.markAsRead(id);
-    setState(() {
-      _notifications = _notifications
-          .map((n) => n.id == id ? n.copyWith(isRead: true) : n)
-          .toList();
-    });
-    AppEventService.instance.notify();
-  }
-
+  /// Tap: selects/unselects while selecting; otherwise marks it read and goes
+  /// to the screen the notification is about.
   Future<void> _onNotifTap(NotificationModel n) async {
-    await _markRead(n.id);
+    if (_selection.isActive) {
+      setState(() => _selection.toggle(n.id));
+      return;
+    }
+    if (n.isUnread) {
+      setState(() {
+        _notifications = _notifications
+            .map((x) => x.id == n.id ? x.copyWith(isRead: true) : x)
+            .toList();
+      });
+      await _repo.markAsRead(n.id);
+      AppEventService.instance.notify();
+    }
     if (!mounted) return;
     if (n.routeOnTap != null) {
       if (n.routeExtra != null) {
@@ -130,9 +99,67 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     }
   }
 
-  Future<void> _delete(String id) async {
-    await _repo.deleteNotification(id);
-    setState(() => _notifications.removeWhere((n) => n.id == id));
+  /// The crop a shelf-life notice is about, read from its title ("Check Your
+  /// Pechay"). Null for any other notification.
+  String? _shelfLifeCrop(NotificationModel n) {
+    const prefix = 'Check Your ';
+    if (n.routeOnTap != AppRoutes.manageInventory || n.routeExtra == null) {
+      return null;
+    }
+    if (!n.title.startsWith(prefix)) return null;
+    final crop = n.title.substring(prefix.length).trim();
+    return crop.isEmpty ? null : crop;
+  }
+
+  /// The two answers a "check your produce" notice offers. Each opens Manage
+  /// Inventory on that batch, already on the chosen answer.
+  List<NotificationAction> _shelfLifeActions(
+    AppLocalizations l10n,
+    NotificationModel n,
+  ) {
+    final crop = _shelfLifeCrop(n);
+    if (crop == null) return const [];
+    Future<void> open(String answer) async {
+      if (n.isUnread) {
+        setState(() {
+          _notifications = _notifications
+              .map((x) => x.id == n.id ? x.copyWith(isRead: true) : x)
+              .toList();
+        });
+        await _repo.markAsRead(n.id);
+        AppEventService.instance.notify();
+      }
+      if (!mounted) return;
+      context.push(AppRoutes.manageInventory, extra: '${n.routeExtra}|$answer');
+    }
+
+    return [
+      NotificationAction(
+        label: l10n.shelfActionStillOkay(crop),
+        onTap: () => open('good'),
+      ),
+      NotificationAction(
+        label: l10n.shelfActionRotten(crop),
+        onTap: () => open('rotten'),
+        destructive: true,
+      ),
+    ];
+  }
+
+  /// Applies the one menu action (Mark as Read / Mark as Unread) to the
+  /// selected notifications, then leaves selection mode.
+  Future<void> _applyToSelection() async {
+    final markRead = _selection.offersMarkRead(_notifications);
+    final ids = _selection.picked(_notifications).map((n) => n.id).toSet();
+    setState(() {
+      _notifications = _notifications
+          .map((n) => ids.contains(n.id) ? n.copyWith(isRead: markRead) : n)
+          .toList();
+      _selection.clear();
+    });
+    await Future.wait(
+      ids.map((id) => markRead ? _repo.markAsRead(id) : _repo.markAsUnread(id)),
+    );
     AppEventService.instance.notify();
   }
 
@@ -141,71 +168,80 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
 
-    return Scaffold(
-      backgroundColor: sagana.scaffoldBackground,
-      body: Column(
-        children: [
-          SubPageTopBar(
-            title: l10n.sectionNotifications,
-            onBack: () => Navigator.of(context).pop(),
-            trailing: _notifications.isEmpty
-                ? null
-                : NotificationMenuButton(
-                    hasUnread: _unreadCount > 0,
-                    hasRead: _notifications.any((n) => n.isRead),
-                    onMarkAllRead: _markAllRead,
-                    onMarkAllUnread: _markAllUnread,
-                  ),
-          ),
-          const Divider(height: 1),
-          CachedDataNotice(
-            screen: 'notifications',
-            isOnline: _isOnline,
-            offlineMessage:
-                AppLocalizations.of(context).offlineNotifications,
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              color: AppConstants.primaryGreen,
-              onRefresh: _loadNotifications,
-              child: _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: SkeletonList(),
+    return PopScope(
+      canPop: !_selection.isActive,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(_selection.clear);
+      },
+      child: Scaffold(
+        backgroundColor: sagana.scaffoldBackground,
+        body: Column(
+          children: [
+            SubPageTopBar(
+              title: notificationTopBarTitle(
+                l10n,
+                l10n.sectionNotifications,
+                _selection,
+              ),
+              onBack: () => _selection.isActive
+                  ? setState(_selection.clear)
+                  : Navigator.of(context).pop(),
+              trailing: _selection.isActive
+                  ? NotificationSelectionMenu(
+                      markRead: _selection.offersMarkRead(_notifications),
+                      onApply: _applyToSelection,
                     )
-                  : _loadFailed
-                  ? _NotificationsLoadError(
-                      onRetry: _loadNotifications,
-                      isOnline: _isOnline,
-                    )
-                  : _notifications.isEmpty
-                  ? ListView(
-                      children: [
-                        _EmptyState(filter: NotificationFilter.all),
-                      ],
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                      children: notificationGroupChildren<NotificationModel>(
-                        items: _notifications,
-                        timeOf: (n) => n.createdAt,
-                        l10n: l10n,
-                        buildItem: (n) => NotificationCard(
-                          item: n,
-                          timeLabel: notificationTimeLabel(l10n, n.createdAt),
-                          onTap: () => _onNotifTap(n),
-                          onLongPress: () => showNotificationReadSheet(
-                            context,
-                            isRead: n.isRead,
-                            onToggle: () => _toggleRead(n),
+                  : null,
+            ),
+            const Divider(height: 1),
+            CachedDataNotice(
+              screen: 'notifications',
+              isOnline: _isOnline,
+              offlineMessage: l10n.offlineNotifications,
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppConstants.primaryGreen,
+                onRefresh: _loadNotifications,
+                child: _isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      )
+                    : _loadFailed
+                    ? _NotificationsLoadError(
+                        onRetry: _loadNotifications,
+                        isOnline: _isOnline,
+                      )
+                    : _notifications.isEmpty
+                    ? ListView(
+                        children: const [
+                          _EmptyState(filter: NotificationFilter.all),
+                        ],
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                        children: notificationGroupChildren<NotificationModel>(
+                          items: _notifications,
+                          timeOf: (n) => n.createdAt,
+                          l10n: l10n,
+                          buildItem: (n) => NotificationCard(
+                            item: n,
+                            selected: _selection.contains(n.id),
+                            timeLabel: notificationTimeLabel(l10n, n.createdAt),
+                            onTap: () => _onNotifTap(n),
+                            actions: _shelfLifeActions(l10n, n),
+                            onLongPress: () {
+                              if (_selection.isActive) return;
+                              setState(() => _selection.toggle(n.id));
+                            },
                           ),
-                          onDelete: () => _delete(n.id),
                         ),
                       ),
-                    ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -225,23 +261,30 @@ class _EmptyState extends StatelessWidget {
           Icon(
             Icons.notifications_none_rounded,
             size: 56,
-            color: AppConstants.outline.withValues(alpha: 0.40),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.40),
           ),
           const SizedBox(height: 14),
           Text(
             filter == NotificationFilter.all
-                ? 'No notifications yet'
-                : 'No ${filter.label} notifications',
+                ? AppLocalizations.of(context).pendingNoNotifications
+                : AppLocalizations.of(
+                    context,
+                  ).enhNoNotifications((filter.label).toString()),
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'You\'re all caught up!',
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
+            AppLocalizations.of(context).enhYouReAllCaughtUp,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
         ],
       ),
@@ -258,7 +301,10 @@ class _EmptyState extends StatelessWidget {
 class _NotificationsLoadError extends StatelessWidget {
   final VoidCallback onRetry;
   final bool isOnline;
-  const _NotificationsLoadError({required this.onRetry, required this.isOnline});
+  const _NotificationsLoadError({
+    required this.onRetry,
+    required this.isOnline,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -271,25 +317,33 @@ class _NotificationsLoadError extends StatelessWidget {
             Icon(
               isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
               size: 40,
-              color: AppConstants.outline.withValues(alpha: 0.60),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
             ),
             const SizedBox(height: 12),
             Text(
-              isOnline ? 'Could not load your notifications' : 'You\'re offline',
+              isOnline
+                  ? AppLocalizations.of(
+                      context,
+                    ).enhCouldNotLoadYourNotifications
+                  : AppLocalizations.of(context).youAreOffline,
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: AppConstants.charcoal,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             if (!isOnline) ...[
               const SizedBox(height: 4),
               Text(
-                'Your notifications will load once you\'re back online.',
+                AppLocalizations.of(
+                  context,
+                ).enhYourNotificationsWillLoadOnceYouReBack,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -297,8 +351,10 @@ class _NotificationsLoadError extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(
-                'Retry',
-                style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+                AppLocalizations.of(context).retry,
+                style: GoogleFonts.poppins(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           ],

@@ -125,17 +125,6 @@ class _CropListingScreenState extends State<CropListingScreen> {
   }
 
   Future<void> _openEditCrop(FarmerCropModel crop) async {
-    if (!_isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'This action requires an internet connection. Please try again once you\'re back online.',
-          ),
-          backgroundColor: AppConstants.snackbarWarning,
-        ),
-      );
-      return;
-    }
     final saved = await showEditCropSheet(context, repo: _cropRepo, crop: crop);
     if (saved == true) _loadCrops();
   }
@@ -143,7 +132,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -152,8 +141,14 @@ class _CropListingScreenState extends State<CropListingScreen> {
                 // Content
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
-                    CachedDataNotice(screen: 'farmer_crops', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineCropsNeedInternet),
+                    const TopBarSpacer(height: 72),
+                    CachedDataNotice(
+                      screen: 'farmer_crops',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineCropsNeedInternet,
+                    ),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
@@ -199,7 +194,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Crop Roster',
+                    title: AppLocalizations.of(context).activityCropRoster,
                     onBack: () => Navigator.of(context).pop(),
                     hideProfileAvatar: true,
                     onProfileTap: () {},
@@ -264,7 +259,7 @@ class _CropList extends StatelessWidget {
               child: ReportIconStatCard(
                 icon: Icons.eco_rounded,
                 accent: AppConstants.primaryGreen,
-                label: 'Total Crops',
+                label: AppLocalizations.of(context).enhTotalCrops,
                 value: '${allCrops.length}',
               ),
             ),
@@ -273,7 +268,7 @@ class _CropList extends StatelessWidget {
               child: ReportIconStatCard(
                 icon: Icons.check_circle_outline_rounded,
                 accent: AppConstants.successGreen,
-                label: 'Has Harvests',
+                label: AppLocalizations.of(context).enhHasHarvests,
                 value: '$hasHarvestsCount',
               ),
             ),
@@ -285,6 +280,7 @@ class _CropList extends StatelessWidget {
         CropCategoryChips(
           categories: categories,
           active: activeCategory,
+          counts: CropCategoryChips.countBy(allCrops, (c) => c.category),
           onSelected: onCategorySelected,
         ),
         const SizedBox(height: 16),
@@ -322,27 +318,46 @@ class _CropSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: InputDecoration(
-        hintText: 'Search crops...',
+        hintText: AppLocalizations.of(context).priceSearchHint,
         hintStyle: GoogleFonts.inter(
-            fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.60)),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppConstants.outline),
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.60),
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.saganaColors.cardBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -364,20 +379,40 @@ class _NoMatchingCropsState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
         children: [
-          Icon(Icons.filter_alt_off_rounded,
-              size: 40, color: AppConstants.outline.withValues(alpha: 0.60)),
+          Icon(
+            Icons.filter_alt_off_rounded,
+            size: 40,
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.60),
+          ),
           const SizedBox(height: 12),
-          Text('No Matching Crops',
-              style: GoogleFonts.poppins(
-                  fontSize: 16, fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+          Text(
+            AppLocalizations.of(context).enhNoMatchingCrops,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text('Try a different search term or category.',
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+          Text(
+            AppLocalizations.of(context).buyerBrowseNoResultsBody,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 16),
           TextButton(
             onPressed: onClearFilters,
-            child: Text('Clear Filters',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+            child: Text(
+              AppLocalizations.of(context).enhClearFilters,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ],
       ),
@@ -441,7 +476,7 @@ class _CropCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppConstants.charcoal,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -454,23 +489,6 @@ class _CropCard extends StatelessWidget {
                       if (crop.cropMasterId != null)
                         _MarketTypeBadge(cropType: crop.cropType),
                       ChannelOnlyBadge(channel: crop.exclusiveChannel),
-                      // A crop a cooperative program put in the Roster says so.
-                      if (crop.isFromProgram)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppConstants.buyerBlue.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                          ),
-                          child: Text(
-                            AppLocalizations.of(context).cropFromProgram,
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppConstants.buyerBlue,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -498,7 +516,9 @@ class _CropCard extends StatelessWidget {
                                   ),
                                 ),
                                 title: Text(
-                                  'Request Declined',
+                                  AppLocalizations.of(
+                                    context,
+                                  ).enhRequestDeclined,
                                   style: GoogleFonts.poppins(
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -510,7 +530,9 @@ class _CropCard extends StatelessWidget {
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(context),
-                                    child: const Text('Close'),
+                                    child: Text(
+                                      AppLocalizations.of(context).close,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -531,8 +553,12 @@ class _CropCard extends StatelessWidget {
                         ),
                         child: Text(
                           crop.isRejected
-                              ? 'Request Declined · Tap for reason'
-                              : 'Pending Approval',
+                              ? AppLocalizations.of(
+                                  context,
+                                ).enhRequestDeclinedTapForReason
+                              : AppLocalizations.of(
+                                  context,
+                                ).listingStatePendingApproval,
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -551,9 +577,9 @@ class _CropCard extends StatelessWidget {
             // Three-dot menu
             PopupMenuButton<String>(
               padding: EdgeInsets.zero,
-              icon: const Icon(
+              icon: Icon(
                 Icons.more_vert_rounded,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 size: 22,
               ),
               onSelected: (value) {
@@ -574,21 +600,25 @@ class _CropCard extends StatelessWidget {
                   value: 'view',
                   child: _cropMenuRow(
                     Icons.eco_rounded,
-                    'View Harvests',
+                    AppLocalizations.of(context).enhViewHarvests,
                     AppConstants.primaryGreen,
                   ),
                 ),
                 PopupMenuItem(
-                  value: 'record',
+                  value: "record",
                   enabled: onRecordHarvest != null,
                   child: _cropMenuRow(
                     Icons.add_circle_outline_rounded,
                     onRecordHarvest != null
-                        ? 'Record Harvest for This Crop'
-                        : 'Record Harvest (awaiting approval)',
+                        ? AppLocalizations.of(
+                            context,
+                          ).enhRecordHarvestForThisCrop
+                        : AppLocalizations.of(
+                            context,
+                          ).enhRecordHarvestAwaitingApproval,
                     onRecordHarvest != null
                         ? AppConstants.primaryGreen
-                        : AppConstants.outline,
+                        : Theme.of(context).colorScheme.outline,
                   ),
                 ),
                 const PopupMenuDivider(),
@@ -596,7 +626,7 @@ class _CropCard extends StatelessWidget {
                   value: 'edit',
                   child: _cropMenuRow(
                     Icons.edit_outlined,
-                    'Edit Crop',
+                    AppLocalizations.of(context).cropMgmtEditTitle,
                     AppConstants.buyerBlue,
                   ),
                 ),
@@ -633,7 +663,7 @@ class _MarketTypeBadge extends StatelessWidget {
     // its code: Buyer-visible markets blue, farmer-only markets green, and a
     // market not yet assigned neutral.
     final Color color = cropType == null
-        ? AppConstants.outline
+        ? Theme.of(context).colorScheme.outline
         : MarketTypes.instance.isBuyerVisible(cropType)
         ? AppConstants.buyerBlue
         : AppConstants.primaryGreen;
@@ -680,7 +710,7 @@ class _CropIconBox extends StatelessWidget {
                 return Container(
                   width: 68,
                   height: 68,
-                  color: const Color(0xFFDBF1FE),
+                  color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
                   child: const Center(
                     child: SizedBox(
                       width: 18,
@@ -713,7 +743,7 @@ class _CategoryIcon extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
       child: Icon(
         _iconForCategory(category),
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         size: 32,
       ),
     );
@@ -758,7 +788,9 @@ class _CategoryBadge extends StatelessWidget {
           fontSize: 9,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.5,
-          color: isGrain ? AppConstants.primaryGreen : AppConstants.amber,
+          color: isGrain
+              ? Theme.of(context).colorScheme.primary
+              : AppConstants.amber,
         ),
       ),
     );
@@ -778,17 +810,21 @@ class _HarvestStatus extends StatelessWidget {
               ? Icons.check_circle_rounded
               : Icons.radio_button_unchecked_rounded,
           size: 14,
-          color: hasHarvests ? AppConstants.successGreen : AppConstants.outline,
+          color: hasHarvests
+              ? AppConstants.successGreen
+              : Theme.of(context).colorScheme.outline,
         ),
         const SizedBox(width: 5),
         Text(
-          hasHarvests ? 'Has harvest entries' : 'No harvest yet',
+          hasHarvests
+              ? AppLocalizations.of(context).enhHasHarvestEntries
+              : AppLocalizations.of(context).enhNoHarvestYet,
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: hasHarvests
                 ? AppConstants.successGreen
-                : AppConstants.outline,
+                : Theme.of(context).colorScheme.outline,
           ),
         ),
       ],
@@ -827,25 +863,27 @@ class _EmptyState extends StatelessWidget {
               child: Icon(
                 Icons.eco_outlined,
                 size: 56,
-                color: AppConstants.primaryGreen.withValues(alpha: 0.60),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.60),
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              'No crops yet',
+              AppLocalizations.of(context).enhNoCropsYet,
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Add a crop from the cooperative\'s list to start recording harvests.',
+              AppLocalizations.of(context).enhAddACropFromTheCooperativeSList,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 32),
@@ -853,7 +891,7 @@ class _EmptyState extends StatelessWidget {
               onPressed: onAddCrop,
               icon: const Icon(Icons.add_rounded),
               label: Text(
-                'Add a Crop',
+                AppLocalizations.of(context).enhAddACrop,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

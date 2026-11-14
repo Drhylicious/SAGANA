@@ -8,7 +8,8 @@ import '../../../data/models/program_model.dart';
 import '../../../data/repositories/program_repository.dart';
 import '../../../data/services/staff_permission_service.dart';
 import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/listing_filter_modal.dart' show MarketplaceFilterBar, MarketplaceFilterOption;
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/report_summary_widgets.dart' show ReportIconStatCard;
 import '../../../core/utils/app_error_message.dart';
 import '../../../core/utils/quantity_utils.dart';
@@ -71,7 +72,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
   @override
   void initState() {
     super.initState();
-    _searchCtrl.addListener(() => setState(() => _query = _searchCtrl.text.trim().toLowerCase()));
+    _searchCtrl.addListener(
+      () => setState(() => _query = _searchCtrl.text.trim().toLowerCase()),
+    );
     _load().then((_) {
       // Right after a program is created, go straight to adding its first product.
       if (widget.justCreated && mounted) _openAddModal();
@@ -93,7 +96,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
     final sources = await _repo
         .fetchProgramSources(widget.programId)
         .catchError((_) => <String>[]);
-    final eligible = await _repo.fetchEligibleInventoryForSaleProgram(categories: sources);
+    final eligible = await _repo.fetchEligibleInventoryForSaleProgram(
+      categories: sources,
+    );
     final summary = await _repo.fetchProgramSalesSummary(widget.programId);
     final status = await _repo.fetchProgramStatus(widget.programId);
     if (!mounted) return;
@@ -179,9 +184,11 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
             final String? blocked = _sources.isEmpty
                 ? l10n.prodNoSources
                 : items.isEmpty
-                    // Nothing in stock in those categories, or every item is already a product.
-                    ? (_eligible.isEmpty ? l10n.prodNoItemsInSources(_sources.join(', ')) : l10n.prodAddNothingLeft)
-                    : null;
+                // Nothing in stock in those categories, or every item is already a product.
+                ? (_eligible.isEmpty
+                      ? l10n.prodNoItemsInSources(_sources.join(', '))
+                      : l10n.prodAddNothingLeft)
+                : null;
 
             return ManagementModalShell(
               title: l10n.prodAddTitle,
@@ -192,13 +199,21 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline_rounded, size: 18, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 18,
+                            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               blocked,
                               key: const Key('addProductBlocked'),
-                              style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: Theme.of(ctx).colorScheme.onSurface),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                height: 1.45,
+                                color: Theme.of(ctx).colorScheme.onSurface,
+                              ),
                             ),
                           ),
                         ],
@@ -216,7 +231,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 height: 1.4,
-                                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                color: Theme.of(
+                                  ctx,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -237,8 +254,14 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                         TextField(
                           controller: priceCtrl,
                           enabled: !saving,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}'),
+                            ),
+                          ],
                           decoration: InputDecoration(
                             labelText: l10n.prodPriceLabel,
                             prefixText: '₱ ',
@@ -250,8 +273,14 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                           key: const Key('addStockField'),
                           controller: allocCtrl,
                           enabled: !saving,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}'),
+                            ),
+                          ],
                           decoration: InputDecoration(
                             labelText: l10n.prodStockForProgram,
                             helperText: l10n.prodStockForProgramHelp,
@@ -265,7 +294,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: saving ? null : () => Navigator.pop(ctx, false),
+                      onPressed: saving
+                          ? null
+                          : () => Navigator.pop(ctx, false),
                       child: Text(l10n.cancel),
                     ),
                   ),
@@ -279,7 +310,10 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : Text(l10n.prodAddButton),
                       ),
@@ -375,11 +409,18 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
     }
   }
 
-  String _percentText(double v) => formatQuantity(v); // up to 2 decimals, as the database keeps them
+  String _percentText(double v) =>
+      formatQuantity(v); // up to 2 decimals, as the database keeps them
 
   // The On sale switch and Edit price. Side by side with a clear gap when both fit; otherwise
   // the button goes under the switch, at the right. They never touch.
-  Widget _footer(ProgramProduct p, AppLocalizations l10n, ColorScheme cs, bool readOnly, bool editing) {
+  Widget _footer(
+    ProgramProduct p,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    bool readOnly,
+    bool editing,
+  ) {
     final label = p.isAvailable ? l10n.prodOnSale : l10n.prodOffHidden;
     final labelStyle = GoogleFonts.inter(
       fontSize: 13,
@@ -390,7 +431,7 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
       Switch(
         key: Key('productSwitch_${p.id}'),
         value: p.isAvailable,
-        activeColor: AppConstants.successGreen,
+        activeThumbColor: AppConstants.successGreen,
         onChanged: readOnly ? null : (v) => _toggle(p, v),
       ),
       const SizedBox(width: 6),
@@ -402,7 +443,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
         _editingId = editing ? null : p.id;
         _editError = null;
         _editPriceCtrl.text = p.unitPrice.toStringAsFixed(2);
-        _editAllocCtrl.text = p.stockAllocated.toStringAsFixed(p.stockAllocated % 1 == 0 ? 0 : 2);
+        _editAllocCtrl.text = p.stockAllocated.toStringAsFixed(
+          p.stockAllocated % 1 == 0 ? 0 : 2,
+        );
       }),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 36),
@@ -417,14 +460,24 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
     return LayoutBuilder(
       builder: (context, box) {
         double w(String t, TextStyle s) => (TextPainter(
-              text: TextSpan(text: t, style: s),
-              textDirection: TextDirection.ltr,
-              textScaler: MediaQuery.textScalerOf(context),
-              maxLines: 1,
-            )..layout())
-            .width;
+          text: TextSpan(text: t, style: s),
+          textDirection: TextDirection.ltr,
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout()).width;
         // switch (about 60) + gap + label, then a gap, then the button (icon, text, padding).
-        final needed = 66 + w(label, labelStyle) + 16 + 16 + 8 + w(l10n.prodEditPrice, GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)) + 24 + 12;
+        final needed =
+            66 +
+            w(label, labelStyle) +
+            16 +
+            16 +
+            8 +
+            w(
+              l10n.prodEditPrice,
+              GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
+            ) +
+            24 +
+            12;
         if (needed <= box.maxWidth) {
           return Row(children: [...toggle, const SizedBox(width: 12), edit]);
         }
@@ -450,19 +503,31 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
     final pill = hasDiscount
         ? LayoutBuilder(
             builder: (context, box) {
-              final compact = MediaQuery.sizeOf(context).width / MediaQuery.textScalerOf(context).scale(1) < 420;
+              final compact =
+                  MediaQuery.sizeOf(context).width /
+                      MediaQuery.textScalerOf(context).scale(1) <
+                  420;
               return Container(
                 key: Key('discountPill_${p.id}'),
-                constraints: BoxConstraints(maxWidth: compact ? 88 : double.infinity),
+                constraints: BoxConstraints(
+                  maxWidth: compact ? 88 : double.infinity,
+                ),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppConstants.successGreen.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  l10n.prodMembersGetOff(_percentText(widget.memberDiscountPercent)),
+                  l10n.prodMembersGetOff(
+                    _percentText(widget.memberDiscountPercent),
+                  ),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 10.5, height: 1.2, fontWeight: FontWeight.w700, color: AppConstants.successGreen),
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.successGreen,
+                  ),
                 ),
               );
             },
@@ -482,7 +547,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,18 +595,34 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                       p.isOutOfStock
                           ? Text(
                               l10n.prodOutOfStock,
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.errorRed),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppConstants.errorRed,
+                              ),
                             )
                           : Text(
                               key: Key('productStock_${p.id}'),
-                              l10n.prodStockAvailable(formatQuantityGrouped(p.availableToSell), p.unit),
-                              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                              l10n.prodStockAvailable(
+                                formatQuantityGrouped(p.availableToSell),
+                                p.unit,
+                              ),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: cs.onSurfaceVariant,
+                              ),
                             ),
                       if (p.stockReserved > 0)
                         Text(
                           key: Key('productReserved_${p.id}'),
-                          l10n.prodStockReserved(formatQuantityGrouped(p.stockReserved), p.unit),
-                          style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                          l10n.prodStockReserved(
+                            formatQuantityGrouped(p.stockReserved),
+                            p.unit,
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       const SizedBox(height: 8),
                       if (hasDiscount)
@@ -549,19 +632,36 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
-                              l10n.prodMemberPrice(_peso(memberUnitPrice(p.unitPrice, widget.memberDiscountPercent))),
-                              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.successGreen),
+                              l10n.prodMemberPrice(
+                                _peso(
+                                  memberUnitPrice(
+                                    p.unitPrice,
+                                    widget.memberDiscountPercent,
+                                  ),
+                                ),
+                              ),
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppConstants.successGreen,
+                              ),
                             ),
                             Text(
                               l10n.prodRegularPrice(_peso(p.unitPrice)),
-                              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: cs.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         )
                       else
                         Text(
                           l10n.prodRegularPrice(_peso(p.unitPrice)),
-                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       const SizedBox(height: 6),
                       Text(
@@ -569,7 +669,10 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                         sales == null || sales.sold <= 0
                             ? l10n.prodNoSalesYet
                             : '${l10n.prodBuyers(sales.buyers)} · ${l10n.prodSoldLine(formatQuantityGrouped(sales.sold), p.unit)}',
-                        style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -586,8 +689,12 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
             TextField(
               controller: _editPriceCtrl,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
               decoration: InputDecoration(
                 labelText: l10n.prodPriceLabel,
                 prefixText: '₱ ',
@@ -599,11 +706,18 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
             TextField(
               key: Key('editStock_${p.id}'),
               controller: _editAllocCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
               decoration: InputDecoration(
                 labelText: l10n.prodStockForProgram,
-                helperText: l10n.prodStockOnHandHelp(formatQuantityGrouped(p.quantityOnHand), p.unit),
+                helperText: l10n.prodStockOnHandHelp(
+                  formatQuantityGrouped(p.quantityOnHand),
+                  p.unit,
+                ),
                 helperMaxLines: 3,
               ),
               onSubmitted: (_) => _savePrice(p),
@@ -627,7 +741,9 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44)),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                  ),
                   onPressed: () => _savePrice(p),
                   child: Text(l10n.prodSave),
                 ),
@@ -644,10 +760,30 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
     String peso(double v) => '₱${formatQuantityGrouped(v)}';
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final cards = <Widget>[
-      ReportIconStatCard(icon: Icons.payments_rounded, accent: AppConstants.successGreen, label: l10n.prodKpiSales, value: peso(_summary.totalSales)),
-      ReportIconStatCard(icon: Icons.groups_rounded, accent: AppConstants.buyerBlue, label: l10n.prodKpiBuyers, value: '${_summary.buyers}'),
-      ReportIconStatCard(icon: Icons.savings_rounded, accent: AppConstants.programPurple, label: l10n.prodKpiSavings, value: peso(_summary.savings)),
-      ReportIconStatCard(icon: Icons.hourglass_top_rounded, accent: AppConstants.warningAmber, label: l10n.prodKpiPending, value: '${_summary.pending}'),
+      ReportIconStatCard(
+        icon: Icons.payments_rounded,
+        accent: AppConstants.successGreen,
+        label: l10n.prodKpiSales,
+        value: peso(_summary.totalSales),
+      ),
+      ReportIconStatCard(
+        icon: Icons.groups_rounded,
+        accent: AppConstants.buyerBlue,
+        label: l10n.prodKpiBuyers,
+        value: '${_summary.buyers}',
+      ),
+      ReportIconStatCard(
+        icon: Icons.savings_rounded,
+        accent: AppConstants.programPurple,
+        label: l10n.prodKpiSavings,
+        value: peso(_summary.savings),
+      ),
+      ReportIconStatCard(
+        icon: Icons.hourglass_top_rounded,
+        accent: AppConstants.warningAmber,
+        label: l10n.prodKpiPending,
+        value: '${_summary.pending}',
+      ),
     ];
     return SizedBox(
       key: const Key('productKpis'),
@@ -655,7 +791,8 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppConstants.spacingSm),
+        separatorBuilder: (_, __) =>
+            const SizedBox(width: AppConstants.spacingSm),
         itemBuilder: (_, i) => SizedBox(width: 168, child: cards[i]),
       ),
     );
@@ -663,7 +800,8 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
 
   // Search and filter chips, offered only when there are more than a handful of products.
   Widget _controls(AppLocalizations l10n, ColorScheme cs) {
-    int count(ProductFilter f) => _products.where((p) => productMatchesFilter(p, f)).length;
+    int count(ProductFilter f) =>
+        _products.where((p) => productMatchesFilter(p, f)).length;
     return Column(
       key: const Key('productControls'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -680,10 +818,30 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
           selected: _filter,
           onSelected: (v) => setState(() => _filter = v),
           options: [
-            MarketplaceFilterOption(value: ProductFilter.all, label: l10n.prodChipAll, count: _products.length, color: cs.primary),
-            MarketplaceFilterOption(value: ProductFilter.onSale, label: l10n.prodChipOnSale, count: count(ProductFilter.onSale), color: AppConstants.successGreen),
-            MarketplaceFilterOption(value: ProductFilter.outOfStock, label: l10n.prodChipOutOfStock, count: count(ProductFilter.outOfStock), color: AppConstants.errorRed),
-            MarketplaceFilterOption(value: ProductFilter.off, label: l10n.prodChipOff, count: count(ProductFilter.off), color: cs.onSurfaceVariant),
+            MarketplaceFilterOption(
+              value: ProductFilter.all,
+              label: l10n.prodChipAll,
+              count: _products.length,
+              color: cs.primary,
+            ),
+            MarketplaceFilterOption(
+              value: ProductFilter.onSale,
+              label: l10n.prodChipOnSale,
+              count: count(ProductFilter.onSale),
+              color: AppConstants.successGreen,
+            ),
+            MarketplaceFilterOption(
+              value: ProductFilter.outOfStock,
+              label: l10n.prodChipOutOfStock,
+              count: count(ProductFilter.outOfStock),
+              color: AppConstants.errorRed,
+            ),
+            MarketplaceFilterOption(
+              value: ProductFilter.off,
+              label: l10n.prodChipOff,
+              count: count(ProductFilter.off),
+              color: cs.onSurfaceVariant,
+            ),
           ],
         ),
         const SizedBox(height: 14),
@@ -703,7 +861,13 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
         Padding(
           padding: const EdgeInsets.only(top: 24),
           child: Center(
-            child: Text(l10n.prodNoMatch, style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
+            child: Text(
+              l10n.prodNoMatch,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ),
         ),
       ];
@@ -712,28 +876,45 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
     // section of its active products, and ALL archived products follow in a last section, so
     // archived ones are at the bottom of the page and never between active ones.
     final cats = productCategories(_products);
-    if (cats.length <= 1) return [for (final p in visible) _productCard(p, l10n, cs)];
+    if (cats.length <= 1) {
+      return [for (final p in visible) _productCard(p, l10n, cs)];
+    }
     Widget header(Key key, String text) => Padding(
-          key: key,
-          padding: const EdgeInsets.only(top: 4, bottom: 8),
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
-          ),
-        );
+      key: key,
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    );
     final active = visible.where((p) => p.isAvailable).toList();
     final archived = visible.where((p) => !p.isAvailable).toList();
     return [
-      for (final cat in cats) ...() {
-        final inCat = active.where((p) => p.category.trim().toLowerCase() == cat.toLowerCase()).toList();
-        if (inCat.isEmpty) return <Widget>[];
-        return <Widget>[
-          header(Key('category_${cat.toLowerCase()}'), '${cat.isEmpty ? '—' : cat} · ${inCat.length}'),
-          for (final p in inCat) _productCard(p, l10n, cs),
-        ];
-      }(),
+      for (final cat in cats)
+        ...() {
+          final inCat = active
+              .where(
+                (p) => p.category.trim().toLowerCase() == cat.toLowerCase(),
+              )
+              .toList();
+          if (inCat.isEmpty) return <Widget>[];
+          return <Widget>[
+            header(
+              Key('category_${cat.toLowerCase()}'),
+              '${cat.isEmpty ? '—' : cat} · ${inCat.length}',
+            ),
+            for (final p in inCat) _productCard(p, l10n, cs),
+          ];
+        }(),
       if (archived.isNotEmpty) ...[
-        header(const Key('archivedSection'), '${l10n.prodChipOff} · ${archived.length}'),
+        header(
+          const Key('archivedSection'),
+          '${l10n.prodChipOff} · ${archived.length}',
+        ),
         for (final p in archived) _productCard(p, l10n, cs),
       ],
     ];
@@ -741,7 +922,10 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
 
   Widget _photoFallback(ColorScheme cs) => Container(
     color: cs.surfaceContainerHighest,
-    child: Icon(Icons.storefront_rounded, color: cs.outline.withValues(alpha: 0.5)),
+    child: Icon(
+      Icons.storefront_rounded,
+      color: cs.outline.withValues(alpha: 0.5),
+    ),
   );
 
   @override
@@ -767,7 +951,10 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
             SubPageTopBar(title: l10n.prodTitle, onBack: () => context.pop()),
             Expanded(
               child: _loading
-                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView(
@@ -780,18 +967,30 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                               margin: const EdgeInsets.only(bottom: 14),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: cs.onSurfaceVariant.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                color: cs.onSurfaceVariant.withValues(
+                                  alpha: 0.10,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusMd,
+                                ),
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.lock_outline_rounded, size: 16, color: cs.onSurfaceVariant),
+                                  Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 16,
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       l10n.prodCompletedBanner,
-                                      style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurface),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        height: 1.4,
+                                        color: cs.onSurface,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -802,17 +1001,27 @@ class _ProgramProductsScreenState extends State<ProgramProductsScreen> {
                               padding: const EdgeInsets.only(top: 40),
                               child: Column(
                                 children: [
-                                  Icon(Icons.storefront_outlined, size: 48, color: cs.onSurfaceVariant),
+                                  Icon(
+                                    Icons.storefront_outlined,
+                                    size: 48,
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                   const SizedBox(height: 10),
                                   Text(
                                     l10n.prodEmpty,
-                                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     l10n.prodEmptyHint,
                                     textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: cs.onSurfaceVariant,
+                                    ),
                                   ),
                                 ],
                               ),

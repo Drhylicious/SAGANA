@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
 
@@ -8,7 +9,7 @@ import '../../core/theme/sagana_colors.dart';
 class FilterIconButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool active;
-  final String semanticLabel;
+  final String? semanticLabel;
   final Key? buttonKey;
   final Key? dotKey;
 
@@ -16,7 +17,7 @@ class FilterIconButton extends StatelessWidget {
     super.key,
     required this.onTap,
     required this.active,
-    this.semanticLabel = 'Filter',
+    this.semanticLabel,
     this.buttonKey,
     this.dotKey,
   });
@@ -30,7 +31,7 @@ class FilterIconButton extends StatelessWidget {
     final sagana = context.saganaColors;
     return Semantics(
       button: true,
-      label: semanticLabel,
+      label: semanticLabel ?? AppLocalizations.of(context).enhFilter,
       child: GestureDetector(
         key: buttonKey,
         onTap: onTap,
@@ -42,10 +43,14 @@ class FilterIconButton extends StatelessWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: active ? cs.primary.withValues(alpha: 0.10) : sagana.cardBackground,
+                color: active
+                    ? cs.primary.withValues(alpha: 0.10)
+                    : sagana.cardBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 border: Border.all(
-                  color: active ? cs.primary.withValues(alpha: 0.55) : cs.outline.withValues(alpha: 0.25),
+                  color: active
+                      ? cs.primary.withValues(alpha: 0.55)
+                      : cs.outline.withValues(alpha: 0.25),
                 ),
               ),
               child: Icon(
@@ -65,7 +70,10 @@ class FilterIconButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: cs.primary,
                     shape: BoxShape.circle,
-                    border: Border.all(color: sagana.cardBackground, width: 1.5),
+                    border: Border.all(
+                      color: sagana.cardBackground,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),

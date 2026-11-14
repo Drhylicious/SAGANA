@@ -1,3 +1,4 @@
+import '../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,10 +21,13 @@ Future<void> showTempPasswordDialog({
 }) {
   return showManagementModal(
     context: context,
-    barrierDismissible: false, // must tap Done — this value is shown exactly once
+    barrierDismissible:
+        false, // must tap Done — this value is shown exactly once
     builder: (_) => ManagementModalShell(
-      title: 'Temporary Password',
-      subtitle: "For $name. Relay this to them now — it won't be shown again.",
+      title: AppLocalizations.of(context).addMemberPasswordLabel,
+      subtitle: AppLocalizations.of(
+        context,
+      ).enhForRelayThisToThemNowItWon((name).toString()),
       body: _TempPasswordBody(tempPassword: tempPassword),
       footer: SizedBox(
         width: double.infinity,
@@ -33,7 +37,10 @@ Future<void> showTempPasswordDialog({
             backgroundColor: AppConstants.primaryGreen,
             foregroundColor: Colors.white,
           ),
-          child: Text('Done', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          child: Text(
+            AppLocalizations.of(context).buyerCartDone,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
         ),
       ),
     ),
@@ -59,15 +66,27 @@ class _TempPasswordBody extends StatelessWidget {
           Expanded(
             child: Text(
               tempPassword,
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1.5),
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+              ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.copy_rounded, size: 20, color: AppConstants.primaryGreen),
+            icon: Icon(
+              Icons.copy_rounded,
+              size: 20,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             onPressed: () {
               Clipboard.setData(ClipboardData(text: tempPassword));
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Copied to clipboard')),
+                SnackBar(
+                  content: Text(
+                    AppLocalizations.of(context).enhCopiedToClipboard,
+                  ),
+                ),
               );
             },
           ),

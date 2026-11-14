@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -22,6 +23,7 @@ import '../../widgets/labeled_text_field.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/l10n/localized_labels.dart';
 
 class MyProgramsScreen extends StatefulWidget {
   const MyProgramsScreen({super.key});
@@ -44,6 +46,10 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   Map<String, AssistanceRequest> _assistLatest = {};
   // The Farmer's requests for another distribution, by the failed round ('pending' | 'approved').
   Map<String, String> _redistRequests = {};
+  // Search and the All / Distribution / Sales chips (the same format as Browse Programs).
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _purposeFilter = 'All';
   bool _isLoading = true;
   bool _isOnline = true;
 
@@ -54,8 +60,26 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
+    _searchController.addListener(
+      () => setState(() => _searchQuery = _searchController.text.trim().toLowerCase()),
+    );
     _load();
   }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesPurpose(MyProgramEntry p, String label) =>
+      label == 'All' || (label == 'Sales' ? p.isSalesProgram : !p.isSalesProgram);
+
+  List<MyProgramEntry> get _visible => _programs
+      .where((p) =>
+          _matchesPurpose(p, _purposeFilter) &&
+          (_searchQuery.isEmpty || p.programName.toLowerCase().contains(_searchQuery)))
+      .toList();
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
@@ -85,7 +109,8 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
       _reportByMember = byMember;
       _returns = results[2] as MyReturnsSnapshot;
       _assistOptions = {
-        for (final o in results[3] as List<AssistanceOption>) o.programMemberId: o,
+        for (final o in results[3] as List<AssistanceOption>)
+          o.programMemberId: o,
       };
       // Newest first, so the first one seen per member is the latest.
       _assistLatest = {};
@@ -122,7 +147,10 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                 error = null;
               });
               try {
-                await _programRepo.requestRedistribution(memberId: entry.id, note: noteCtrl.text.trim());
+                await _programRepo.requestRedistribution(
+                  memberId: entry.id,
+                  note: noteCtrl.text.trim(),
+                );
                 if (ctx.mounted) Navigator.pop(ctx, true);
               } catch (e, st) {
                 if (!ctx.mounted) return;
@@ -132,24 +160,34 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
             }
 
             Widget row(String label, String value) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Text(label,
-                            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
                       ),
-                      Expanded(
-                        flex: 3,
-                        child: Text(value,
-                            textAlign: TextAlign.end,
-                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
-                      ),
-                    ],
+                    ),
                   ),
-                );
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.end,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
 
             return ManagementModalShell(
               title: l10n.farmerRedistSheetTitle,
@@ -157,23 +195,45 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.farmerRedistSheetInfo,
-                      style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant)),
+                  Text(
+                    l10n.farmerRedistSheetInfo,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 14),
-                  Text(l10n.farmerRedistReported,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text(
+                    l10n.farmerRedistReported,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  row(l10n.farmerRedistItemGiven,
-                      '${entry.quantityGiven != null ? '${formatQuantityGrouped(entry.quantityGiven!)} ' : ''}'
-                      '${entry.itemUnit ?? ''} ${entry.itemName ?? ''}'.trim()),
+                  row(
+                    l10n.farmerRedistItemGiven,
+                    '${entry.quantityGiven != null ? '${formatQuantityGrouped(entry.quantityGiven!)} ' : ''}'
+                            '${entry.itemUnit ?? ''} ${entry.itemName ?? ''}'
+                        .trim(),
+                  ),
                   if (report != null) ...[
-                    row(l10n.farmerRedistReportedOutcome,
-                        report.reportedOutcome == 'successful'
-                            ? l10n.outcStatusSuccessful
-                            : l10n.outcStatusFailed),
-                    row(l10n.farmerRedistReportedOn, _formatDate(report.submittedAt)),
+                    row(
+                      l10n.farmerRedistReportedOutcome,
+                      report.reportedOutcome == 'successful'
+                          ? l10n.outcStatusSuccessful
+                          : l10n.outcStatusFailed,
+                    ),
+                    row(
+                      l10n.farmerRedistReportedOn,
+                      _formatDate(report.submittedAt),
+                    ),
                     if (report.finalizedAt != null)
-                      row(l10n.farmerRedistConfirmedOn, _formatDate(report.finalizedAt!)),
+                      row(
+                        l10n.farmerRedistConfirmedOn,
+                        _formatDate(report.finalizedAt!),
+                      ),
                   ],
                   const SizedBox(height: 10),
                   LabeledTextField(
@@ -186,7 +246,13 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                   if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(error!, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+                      child: Text(
+                        error!,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppConstants.errorRed,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -223,11 +289,16 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
       AppToast.show(context, l10n.assistCancelled);
       _load();
     } catch (e, st) {
-      if (mounted) AppToast.show(context, friendlyError(l10n, e, st), isError: true);
+      if (mounted) {
+        AppToast.show(context, friendlyError(l10n, e, st), isError: true);
+      }
     }
   }
 
-  Future<void> _openReport(MyProgramEntry entry, MyOutcomeReport? current) async {
+  Future<void> _openReport(
+    MyProgramEntry entry,
+    MyOutcomeReport? current,
+  ) async {
     final filed = await context.push<bool>(
       AppRoutes.reportOutcome,
       extra: {'entry': entry, 'returnNote': current?.returnNote},
@@ -236,9 +307,19 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   }
 
   String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -257,19 +338,80 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final shown = _visible;
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'my_programs',
                 isOnline: _isOnline,
                 offlineMessage: l10n.offlinePrograms,
               ),
               const SizedBox(height: 4),
+              if (!_isLoading && _programs.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  child: TextField(
+                    controller: _searchController,
+                    style: GoogleFonts.inter(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: l10n.programMgmtSearchHint,
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: context.saganaColors.cardBackground,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 34,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: 3,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final label = ['All', 'Distribution', 'Sales'][i];
+                      final isSelected = label == _purposeFilter;
+                      final count = _programs.where((p) => _matchesPurpose(p, label)).length;
+                      return GestureDetector(
+                        onTap: () => setState(() => _purposeFilter = label),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppConstants.primaryGreen : context.saganaColors.cardBackground,
+                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppConstants.primaryGreen
+                                  : Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${localizeBuiltinLabel(l10n, label)} ($count)',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -284,10 +426,10 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 32),
                           children: [
                             const SizedBox(height: 90),
-                            const Icon(
+                            Icon(
                               Icons.volunteer_activism_outlined,
                               size: 56,
-                              color: AppConstants.outline,
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                             const SizedBox(height: 14),
                             Text(
@@ -305,30 +447,52 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 height: 1.45,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        )
+                      : shown.isEmpty
+                      ? ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          children: [
+                            const SizedBox(height: 70),
+                            Text(
+                              l10n.farmerProgNoMatch,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-                          itemCount: _programs.length,
+                          itemCount: shown.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 14),
                           itemBuilder: (_, i) => MyProgramCard(
-                            entry: _programs[i],
-                            report: _reportByMember[_programs[i].id],
-                            harvestReturn: _returns.byMember[_programs[i].id],
-                            resolution: _returns.resolutionByMember[_programs[i].id],
-                            assistOption: _assistOptions[_programs[i].id],
-                            assistRequest: _assistLatest[_programs[i].id],
-                            redistStatus: _redistRequests[_programs[i].id],
-                            onRequestRedistribution: _isOnline ? () => _openRequestRedistribution(_programs[i]) : null,
-                            onAssist: () => _openAssistance(_programs[i]),
-                            onCancelAssist: () => _cancelAssistance(_assistLatest[_programs[i].id]!),
+                            entry: shown[i],
+                            report: _reportByMember[shown[i].id],
+                            harvestReturn: _returns.byMember[shown[i].id],
+                            resolution:
+                                _returns.resolutionByMember[shown[i].id],
+                            assistOption: _assistOptions[shown[i].id],
+                            assistRequest: _assistLatest[shown[i].id],
+                            redistStatus: _redistRequests[shown[i].id],
+                            onRequestRedistribution: _isOnline
+                                ? () => _openRequestRedistribution(shown[i])
+                                : null,
+                            onAssist: () => _openAssistance(shown[i]),
+                            onCancelAssist: () => _cancelAssistance(
+                              _assistLatest[shown[i].id]!,
+                            ),
                             onReport: () => _openReport(
-                              _programs[i],
-                              _reportByMember[_programs[i].id],
+                              shown[i],
+                              _reportByMember[shown[i].id],
                             ),
                             formatDate: _formatDate,
                             statusLabel: (s) => _statusLabel(l10n, s),
@@ -343,7 +507,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'My Programs',
+              title: AppLocalizations.of(context).enhMyPrograms,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -375,6 +539,7 @@ class MyProgramCard extends StatelessWidget {
   final String Function(String) statusLabel;
 
   const MyProgramCard({
+    super.key,
     required this.entry,
     required this.report,
     this.harvestReturn,
@@ -410,10 +575,12 @@ class MyProgramCard extends StatelessWidget {
           context.push(AppRoutes.programDetails, extra: {'entry': entry}),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(
-            color: AppConstants.outline.withValues(alpha: 0.10),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.10),
           ),
           boxShadow: [
             BoxShadow(
@@ -437,10 +604,8 @@ class MyProgramCard extends StatelessWidget {
                       ? Image.network(
                           entry.programImageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _headerFallback(
-                            accent,
-                            fallbackIcon,
-                          ),
+                          errorBuilder: (_, __, ___) =>
+                              _headerFallback(accent, fallbackIcon),
                         )
                       : _headerFallback(accent, fallbackIcon),
                   Positioned(
@@ -473,10 +638,10 @@ class MyProgramCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right_rounded,
                         size: 20,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ],
                   ),
@@ -502,7 +667,7 @@ class MyProgramCard extends StatelessWidget {
                         l10n.farmerProgEnrolledOn(formatDate(entry.enrolledAt)),
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -517,14 +682,16 @@ class MyProgramCard extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         height: 1.4,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                   const SizedBox(height: 14),
                   Divider(
                     height: 1,
-                    color: AppConstants.outline.withValues(alpha: 0.12),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.12),
                   ),
                   const SizedBox(height: 14),
                   if (entry.isSalesProgram)
@@ -532,7 +699,7 @@ class MyProgramCard extends StatelessWidget {
                       l10n.farmerProgSalesHint,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     )
                   else
@@ -627,7 +794,7 @@ class MyProgramCard extends StatelessWidget {
           l10n.farmerProgAwaiting,
           style: GoogleFonts.inter(
             fontSize: 12,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         )
       else ...[
@@ -644,21 +811,21 @@ class MyProgramCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               clipBehavior: Clip.antiAlias,
-              child: (entry.itemImageUrl != null &&
-                      entry.itemImageUrl!.isNotEmpty)
+              child:
+                  (entry.itemImageUrl != null && entry.itemImageUrl!.isNotEmpty)
                   ? Image.network(
                       entry.itemImageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (_, __, ___) => Icon(
                         Icons.inventory_2_outlined,
                         size: 18,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.inventory_2_outlined,
                       size: 18,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
             ),
             const SizedBox(width: 10),
@@ -671,7 +838,7 @@ class MyProgramCard extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurface,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -693,7 +860,9 @@ class MyProgramCard extends StatelessWidget {
         if (entry.isHarvestReturn || outcomeDone)
           Text(
             canReport
-                ? l10n.farmerProgReportPending(daysSinceReceived(entry.distributedAt!))
+                ? l10n.farmerProgReportPending(
+                    daysSinceReceived(entry.distributedAt!),
+                  )
                 : outcomeText,
             key: canReport ? const Key('reportPendingLine') : null,
             style: GoogleFonts.inter(
@@ -701,7 +870,7 @@ class MyProgramCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: outcomeDone || r != null
                   ? outcomeColor
-                  : AppConstants.onSurfaceVariant,
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         if (entry.isHarvestReturn && r != null && r.isPending) ...[
@@ -711,7 +880,7 @@ class MyProgramCard extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 11,
               height: 1.4,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 6),
@@ -719,8 +888,8 @@ class MyProgramCard extends StatelessWidget {
             spacing: 14,
             runSpacing: 4,
             children: [
-              _check(l10n.outcCheckEvidence, r.reviewDone),
-              _check(l10n.outcCheckField, r.verificationDone),
+              _check(context, l10n.outcCheckEvidence, r.reviewDone),
+              _check(context, l10n.outcCheckField, r.verificationDone),
             ],
           ),
         ],
@@ -741,7 +910,8 @@ class MyProgramCard extends StatelessWidget {
             ),
           ),
         ],
-        if ((entry.isHarvestReturn && r != null && r.isReturned) || canReport) ...[
+        if ((entry.isHarvestReturn && r != null && r.isReturned) ||
+            canReport) ...[
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -759,34 +929,38 @@ class MyProgramCard extends StatelessWidget {
       ],
       if (harvestReturn != null) ...[
         const SizedBox(height: 10),
-        _returnStatus(l10n, harvestReturn!),
+        _returnStatus(context, l10n, harvestReturn!),
       ],
       if (failedFinal && outcomeDone && resolution != null) ...[
         const SizedBox(height: 10),
-        _resolutionStatus(l10n, resolution!),
+        _resolutionStatus(context, l10n, resolution!),
       ],
-      if (failedFinal && outcomeDone) ..._assistanceBlock(l10n),
+      if (failedFinal && outcomeDone) ..._assistanceBlock(context, l10n),
       if (entry.isHarvestReturn) ...[
         const SizedBox(height: 12),
-        _returnBox(l10n),
+        _returnBox(context, l10n),
       ],
     ];
   }
 
-  Widget _check(String label, bool done) => Row(
+  Widget _check(BuildContext context, String label, bool done) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       Icon(
         done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
         size: 15,
-        color: done ? AppConstants.successGreen : AppConstants.outline,
+        color: done
+            ? AppConstants.successGreen
+            : Theme.of(context).colorScheme.outline,
       ),
       const SizedBox(width: 4),
       Text(
         label,
         style: GoogleFonts.inter(
           fontSize: 11,
-          color: done ? AppConstants.onSurface : AppConstants.onSurfaceVariant,
+          color: done
+              ? Theme.of(context).colorScheme.onSurface
+              : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     ],
@@ -794,7 +968,7 @@ class MyProgramCard extends StatelessWidget {
 
   // Assistance after a failed outcome: the latest request's status, and a button
   // to ask when the database says this outcome may. Not a loan.
-  List<Widget> _assistanceBlock(AppLocalizations l10n) {
+  List<Widget> _assistanceBlock(BuildContext context, AppLocalizations l10n) {
     final req = assistRequest;
     final opt = assistOption;
     final widgets = <Widget>[];
@@ -805,7 +979,7 @@ class MyProgramCard extends StatelessWidget {
           ? AppConstants.errorRed
           : req.isPending
           ? AppConstants.warningAmber
-          : AppConstants.onSurfaceVariant;
+          : Theme.of(context).colorScheme.onSurfaceVariant;
       final status = switch (req.status) {
         'approved' => l10n.assistStatusApproved,
         'rejected' => l10n.assistStatusRejected,
@@ -826,15 +1000,25 @@ class MyProgramCard extends StatelessWidget {
             children: [
               Text(
                 '${l10n.assistStatusLine(req.requestNumber)} · $status',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
               if (req.assistanceReference != null)
                 Text(
                   l10n.assistFarmerRef(req.assistanceReference!),
-                  style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               if (req.isRejected && (req.reviewNote ?? '').isNotEmpty)
-                Text(req.reviewNote!, style: GoogleFonts.inter(fontSize: 11, height: 1.4)),
+                Text(
+                  req.reviewNote!,
+                  style: GoogleFonts.inter(fontSize: 11, height: 1.4),
+                ),
               if (req.isPending && onCancelAssist != null)
                 TextButton(
                   onPressed: onCancelAssist,
@@ -866,13 +1050,17 @@ class MyProgramCard extends StatelessWidget {
   }
 
   // Where the Farmer's harvest return stands (received so far, no staff names).
-  Widget _returnStatus(AppLocalizations l10n, ProgramReturnSummary r) {
+  Widget _returnStatus(
+    BuildContext context,
+    AppLocalizations l10n,
+    ProgramReturnSummary r,
+  ) {
     final done = r.status == 'received';
     final closed = r.status == 'closed_short';
     final color = done
         ? AppConstants.successGreen
         : closed
-        ? AppConstants.onSurfaceVariant
+        ? Theme.of(context).colorScheme.onSurfaceVariant
         : AppConstants.buyerBlue;
     return Container(
       width: double.infinity,
@@ -893,7 +1081,11 @@ class MyProgramCard extends StatelessWidget {
                 r.unit,
                 r.cropName,
               ),
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -904,7 +1096,11 @@ class MyProgramCard extends StatelessWidget {
   // The status of a Failed outcome. Only the status: never who decided or why. A referral for loan assessment
   // also explains what it is not (a loan) and offers the existing loan request. "Eligible for Reassessment"
   // tells the Farmer they may ask for another distribution, without joining again.
-  Widget _resolutionStatus(AppLocalizations l10n, String resolution) {
+  Widget _resolutionStatus(
+    BuildContext context,
+    AppLocalizations l10n,
+    String resolution,
+  ) {
     final text = switch (resolution) {
       FailedResolution.closedNoFurtherObligation => l10n.resFarmerClosed,
       FailedResolution.eligibleForReassessment => l10n.resFarmerReassess,
@@ -912,19 +1108,27 @@ class MyProgramCard extends StatelessWidget {
       _ => l10n.resFarmerPending,
     };
     final referred = resolution == FailedResolution.referredForLoanAssessment;
-    final eligible = resolution == FailedResolution.eligibleForReassessment &&
+    final eligible =
+        resolution == FailedResolution.eligibleForReassessment &&
         entry.programStatus != 'completed';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(Icons.info_outline_rounded, size: 15, color: AppConstants.onSurfaceVariant),
+            Icon(
+              Icons.info_outline_rounded,
+              size: 15,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 text,
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -933,7 +1137,11 @@ class MyProgramCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             l10n.resFarmerReferredNote,
-            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.4,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           Builder(
@@ -954,25 +1162,48 @@ class MyProgramCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppConstants.successGreen.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.30)),
+              border: Border.all(
+                color: AppConstants.successGreen.withValues(alpha: 0.30),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   l10n.farmerRedistEligibleTitle,
-                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 if (redistStatus == 'pending')
-                  Text(l10n.farmerRedistPending,
-                      style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant))
+                  Text(
+                    l10n.farmerRedistPending,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  )
                 else if (redistStatus == 'approved')
-                  Text(l10n.farmerRedistApproved,
-                      style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant))
+                  Text(
+                    l10n.farmerRedistApproved,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  )
                 else ...[
-                  Text(l10n.farmerRedistEligibleBody,
-                      style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    l10n.farmerRedistEligibleBody,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   if (onRequestRedistribution != null) ...[
                     const SizedBox(height: 10),
                     SizedBox(
@@ -994,7 +1225,7 @@ class MyProgramCard extends StatelessWidget {
     );
   }
 
-  Widget _returnBox(AppLocalizations l10n) {
+  Widget _returnBox(BuildContext context, AppLocalizations l10n) {
     // History only: a program that was settled in pesos under the old
     // revenue-share model keeps showing what was recorded.
     if (entry.isSettled && entry.amountReturned != null) {
@@ -1035,7 +1266,7 @@ class MyProgramCard extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           if (what != null) const SizedBox(height: 3),
@@ -1044,7 +1275,7 @@ class MyProgramCard extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 11,
               height: 1.4,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -1088,7 +1319,9 @@ class _Step extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = done ? color : AppConstants.outline.withValues(alpha: 0.4);
+    final c = done
+        ? color
+        : Theme.of(context).colorScheme.outline.withValues(alpha: 0.4);
     return Column(
       children: [
         Container(
@@ -1113,7 +1346,9 @@ class _Step extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: done ? FontWeight.w700 : FontWeight.w500,
-              color: done ? AppConstants.onSurface : AppConstants.onSurfaceVariant,
+              color: done
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -1136,7 +1371,7 @@ class _StepLine extends StatelessWidget {
           height: 2,
           color: active
               ? AppConstants.successGreen
-              : AppConstants.outline.withValues(alpha: 0.25),
+              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
         ),
       ),
     );

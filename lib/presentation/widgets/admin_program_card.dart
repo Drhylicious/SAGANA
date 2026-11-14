@@ -22,6 +22,8 @@ class AdminProgramCard extends StatelessWidget {
   final String statusLabel;
   final Color statusColor;
   final String memberCountLabel;
+  /// Tapping the card: the read-only details of the program.
+  final VoidCallback? onTap;
   final VoidCallback onMembers;
   final VoidCallback onHistory;
   final VoidCallback onEdit;
@@ -39,6 +41,7 @@ class AdminProgramCard extends StatelessWidget {
     required this.statusLabel,
     required this.statusColor,
     required this.memberCountLabel,
+    this.onTap,
     required this.onMembers,
     required this.onHistory,
     required this.onEdit,
@@ -83,7 +86,10 @@ class AdminProgramCard extends StatelessWidget {
 
     // A completed program is dimmed so it reads as closed beside the active ones.
     final dimmed = p.status == 'completed';
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -387,6 +393,7 @@ class AdminProgramCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

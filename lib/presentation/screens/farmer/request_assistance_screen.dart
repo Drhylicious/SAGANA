@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -24,7 +25,8 @@ class RequestAssistanceScreen extends StatefulWidget {
   });
 
   @override
-  State<RequestAssistanceScreen> createState() => _RequestAssistanceScreenState();
+  State<RequestAssistanceScreen> createState() =>
+      _RequestAssistanceScreenState();
 }
 
 class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
@@ -62,7 +64,11 @@ class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
         _loading = false;
       });
     } catch (e, st) {
-      friendlyError(AppLocalizations.of(context), e, st); // logged for developers
+      friendlyError(
+        AppLocalizations.of(context),
+        e,
+        st,
+      ); // logged for developers
       if (mounted) {
         setState(() {
           _failed = true;
@@ -72,10 +78,13 @@ class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
     }
   }
 
-  String _n(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+  String _n(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   void _step(LoanableItem item, double delta) {
-    final next = ((_qty[item.inventoryItemId] ?? 0) + delta).clamp(0, item.quantityOnHand).toDouble();
+    final next = ((_qty[item.inventoryItemId] ?? 0) + delta)
+        .clamp(0, item.quantityOnHand)
+        .toDouble();
     setState(() {
       if (next <= 0) {
         _qty.remove(item.inventoryItemId);
@@ -96,7 +105,8 @@ class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
       await _repo.submit(
         programMemberId: widget.programMemberId,
         items: [
-          for (final e in _qty.entries) {'inventoryItemId': e.key, 'quantity': e.value},
+          for (final e in _qty.entries)
+            {'inventoryItemId': e.key, 'quantity': e.value},
         ],
         message: _message.text.trim().isEmpty ? null : _message.text.trim(),
       );
@@ -114,78 +124,111 @@ class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               Expanded(
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : _failed
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(l10n.assistLoadFailed, textAlign: TextAlign.center),
-                                  const SizedBox(height: 12),
-                                  OutlinedButton(onPressed: _load, child: Text(l10n.retry)),
-                                ],
-                              ),
-                            ),
-                          )
-                        : ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(widget.programName,
-                                  style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 10),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.programPurple.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                                ),
-                                child: Text(l10n.assistInfo,
-                                    style: GoogleFonts.inter(fontSize: 12, height: 1.45)),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(l10n.assistChooseItems,
-                                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 8),
-                              if (_items.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 24),
-                                  child: Text(l10n.assistNoItems,
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                          fontSize: 13, color: AppConstants.onSurfaceVariant)),
-                                )
-                              else
-                                for (final item in _items) _itemRow(l10n, item),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _message,
-                                maxLines: 3,
-                                maxLength: 300,
-                                enabled: !_sending,
-                                decoration: InputDecoration(
-                                  labelText: l10n.assistMessageLabel,
-                                  border: const OutlineInputBorder(),
-                                ),
+                              Text(
+                                l10n.assistLoadFailed,
+                                textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 12),
-                              PrimaryButton(
-                                label: l10n.assistSend,
-                                icon: Icons.volunteer_activism_rounded,
-                                isLoading: _sending,
-                                onPressed: _sending || _items.isEmpty ? null : _send,
+                              OutlinedButton(
+                                onPressed: _load,
+                                child: Text(l10n.retry),
                               ),
                             ],
                           ),
+                        ),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                        children: [
+                          Text(
+                            widget.programName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppConstants.programPurple.withValues(
+                                alpha: 0.08,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusMd,
+                              ),
+                            ),
+                            child: Text(
+                              l10n.assistInfo,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            l10n.assistChooseItems,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (_items.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              child: Text(
+                                l10n.assistNoItems,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          else
+                            for (final item in _items) _itemRow(l10n, item),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _message,
+                            maxLines: 3,
+                            maxLength: 300,
+                            enabled: !_sending,
+                            decoration: InputDecoration(
+                              labelText: l10n.assistMessageLabel,
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          PrimaryButton(
+                            label: l10n.assistSend,
+                            icon: Icons.volunteer_activism_rounded,
+                            isLoading: _sending,
+                            onPressed: _sending || _items.isEmpty
+                                ? null
+                                : _send,
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -211,15 +254,20 @@ class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
     final qty = _qty[item.inventoryItemId] ?? 0;
     final available = item.inStock;
     // Whole units for countable items; kilos and litres may be halved.
-    final step = (item.unit.toLowerCase() == 'kg' || item.unit.toLowerCase() == 'l') ? 0.5 : 1.0;
+    final step =
+        (item.unit.toLowerCase() == 'kg' || item.unit.toLowerCase() == 'l')
+        ? 0.5
+        : 1.0;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(
-          color: qty > 0 ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.2),
+          color: qty > 0
+              ? AppConstants.primaryGreen
+              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -228,29 +276,43 @@ class _RequestAssistanceScreenState extends State<RequestAssistanceScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.itemName,
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  item.itemName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 Text(
                   available
                       ? l10n.assistInStock(_n(item.quantityOnHand), item.unit)
                       : l10n.assistOutOfStock,
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: available ? AppConstants.onSurfaceVariant : AppConstants.errorRed,
+                    color: available
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                        : AppConstants.errorRed,
                   ),
                 ),
               ],
             ),
           ),
           IconButton(
-            onPressed: available && qty > 0 && !_sending ? () => _step(item, -step) : null,
+            onPressed: available && qty > 0 && !_sending
+                ? () => _step(item, -step)
+                : null,
             icon: const Icon(Icons.remove_circle_outline_rounded),
           ),
           SizedBox(
             width: 38,
-            child: Text(_n(qty),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+            child: Text(
+              _n(qty),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           IconButton(
             onPressed: available && !_sending ? () => _step(item, step) : null,

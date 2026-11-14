@@ -37,38 +37,38 @@ class NotificationBroadcastScreen extends StatefulWidget {
 
 class _NotificationBroadcastScreenState
     extends State<NotificationBroadcastScreen> {
-  final _repo        = BroadcastRepository();
-  final _titleCtrl   = TextEditingController();
-  final _bodyCtrl    = TextEditingController();
-  final _scrollCtrl  = ScrollController();
+  final _repo = BroadcastRepository();
+  final _titleCtrl = TextEditingController();
+  final _bodyCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
 
   // ── Form state ─────────────────────────────────────────────────────────────
-  RecipientType       _recipientType   = RecipientType.allMembers;
-  BroadcastCategory   _category        = BroadcastCategory.meeting;
-  String?             _cropFilter;
-  String?             _farmerFilter;
-  String?             _buyerFilter;
-  bool                _scheduleEnabled = false;
-  DateTime?           _scheduledAt;
+  RecipientType _recipientType = RecipientType.allMembers;
+  BroadcastCategory _category = BroadcastCategory.meeting;
+  String? _cropFilter;
+  String? _farmerFilter;
+  String? _buyerFilter;
+  bool _scheduleEnabled = false;
+  DateTime? _scheduledAt;
 
   // ── Dynamic data ───────────────────────────────────────────────────────────
-  int                        _recipientCount = 0;
-  List<BroadcastModel>       _history        = [];
-  List<String>               _cropNames      = [];
-  List<Map<String, String>>  _farmers        = [];
-  List<Map<String, String>>  _buyers         = [];
+  int _recipientCount = 0;
+  List<BroadcastModel> _history = [];
+  List<String> _cropNames = [];
+  List<Map<String, String>> _farmers = [];
+  List<Map<String, String>> _buyers = [];
 
   // ── Screen state ───────────────────────────────────────────────────────────
-  bool _isLoading  = true;
-  bool _isSending  = false;
+  bool _isLoading = true;
+  bool _isSending = false;
   // Kept across retries of the same send attempt so a repeated request is not sent twice.
   String? _pendingSendKey;
   String? _pendingSendFingerprint;
-  bool _isOnline   = true;
+  bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySub;
 
   static const int _maxTitle = 60;
-  static const int _maxBody  = 300;
+  static const int _maxBody = 300;
 
   @override
   void initState() {
@@ -77,14 +77,14 @@ class _NotificationBroadcastScreenState
     _isOnline = ConnectivityService.instance.isOnline;
     _connectivitySub = ConnectivityService.instance.onConnectivityChanged
         .listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
+          if (mounted) setState(() => _isOnline = v);
+        });
     if (widget.initialBuyerId != null) {
       _recipientType = RecipientType.specificBuyer;
-      _buyerFilter   = widget.initialBuyerId;
+      _buyerFilter = widget.initialBuyerId;
     }
     _titleCtrl.addListener(() => setState(() {}));
-    _bodyCtrl.addListener(()  => setState(() {}));
+    _bodyCtrl.addListener(() => setState(() {}));
     _loadAll();
   }
 
@@ -111,12 +111,12 @@ class _NotificationBroadcastScreenState
     ]);
     if (!mounted) return;
     setState(() {
-      _history        = results[0] as List<BroadcastModel>;
-      _cropNames      = results[1] as List<String>;
-      _farmers        = results[2] as List<Map<String, String>>;
-      _buyers         = results[3] as List<Map<String, String>>;
+      _history = results[0] as List<BroadcastModel>;
+      _cropNames = results[1] as List<String>;
+      _farmers = results[2] as List<Map<String, String>>;
+      _buyers = results[3] as List<Map<String, String>>;
       _recipientCount = results[4] as int;
-      _isLoading      = false;
+      _isLoading = false;
     });
   }
 
@@ -135,7 +135,7 @@ class _NotificationBroadcastScreenState
 
   Future<void> _refreshRecipientCount() async {
     final count = await _repo.previewRecipientCount(
-      type:   _recipientType,
+      type: _recipientType,
       filter: _currentRecipientFilter,
     );
     if (mounted) setState(() => _recipientCount = count);
@@ -152,9 +152,9 @@ class _NotificationBroadcastScreenState
         onSelected: (tpl) {
           setState(() {
             _titleCtrl.text = tpl.title;
-            _bodyCtrl.text  = tpl.body;
-            _category       = tpl.category;
-            _recipientType  = tpl.recipientType;
+            _bodyCtrl.text = tpl.body;
+            _category = tpl.category;
+            _recipientType = tpl.recipientType;
           });
           _refreshRecipientCount();
         },
@@ -199,7 +199,7 @@ class _NotificationBroadcastScreenState
   Future<void> _send() async {
     final l10n = AppLocalizations.of(context);
     final title = _titleCtrl.text.trim();
-    final body  = _bodyCtrl.text.trim();
+    final body = _bodyCtrl.text.trim();
     if (title.isEmpty || body.isEmpty) {
       _showSnack(l10n.broadcastFillTitleBody);
       return;
@@ -222,18 +222,19 @@ class _NotificationBroadcastScreenState
 
     setState(() => _isSending = true);
     // A changed message or audience is a new send, so it gets a new key.
-    final fingerprint = '$title|$body|${_category.value}|${_recipientType.value}|$_currentRecipientFilter|${_scheduleEnabled ? _scheduledAt : null}';
+    final fingerprint =
+        '$title|$body|${_category.value}|${_recipientType.value}|$_currentRecipientFilter|${_scheduleEnabled ? _scheduledAt : null}';
     if (_pendingSendKey == null || _pendingSendFingerprint != fingerprint) {
       _pendingSendKey = BroadcastRepository.newClientKey();
       _pendingSendFingerprint = fingerprint;
     }
     try {
       final count = await _repo.sendBroadcast(
-        clientKey:       _pendingSendKey,
-        title:           title,
-        body:            body,
-        category:        _category,
-        recipientType:   _recipientType,
+        clientKey: _pendingSendKey,
+        title: title,
+        body: body,
+        category: _category,
+        recipientType: _recipientType,
         recipientFilter: _currentRecipientFilter,
         scheduledAt: _scheduleEnabled ? _scheduledAt : null,
       );
@@ -244,9 +245,9 @@ class _NotificationBroadcastScreenState
 
       final recipientNoun =
           (_recipientType == RecipientType.allBuyers ||
-                  _recipientType == RecipientType.specificBuyer)
-              ? l10n.broadcastRecipientNounBuyer
-              : l10n.broadcastRecipientNounMember;
+              _recipientType == RecipientType.specificBuyer)
+          ? l10n.broadcastRecipientNounBuyer
+          : l10n.broadcastRecipientNounMember;
 
       // Mirrors sendBroadcast()'s own isDeferred check — picking a date of
       // "today" lets the time picker return a time earlier than now (it has
@@ -271,13 +272,13 @@ class _NotificationBroadcastScreenState
       _titleCtrl.clear();
       _bodyCtrl.clear();
       setState(() {
-        _recipientType   = RecipientType.allMembers;
-        _category        = BroadcastCategory.meeting;
-        _cropFilter      = null;
-        _farmerFilter    = null;
-        _buyerFilter     = null;
+        _recipientType = RecipientType.allMembers;
+        _category = BroadcastCategory.meeting;
+        _cropFilter = null;
+        _farmerFilter = null;
+        _buyerFilter = null;
         _scheduleEnabled = false;
-        _scheduledAt     = null;
+        _scheduledAt = null;
       });
       _refreshRecipientCount();
       await Future.delayed(const Duration(milliseconds: 400));
@@ -311,19 +312,19 @@ class _NotificationBroadcastScreenState
   }
 
   String _formatScheduleLabel(DateTime dt) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     final h = dt.hour > 12
         ? dt.hour - 12
@@ -337,9 +338,9 @@ class _NotificationBroadcastScreenState
 
   @override
   Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -347,10 +348,13 @@ class _NotificationBroadcastScreenState
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               Expanded(
                 child: _isLoading
-                    ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      )
                     : ListView(
                         controller: _scrollCtrl,
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
@@ -407,27 +411,27 @@ class _NotificationBroadcastScreenState
 
                           // ── Compose form card ───────────────────────────
                           _ComposeCard(
-                            titleCtrl:       _titleCtrl,
-                            bodyCtrl:        _bodyCtrl,
-                            recipientType:   _recipientType,
-                            category:        _category,
-                            recipientCount:  _recipientCount,
-                            cropFilter:      _cropFilter,
-                            farmerFilter:    _farmerFilter,
-                            buyerFilter:     _buyerFilter,
-                            cropNames:       _cropNames,
-                            farmers:         _farmers,
-                            buyers:          _buyers,
-                            maxTitle:        _maxTitle,
-                            maxBody:         _maxBody,
-                            cs:              cs,
-                            sagana:          sagana,
+                            titleCtrl: _titleCtrl,
+                            bodyCtrl: _bodyCtrl,
+                            recipientType: _recipientType,
+                            category: _category,
+                            recipientCount: _recipientCount,
+                            cropFilter: _cropFilter,
+                            farmerFilter: _farmerFilter,
+                            buyerFilter: _buyerFilter,
+                            cropNames: _cropNames,
+                            farmers: _farmers,
+                            buyers: _buyers,
+                            maxTitle: _maxTitle,
+                            maxBody: _maxBody,
+                            cs: cs,
+                            sagana: sagana,
                             onRecipientChanged: (type) {
                               setState(() {
                                 _recipientType = type;
-                                _cropFilter    = null;
-                                _farmerFilter  = null;
-                                _buyerFilter   = null;
+                                _cropFilter = null;
+                                _farmerFilter = null;
+                                _buyerFilter = null;
                               });
                               _refreshRecipientCount();
                             },
@@ -465,11 +469,11 @@ class _NotificationBroadcastScreenState
 
                           // ── Schedule toggle ─────────────────────────────
                           _ScheduleRow(
-                            enabled:     _scheduleEnabled,
+                            enabled: _scheduleEnabled,
                             scheduledAt: _scheduledAt,
-                            sagana:      sagana,
-                            cs:          cs,
-                            l10n:        l10n,
+                            sagana: sagana,
+                            cs: cs,
+                            l10n: l10n,
                             onToggle: (v) {
                               setState(() {
                                 _scheduleEnabled = v;
@@ -490,13 +494,13 @@ class _NotificationBroadcastScreenState
                                         RecipientType.specificBuyer)
                                 ? l10n.broadcastRecipientNounBuyer
                                 : l10n.broadcastRecipientNounMember,
-                            isSending:      _isSending,
-                            isOnline:       _isOnline,
-                            isScheduled:    _scheduleEnabled,
-                            scheduledAt:    _scheduledAt,
-                            onSend:         _send,
-                            cs:             cs,
-                            formatLabel:    _formatScheduleLabel,
+                            isSending: _isSending,
+                            isOnline: _isOnline,
+                            isScheduled: _scheduleEnabled,
+                            scheduledAt: _scheduledAt,
+                            onSend: _send,
+                            cs: cs,
+                            formatLabel: _formatScheduleLabel,
                           ),
                           const SizedBox(height: 24),
 
@@ -532,11 +536,11 @@ class _NotificationBroadcastScreenState
                                 .map(
                                   (b) => Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
-                                      child: _BroadcastHistoryCard(
-                                        broadcast: b,
-                                        cs:        cs,
-                                        sagana:    sagana,
-                                      ),
+                                    child: _BroadcastHistoryCard(
+                                      broadcast: b,
+                                      cs: cs,
+                                      sagana: sagana,
+                                    ),
                                   ),
                                 ),
                         ],
@@ -637,8 +641,8 @@ class _ComposeCard extends StatelessWidget {
 
   String _recipientNoun(AppLocalizations l10n, RecipientType t) =>
       (t == RecipientType.allBuyers || t == RecipientType.specificBuyer)
-          ? l10n.broadcastRecipientNounBuyer
-          : l10n.broadcastRecipientNounMember;
+      ? l10n.broadcastRecipientNounBuyer
+      : l10n.broadcastRecipientNounMember;
 
   @override
   Widget build(BuildContext context) {
@@ -715,7 +719,7 @@ class _ComposeCard extends StatelessWidget {
                   farmers.firstWhere(
                     (f) => f['id'] == id,
                     orElse: () => const {},
-                  )['name'] ??
+                  )["name"] ??
                   '',
               onChanged: onFarmerFilterChanged,
             ),
@@ -732,7 +736,7 @@ class _ComposeCard extends StatelessWidget {
                   buyers.firstWhere(
                     (b) => b['id'] == id,
                     orElse: () => const {},
-                  )['name'] ??
+                  )["name"] ??
                   '',
               onChanged: onBuyerFilterChanged,
             ),
@@ -831,14 +835,14 @@ class _ComposeCard extends StatelessWidget {
             maxLength: maxTitle,
             buildCounter:
                 (_, {required currentLength, required isFocused, maxLength}) =>
-                const SizedBox.shrink(),
+                    const SizedBox.shrink(),
             decoration: InputDecoration(
               hintText: l10n.broadcastEnterTitleHint,
               hintStyle: GoogleFonts.inter(fontSize: 14, color: cs.outline),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 12,
-            ),
+              ),
             ),
             style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
           ),
@@ -872,14 +876,14 @@ class _ComposeCard extends StatelessWidget {
             maxLines: 5,
             buildCounter:
                 (_, {required currentLength, required isFocused, maxLength}) =>
-                const SizedBox.shrink(),
+                    const SizedBox.shrink(),
             decoration: InputDecoration(
               hintText: l10n.broadcastEnterMessageHint,
               hintStyle: GoogleFonts.inter(fontSize: 14, color: cs.outline),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 12,
-            ),
+              ),
             ),
             style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
           ),
@@ -951,7 +955,9 @@ class _LivePreview extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
+              color: context.saganaColors.cardBackground.withValues(
+                alpha: 0.92,
+              ),
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               boxShadow: [
                 BoxShadow(
@@ -991,11 +997,11 @@ class _LivePreview extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'SAGANA',
+                            AppLocalizations.of(context).appName,
                             style: GoogleFonts.poppins(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: AppConstants.primaryGreen,
+                              color: Theme.of(context).colorScheme.primary,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -1003,7 +1009,7 @@ class _LivePreview extends StatelessWidget {
                             l10n.broadcastJustNow,
                             style: GoogleFonts.inter(
                               fontSize: 10,
-                              color: AppConstants.outline,
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                           ),
                         ],
@@ -1014,7 +1020,7 @@ class _LivePreview extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.onSurface,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1024,7 +1030,7 @@ class _LivePreview extends StatelessWidget {
                         body,
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: AppConstants.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.3,
                         ),
                         maxLines: 2,
@@ -1158,7 +1164,7 @@ class _ScheduleRow extends StatelessWidget {
                     Text(
                       scheduledAt != null
                           ? formatLabel(scheduledAt!)
-                          : 'Tap to pick date & time',
+                          : AppLocalizations.of(context).enhTapToPickDateTime,
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: scheduledAt != null ? cs.onSurface : cs.outline,
@@ -1208,9 +1214,15 @@ class _SendButton extends StatelessWidget {
     final noun = recipientNoun.isEmpty
         ? recipientNoun
         : recipientNoun[0].toUpperCase() + recipientNoun.substring(1);
-    final label   = isScheduled && scheduledAt != null
-        ? 'Schedule for ${formatLabel(scheduledAt!)}'
-        : 'Send to $recipientCount $noun${recipientCount == 1 ? '' : 's'}';
+    final label = isScheduled && scheduledAt != null
+        ? AppLocalizations.of(
+            context,
+          ).enhScheduleFor((formatLabel(scheduledAt!)).toString())
+        : AppLocalizations.of(context).enhSendTo(
+            (recipientCount).toString(),
+            (noun).toString(),
+            (recipientCount == 1 ? '' : 's').toString(),
+          );
 
     return GestureDetector(
       onTap: canSend ? onSend : null,
@@ -1250,7 +1262,9 @@ class _SendButton extends StatelessWidget {
                 ),
               )
             : Text(
-                !isOnline ? AppLocalizations.of(context).offlineCannotSend : label,
+                !isOnline
+                    ? AppLocalizations.of(context).offlineCannotSend
+                    : label,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 15,
@@ -1280,11 +1294,11 @@ class _BroadcastHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n  = AppLocalizations.of(context);
-    final cfg   = _categoryConfig(broadcast.category, cs);
+    final l10n = AppLocalizations.of(context);
+    final cfg = _categoryConfig(broadcast.category, cs);
     // fetchRecentBroadcasts() filters out sent_at IS NULL rows, so this is
     // always populated here — pending/queued broadcasts never reach this card.
-    final time  = _timeLabel(l10n, broadcast.sentAt!);
+    final time = _timeLabel(context, l10n, broadcast.sentAt!);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1356,7 +1370,9 @@ class _BroadcastHistoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Recipients: ${broadcast.recipientLabel}',
+                  AppLocalizations.of(
+                    context,
+                  ).enhRecipients((broadcast.recipientLabel).toString()),
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: cs.onSurfaceVariant,
@@ -1384,7 +1400,9 @@ class _BroadcastHistoryCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${broadcast.recipientCount} delivered',
+                          AppLocalizations.of(
+                            context,
+                          ).enhDelivered((broadcast.recipientCount).toString()),
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -1438,36 +1456,37 @@ class _BroadcastHistoryCard extends StatelessWidget {
     }
   }
 
-  String _timeLabel(AppLocalizations l10n, DateTime dt) {
-    final now  = DateTime.now();
+  String _timeLabel(BuildContext context, AppLocalizations l10n, DateTime dt) {
+    final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 60) return '${l10n.broadcastToday}, ${_hhmm(dt)}';
-    if (diff.inDays == 0)    return '${l10n.broadcastToday}, ${_hhmm(dt)}';
-    if (diff.inDays == 1)
+    if (diff.inDays == 0) return '${l10n.broadcastToday}, ${_hhmm(dt)}';
+    if (diff.inDays == 1) {
       return '${l10n.buyerNotifTimeYesterday}, ${_hhmm(dt)}';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+    }
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${_hhmm(dt)}';
   }
 
   String _hhmm(DateTime dt) {
-    final h   = dt.hour > 12
+    final h = dt.hour > 12
         ? dt.hour - 12
         : dt.hour == 0
-            ? 12
-            : dt.hour;
+        ? 12
+        : dt.hour;
     final min = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     return '$h:$min $ampm';
@@ -1544,68 +1563,68 @@ class _TemplateSheet extends StatelessWidget {
           const SizedBox(height: 16),
           ...templates.map(
             (tpl) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSelected(tpl);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
+              padding: const EdgeInsets.only(bottom: 10),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  onSelected(tpl);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                      border: Border.all(
-                        color: cs.outline.withValues(alpha: 0.10),
-                      ),
+                    border: Border.all(
+                      color: cs.outline.withValues(alpha: 0.10),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: cs.primary.withValues(alpha: 0.10),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            _templateIcon(tpl.category),
-                            color: cs.primary,
-                            size: 20,
-                          ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: cs.primary.withValues(alpha: 0.10),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tpl.title,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onSurface,
-                                ),
-                              ),
-                              Text(
-                                broadcastCategoryLabel(l10n, tpl.category),
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: Icon(
+                          _templateIcon(tpl.category),
+                          color: cs.primary,
+                          size: 20,
                         ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tpl.title,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            Text(
+                              broadcastCategoryLabel(l10n, tpl.category),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       Icon(
                         Icons.chevron_right_rounded,
                         color: cs.outline,
                         size: 18,
                       ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
+              ),
             ),
           ),
         ],
@@ -1669,7 +1688,7 @@ class _EmptyHistory extends StatelessWidget {
           children: [
             Icon(
               Icons.campaign_outlined,
-                size: 40,
+              size: 40,
               color: cs.outline.withValues(alpha: 0.40),
             ),
             const SizedBox(height: 10),

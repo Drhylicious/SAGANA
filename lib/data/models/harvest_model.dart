@@ -1,4 +1,5 @@
 import '../../core/utils/quantity_utils.dart';
+import 'shelf_life_model.dart';
 
 class HarvestModel {
   final String id;
@@ -22,6 +23,16 @@ class HarvestModel {
   final String sourceType;
   final String? sourceProgramId;
 
+  /// The shelf life this harvest was given (days), from its own batch. Null
+  /// when the crop had none, or the harvest has not synced yet.
+  final int? shelfLifeDays;
+
+  /// Quantity of this harvest reported as rotten (a loss), in [unit].
+  final double spoiledKg;
+
+  /// Everything that was left of this harvest was reported as rotten.
+  final bool isLost;
+
   const HarvestModel({
     required this.id,
     required this.farmerId,
@@ -38,6 +49,9 @@ class HarvestModel {
     required this.createdAt,
     this.sourceType = 'self',
     this.sourceProgramId,
+    this.shelfLifeDays,
+    this.spoiledKg = 0,
+    this.isLost = false,
   });
 
   bool get isPending => !isSynced;
@@ -57,7 +71,26 @@ class HarvestModel {
   }
 
   factory HarvestModel.fromMap(Map<String, dynamic> map) {
+    // The harvest's own batch and its shelf-life row, when the query embedded
+    // them (inventory_batches(available_kg, reserved_kg, batch_shelf_life(*))).
+    final batches = map['inventory_batches'];
+    final batch = batches is List && batches.isNotEmpty
+        ? batches.first
+        : batches is Map
+        ? batches
+        : null;
+    final shelf = batch is Map
+        ? BatchShelfLife.fromEmbed(batch['batch_shelf_life'])
+        : null;
+    final left = batch is Map
+        ? ((batch['available_kg'] as num?)?.toDouble() ?? 0) +
+              ((batch['reserved_kg'] as num?)?.toDouble() ?? 0)
+        : 0.0;
+    final spoiled = shelf?.spoiledKg ?? 0;
     return HarvestModel(
+      shelfLifeDays: shelf?.defaultDays ?? shelf?.days,
+      spoiledKg: spoiled,
+      isLost: spoiled > 0 && left <= 0,
       id: map['id'] as String,
       farmerId: map['farmer_id'] as String,
       cropId: map['crop_id'] as String,

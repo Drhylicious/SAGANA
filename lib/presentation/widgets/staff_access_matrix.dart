@@ -121,7 +121,11 @@ class _Row extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(_moduleIcon(module), size: 20, color: AppConstants.primaryGreen),
+                Icon(
+                  _moduleIcon(module),
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

@@ -1,3 +1,5 @@
+import '../services/offline_actions.dart'
+    show isOfflineConnectionFailure, OfflineActionBlocked;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/client_id.dart';
 import '../../core/utils/quantity_utils.dart';
@@ -31,9 +33,14 @@ class HarvestEntryRepository {
     // Database key for this harvest. Kept with the queued record so a replay
     // that finds the row already on the server is recognized, not duplicated.
     final clientId = newClientId();
+    final owner = _userId;
     final isOnline = await ConnectivityService.instance.checkConnectivity();
 
-    if (!isOnline) {
+    Future<HarvestModel> queueLocally() async {
+      if (HiveService.getUserId() != owner ||
+          _client.auth.currentUser?.id != owner) {
+        throw const OfflineActionBlocked();
+      }
       final localId = await HiveService.savePendingHarvest({
         'client_id': clientId,
         'crop_id': cropId,
@@ -65,17 +72,26 @@ class HarvestEntryRepository {
       );
     }
 
-    return _submitOnline(
-      clientId: clientId,
-      cropId: cropId,
-      cropName: cropName,
-      cropCategory: cropCategory,
-      quantityKg: quantityKg,
-      unit: unit,
-      harvestDate: harvestDate,
-      variety: variety,
-      storageLocation: storageLocation,
-    );
+    if (!isOnline) return queueLocally();
+    try {
+      return await _submitOnline(
+        clientId: clientId,
+        cropId: cropId,
+        cropName: cropName,
+        cropCategory: cropCategory,
+        quantityKg: quantityKg,
+        unit: unit,
+        harvestDate: harvestDate,
+        variety: variety,
+        storageLocation: storageLocation,
+      );
+    } catch (error) {
+      if (!isOfflineConnectionFailure(error) &&
+          !(error is PostgrestException && error.code == '23505')) {
+        rethrow;
+      }
+      return queueLocally();
+    }
   }
 
   /// Performs the real harvest_records + inventory_batches writes against
@@ -110,6 +126,7 @@ class HarvestEntryRepository {
         .select()
         .eq('id', clientId)
         .maybeSingle();
+    final createdHere = harvestRow == null;
 
     // No batch_number is sent: the database issues it (and ignores a value
     // sent by anyone). The row comes back with the number it was given.
@@ -156,7 +173,8 @@ class HarvestEntryRepository {
             catalogRow['is_cooperative_eligible'] as bool? ?? false;
         cropType = catalogRow['crop_type'] as String?;
       }
-    } catch (_) {
+    } catch (error) {
+      if (isOfflineConnectionFailure(error)) rethrow;
       // Unlinked or unresolved crop — defaults to not eligible / unknown
       // market type, matches the "pending approval crops can't yet be
       // offered to the coop" rule.
@@ -164,9 +182,9 @@ class HarvestEntryRepository {
 
     // Auto-create inventory batch — required for this harvest to ever be
     // usable (listed, offered to the cooperative, or informally sold).
-    // If this insert fails, the harvest_records row is rolled back rather
-    // than left orphaned with no way for the farmer to recover it. A batch
-    // that already exists for this harvest is not inserted a second time.
+    // A lost response leaves the same harvest/batch identities available for
+    // replay. Never delete an existing harvest or an ambiguously committed
+    // batch: doing so could also cascade into stock already used elsewhere.
     try {
       final existingBatch = await _client
           .from('inventory_batches')
@@ -177,6 +195,7 @@ class HarvestEntryRepository {
         // The batch takes its number and unit from the harvest row in the
         // database; they are sent here only so the row is complete.
         await _client.from('inventory_batches').insert({
+          'id': clientId,
           'farmer_id': _userId,
           'harvest_record_id': harvest.id,
           'crop_id': cropId,
@@ -193,15 +212,22 @@ class HarvestEntryRepository {
         });
       }
     } catch (e) {
-      try {
-        await _client.from('harvest_records').delete().eq('id', harvest.id);
-      } catch (_) {
-        // Best-effort compensating rollback — if this also fails, the
-        // exception thrown below is still what reaches the caller.
+      if (isOfflineConnectionFailure(e)) rethrow;
+      // Only a confirmed rejection of a newly created batch can roll back
+      // this request's new harvest. A uniqueness conflict may be a replay
+      // whose first insert succeeded, so preserve it for the next lookup.
+      if (createdHere && e is PostgrestException && e.code != '23505') {
+        try {
+          await _client.from('harvest_records').delete().eq('id', harvest.id);
+        } catch (rollbackError) {
+          // Keep the stable request identity queued if the rollback's result
+          // is unknown, so a later sync can safely complete the record.
+          if (isOfflineConnectionFailure(rollbackError)) {
+            rethrow;
+          }
+        }
       }
-      throw Exception(
-        'Failed to create an inventory batch for this harvest. Nothing was saved — please try again.',
-      );
+      rethrow;
     }
 
     return harvest;

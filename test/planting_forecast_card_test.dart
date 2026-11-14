@@ -8,15 +8,12 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Center(
-            child: SizedBox(
-              width: 320,
-              child: const PlantingForecastSectionHeader(),
-            ),
+            child: SizedBox(width: 320, child: PlantingForecastSectionHeader()),
           ),
         ),
       ),

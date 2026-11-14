@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../navigation/connectivity_page_observer.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -121,6 +122,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   Future<void> _openFullMap() async {
     final result = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
+        settings: RouteSettings(name: ConnectivityPage.addressMap.name),
         fullscreenDialog: true,
         builder: (_) => LocationPinPickerScreen(
           title: AppLocalizations.of(context).buyerAddressMapSection,
@@ -289,253 +291,282 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
 
       body: Column(
         children: [
-          SubPageTopBar(title: _isEditing ? l10n.buyerAddressEditTitle : l10n.buyerAddressAddTitle, onBack: () => Navigator.of(context).pop()),
-          OfflineStatusCard(title: l10n.offlineStatusTitle, message: l10n.offlineBuyerBody),
-          Expanded(child: _isLoading
-          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spacingSafeH,
-                12,
-                AppConstants.spacingSafeH,
-                32,
-              ),
-              children: [
-                AddressSectionCard(
-                  title: l10n.buyerAddressLineField,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+          SubPageTopBar(
+            title: _isEditing
+                ? l10n.buyerAddressEditTitle
+                : l10n.buyerAddressAddTitle,
+            onBack: () => Navigator.of(context).pop(),
+          ),
+          OfflineStatusCard(
+            title: l10n.offlineStatusTitle,
+            message: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppConstants.spacingSafeH,
+                      12,
+                      AppConstants.spacingSafeH,
+                      32,
+                    ),
                     children: [
-                      if (_isLegacyAddress) ...[
-                        Text(
-                          l10n.buyerAddressLegacyNotice,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.warningAmber,
+                      AddressSectionCard(
+                        title: l10n.buyerAddressLineField,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_isLegacyAddress) ...[
+                              Text(
+                                l10n.buyerAddressLegacyNotice,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AppConstants.warningAmber,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            FixedFarmerAddressFields(
+                              streetController: _streetCtrl,
+                              buildingController: _buildingCtrl,
+                              houseNoController: _houseNoCtrl,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      AddressSectionCard(
+                        title: l10n.buyerAddressContactInfoSection,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _readOnlyField(
+                              icon: Icons.person_outline_rounded,
+                              label: l10n.buyerAddressFullNameField,
+                              value: _profileFullName.isNotEmpty
+                                  ? _profileFullName
+                                  : '—',
+                            ),
+                            Divider(
+                              height: 20,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withValues(alpha: 0.12),
+                            ),
+                            _readOnlyField(
+                              icon: Icons.phone_outlined,
+                              label: l10n.buyerAddressPhoneField,
+                              value: _profilePhone.isNotEmpty
+                                  ? _profilePhone
+                                  : '—',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      AddressSectionCard(
+                        title: l10n.buyerAddressMapSection,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: _locating
+                                      ? null
+                                      : _useCurrentLocation,
+                                  icon: Icon(
+                                    Icons.my_location_rounded,
+                                    size: 16,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  label: Text(
+                                    _locating
+                                        ? l10n.buyerAddressLocating
+                                        : l10n.buyerAddressUseCurrentLocation,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                if (_locationBlocked)
+                                  TextButton(
+                                    onPressed:
+                                        DeviceLocationService.openSettings,
+                                    child: Text(
+                                      l10n.buyerAddressOpenSettings,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (_locationMessage != null)
+                              Text(
+                                _locationMessage!,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AppConstants.warningAmber,
+                                ),
+                              ),
+                            if (_nearestMatch != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.buyerAddressNearestMatch(_nearestMatch!),
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                            if (_nearestUnavailable) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.buyerAddressNearestUnavailable,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AppConstants.warningAmber,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            ViewFullMapLink(
+                              onTap: _openFullMap,
+                              label: l10n.buyerAddressViewFullMap,
+                            ),
+                            const SizedBox(height: 10),
+                            AddressMapPreview(
+                              controller: _mapCtrl,
+                              pin: _pinnedLocation,
+                            ),
+                            const SizedBox(height: 6),
+                            const MapAttributionLinks(),
+                            if (_pinnedLocation == null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                l10n.buyerAddressMapRequiredHint,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AppConstants.warningAmber,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      AddressSectionCard(
+                        title: l10n.buyerAddressLabelSection,
+                        child: Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            for (final label in AppConstants.buyerAddressLabels)
+                              _LabelChip(
+                                label: label,
+                                selected: _selectedLabel == label,
+                                onTap: () =>
+                                    setState(() => _selectedLabel = label),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      AddressSectionCard(
+                        title: l10n.buyerAddressNotesField,
+                        child: TextField(
+                          controller: _notesCtrl,
+                          maxLines: 2,
+                          decoration: _fieldDecoration(
+                            hint: l10n.buyerAddressNotesHint,
                           ),
                         ),
-                        const SizedBox(height: 10),
-                      ],
-                      FixedFarmerAddressFields(
-                        streetController: _streetCtrl,
-                        buildingController: _buildingCtrl,
-                        houseNoController: _houseNoCtrl,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                AddressSectionCard(
-                  title: l10n.buyerAddressContactInfoSection,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _readOnlyField(
-                        icon: Icons.person_outline_rounded,
-                        label: l10n.buyerAddressFullNameField,
-                        value: _profileFullName.isNotEmpty
-                            ? _profileFullName
-                            : '—',
-                      ),
-                      Divider(
-                        height: 20,
-                        color: AppConstants.outline.withValues(alpha: 0.12),
-                      ),
-                      _readOnlyField(
-                        icon: Icons.phone_outlined,
-                        label: l10n.buyerAddressPhoneField,
-                        value: _profilePhone.isNotEmpty ? _profilePhone : '—',
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                AddressSectionCard(
-                  title: l10n.buyerAddressMapSection,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        children: [
-                          TextButton.icon(
-                            onPressed: _locating ? null : _useCurrentLocation,
-                            icon: const Icon(
-                              Icons.my_location_rounded,
-                              size: 16,
-                              color: AppConstants.primaryGreen,
-                            ),
-                            label: Text(
-                              _locating
-                                  ? l10n.buyerAddressLocating
-                                  : l10n.buyerAddressUseCurrentLocation,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppConstants.primaryGreen,
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: sagana.cardBackground,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusLg,
+                          ),
+                          border: AppConstants.cardBorder,
+                          boxShadow: AppConstants.cardShadow,
+                        ),
+                        child: Row(
+                          children: [
+                            Transform.translate(
+                              offset: const Offset(-6, 0),
+                              child: Checkbox(
+                                value: _isDefault,
+                                activeColor: AppConstants.primaryGreen,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                onChanged: (v) =>
+                                    setState(() => _isDefault = v ?? false),
                               ),
                             ),
-                          ),
-                          if (_locationBlocked)
-                            TextButton(
-                              onPressed: DeviceLocationService.openSettings,
+                            const SizedBox(width: 4),
+                            Expanded(
                               child: Text(
-                                l10n.buyerAddressOpenSettings,
+                                l10n.buyerAddressSetDefaultCheckbox,
                                 style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      if (_locationMessage != null)
-                        Text(
-                          _locationMessage!,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.warningAmber,
-                          ),
+                          ],
                         ),
-                      if (_nearestMatch != null) ...[
-                        const SizedBox(height: 4),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 10),
                         Text(
-                          l10n.buyerAddressNearestMatch(_nearestMatch!),
+                          _error!,
                           style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant,
+                            fontSize: 12,
+                            color: AppConstants.errorRed,
                           ),
                         ),
                       ],
-                      if (_nearestUnavailable) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.buyerAddressNearestUnavailable,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.warningAmber,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      ViewFullMapLink(
-                        onTap: _openFullMap,
-                        label: l10n.buyerAddressViewFullMap,
-                      ),
-                      const SizedBox(height: 10),
-                      AddressMapPreview(
-                        controller: _mapCtrl,
-                        pin: _pinnedLocation,
-                      ),
-                      const SizedBox(height: 6),
-                      const MapAttributionLinks(),
-                      if (_pinnedLocation == null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.buyerAddressMapRequiredHint,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.warningAmber,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                AddressSectionCard(
-                  title: l10n.buyerAddressLabelSection,
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      for (final label in AppConstants.buyerAddressLabels)
-                        _LabelChip(
-                          label: label,
-                          selected: _selectedLabel == label,
-                          onTap: () => setState(() => _selectedLabel = label),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                AddressSectionCard(
-                  title: l10n.buyerAddressNotesField,
-                  child: TextField(
-                    controller: _notesCtrl,
-                    maxLines: 2,
-                    decoration: _fieldDecoration(
-                      hint: l10n.buyerAddressNotesHint,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: sagana.cardBackground,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    border: AppConstants.cardBorder,
-                    boxShadow: AppConstants.cardShadow,
-                  ),
-                  child: Row(
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(-6, 0),
-                        child: Checkbox(
-                          value: _isDefault,
-                          activeColor: AppConstants.primaryGreen,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                          onChanged: (v) =>
-                              setState(() => _isDefault = v ?? false),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          l10n.buyerAddressSetDefaultCheckbox,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: PrimaryButton(
+                          label: l10n.buyerAddressSave,
+                          isLoading: _isSubmitting,
+                          onPressed: _isSubmitting ? null : _save,
                         ),
                       ),
                     ],
                   ),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    _error!,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppConstants.errorRed,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: PrimaryButton(
-                    label: l10n.buyerAddressSave,
-                    isLoading: _isSubmitting,
-                    onPressed: _isSubmitting ? null : _save,
-                  ),
-                ),
-              ],
-            )),
+          ),
         ],
       ),
     );
@@ -548,7 +579,11 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   }) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppConstants.onSurfaceVariant),
+        Icon(
+          icon,
+          size: 18,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -558,7 +593,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 label,
                 style: GoogleFonts.inter(
                   fontSize: 10,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               Text(
@@ -574,7 +609,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
         Icon(
           Icons.lock_outline_rounded,
           size: 14,
-          color: AppConstants.outline.withValues(alpha: 0.6),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
         ),
       ],
     );
@@ -585,14 +620,14 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
       hintText: hint,
       hintStyle: GoogleFonts.inter(
         fontSize: 13,
-        color: AppConstants.outline.withValues(alpha: 0.6),
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
       ),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: context.saganaColors.cardBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         borderSide: BorderSide(
-          color: AppConstants.outline.withValues(alpha: 0.2),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
       contentPadding: const EdgeInsets.all(12),
@@ -637,7 +672,7 @@ class _LabelChip extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? AppConstants.primaryGreen
-                : AppConstants.outline.withValues(alpha: 0.25),
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
           ),
         ),
         child: Row(
@@ -646,7 +681,9 @@ class _LabelChip extends StatelessWidget {
             Icon(
               _icon,
               size: 15,
-              color: selected ? Colors.white : AppConstants.primaryGreen,
+              color: selected
+                  ? Colors.white
+                  : Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 6),
             Text(
@@ -654,7 +691,9 @@ class _LabelChip extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: selected ? Colors.white : AppConstants.onSurface,
+                color: selected
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ],

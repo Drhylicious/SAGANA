@@ -40,6 +40,8 @@ void main() {
       'supabase_schema/supabase_schema_unify_m05_marketplace_payment_place_order.sql',
       // m07 adds the separate Pickup switch (Manager-only function, registered under Marketplace).
       'supabase_schema/supabase_schema_unify_m07_pickup_switch_location_guards.sql',
+      // 22 registers the shelf-life, crop-request and newer program actions under Dashboard.
+      'supabase_schema/supabase_schema_officer_permissions_22_shelf_life_and_program_actions.sql',
     ])
       for (final m in RegExp(r"\('(table|rpc)',\s*'(\w+)',\s*'(\w+)'\)").allMatches(read(script)))
         '${m.group(1)}:${m.group(2)}': m.group(3)!,
@@ -104,6 +106,11 @@ void main() {
     'rpc:get_my_activity_share', // read: only the caller's own two percentages
     'rpc:get_my_outcome_reports', // read: the Farmer's own outcome reports; no staff identity
     'rpc:submit_program_outcome_report', // a Farmer files their own outcome report
+    'rpc:request_program_redistribution', // a Farmer asks for another item after their own failed outcome
+    // Farmer: their own harvest batches (still good / rotten) and the price rule of their own batch
+    'rpc:confirm_batch_still_good', 'rpc:report_batch_rotten', 'rpc:get_listing_price_rule',
+    // The daily shelf-life pass, also run when a screen opens. Idempotent; it acts on dates only.
+    'rpc:process_shelf_life',
   };
 
   /// Staff can do these and the gate does not stop a View Only Officer, on
@@ -130,6 +137,10 @@ void main() {
     // overdue); staff-only in the database. Governing it would break opening
     // Loans for a View Only Officer.
     'rpc:transition_overdue_loans',
+    // Sends the inspection notices that are due when Inventory opens; idempotent, changes no stock.
+    'rpc:process_cooperative_shelf_life',
+    'rpc:get_price_update_required_listings', // read: listings priced outside their Reference Price
+    'rpc:get_supply_chain_records', 'rpc:get_supply_chain_totals', // reads: the Supply Chain tracking view
   };
 
   /// Staff screens that only the Manager can use, refused by the database itself
@@ -200,7 +211,7 @@ void main() {
       'lib/presentation/screens/admin/program_management_screen.dart': {'dashboard'},
       'lib/presentation/screens/admin/program_outcome_detail_screen.dart': {'dashboard'},
       'lib/presentation/screens/admin/program_products_screen.dart': {'dashboard'},
-      'lib/presentation/screens/admin/assistance_requests_screen.dart': {'loans'},
+      'lib/presentation/widgets/assistance_request_card.dart': {'loans'},
       'lib/presentation/screens/admin/farmer_details_screen.dart': {'members'},
       'lib/presentation/screens/admin/farmer_management_screen.dart': {'members'}, // plus the loan actions (variable)
       'lib/presentation/screens/admin/manage_accounts_screen.dart': {'members'},

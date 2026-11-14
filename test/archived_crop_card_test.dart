@@ -78,7 +78,8 @@ void main() {
         expect(find.text('ARCHIVED'), findsOneWidget);
         expect(find.text('Public Market'), findsOneWidget);
         expect(find.text('Restore'), findsOneWidget);
-        expect(find.text('Delete'), findsOneWidget);
+        // A crop is archived, never deleted: Restore is the only action.
+        expect(find.text('Delete'), findsNothing);
         expect(tester.takeException(), isNull);
       });
     });

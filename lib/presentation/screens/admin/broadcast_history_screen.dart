@@ -109,177 +109,188 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
 
       body: Column(
         children: [
-          SubPageTopBar(title: l10n.broadcastHistoryTitle, onBack: () => context.pop()),
-          Expanded(child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          SubPageTopBar(
+            title: l10n.broadcastHistoryTitle,
+            onBack: () => context.pop(),
+          ),
+          Expanded(
             child: Column(
               children: [
-                TextField(
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    hintText: l10n.broadcastHistorySearchHint,
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    filled: true,
-                    fillColor: sagana.cardBackground,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusLg,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchCtrl,
+                        decoration: InputDecoration(
+                          hintText: l10n.broadcastHistorySearchHint,
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          filled: true,
+                          fillColor: sagana.cardBackground,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusLg,
+                            ),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
-                      borderSide: BorderSide.none,
-                    ),
+                      const SizedBox(height: 10),
+                      AppDropdownField<String>(
+                        value: _selectedCategory?.value ?? _allCategoriesValue,
+                        hintText: l10n.broadcastHistoryCategoryLabel,
+                        labelText: l10n.broadcastHistoryCategoryLabel,
+                        items: [
+                          _allCategoriesValue,
+                          ...BroadcastCategory.values.map((cat) => cat.value),
+                        ],
+                        itemLabel: (v) => v == _allCategoriesValue
+                            ? l10n.broadcastHistoryAllCategories
+                            : broadcastCategoryLabel(
+                                l10n,
+                                BroadcastCategoryExt.fromString(v),
+                              ),
+                        onChanged: (value) => setState(() {
+                          _selectedCategory =
+                              value == null || value == _allCategoriesValue
+                              ? null
+                              : BroadcastCategoryExt.fromString(value);
+                        }),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                AppDropdownField<String>(
-                  value: _selectedCategory?.value ?? _allCategoriesValue,
-                  hintText: l10n.broadcastHistoryCategoryLabel,
-                    labelText: l10n.broadcastHistoryCategoryLabel,
-                  items: [
-                    _allCategoriesValue,
-                    ...BroadcastCategory.values.map((cat) => cat.value),
-                  ],
-                  itemLabel: (v) => v == _allCategoriesValue
-                      ? l10n.broadcastHistoryAllCategories
-                      : broadcastCategoryLabel(
-                          l10n,
-                          BroadcastCategoryExt.fromString(v),
+                Expanded(
+                  child: _isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
+                      : _filteredItems.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Text(
+                              l10n.broadcastHistoryNoResults,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                          itemCount: _filteredItems.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final item = _filteredItems[index];
+                            final timeLabel = item.isPending
+                                ? l10n.broadcastScheduledFor(
+                                    formatBroadcastSchedule(item.scheduledAt!),
+                                    item.recipientCount,
+                                  )
+                                : _formatTime(l10n, item.sentAt!);
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: sagana.cardBackground,
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusLg,
+                                ),
+                                border: Border.all(
+                                  color: cs.outline.withValues(alpha: 0.12),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          item.title,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: cs.onSurface,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppConstants.primaryGreen
+                                              .withValues(alpha: 0.10),
+                                          borderRadius: BorderRadius.circular(
+                                            AppConstants.radiusFull,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item.category.label.toUpperCase(),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    item.body,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.people_alt_rounded,
+                                        size: 14,
+                                        color: cs.primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${item.recipientCount} • ${item.recipientLabel}',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        timeLabel,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: cs.outline,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                  onChanged: (value) => setState(() {
-                    _selectedCategory =
-                        value == null || value == _allCategoriesValue
-                        ? null
-                        : BroadcastCategoryExt.fromString(value);
-                  }),
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
-                : _filteredItems.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        l10n.broadcastHistoryNoResults,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: _filteredItems.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final item = _filteredItems[index];
-                      final timeLabel = item.isPending
-                          ? l10n.broadcastScheduledFor(
-                              formatBroadcastSchedule(item.scheduledAt!),
-                              item.recipientCount,
-                            )
-                          : _formatTime(l10n, item.sentAt!);
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: sagana.cardBackground,
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusLg,
-                          ),
-                          border: Border.all(
-                            color: cs.outline.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item.title,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: cs.onSurface,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppConstants.primaryGreen.withValues(
-                                      alpha: 0.10,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      AppConstants.radiusFull,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    item.category.label.toUpperCase(),
-                                    style: GoogleFonts.inter(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppConstants.primaryGreen,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              item.body,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.people_alt_rounded,
-                                  size: 14,
-                                  color: cs.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${item.recipientCount} • ${item.recipientLabel}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: cs.onSurfaceVariant,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  timeLabel,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: cs.outline,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      )),
         ],
       ),
     );

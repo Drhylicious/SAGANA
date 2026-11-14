@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -39,9 +40,10 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: (constraints.maxHeight -
-                            2 * AppConstants.spacingSectionV)
-                        .clamp(0, double.infinity),
+                    minHeight:
+                        (constraints.maxHeight -
+                                2 * AppConstants.spacingSectionV)
+                            .clamp(0, double.infinity),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -55,11 +57,12 @@ class WelcomeScreen extends StatelessWidget {
                               height: 96,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Colors.white,
+                                color: context.saganaColors.cardBackground,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppConstants.primaryGreen
-                                        .withValues(alpha: 0.18),
+                                    color: AppConstants.primaryGreen.withValues(
+                                      alpha: 0.18,
+                                    ),
                                     blurRadius: 24,
                                     offset: const Offset(0, 8),
                                   ),
@@ -78,7 +81,7 @@ class WelcomeScreen extends StatelessWidget {
                                 fontSize: 30,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 6,
-                                color: AppConstants.primaryGreen,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -96,7 +99,9 @@ class WelcomeScreen extends StatelessWidget {
                               textAlign: TextAlign.center,
                               style: GoogleFonts.inter(
                                 fontSize: 14,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -113,8 +118,7 @@ class WelcomeScreen extends StatelessWidget {
                                 icon: Icons.storefront_rounded,
                                 title: l10n.guestExploreAsBuyer,
                                 hint: l10n.guestExploreAsBuyerHint,
-                                onTap: () =>
-                                    _explore(context, GuestRole.buyer),
+                                onTap: () => _explore(context, GuestRole.buyer),
                               ),
                               const SizedBox(height: 12),
                               _ExploreOption(
@@ -139,7 +143,9 @@ class WelcomeScreen extends StatelessWidget {
                               l10n.guestAlreadyHaveAccount,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
-                                color: AppConstants.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                             TextButton(
@@ -148,7 +154,7 @@ class WelcomeScreen extends StatelessWidget {
                                 l10n.guestLogin,
                                 style: GoogleFonts.poppins(
                                   fontWeight: FontWeight.w700,
-                                  color: AppConstants.primaryGreen,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                             ),
@@ -183,7 +189,7 @@ class _ExploreOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withValues(alpha: 0.75),
+      color: context.saganaColors.cardBackground.withValues(alpha: 0.75),
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -199,7 +205,7 @@ class _ExploreOption extends StatelessWidget {
                   color: AppConstants.primaryGreen.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
-                child: Icon(icon, color: AppConstants.primaryGreen),
+                child: Icon(icon, color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -218,15 +224,15 @@ class _ExploreOption extends StatelessWidget {
                       hint,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: AppConstants.outline,
+                color: Theme.of(context).colorScheme.outline,
               ),
             ],
           ),

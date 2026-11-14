@@ -1,4 +1,8 @@
+import '../../core/l10n/localized_labels.dart';
+import '../../core/theme/sagana_colors.dart';
+import '../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -64,10 +68,13 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   List<Map<String, dynamic>> _catalog = [];
   List<Map<String, dynamic>> _filtered = [];
   bool _isLoading = true;
-  String? _addingId; // tracks which tile is mid-submit, for a small inline spinner
+  String?
+  _addingId; // tracks which tile is mid-submit, for a small inline spinner
 
   // ── Request step state ──
   final _nameController = TextEditingController();
+  final _shelfLifeController = TextEditingController();
+  String? _shelfLifeError;
   List<String> _categories = [];
   String? _category;
   String? _cropType = MarketTypes.instance.defaultCode;
@@ -84,6 +91,7 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   void dispose() {
     _searchController.dispose();
     _nameController.dispose();
+    _shelfLifeController.dispose();
     super.dispose();
   }
 
@@ -96,7 +104,9 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
     final catalog = results[0] as List<Map<String, dynamic>>;
     setState(() {
       _catalog = catalog
-          .where((c) => !widget.existingCropMasterIds.contains(c['id'] as String))
+          .where(
+            (c) => !widget.existingCropMasterIds.contains(c['id'] as String),
+          )
           .toList();
       _filtered = _catalog;
       _categories = results[1] as List<String>;
@@ -110,8 +120,11 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
       _filtered = query.isEmpty
           ? _catalog
           : _catalog
-              .where((c) => (c['crop_name'] as String).toLowerCase().contains(query))
-              .toList();
+                .where(
+                  (c) =>
+                      (c['crop_name'] as String).toLowerCase().contains(query),
+                )
+                .toList();
     });
   }
 
@@ -129,8 +142,10 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
         setState(() => _addingId = null);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not add crop. Please try again.',
-                style: GoogleFonts.inter(fontSize: 13)),
+            content: Text(
+              AppLocalizations.of(context).enhCouldNotAddCropPleaseTryAgain,
+              style: GoogleFonts.inter(fontSize: 13),
+            ),
           ),
         );
       }
@@ -146,7 +161,19 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
     if (name.isEmpty) return;
     if (_category == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a category.')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).enhPleaseSelectACategory),
+        ),
+      );
+      return;
+    }
+    // Shelf life is required: a whole number of days.
+    final shelfLifeDays = int.tryParse(_shelfLifeController.text.trim());
+    if (shelfLifeDays == null || shelfLifeDays < 1 || shelfLifeDays > 3650) {
+      setState(
+        () => _shelfLifeError = _shelfLifeController.text.trim().isEmpty
+            ? AppLocalizations.of(context).cropMgmtShelfLifeRequired
+            : AppLocalizations.of(context).cropMgmtShelfLifeInvalid,
       );
       return;
     }
@@ -157,6 +184,7 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
         cropName: name,
         category: _category!,
         cropType: _cropType,
+        shelfLifeDays: shelfLifeDays,
       );
       // The crop is usable immediately (per the copy below) — closing the
       // whole modal here, rather than bouncing back to Browse, since the
@@ -167,8 +195,12 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not submit request. Please try again.',
-                style: GoogleFonts.inter(fontSize: 13)),
+            content: Text(
+              AppLocalizations.of(
+                context,
+              ).enhCouldNotSubmitRequestPleaseTryAgain,
+              style: GoogleFonts.inter(fontSize: 13),
+            ),
           ),
         );
       }
@@ -179,16 +211,15 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   Widget build(BuildContext context) {
     if (_step == _CropCatalogStep.request) {
       return ManagementModalShell(
-        title: 'Request New Crop',
-        subtitle:
-            "You can use this crop right away — SP3 will review and add it to the official list.",
+        title: AppLocalizations.of(context).enhRequestNewCrop,
+        subtitle: AppLocalizations.of(context).enhYouCanUseThisCropRightAwaySP,
         body: _buildRequestBody(),
         footer: _buildRequestFooter(context),
       );
     }
     return ManagementModalShell(
-      title: 'Add a Crop to Grow',
-      subtitle: "Choose from SP3's official crop list.",
+      title: AppLocalizations.of(context).enhAddACropToGrow,
+      subtitle: AppLocalizations.of(context).enhChooseFromSPSOfficialCropList,
       body: _buildBrowseBody(context),
     );
   }
@@ -203,11 +234,14 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
         TextField(
           controller: _searchController,
           decoration: InputDecoration(
-            hintText: 'Search crops',
+            hintText: AppLocalizations.of(context).enhSearchCrops,
             prefixIcon: const Icon(Icons.search_rounded, size: 20),
             filled: true,
-            fillColor: AppConstants.offWhite,
-            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+            fillColor: context.saganaColors.scaffoldBackground,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 0,
+              horizontal: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               borderSide: BorderSide.none,
@@ -225,9 +259,16 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
               _catalog.isEmpty
-                  ? "You've already added every crop in the catalog."
-                  : 'No matches. Try a different search, or request a new crop below.',
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                  ? AppLocalizations.of(
+                      context,
+                    ).enhYouVeAlreadyAddedEveryCropInThe
+                  : AppLocalizations.of(
+                      context,
+                    ).enhNoMatchesTryADifferentSearchOrRequest,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           )
         else
@@ -257,20 +298,46 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
                     ),
                     child: (imageUrl != null && imageUrl.isNotEmpty)
                         ? Image.network(imageUrl, fit: BoxFit.cover)
-                        : const Icon(Icons.eco_rounded,
-                            color: AppConstants.primaryGreen, size: 20),
+                        : Icon(
+                            Icons.eco_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 20,
+                          ),
                   ),
-                  title: Text(entry['crop_name'] as String,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+                  title: Text(
+                    entry['crop_name'] as String,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                          '${entry['category']} · ${marketTypeLabelFor(entry['crop_type'] as String?)}',
-                          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                        '${entry['category']} · ${marketTypeLabelFor(entry['crop_type'] as String?)}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (entry['shelf_life_days'] != null)
+                        Text(
+                          AppLocalizations.of(context).cropCatalogShelfLife(
+                            (entry['shelf_life_days'] as num).toInt(),
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       if (entry['exclusive_channel'] != null) ...[
                         const SizedBox(height: 4),
-                        ChannelOnlyBadge(channel: entry['exclusive_channel'] as String?),
+                        ChannelOnlyBadge(
+                          channel: entry['exclusive_channel'] as String?,
+                        ),
                       ],
                     ],
                   ),
@@ -279,10 +346,14 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppConstants.primaryGreen),
+                            strokeWidth: 2,
+                            color: AppConstants.primaryGreen,
+                          ),
                         )
-                      : const Icon(Icons.add_circle_outline_rounded,
-                          color: AppConstants.primaryGreen),
+                      : Icon(
+                          Icons.add_circle_outline_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                   onTap: isAdding ? null : () => _addFromCatalog(entry),
                 );
               },
@@ -292,16 +363,25 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
         const Divider(height: 1),
         MaterialListTile(
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.help_outline_rounded, color: AppConstants.onSurfaceVariant),
+          leading: Icon(
+            Icons.help_outline_rounded,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           title: Text(
-            "Can't find your crop?",
+            AppLocalizations.of(context).enhCanTFindYourCrop,
             style: GoogleFonts.poppins(
-                fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           subtitle: Text(
-            'Request New Crop',
+            AppLocalizations.of(context).enhRequestNewCrop,
             style: GoogleFonts.poppins(
-                fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           onTap: _goToRequestStep,
         ),
@@ -310,6 +390,36 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   }
 
   // ── Request step ───────────────────────────────────────────────────────
+
+  // One look for the four request fields. A text field is 56 px tall with
+  // this text style and padding; a dropdown given 54 lines up with it (the
+  // same pairing Price Management uses for its Price and Unit fields).
+  static const double _fieldGap = 16;
+  static const double _dropdownHeight = 54;
+  static const EdgeInsets _fieldPadding = EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 16,
+  );
+
+  TextStyle get _fieldTextStyle => GoogleFonts.inter(
+    fontSize: 16,
+    height: 1.5,
+    color: Theme.of(context).colorScheme.onSurface,
+  );
+
+  // The same label the dropdowns draw above themselves.
+  Widget _fieldLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
 
   Widget _buildRequestBody() {
     return Column(
@@ -321,53 +431,103 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.arrow_back_rounded, size: 16, color: AppConstants.primaryGreen),
+              Icon(
+                Icons.arrow_back_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 4),
               Text(
-                'Back to crop list',
+                AppLocalizations.of(context).enhBackToCropList,
                 style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
+        // Every field: its label above, the same height, the same gap.
+        _fieldLabel(AppLocalizations.of(context).enhCropName),
         TextField(
           controller: _nameController,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Crop name'),
+          style: _fieldTextStyle,
+          decoration: const InputDecoration(contentPadding: _fieldPadding),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: _fieldGap),
         AppDropdownField<String>(
           value: _category,
-          hintText: 'Select a category',
-          labelText: 'Category',
+          fieldHeight: _dropdownHeight,
+          hintText: AppLocalizations.of(context).commonSelectCategory,
+          labelText: AppLocalizations.of(context).buyerListingCategory,
           items: _categories,
-          itemLabel: (c) => c,
+          itemLabel: (c) =>
+              localizeBuiltinLabel(AppLocalizations.of(context), c),
           onChanged: (v) => setState(() => _category = v),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: _fieldGap),
         AppDropdownField<String>(
           value: _cropType,
-          hintText: 'Select a market type',
-          labelText: 'Market Type (SP3 will confirm)',
+          fieldHeight: _dropdownHeight,
+          hintText: AppLocalizations.of(context).cropMgmtMarketTypeHint,
+          labelText: AppLocalizations.of(context).enhMarketTypeSPWillConfirm,
           items: MarketTypes.instance.activeTypes.map((t) => t.code).toList(),
           itemLabel: (v) => MarketTypes.instance.label(v),
           onChanged: (v) => setState(() => _cropType = v ?? _cropType),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: _fieldGap),
+        _fieldLabel(AppLocalizations.of(context).shelfLifeLabel),
+        // Shelf life: the Farmer knows their crop, so they state how long a
+        // harvest of it stays good. It becomes the crop's shelf life when the
+        // cooperative approves the request.
+        TextField(
+          controller: _shelfLifeController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(4),
+          ],
+          onChanged: (_) {
+            if (_shelfLifeError != null) setState(() => _shelfLifeError = null);
+          },
+          style: _fieldTextStyle,
+          decoration: InputDecoration(
+            contentPadding: _fieldPadding,
+            hintText: AppLocalizations.of(context).cropMgmtShelfLifeHint,
+            suffixText: AppLocalizations.of(context).shelfDaysUnit,
+            errorText: _shelfLifeError,
+            errorMaxLines: 2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          AppLocalizations.of(context).cropMgmtShelfLifeHelp,
+          style: GoogleFonts.inter(
+            fontSize: 11.5,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: _fieldGap),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.photo_camera_outlined,
-                size: 16, color: AppConstants.onSurfaceVariant),
+            Icon(
+              Icons.photo_camera_outlined,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'No photo needed for a request. Once the crop is added, take a '
-                'photo of your actual crop from Crop Roster to sell it.',
+                AppLocalizations.of(context).enhNoPhotoNeededForARequestOnceThe,
                 style: GoogleFonts.inter(
-                    fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -375,7 +535,6 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
       ],
     );
   }
-
 
   Widget _buildRequestFooter(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -392,8 +551,11 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
             ),
             onPressed: _isSubmitting ? null : _goBackToBrowse,
             child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: cs.onSurface),
+              AppLocalizations.of(context).cancel,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
             ),
           ),
         ),
@@ -406,13 +568,18 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
-                : Text('Submit', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                : Text(
+                    AppLocalizations.of(context).createAccountSubmitConfirm,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  ),
           ),
         ),
       ],
     );
   }
 }
-

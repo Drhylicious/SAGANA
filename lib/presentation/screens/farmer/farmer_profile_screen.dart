@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -175,7 +176,9 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   // Only the Annual Yield / Annual Earnings tiles change when another year is
   // chosen, so only they reload (the rest of the screen stays as it is).
   Future<void> _selectYear(int year) async {
-    if (year == _selectedYear || year > DateTime.now().year || year < _kFirstYear) {
+    if (year == _selectedYear ||
+        year > DateTime.now().year ||
+        year < _kFirstYear) {
       return;
     }
     setState(() {
@@ -193,7 +196,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -201,7 +204,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 64),
+                    const TopBarSpacer(height: 64),
                     CachedDataNotice(
                       screen: 'profile_user_info',
                       otherScreens: const [
@@ -244,14 +247,16 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                       final isOnline = await ConnectivityService
                                           .instance
                                           .checkConnectivity();
+                                      if (!context.mounted) return;
                                       if (!isOnline) {
-                                        if (!mounted) return;
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
-                                          const SnackBar(
+                                          SnackBar(
                                             content: Text(
-                                              'No internet connection. Records will sync automatically once you\'re back online.',
+                                              AppLocalizations.of(
+                                                context,
+                                              ).enhNoInternetConnectionRecordsWillSyncAutomaticallyOnce,
                                             ),
                                           ),
                                         );
@@ -260,8 +265,12 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Syncing records...'),
+                                        SnackBar(
+                                          content: Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            ).enhSyncingRecords,
+                                          ),
                                         ),
                                       );
                                       // No explicit _loadData() call here anymore —
@@ -330,9 +339,15 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                   const _CooperativeBenefitsHeader(),
                                   _RecordRow(
                                     icon: Icons.volunteer_activism_rounded,
-                                    title: 'Programs',
-                                    subtitle:
-                                        '$_programCount active program${_programCount == 1 ? '' : 's'}',
+                                    title: AppLocalizations.of(
+                                      context,
+                                    ).farmerDetailsTabPrograms,
+                                    subtitle: AppLocalizations.of(context)
+                                        .enhActiveProgram(
+                                          (_programCount).toString(),
+                                          (_programCount == 1 ? '' : 's')
+                                              .toString(),
+                                        ),
                                     onTap: () =>
                                         context.pushRoute(AppRoutes.myPrograms),
                                   ),
@@ -342,9 +357,10 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                     title: AppLocalizations.of(
                                       context,
                                     ).receivedItemsTitle,
-                                    subtitle: AppLocalizations.of(
-                                      context,
-                                    ).receivedItemsRowSubtitle(_receivedItemCount),
+                                    subtitle: AppLocalizations.of(context)
+                                        .receivedItemsRowSubtitle(
+                                          _receivedItemCount,
+                                        ),
                                     onTap: () => context.pushRoute(
                                       AppRoutes.receivedItems,
                                     ),
@@ -353,7 +369,9 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                     const SizedBox(height: 8),
                                     _RecordRow(
                                       icon: Icons.eco_rounded,
-                                      title: 'DA-AMAD Market Linking',
+                                      title: AppLocalizations.of(
+                                        context,
+                                      ).sellingTypeDaAmadMarketLinking,
                                       subtitle: _marketLinkingSubtitle(
                                         AppLocalizations.of(context),
                                       ),
@@ -365,9 +383,15 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                   const SizedBox(height: 8),
                                   _RecordRow(
                                     icon: Icons.groups_outlined,
-                                    title: 'Balik-Tangkilik & Capital Share',
-                                    subtitle:
-                                        'Capital Shares: ₱${_profile!.capitalShares.toStringAsFixed(2)}',
+                                    title: AppLocalizations.of(
+                                      context,
+                                    ).enhBalikTangkilikCapitalShare,
+                                    subtitle: AppLocalizations.of(context)
+                                        .enhCapitalShares(
+                                          (_profile!.capitalShares
+                                                  .toStringAsFixed(2))
+                                              .toString(),
+                                        ),
                                     onTap: () => context.pushRoute(
                                       AppRoutes.myContribution,
                                     ),
@@ -384,7 +408,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Profile',
+                    title: AppLocalizations.of(context).navProfile,
                     profilePhotoUrl: _profile?.profilePhotoUrl,
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
@@ -495,7 +519,13 @@ class _ProfileHeaderCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         _StatusBadge(
-                          label: isSuspended ? 'SUSPENDED' : 'ACTIVE',
+                          label: isSuspended
+                              ? AppLocalizations.of(
+                                  context,
+                                ).buyerMgmtSuspendedBadge
+                              : AppLocalizations.of(
+                                  context,
+                                ).farmerMgmtActiveBadge,
                           color: isSuspended
                               ? AppConstants.errorRed
                               : AppConstants.successGreen,
@@ -527,7 +557,9 @@ class _ProfileHeaderCard extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: AppConstants.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                 ),
                               ),
                               // Only shown for verified members — a
@@ -536,11 +568,13 @@ class _ProfileHeaderCard extends StatelessWidget {
                               if (isApprovedMember) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Farmer Member',
+                                  AppLocalizations.of(context).enhFarmerMember,
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: AppConstants.primaryGreen,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                                 ),
                               ],
@@ -605,7 +639,13 @@ class _ProfileHeaderCard extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 10),
                                   Text(
-                                    '$unsyncedCount unsynced record${unsyncedCount == 1 ? '' : 's'}',
+                                    AppLocalizations.of(
+                                      context,
+                                    ).enhUnsyncedRecord(
+                                      (unsyncedCount).toString(),
+                                      (unsyncedCount == 1 ? '' : 's')
+                                          .toString(),
+                                    ),
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
@@ -615,7 +655,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                                 ],
                               ),
                               Text(
-                                'SYNC NOW',
+                                AppLocalizations.of(context).enhSYNCNOW,
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
@@ -676,7 +716,11 @@ class _ContactLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 13, color: AppConstants.onSurfaceVariant),
+        Icon(
+          icon,
+          size: 13,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -685,7 +729,7 @@ class _ContactLine extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -716,7 +760,7 @@ class _FarmDetailsSection extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.50)),
         boxShadow: [
@@ -739,9 +783,9 @@ class _FarmDetailsSection extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.agriculture_rounded,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -750,7 +794,7 @@ class _FarmDetailsSection extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: AppConstants.primaryGreen,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ],
@@ -759,7 +803,7 @@ class _FarmDetailsSection extends StatelessWidget {
                       expanded
                           ? Icons.expand_less_rounded
                           : Icons.expand_more_rounded,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ],
                 ),
@@ -775,26 +819,30 @@ class _FarmDetailsSection extends StatelessWidget {
                       children: [
                         Expanded(
                           child: _DetailField(
-                            label: 'Farm Name',
-                            value: profile.farmName ?? 'Not set',
+                            label: AppLocalizations.of(
+                              context,
+                            ).memberProfileFarmName,
+                            value:
+                                profile.farmName ??
+                                AppLocalizations.of(context).pendingNotSet,
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _DetailField(
-                            label: 'Land Area',
+                            label: AppLocalizations.of(context).enhLandArea,
                             value: profile.landAreaHectares != null
                                 ? '${profile.landAreaHectares!.toStringAsFixed(1)} ha'
-                                : 'Not set',
+                                : AppLocalizations.of(context).pendingNotSet,
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _DetailField(
-                            label: 'Years Farming',
+                            label: AppLocalizations.of(context).enhYearsFarming,
                             value: profile.yearsFarming != null
                                 ? '${profile.yearsFarming}'
-                                : 'Not set',
+                                : AppLocalizations.of(context).pendingNotSet,
                           ),
                         ),
                       ],
@@ -804,20 +852,22 @@ class _FarmDetailsSection extends StatelessWidget {
                     // been dropped from the schema — farmAddress is now
                     // the sole source for this field (Phase 4 cleanup).
                     _DetailField(
-                      label: 'Farm Location',
+                      label: AppLocalizations.of(
+                        context,
+                      ).farmLocationSectionTitle,
                       value: (profile.farmAddress?.isNotEmpty ?? false)
                           ? profile.farmAddress!
-                          : 'Not set',
+                          : AppLocalizations.of(context).pendingNotSet,
                       icon: Icons.pin_drop_outlined,
                     ),
                     if (profile.hasCoordinates) ...[
                       const SizedBox(height: 14),
                       Text(
-                        'LOCATION PREVIEW',
+                        AppLocalizations.of(context).enhLOCATIONPREVIEW,
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.outline,
+                          color: Theme.of(context).colorScheme.outline,
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -829,7 +879,9 @@ class _FarmDetailsSection extends StatelessWidget {
                             AppConstants.radiusMd,
                           ),
                           border: Border.all(
-                            color: AppConstants.outline.withValues(alpha: 0.30),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.30),
                           ),
                         ),
                         clipBehavior: Clip.antiAlias,
@@ -870,9 +922,11 @@ class _FarmDetailsSection extends StatelessWidget {
                                   ),
                                   width: 36,
                                   height: 36,
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.location_on,
-                                    color: AppConstants.primaryGreen,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     size: 36,
                                   ),
                                 ),
@@ -884,21 +938,21 @@ class _FarmDetailsSection extends StatelessWidget {
                     ],
                     const SizedBox(height: 14),
                     Text(
-                      'PRIMARY CROPS',
+                      AppLocalizations.of(context).enhPRIMARYCROPS,
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                         letterSpacing: 0.4,
                       ),
                     ),
                     const SizedBox(height: 6),
                     profile.primaryCrops.isEmpty
                         ? Text(
-                            'No crops added yet',
+                            AppLocalizations.of(context).addMemberNoCropsYet,
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: AppConstants.outline,
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                           )
                         : Wrap(
@@ -912,7 +966,9 @@ class _FarmDetailsSection extends StatelessWidget {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFD5ECF8),
+                                      color: context.adaptiveSurface(
+                                        const Color(0xFFD5ECF8),
+                                      ),
                                       borderRadius: BorderRadius.circular(
                                         AppConstants.radiusMd,
                                       ),
@@ -922,7 +978,9 @@ class _FarmDetailsSection extends StatelessWidget {
                                       style: GoogleFonts.poppins(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
-                                        color: AppConstants.primaryGreen,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
                                       ),
                                     ),
                                   ),
@@ -954,7 +1012,7 @@ class _FarmDetailsSection extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: AppConstants.primaryGreen,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                         ),
@@ -987,7 +1045,7 @@ class _DetailField extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 9,
             fontWeight: FontWeight.w700,
-            color: AppConstants.outline,
+            color: Theme.of(context).colorScheme.outline,
             letterSpacing: 0.4,
           ),
         ),
@@ -996,7 +1054,11 @@ class _DetailField extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 16, color: AppConstants.primaryGreen),
+              Icon(
+                icon,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 6),
             ],
             Expanded(
@@ -1005,7 +1067,7 @@ class _DetailField extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.onSurface,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -1023,9 +1085,9 @@ class _DetailField extends StatelessWidget {
 // independent computation of "this year's yield/earnings".
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The first year the year arrows go back to (the app's records start in 2020, as
-/// the expense date picker does).
-const int _kFirstYear = 2020;
+/// The first year of the cooperative's records in SAGANA. The year shown is always the current one; the
+/// arrows appear only once there is an earlier year to go back to (from 2027).
+const int _kFirstYear = 2026;
 
 class _AnnualStatsRow extends StatelessWidget {
   final int year;
@@ -1059,13 +1121,14 @@ class _AnnualStatsRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),
             ),
             _YearStepper(
               year: year,
+              showArrows: currentYear > _kFirstYear,
               canGoBack: year > _kFirstYear,
               canGoForward: year < currentYear,
               onChanged: onYearChanged,
@@ -1103,7 +1166,7 @@ class _AnnualStatsRow extends StatelessWidget {
             l10n.profileAnnualHint(year),
             style: GoogleFonts.inter(
               fontSize: 10.5,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -1115,12 +1178,15 @@ class _AnnualStatsRow extends StatelessWidget {
 /// ‹ 2026 › — step through the years. The future is not selectable.
 class _YearStepper extends StatelessWidget {
   final int year;
+  // False while there is only one year (no arrows, no future or past years).
+  final bool showArrows;
   final bool canGoBack;
   final bool canGoForward;
   final ValueChanged<int> onChanged;
 
   const _YearStepper({
     required this.year,
+    required this.showArrows,
     required this.canGoBack,
     required this.canGoForward,
     required this.onChanged,
@@ -1129,6 +1195,19 @@ class _YearStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (!showArrows) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Text(
+          '$year',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      );
+    }
     Widget arrow(IconData icon, String tooltip, bool enabled, int target) =>
         IconButton(
           onPressed: enabled ? () => onChanged(target) : null,
@@ -1136,21 +1215,33 @@ class _YearStepper extends StatelessWidget {
           icon: Icon(icon, size: 20),
           visualDensity: VisualDensity.compact,
           color: AppConstants.primaryGreen,
-          disabledColor: AppConstants.outline.withValues(alpha: 0.4),
+          disabledColor: Theme.of(
+            context,
+          ).colorScheme.outline.withValues(alpha: 0.4),
         );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        arrow(Icons.chevron_left_rounded, l10n.profileAnnualPrevYear, canGoBack, year - 1),
+        arrow(
+          Icons.chevron_left_rounded,
+          l10n.profileAnnualPrevYear,
+          canGoBack,
+          year - 1,
+        ),
         Text(
           '$year',
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppConstants.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        arrow(Icons.chevron_right_rounded, l10n.profileAnnualNextYear, canGoForward, year + 1),
+        arrow(
+          Icons.chevron_right_rounded,
+          l10n.profileAnnualNextYear,
+          canGoForward,
+          year + 1,
+        ),
       ],
     );
   }
@@ -1196,7 +1287,7 @@ class _AnnualStatTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
               fontSize: 10,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 2),
@@ -1207,7 +1298,7 @@ class _AnnualStatTile extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ],
@@ -1258,31 +1349,31 @@ class _FarmRecordsSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 10),
           child: Text(
-            'Farm Records',
+            AppLocalizations.of(context).enhFarmRecords,
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
         _RecordRow(
           icon: Icons.eco_outlined,
-          title: 'Input Loans',
+          title: AppLocalizations.of(context).enhInputLoans,
           subtitle: loanSubtitle,
           onTap: onLoansTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.receipt_outlined,
-          title: 'Expenses',
+          title: AppLocalizations.of(context).farmerDetailsTabExpenses,
           subtitle: l10n.profileExpensesSubtitle(money.format(monthExpenses)),
           onTap: onExpensesTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.receipt_long_outlined,
-          title: 'Transaction History',
+          title: AppLocalizations.of(context).adminInvTransactionHistoryTitle,
           subtitle: l10n.profileTransactionsSubtitle,
           onTap: onTransactionHistoryTap,
         ),
@@ -1296,7 +1387,7 @@ class _FarmRecordsSection extends StatelessWidget {
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.shopping_bag_outlined,
-          title: 'Orders',
+          title: AppLocalizations.of(context).buyerNavOrders,
           subtitle: l10n.profileOrdersSubtitle,
           onTap: onMyOrdersTap,
         ),
@@ -1317,11 +1408,11 @@ class _CooperativeBenefitsHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 10),
       child: Text(
-        'Cooperative Benefits',
+        AppLocalizations.of(context).enhCooperativeBenefits,
         style: GoogleFonts.poppins(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: AppConstants.onSurface,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -1354,7 +1445,7 @@ class _RecordRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.85),
+            color: context.saganaColors.cardBackground.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(color: Colors.white.withValues(alpha: 0.50)),
             boxShadow: [
@@ -1370,10 +1461,16 @@ class _RecordRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppConstants.outline.withValues(alpha: 0.08),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: AppConstants.primaryGreen, size: 20),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1385,22 +1482,22 @@ class _RecordRow extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: AppConstants.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     Text(
                       subtitle,
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: AppConstants.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: AppConstants.outline,
+                color: Theme.of(context).colorScheme.outline,
               ),
             ],
           ),
@@ -1447,25 +1544,29 @@ class _ProfileLoadError extends StatelessWidget {
             Icon(
               isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
               size: 40,
-              color: AppConstants.outline.withValues(alpha: 0.60),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
             ),
             const SizedBox(height: 12),
             Text(
-              isOnline ? 'Could not load your profile' : 'You\'re offline',
+              isOnline
+                  ? AppLocalizations.of(context).couldNotLoadProfile
+                  : AppLocalizations.of(context).youAreOffline,
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: AppConstants.charcoal,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             if (!isOnline) ...[
               const SizedBox(height: 4),
               Text(
-                'Your profile will load once you\'re back online.',
+                AppLocalizations.of(context).profileWillLoadWhenOnline,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -1473,8 +1574,10 @@ class _ProfileLoadError extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(
-                'Retry',
-                style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+                AppLocalizations.of(context).retry,
+                style: GoogleFonts.poppins(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           ],

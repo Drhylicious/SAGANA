@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -109,7 +110,7 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -117,11 +118,20 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
-                    CachedDataNotice(screen: 'farmer_crops_approved', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineCropList),
+                    const TopBarSpacer(height: 72),
+                    CachedDataNotice(
+                      screen: 'farmer_crops_approved',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineCropList,
+                    ),
                     Expanded(
                       child: _isLoading
-                          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SkeletonList(),
+                            )
                           : _crops.isEmpty
                           ? _NoCropsEmptyState(
                               onGoToMyCrops: () =>
@@ -144,7 +154,9 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
                                         child: ReportIconStatCard(
                                           icon: Icons.eco_rounded,
                                           accent: AppConstants.primaryGreen,
-                                          label: 'Available Crops',
+                                          label: AppLocalizations.of(
+                                            context,
+                                          ).enhAvailableCrops,
                                           value: '${_crops.length}',
                                         ),
                                       ),
@@ -153,7 +165,9 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
                                         child: ReportIconStatCard(
                                           icon: Icons.category_outlined,
                                           accent: AppConstants.buyerBlue,
-                                          label: 'Categories',
+                                          label: AppLocalizations.of(
+                                            context,
+                                          ).reportsCategories,
                                           value: '${_categories.length}',
                                         ),
                                       ),
@@ -165,6 +179,10 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
                                   CropCategoryChips(
                                     categories: _categories,
                                     active: _activeCategory,
+                                    counts: CropCategoryChips.countBy(
+                                      _crops,
+                                      (c) => c.category,
+                                    ),
                                     onSelected: _setCategory,
                                   ),
                                   const SizedBox(height: 16),
@@ -198,7 +216,7 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Record New Harvest',
+                    title: AppLocalizations.of(context).enhRecordNewHarvest,
                     onBack: () => Navigator.of(context).pop(),
                     hideProfileAvatar: true,
                     onProfileTap: () {},
@@ -227,27 +245,46 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: InputDecoration(
-        hintText: 'Search crops...',
+        hintText: AppLocalizations.of(context).priceSearchHint,
         hintStyle: GoogleFonts.inter(
-            fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.60)),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppConstants.outline),
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.60),
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.saganaColors.cardBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -269,20 +306,39 @@ class _NoMatchingCropsState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
         children: [
-          Icon(Icons.filter_alt_off_rounded,
-              size: 40, color: AppConstants.outline.withValues(alpha: 0.60)),
+          Icon(
+            Icons.filter_alt_off_rounded,
+            size: 40,
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.60),
+          ),
           const SizedBox(height: 12),
-          Text('No Matching Crops',
-              style: GoogleFonts.poppins(
-                  fontSize: 16, fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+          Text(
+            AppLocalizations.of(context).enhNoMatchingCrops,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text('Try a different search or category.',
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+          Text(
+            AppLocalizations.of(context).loanReqNoMatchBody,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 16),
           TextButton(
             onPressed: onClearFilters,
-            child: Text('Clear Filters',
-                style: GoogleFonts.poppins(color: AppConstants.primaryGreen)),
+            child: Text(
+              AppLocalizations.of(context).enhClearFilters,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ],
       ),
@@ -348,15 +404,18 @@ class _SelectableCropCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppConstants.charcoal,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    crop.category,
+                    localizeBuiltinLabel(
+                      AppLocalizations.of(context),
+                      crop.category,
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   if (crop.exclusiveChannel != null) ...[
@@ -366,9 +425,9 @@ class _SelectableCropCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: AppConstants.outline,
+              color: Theme.of(context).colorScheme.outline,
             ),
           ],
         ),
@@ -389,7 +448,7 @@ class _CropTypeIcon extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
       child: Icon(
         FarmerCropModel.iconForCategory(category),
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         size: 32,
       ),
     );
@@ -419,28 +478,30 @@ class _NoCropsEmptyState extends StatelessWidget {
                 color: AppConstants.primaryGreen.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.eco_outlined,
                 size: 40,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              "You don't have any crops yet",
+              AppLocalizations.of(context).enhYouDonTHaveAnyCropsYet,
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.charcoal,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Add a crop from the cooperative\'s list before recording a harvest.',
+              AppLocalizations.of(
+                context,
+              ).enhAddACropFromTheCooperativeSList285,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 24),
@@ -458,7 +519,7 @@ class _NoCropsEmptyState extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Go to Crop Roster',
+                AppLocalizations.of(context).enhGoToCropRoster,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

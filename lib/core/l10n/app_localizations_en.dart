@@ -1591,12 +1591,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String priceFilterMarketRef(String market) {
-    return '$market Retail';
+    return '$market Reference';
   }
 
   @override
   String priceMarketReferenceTitle(String market) {
-    return '$market — Retail Prices';
+    return '$market — Reference Prices';
   }
 
   @override
@@ -2011,7 +2011,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get offlineFarmerBody =>
-      'Records you add are saved on this device. Tap Sync when you are back online.';
+      'Your records are saved on this device and sync automatically when the internet returns. You can also use Sync Now.';
 
   @override
   String get offlineStaffBody =>
@@ -2064,7 +2064,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get offlineHarvestEntriesSave =>
-      'You\'re offline — new harvest entries are saved on your device and will sync automatically once you\'re reconnected.';
+      'New harvests are saved on this device and sync automatically when the internet returns.';
 
   @override
   String get offlineHarvestHistory =>
@@ -2072,7 +2072,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get offlineHarvestHub =>
-      'You\'re offline — new harvests are saved on your device and will sync automatically, but your harvest history may not be up to date.';
+      'New harvests are saved on this device and sync automatically when the internet returns. Previously loaded harvest history remains available.';
 
   @override
   String get offlineWithdrawListing =>
@@ -2092,11 +2092,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get offlineExpensesSave =>
-      'You\'re offline — new expenses are saved on your device and will sync automatically once you\'re reconnected.';
+      'New expenses are saved on this device and sync automatically when the internet returns.';
 
   @override
   String get offlineSavedWillSync =>
-      'Saved offline — will sync once you\'re back online.';
+      'Saved on this device. It will sync automatically when you\'re back online, or you can use Sync Now.';
 
   @override
   String get offlineListingActionsSome =>
@@ -2322,10 +2322,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifMenuMarkAllUnread => 'Mark all as unread';
 
   @override
-  String get notifItemMarkUnread => 'Mark as unread';
+  String get notifItemMarkUnread => 'Mark as Unread';
 
   @override
-  String get notifItemMarkRead => 'Mark as read';
+  String get notifItemMarkRead => 'Mark as Read';
+
+  @override
+  String notifSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get notifSelectionCancel => 'Cancel selection';
 
   @override
   String get notifMenuTooltip => 'Notification options';
@@ -2383,7 +2391,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get buyerPriceHeaderSubtitle =>
-      'Retail prices set by the cooperative. Tap a crop to see its price trend.';
+      'Reference prices set by the cooperative. Tap a crop to see its price trend.';
 
   @override
   String buyerPriceCropCount(int count) {
@@ -4719,8 +4727,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cropMgmtMarketTypeLabel => 'Market Type *';
 
   @override
-  String get cropMgmtMarketTypeHelper =>
-      'Determines which price types apply to this crop';
+  String get cropMgmtMarketTypeHelper => 'The market where this crop is sold';
 
   @override
   String get cropMgmtMarketTypeRequired => 'Market type is required';
@@ -4763,14 +4770,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cropMgmtArchivedInfo =>
-      'Archived crops cannot be picked for a new retail price or a new crop request until restored. Existing prices and records are not affected.';
+      'Archived crops cannot be picked for a new reference price or a new crop request until restored. Existing prices and records are not affected.';
 
   @override
   String get cropMgmtArchiveCropAction => 'Archive Crop';
 
   @override
   String get cropMgmtArchiveHint =>
-      'Archiving hides this crop from new retail prices and new crop requests. It can be restored later.';
+      'Archiving hides this crop from new reference prices and new crop requests. It can be restored later.';
 
   @override
   String cropMgmtArchiveTitle(String name) {
@@ -4779,7 +4786,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cropMgmtArchiveBody =>
-      'This crop will no longer be offered when creating a new retail price or when a Farmer requests a crop.\n\nIts existing prices and records are not affected and stay editable. You can restore it any time from Archived Crops.';
+      'This crop will no longer be offered when creating a new reference price or when a Farmer requests a crop.\n\nIts existing prices and records are not affected and stay editable. You can restore it any time from Archived Crops.';
 
   @override
   String get cropMgmtArchiveConfirm => 'Archive';
@@ -5340,10 +5347,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get listingReviewFarmersAsking => 'Farmer\'s Asking';
 
   @override
-  String get listingReviewMarketRefDA => 'Retail Price (DA)';
+  String get listingReviewMarketRefDA => 'Reference Price (DA)';
 
   @override
-  String get listingReviewNoMarketRef => 'No Retail Price';
+  String get listingReviewNoMarketRef => 'No Reference Price';
 
   @override
   String get listingReviewWithinMarketRange => 'Within market range';
@@ -5354,7 +5361,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String listingReviewNoMarketRefAvailable(String crop) {
-    return 'No retail price available for $crop. Add a price record in Price Management.';
+    return 'No reference price available for $crop. Add a price record in Price Management.';
   }
 
   @override
@@ -5568,7 +5575,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get priceEffectiveDateLabel => 'Effective Date';
 
   @override
-  String get priceSourceRefDocLabel => 'Source / Reference Document';
+  String get priceSourceRefDocLabel => 'Source';
 
   @override
   String get priceSourceRefDocHint => 'e.g. Board Resolution #102, DA Bulletin';
@@ -5615,7 +5622,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get priceSourceRequired => 'Source / reference is required';
+  String get priceSourceRequired => 'Source is required';
 
   @override
   String priceSourceTooLong(int max) {
@@ -5649,7 +5656,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get priceSelectUnitHint => 'Select a unit';
 
   @override
-  String get priceSourceRefLabel => 'Source / Reference';
+  String get priceSourceRefLabel => 'Source';
 
   @override
   String get priceSourceRefHint => 'e.g. Board Resolution, DA Bulletin';
@@ -6192,7 +6199,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminDashModPrices => 'Prices';
 
   @override
-  String get adminDashModPricesSub => 'retail prices';
+  String get adminDashModPricesSub => 'reference prices';
 
   @override
   String get reportsSnapTotalSales => 'Total Sales (Farmers)';
@@ -7502,6 +7509,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter the quantity and unit the Farmer must return.';
 
   @override
+  String get rptReceivedFromPrograms => 'Received from programs';
+
+  @override
+  String get rptSaleOrigin => 'Origin';
+
+  @override
+  String farmerDetailsProgramReceived(int count, String kg) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count records',
+      one: '1 record',
+    );
+    return '$_temp0 · $kg kg received from programs, not counted as harvest';
+  }
+
+  @override
   String get receivedItemsTitle => 'Received Items';
 
   @override
@@ -7521,7 +7545,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get receivedItemsEmptyBody =>
-      'Tools, livestock, fertilizer and other supplies you receive from a program are listed here. Crops and harvests are in your Harvest tab.';
+      'Seeds, seedlings, produce, tools, livestock, fertilizer and other supplies you receive from a program are listed here, whether it was a Free Distribution or a Harvest Return.';
 
   @override
   String get receivedItemsFilterAll => 'All';
@@ -7628,7 +7652,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get itemTypeNonCrop => 'Non-Crop Item';
 
   @override
-  String get itemTypeSeeds => 'Seeds & Seedlings';
+  String get itemTypeSeeds => 'Planting Materials';
 
   @override
   String get itemTypeProduce => 'Harvested Produce';
@@ -7698,16 +7722,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invItemTypeRequired => 'Choose the item type';
-
-  @override
-  String get receivedCropTitle => 'Crop Items from Programs';
-
-  @override
-  String get receivedCropEmptyTitle => 'No crop items yet';
-
-  @override
-  String get receivedCropEmptyBody =>
-      'Seeds, seedlings and produce you receive from a program are listed here. Tools, livestock and supplies are under Received Items in your profile.';
 
   @override
   String get errAssistPending =>
@@ -7837,7 +7851,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistStatusApproved => 'Approved';
 
   @override
-  String get assistStatusRejected => 'Not approved';
+  String get assistStatusRejected => 'Disapproved';
 
   @override
   String get assistStatusCancelled => 'Cancelled';
@@ -7887,7 +7901,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String assistFilterRejected(int count) {
-    return 'Not approved ($count)';
+    return 'Disapproved ($count)';
   }
 
   @override
@@ -9470,6 +9484,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get farmerProgDistributionProgram => 'Distribution Program';
+
+  @override
+  String get farmerProgNoMatch => 'No programs match your search.';
+
+  @override
+  String get errResolutionLocked =>
+      'This case is closed. No further decision, assistance, loan or reassessment can follow.';
 
   @override
   String get farmerProgEmptyTitle => 'No programs yet';
@@ -12602,8 +12623,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get marketDashOrdersNeedActionNote =>
-      'Orders to approve, to hand over, or out for delivery. Orders waiting only for the buyer to confirm are not counted.';
+  String get marketDashOrdersNeedActionNote => 'Orders to approve or hand over';
 
   @override
   String marketDashNeedActionBadge(int count) {
@@ -14640,4 +14660,4009 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scmInventoryFarmerStock => 'Farmer harvest stock';
+
+  @override
+  String get enhEGDairy => 'e.g. Dairy';
+
+  @override
+  String get enhTapToAddAPhoto => 'Tap to add a photo';
+
+  @override
+  String get enhUnitCost => 'Unit Cost *';
+
+  @override
+  String get enhUnitCostIsRequired => 'Unit cost is required';
+
+  @override
+  String get enhReorderLevelIsRequired => 'Reorder level is required';
+
+  @override
+  String enhCurrent(String p0, String p1, String p2) {
+    return '$p0 · Current: $p1 $p2';
+  }
+
+  @override
+  String get enhThisIsTheMinimumStockLevelThatFlags =>
+      'This is the minimum stock level that flags this item as low stock and triggers the reorder alert.';
+
+  @override
+  String get enhHarvestStock => 'Harvest Stock';
+
+  @override
+  String get enhItemUpdated => 'Item updated';
+
+  @override
+  String get enhEditItem => 'Edit Item';
+
+  @override
+  String get enhJan => 'Jan';
+
+  @override
+  String get enhFeb => 'Feb';
+
+  @override
+  String get enhMar => 'Mar';
+
+  @override
+  String get enhApr => 'Apr';
+
+  @override
+  String get enhJun => 'Jun';
+
+  @override
+  String get enhJul => 'Jul';
+
+  @override
+  String get enhAug => 'Aug';
+
+  @override
+  String get enhSep => 'Sep';
+
+  @override
+  String get enhOct => 'Oct';
+
+  @override
+  String get enhNov => 'Nov';
+
+  @override
+  String get enhDec => 'Dec';
+
+  @override
+  String get enhFertilizer => 'Fertilizer';
+
+  @override
+  String get enhSeeds => 'Seeds';
+
+  @override
+  String get enhAnimalFeeds => 'Animal Feeds';
+
+  @override
+  String get enhPesticide => 'Pesticide';
+
+  @override
+  String get enhToolsEquipment => 'Tools & Equipment';
+
+  @override
+  String get enhLivestock => 'Livestock';
+
+  @override
+  String get enhInventoryOverview => 'Inventory Overview';
+
+  @override
+  String get enhTakePhoto => 'Take Photo';
+
+  @override
+  String get enhUploadPhoto => 'Upload Photo';
+
+  @override
+  String enhReason(String p0) {
+    return 'Reason: $p0';
+  }
+
+  @override
+  String get enhCooperativeOfficer => 'Cooperative Officer';
+
+  @override
+  String get enhThisRouteIsNotImplementedYet =>
+      'This route is not implemented yet.';
+
+  @override
+  String get enhNoCachedDataToClear => 'No cached data to clear.';
+
+  @override
+  String enhListingApproved(String p0) {
+    return '$p0 listing approved.';
+  }
+
+  @override
+  String get enhInterest => 'Interest';
+
+  @override
+  String get enhPurchasePatronage => 'Purchase Patronage';
+
+  @override
+  String enhShare(String p0) {
+    return '$p0% share';
+  }
+
+  @override
+  String get enhTotalDistributed => 'Total Distributed';
+
+  @override
+  String get enhMemberRecords => 'Member Records';
+
+  @override
+  String get enhPayoutBreakdown => 'Payout Breakdown';
+
+  @override
+  String enhPurchasesRegularMemberDiscountNetPaid(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'Purchases: regular $p0 − member discount $p1 = net paid $p2';
+  }
+
+  @override
+  String enhConfirmThatHasReceivedInCash(String p0, String p1) {
+    return 'Confirm that $p0 has received $p1 in cash?';
+  }
+
+  @override
+  String enhConfirmAddingToSCapitalShareThisCannot(String p0, String p1) {
+    return 'Confirm adding $p0 to $p1\'s capital share? This cannot be undone.';
+  }
+
+  @override
+  String get enhConfirmPayoutDecision => 'Confirm Payout Decision';
+
+  @override
+  String enhPayoutDecisionConfirmedFor(String p0) {
+    return 'Payout decision confirmed for $p0.';
+  }
+
+  @override
+  String enhCouldNotConfirm(String p0) {
+    return 'Could not confirm: $p0';
+  }
+
+  @override
+  String get enhRejectPayoutDecision => 'Reject Payout Decision';
+
+  @override
+  String enhThisSendsTheDecisionBackSoCanSubmit(String p0) {
+    return 'This sends the decision back so $p0 can submit a corrected choice. Continue?';
+  }
+
+  @override
+  String enhPayoutDecisionRejectedCanResubmit(String p0) {
+    return 'Payout decision rejected — $p0 can resubmit.';
+  }
+
+  @override
+  String enhCouldNotReject(String p0) {
+    return 'Could not reject: $p0';
+  }
+
+  @override
+  String enhKeepAsCash(String p0) {
+    return 'Keep as Cash — $p0';
+  }
+
+  @override
+  String enhAddToCapital(String p0) {
+    return 'Add to Capital — $p0';
+  }
+
+  @override
+  String get enhEGBananaTomato => 'e.g. Banana, Tomato';
+
+  @override
+  String get enhEGHerb => 'e.g. Herb';
+
+  @override
+  String enhCropRequestAwaitingReview(String p0, String p1) {
+    return '$p0 crop request$p1 awaiting review';
+  }
+
+  @override
+  String get enhCropOverview => 'Crop Overview';
+
+  @override
+  String get enhTotalCrops => 'Total Crops';
+
+  @override
+  String get enhThisYearSYield => 'This Year\'s Yield';
+
+  @override
+  String get enhSyncStatus => 'Sync Status';
+
+  @override
+  String enhUnsynced(String p0) {
+    return '$p0 Unsynced';
+  }
+
+  @override
+  String get enhNoMatchingHarvestsTryADifferentSearchOr =>
+      'No matching harvests. Try a different search or category.';
+
+  @override
+  String get enhBatchNumber => 'Batch Number';
+
+  @override
+  String get enhStorageLocation => 'Storage Location';
+
+  @override
+  String get enhHarvestDate => 'Harvest Date';
+
+  @override
+  String enhCrop(String p0, String p1) {
+    return '$p0 crop$p1';
+  }
+
+  @override
+  String enhBatch(String p0) {
+    return '• Batch #$p0';
+  }
+
+  @override
+  String enhFromProgramDistribution(String p0) {
+    return 'From Program Distribution: $p0';
+  }
+
+  @override
+  String get enhPriceIsSetFromInventoryManagementUseIts =>
+      'Price is set from Inventory Management — use its Publish action to change it. Source is set on the inventory item (Edit Item).';
+
+  @override
+  String get enhCatalogOverview => 'Catalog Overview';
+
+  @override
+  String enhStock(String p0) {
+    return 'Stock: $p0';
+  }
+
+  @override
+  String enhStock89(String p0, String p1) {
+    return 'Stock: $p0 $p1';
+  }
+
+  @override
+  String get enhTotalPatronage => 'Total Patronage';
+
+  @override
+  String get enhSoldToCoOp => 'Sold to Co-op';
+
+  @override
+  String get enhBoughtFromCoOp => 'Bought from Co-op';
+
+  @override
+  String get enhSellingToCooperative => 'Selling to Cooperative';
+
+  @override
+  String get enhOtherCrops => 'Other Crops';
+
+  @override
+  String get enhBuyingFromCooperative => 'Buying from Cooperative';
+
+  @override
+  String enhPurchases(String p0) {
+    return 'Purchases: $p0';
+  }
+
+  @override
+  String get enhTapToPickDateTime => 'Tap to pick date & time';
+
+  @override
+  String enhScheduleFor(String p0) {
+    return 'Schedule for $p0';
+  }
+
+  @override
+  String enhSendTo(String p0, String p1, String p2) {
+    return 'Send to $p0 $p1$p2';
+  }
+
+  @override
+  String enhRecipients(String p0) {
+    return 'Recipients: $p0';
+  }
+
+  @override
+  String enhDelivered(String p0) {
+    return '$p0 delivered';
+  }
+
+  @override
+  String get enhStock107 => '⚠ Stock';
+
+  @override
+  String enhVsMarket(String p0) {
+    return '$p0% vs market';
+  }
+
+  @override
+  String get enhSelectAPurpose => 'Select a purpose';
+
+  @override
+  String get enhProgramPurpose => 'Program Purpose *';
+
+  @override
+  String get enhPurposeIsRequired => 'Purpose is required';
+
+  @override
+  String get enhProgramOverview => 'Program Overview';
+
+  @override
+  String get enhTotalPrograms => 'Total Programs';
+
+  @override
+  String get enhDistributionBenefitLoans => 'Distribution Benefit/Loans';
+
+  @override
+  String get enhCouldNotUpdateYourPasswordPleaseTryAgain =>
+      'Could not update your password. Please try again.';
+
+  @override
+  String get enhYourPasswordWasResetByAManagerPlease =>
+      'Your password was reset by a Manager. Please choose a new one to continue.';
+
+  @override
+  String get enhEmpoweringTheFutureOfFarming =>
+      'Empowering the Future of Farming';
+
+  @override
+  String get enhUsernameEmail => 'Username / Email';
+
+  @override
+  String get enhForgotPassword => 'Forgot Password?';
+
+  @override
+  String get enhNewToSAGANA => 'New to SAGANA? ';
+
+  @override
+  String get enhCreateAnAccount => 'Create an Account';
+
+  @override
+  String get enhEnterYourUsernameOrEmail => 'Enter your username or email';
+
+  @override
+  String get enhPasswordMustBeAtLeastCharacters =>
+      'Password must be at least 8 characters';
+
+  @override
+  String get enhManagerAccessIsManagedBySPCooperativeStaff =>
+      'Manager access is managed by SP3 Cooperative staff.';
+
+  @override
+  String get enhPleaseEnterYourEmailAddress =>
+      'Please enter your email address';
+
+  @override
+  String get enhEnterAValidEmailAddress => 'Enter a valid email address';
+
+  @override
+  String get enhCouldNotSendResetLinkPleaseTryAgain =>
+      'Could not send reset link. Please try again.';
+
+  @override
+  String get enhEnterTheEmailAddressLinkedToYourSAGANA =>
+      'Enter the email address linked to your SAGANA account. We\'ll send you a reset link.';
+
+  @override
+  String get enhYourEmailAddress => 'Your email address';
+
+  @override
+  String get enhSendResetLink => 'Send Reset Link';
+
+  @override
+  String get enhNeedHelpSigningIn => 'Need Help Signing In?';
+
+  @override
+  String get enhYouCanRequestATemporaryPasswordFromThe =>
+      'You can request a temporary password from the SAGANA Manager. The Manager will review your request and assist you.';
+
+  @override
+  String get enhRequestSentAnSPManagerWillAssistYou =>
+      'Request sent. An SP3 Manager will assist you.';
+
+  @override
+  String get enhPleaseEnterYourUsernameOnTheLoginScreen =>
+      'Please enter your username on the login screen first.';
+
+  @override
+  String get enhRequestSent => 'Request Sent';
+
+  @override
+  String get enhRequestTemporaryPassword => 'Request Temporary Password';
+
+  @override
+  String get enhIncorrectOrExpiredCodePleaseTryAgainOr =>
+      'Incorrect or expired code. Please try again or request a new one.';
+
+  @override
+  String enhANewCodeWasSentTo(String p0) {
+    return 'A new code was sent to $p0';
+  }
+
+  @override
+  String get enhCouldNotResendRightNowPleaseTryAgain =>
+      'Could not resend right now. Please try again shortly.';
+
+  @override
+  String get enhEnterResetCode => 'Enter Reset Code';
+
+  @override
+  String enhWeSentACodeTo(String p0) {
+    return 'We sent a code to $p0.';
+  }
+
+  @override
+  String get enhEnterCode => 'Enter code';
+
+  @override
+  String get enhEnterTheCodeWeSentYou => 'Enter the code we sent you';
+
+  @override
+  String get enhCodeShouldContainNumbersOnly =>
+      'Code should contain numbers only';
+
+  @override
+  String get enhVerifyCode => 'Verify Code';
+
+  @override
+  String get enhDidnTGetACodeResend => 'Didn\'t get a code? Resend';
+
+  @override
+  String get enhPasswordUpdated => 'Password Updated';
+
+  @override
+  String get enhPleaseLogInWithYourNewPassword =>
+      'Please log in with your new password.';
+
+  @override
+  String get enhBackToLogin => 'Back to Login';
+
+  @override
+  String get enhLogOut => 'Log Out?';
+
+  @override
+  String get enhYouLlNeedToSignInAgainTo =>
+      'You\'ll need to sign in again to place new orders.';
+
+  @override
+  String get enhCheckBackLaterOrBrowseSimilarListingsBelow =>
+      'Check back later, or browse similar listings below.';
+
+  @override
+  String get enhNoActiveProgramsRightNow => 'No active programs right now.';
+
+  @override
+  String get enhNoProgramsMatchYourSearch => 'No programs match your search.';
+
+  @override
+  String get enhPleaseSelectABatchToList => 'Please select a batch to list.';
+
+  @override
+  String get enhAskingPrice => 'Asking price';
+
+  @override
+  String get enhEnterAValidAskingPrice => 'Enter a valid asking price.';
+
+  @override
+  String get enhListThisOnTheMarketplace => 'list this on the Marketplace';
+
+  @override
+  String get enhNotEnoughAvailableQuantity => 'Not enough available quantity';
+
+  @override
+  String get enhNotEnoughAvailableStockForThatQuantityPlease =>
+      'Not enough available stock for that quantity. Please lower it and try again.';
+
+  @override
+  String get enhFailedToSubmitListingPleaseTryAgain =>
+      'Failed to submit listing. Please try again.';
+
+  @override
+  String get enhChooseWhatToSell => 'Choose What to Sell';
+
+  @override
+  String get enhWhatYouReSelling => 'What You\'re Selling';
+
+  @override
+  String get enhSetYourPriceQuantity => 'Set Your Price & Quantity';
+
+  @override
+  String get enhReviewBeforeSubmitting => 'Review Before Submitting';
+
+  @override
+  String get enhCreateListing => 'Create Listing';
+
+  @override
+  String get enhYourListingWillBeReviewedByThe =>
+      'Your listing will be reviewed by the ';
+
+  @override
+  String get enhSPCooperativeManager => 'SP3 Cooperative Manager';
+
+  @override
+  String get enhBeforeBecomingVisibleToBuyersInTheMarketplace =>
+      ' before becoming visible to buyers in the marketplace.';
+
+  @override
+  String enhFrom(String p0, String p1, String p2) {
+    return '$p0 • $p1 from $p2';
+  }
+
+  @override
+  String get enhNoAvailableInventoryToList => 'No available inventory to list';
+
+  @override
+  String get enhRecordAHarvestFirstToBuildUpInventory =>
+      'Record a harvest first to build up inventory.';
+
+  @override
+  String get enhAvailableStock => 'Available Stock';
+
+  @override
+  String get enhListingTitle => 'Listing Title';
+
+  @override
+  String enhQuantity(String p0) {
+    return 'Quantity ($p0)';
+  }
+
+  @override
+  String enhMax(String p0) {
+    return 'Max: $p0';
+  }
+
+  @override
+  String enhMarket(String p0) {
+    return 'Market: $p0';
+  }
+
+  @override
+  String enhQty(String p0) {
+    return 'Qty: $p0';
+  }
+
+  @override
+  String get enhEstimatedTotalRevenue => 'Estimated Total Revenue';
+
+  @override
+  String get enhWhatHappensAfterYouSubmit => 'What Happens After You Submit';
+
+  @override
+  String get enhYourListingEntersTheCooperativeManagerSReview =>
+      'Your listing enters the cooperative Manager\'s review queue before it appears to buyers.';
+
+  @override
+  String get enhGoOnlineToSubmitYourListing =>
+      'Go online to submit your listing';
+
+  @override
+  String get enhSubmitForReview => 'Submit for Review';
+
+  @override
+  String get enhViewListing => 'View Listing';
+
+  @override
+  String get enhAddedOn => 'Added on';
+
+  @override
+  String get enhHarvestEntries => 'Harvest entries';
+
+  @override
+  String get enhCatalogStatus => 'Catalog status';
+
+  @override
+  String get enhPendingManagerApproval => 'Pending Manager approval';
+
+  @override
+  String get enhReasonForDecline => 'Reason for decline';
+
+  @override
+  String get enhViewHarvestHistory => 'View Harvest History';
+
+  @override
+  String get enhYouCanRecordAHarvestOnceThisCrop =>
+      'You can record a harvest once this crop is approved by the cooperative.';
+
+  @override
+  String get enhRecordHarvestForThisCrop => 'Record Harvest for This Crop';
+
+  @override
+  String get enhRequestDeclined => 'Request Declined';
+
+  @override
+  String get enhThisActionRequiresAnInternetConnectionPleaseTry =>
+      'This action requires an internet connection. Please try again once you\'re back online.';
+
+  @override
+  String get enhHasHarvests => 'Has Harvests';
+
+  @override
+  String get enhNoMatchingCrops => 'No Matching Crops';
+
+  @override
+  String get enhClearFilters => 'Clear Filters';
+
+  @override
+  String get enhRequestDeclinedTapForReason =>
+      'Request Declined · Tap for reason';
+
+  @override
+  String get enhViewHarvests => 'View Harvests';
+
+  @override
+  String get enhRecordHarvestAwaitingApproval =>
+      'Record Harvest (awaiting approval)';
+
+  @override
+  String get enhGrain => 'Grain';
+
+  @override
+  String get enhLegume => 'Legume';
+
+  @override
+  String get enhHasHarvestEntries => 'Has harvest entries';
+
+  @override
+  String get enhNoHarvestYet => 'No harvest yet';
+
+  @override
+  String get enhNoCropsYet => 'No crops yet';
+
+  @override
+  String get enhAddACropFromTheCooperativeSList =>
+      'Add a crop from the cooperative\'s list to start recording harvests.';
+
+  @override
+  String get enhAddACrop => 'Add a Crop';
+
+  @override
+  String get enhYouReOfflineConnectToTheInternetTo =>
+      'You\'re offline. Connect to the internet to clear the pin.';
+
+  @override
+  String get enhFarmDetailsSavedSuccessfully =>
+      'Farm details saved successfully.';
+
+  @override
+  String get enhMapTilesNeedInternetToLoadPinPosition =>
+      'Map tiles need internet to load. Pin position is still saved.';
+
+  @override
+  String get enhBasicInformation => 'Basic Information';
+
+  @override
+  String get enhEGSantosFamilyFarm => 'e.g. Santos Family Farm';
+
+  @override
+  String get enhFarmNameIsRequired => 'Farm name is required';
+
+  @override
+  String get enhLandAreaHa => 'Land Area (ha)';
+
+  @override
+  String get enhYearsFarming => 'Years Farming';
+
+  @override
+  String get enhWholeNumberOnly => 'Whole number only';
+
+  @override
+  String get enhManagedViaTheHarvestTabAddCropsThere =>
+      'Managed via the Harvest tab. Add crops there to update this list.';
+
+  @override
+  String get enhYourFarmLocationPinHelpsSPManagerVerify =>
+      'Your farm location pin helps SP3 Manager verify your membership and will be used in future cooperative planning features.';
+
+  @override
+  String get enhSaveFarmDetails => 'Save Farm Details';
+
+  @override
+  String get enhPinSet => 'Pin set';
+
+  @override
+  String get enhCouldNotLoadYourFarmDetails =>
+      'Could not load your farm details';
+
+  @override
+  String get enhYourFarmDetailsWillLoadOnceYouRe =>
+      'Your farm details will load once you\'re back online.';
+
+  @override
+  String get enhWithdrawListing => 'Withdraw Listing?';
+
+  @override
+  String enhWillBeRemovedFromTheMarketplaceYouCan(String p0) {
+    return '$p0 will be removed from the marketplace. You can create a new listing for this batch later.';
+  }
+
+  @override
+  String get enhWithdraw => 'Withdraw';
+
+  @override
+  String get enhFailedToWithdrawPleaseTryAgain =>
+      'Failed to withdraw. Please try again.';
+
+  @override
+  String get enhDeleteListing => 'Delete Listing?';
+
+  @override
+  String enhThisWillPermanentlyDeleteTheListingForThis(String p0) {
+    return 'This will permanently delete the listing for $p0. This action cannot be undone.';
+  }
+
+  @override
+  String enhDetails(String p0) {
+    return '$p0 Details';
+  }
+
+  @override
+  String get enhNoPhotoAvailable => 'No photo available';
+
+  @override
+  String get enhProductDetails => 'Product Details';
+
+  @override
+  String get enhAvailableVolume => 'Available Volume';
+
+  @override
+  String get enhOriginalVolume => 'Original Volume';
+
+  @override
+  String get enhWithdrawListing244 => 'Withdraw Listing';
+
+  @override
+  String get enhRejectionReason => 'Rejection Reason';
+
+  @override
+  String get enhDeleteListing246 => 'Delete Listing';
+
+  @override
+  String enhRemovedOn(String p0) {
+    return 'Removed on $p0';
+  }
+
+  @override
+  String get enhThisListingIsApprovedAndAvailableForPurchase =>
+      'This listing is approved and available for purchase on the marketplace.';
+
+  @override
+  String get enhFinalRealizedAmount => 'Final Realized Amount';
+
+  @override
+  String get enhTotalOrderedAmount => 'Total Ordered Amount';
+
+  @override
+  String enhNoNotifications(String p0) {
+    return 'No $p0 notifications';
+  }
+
+  @override
+  String get enhYouReAllCaughtUp => 'You\'re all caught up!';
+
+  @override
+  String get enhCouldNotLoadYourNotifications =>
+      'Could not load your notifications';
+
+  @override
+  String get enhYourNotificationsWillLoadOnceYouReBack =>
+      'Your notifications will load once you\'re back online.';
+
+  @override
+  String get enhNoInternetConnectionRecordsWillSyncAutomaticallyOnce =>
+      'No internet connection. Records will sync automatically once you\'re back online.';
+
+  @override
+  String get enhSyncingRecords => 'Syncing records...';
+
+  @override
+  String enhActiveProgram(String p0, String p1) {
+    return '$p0 active program$p1';
+  }
+
+  @override
+  String get enhBalikTangkilikCapitalShare => 'Balik-Tangkilik & Capital Share';
+
+  @override
+  String enhCapitalShares(String p0) {
+    return 'Capital Shares: ₱$p0';
+  }
+
+  @override
+  String get enhFarmerMember => 'Farmer Member';
+
+  @override
+  String enhUnsyncedRecord(String p0, String p1) {
+    return '$p0 unsynced record$p1';
+  }
+
+  @override
+  String get enhSYNCNOW => 'SYNC NOW';
+
+  @override
+  String get enhLandArea => 'Land Area';
+
+  @override
+  String get enhLOCATIONPREVIEW => 'LOCATION PREVIEW';
+
+  @override
+  String get enhPRIMARYCROPS => 'PRIMARY CROPS';
+
+  @override
+  String get enhFarmRecords => 'Farm Records';
+
+  @override
+  String get enhInputLoans => 'Input Loans';
+
+  @override
+  String get enhCooperativeBenefits => 'Cooperative Benefits';
+
+  @override
+  String get enhTapAnywhereOnTheMapToPlaceYour =>
+      'Tap anywhere on the map to place your farm pin';
+
+  @override
+  String get enhUseThisLocation => 'Use This Location';
+
+  @override
+  String enhIsStillAwaitingManagerApprovalAndCanT(String p0) {
+    return '$p0 is still awaiting Manager approval and can\'t be harvested yet.';
+  }
+
+  @override
+  String get enhPleaseSelectACrop => 'Please select a crop.';
+
+  @override
+  String get enhThisCropIsStillAwaitingManagerApprovalAnd =>
+      'This crop is still awaiting Manager approval and can\'t be harvested yet.';
+
+  @override
+  String get enhFailedToSubmitHarvestPleaseCheckYourConnection =>
+      'Failed to submit harvest. Please check your connection and try again.';
+
+  @override
+  String get enhSavedOffline => 'Saved Offline';
+
+  @override
+  String get enhHarvestSubmitted => 'Harvest Submitted!';
+
+  @override
+  String enhOfRecordedNoConnectionRightNowThisWill(String p0, String p1) {
+    return '$p0 of $p1 recorded.\n\nNo connection right now — this will sync automatically once you\'re back online, and its batch number is issued then.';
+  }
+
+  @override
+  String enhOfRecordedCheckInventoryToSellOfferIt(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return '$p0 of $p1 recorded ($p2).\n\nCheck Inventory to sell, offer it to the cooperative, or record a sale.';
+  }
+
+  @override
+  String get enhGoToCropRoster => 'Go to Crop Roster';
+
+  @override
+  String get enhChooseADifferentCrop => 'Choose a Different Crop';
+
+  @override
+  String get enhAssignedWhenYouSubmit => 'Assigned when you submit';
+
+  @override
+  String get enhCouldNotLoadYourCrops => 'Could not load your crops';
+
+  @override
+  String get enhYourCropsWillLoadOnceYouReBack =>
+      'Your crops will load once you\'re back online.';
+
+  @override
+  String get enhYouDonTHaveAnyCropsYet => 'You don\'t have any crops yet';
+
+  @override
+  String get enhAddACropFromTheCooperativeSList285 =>
+      'Add a crop from the cooperative\'s list before recording a harvest.';
+
+  @override
+  String enhIsStillAwaitingApproval(String p0) {
+    return '$p0 is still awaiting approval';
+  }
+
+  @override
+  String get enhYouCanRecordAHarvestOnceTheCooperative =>
+      'You can record a harvest once the cooperative approves this crop.';
+
+  @override
+  String enhIsStillAwaitingManagerApprovalAndCanT288(String p0) {
+    return '$p0 is still awaiting Manager approval and can\'t be harvested yet. Pick another crop below, or go back once it\'s approved.';
+  }
+
+  @override
+  String get enhSubmitted => 'Submitted!';
+
+  @override
+  String get enhSubmitHarvest => 'Submit Harvest';
+
+  @override
+  String get enhSearchHarvestHistory => 'Search harvest history...';
+
+  @override
+  String get enhNoMatchingHarvests => 'No Matching Harvests';
+
+  @override
+  String get enhNoHarvestsFound => 'No Harvests Found';
+
+  @override
+  String get enhTryADifferentSearchOrCropFilter =>
+      'Try a different search or crop filter.';
+
+  @override
+  String get enhYouHavenTRecordedAnyHarvestsForThis =>
+      'You haven\'t recorded any harvests for this period yet.';
+
+  @override
+  String get enhYouReAllCaughtUp296 => 'You\'re all caught up.';
+
+  @override
+  String get enhRecordNewHarvest => 'Record New Harvest';
+
+  @override
+  String enhHarvestsThisYear(String p0) {
+    return '$p0 harvests this year';
+  }
+
+  @override
+  String enhCropsInYourRoster(String p0) {
+    return '$p0 crops in your roster';
+  }
+
+  @override
+  String get enhManageInventory => 'Manage Inventory';
+
+  @override
+  String enhBatches(String p0, String p1) {
+    return '$p0 batches$p1';
+  }
+
+  @override
+  String get enhViewStockLevels => 'View stock levels';
+
+  @override
+  String get enhRecentHarvests => 'Recent Harvests';
+
+  @override
+  String get enhNoHarvestsYet => 'No harvests yet';
+
+  @override
+  String get enhWithdrawSubmission => 'Withdraw Submission?';
+
+  @override
+  String get enhThisListingWillBeWithdrawnBeforeItHas =>
+      'This listing will be withdrawn before it has even been reviewed. You can create a new listing for this batch later.';
+
+  @override
+  String get enhListingSubmitted => 'Listing Submitted!';
+
+  @override
+  String get enhAwaitingAdministrativeApprovalFromSPCooperative =>
+      'Awaiting administrative approval from SP3 Cooperative.';
+
+  @override
+  String get enhPENDINGAPPROVAL => 'PENDING APPROVAL';
+
+  @override
+  String get enhPricePerUnit => 'Price per Unit';
+
+  @override
+  String get enhESTIMATEDTOTALREVENUE => 'ESTIMATED TOTAL REVENUE';
+
+  @override
+  String get enhYouWillBeNotifiedViaTheAppOnce =>
+      'You will be notified via the app once your listing is approved or if additional information is required.';
+
+  @override
+  String get enhCreateAnotherListing => '+ Create Another Listing';
+
+  @override
+  String get enhWithdrawSubmission314 => 'Withdraw Submission';
+
+  @override
+  String get enhUpdateQuantity => 'Update Quantity';
+
+  @override
+  String enhAvailableQuantity(String p0) {
+    return 'Available Quantity ($p0)';
+  }
+
+  @override
+  String enhTotalBatchQuantityYouCanOnlyDecreaseThis(String p0) {
+    return 'Total batch quantity: $p0  •  You can only decrease this value';
+  }
+
+  @override
+  String enhEnterAValueBetweenAndIncreasingBeyondThe(String p0) {
+    return 'Enter a value between 0 and $p0. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.';
+  }
+
+  @override
+  String get enhUpdatingQuantityRequiresAnInternetConnectionPleaseTry =>
+      'Updating quantity requires an internet connection. Please try again once you\'re back online.';
+
+  @override
+  String get enhSubmitThisBatchForMarketLinking =>
+      'submit this batch for Market Linking';
+
+  @override
+  String get enhOfferThisToTheCooperative => 'offer this to the Cooperative';
+
+  @override
+  String get enhSearchBatchOrCrop => 'Search batch or crop...';
+
+  @override
+  String get enhViewHarvestRecord => 'View Harvest Record';
+
+  @override
+  String enhStockOf(String p0, String p1) {
+    return 'Stock: $p0 of $p1';
+  }
+
+  @override
+  String get enhHARVESTDATE => 'HARVEST DATE';
+
+  @override
+  String get enhSOLDOUT => 'SOLD OUT';
+
+  @override
+  String get enhSeeProgress => 'See Progress';
+
+  @override
+  String get enhSubmitToSell => 'Submit to Sell';
+
+  @override
+  String get enhJoinToSell => 'Join to Sell';
+
+  @override
+  String get enhOfferStatus => 'Offer Status';
+
+  @override
+  String get enhViewHistory => 'View History';
+
+  @override
+  String get enhNoMatchingBatches => 'No Matching Batches';
+
+  @override
+  String get enhTryADifferentSearchOrAdjustYourFilters =>
+      'Try a different search or adjust your filters.';
+
+  @override
+  String get enhAddACropBeforeYouCanBuildUp =>
+      'Add a crop before you can build up inventory.';
+
+  @override
+  String get enhNoInventoryYet => 'No Inventory Yet';
+
+  @override
+  String get enhRecordAHarvestToStartBuildingYourInventory =>
+      'Record a harvest to start building your inventory.';
+
+  @override
+  String get enhTakeAPhotoOfYourActualCropIn =>
+      'Take a photo of your actual crop in Crop Roster first.';
+
+  @override
+  String get enhCouldNotSubmitPleaseTryAgain =>
+      'Could not submit. Please try again.';
+
+  @override
+  String get enhSPWillReviewThisAndFindADA =>
+      'SP3 will review this and find a DA-AMAD buyer for this batch. The quantity you submit is set aside for this sale, and any part that is not sold goes back to your stock. Track progress in My Market Linking.';
+
+  @override
+  String enhQuantityToSubmit(String p0) {
+    return 'Quantity to submit ($p0)';
+  }
+
+  @override
+  String get enhSubmitRequest => 'Submit Request';
+
+  @override
+  String get enhCouldNotSubmitOfferPleaseTryAgain =>
+      'Could not submit offer. Please try again.';
+
+  @override
+  String enhQuantityToOffer(String p0) {
+    return 'Quantity to offer ($p0)';
+  }
+
+  @override
+  String enhOnlyAvailableReduceTheQuantity(String p0) {
+    return 'Only $p0 available — reduce the quantity.';
+  }
+
+  @override
+  String enhAvailable(String p0) {
+    return '$p0 available';
+  }
+
+  @override
+  String get enhSubmitOffer => 'Submit Offer';
+
+  @override
+  String get enhBuyerNameIsRequired => 'Buyer name is required.';
+
+  @override
+  String get enhAmountReceived => 'Amount received';
+
+  @override
+  String get enhCouldNotRecordSalePleaseTryAgain =>
+      'Could not record sale. Please try again.';
+
+  @override
+  String get enhRecordInformalSale => 'Record Informal Sale';
+
+  @override
+  String get enhForASaleMadeOutsideTheAppTo =>
+      'For a sale made outside the app — to a neighbor, local buyer, or for personal use.';
+
+  @override
+  String enhQuantitySold(String p0) {
+    return 'Quantity sold ($p0)';
+  }
+
+  @override
+  String get enhBuyerName => 'Buyer name';
+
+  @override
+  String get enhWhoBoughtIt => 'Who bought it?';
+
+  @override
+  String get enhAmountReceived355 => 'Amount received (₱)';
+
+  @override
+  String get enhEnterAValidAmount => 'Enter a valid amount.';
+
+  @override
+  String enhCannotExceed(String p0) {
+    return 'Cannot exceed ₱$p0.';
+  }
+
+  @override
+  String get enhAddToCapitalShare => 'Add to Capital Share';
+
+  @override
+  String enhRequestToMovePartOrAllOfYour(String p0) {
+    return 'Request to move part or all of your $p0 payout into your capital share instead of receiving it as cash. This will be submitted for Manager confirmation before it takes effect, and locks out choosing \"Keep as Cash\" for this year.';
+  }
+
+  @override
+  String enhAvailable360(String p0) {
+    return 'Available: ₱$p0';
+  }
+
+  @override
+  String enhRequestToAddToYourCapitalShareWas(String p0) {
+    return 'Request to add ₱$p0 to your capital share was submitted for Manager confirmation.';
+  }
+
+  @override
+  String enhCouldNotSubmitRequest(String p0) {
+    return 'Could not submit request: $p0';
+  }
+
+  @override
+  String get enhKeepAsCash363 => 'Keep as Cash';
+
+  @override
+  String enhRequestToReceiveYourPayoutOfAsCash(String p0, String p1) {
+    return 'Request to receive your $p0 payout of ₱$p1 as cash. This will be submitted for Manager confirmation and locks out \"Add to Capital\" for this year.';
+  }
+
+  @override
+  String get enhYourRequestToReceiveThisPayoutAsCash =>
+      'Your request to receive this payout as cash was submitted for Manager confirmation.';
+
+  @override
+  String get enhRecentSales => 'Recent Sales';
+
+  @override
+  String get enhRecentPurchases => 'Recent Purchases';
+
+  @override
+  String enhMyActivityThisYear(String p0) {
+    return 'My Activity This Year ($p0)';
+  }
+
+  @override
+  String get enhGingerSalesThroughDAAMADMarketLinkingAre =>
+      'Ginger sales through DA-AMAD market linking are not included.';
+
+  @override
+  String enhRegularPriceMemberDiscountNetPaid(String p0, String p1, String p2) {
+    return 'Regular price ₱$p0 − member discount ₱$p1 = net paid ₱$p2';
+  }
+
+  @override
+  String get enhMyShare => 'My Share';
+
+  @override
+  String get enhMyTotal => 'My Total';
+
+  @override
+  String get enhFINALIZED => '✓  FINALIZED';
+
+  @override
+  String get enhESTIMATEONLY => '⚠️  ESTIMATE ONLY';
+
+  @override
+  String enhBalikTangkilikPayout(String p0) {
+    return '$p0 Balik-Tangkilik Payout';
+  }
+
+  @override
+  String enhEstimatedDistribution(String p0) {
+    return '$p0 Estimated Distribution';
+  }
+
+  @override
+  String get enhMoneyBackFromCropsYouSoldToThe =>
+      'Money back from crops you sold to the cooperative.';
+
+  @override
+  String get enhInterestOnCapitalShare => 'Interest on Capital Share';
+
+  @override
+  String get enhMoneyBackFromProductsYouBoughtFromThe =>
+      'Money back from products you bought from the cooperative.';
+
+  @override
+  String get enhTotalPayout => 'Total Payout';
+
+  @override
+  String get enhTotalDistribution => 'Total Distribution';
+
+  @override
+  String get enhWhatWouldYouLikeToDoWithThis =>
+      'What would you like to do with this payout?';
+
+  @override
+  String get enhAddToCapital385 => 'Add to Capital';
+
+  @override
+  String enhYouAddedTheFullToYourCapitalShare(String p0) {
+    return 'You added the full ₱$p0 to your capital share.';
+  }
+
+  @override
+  String get enhThisIsAnEstimateOnlyActualDistributionAmounts =>
+      'This is an estimate only. Actual distribution amounts are determined by the cooperative\'s Audited Financial Statement and announced at the Annual General Assembly within the first 90 days of next year.';
+
+  @override
+  String get enhHowDoesThisWork => 'How does this work?';
+
+  @override
+  String get enhAuditedFinancialStatement => 'Audited Financial Statement';
+
+  @override
+  String get enhJanuaryMarch => 'January – March';
+
+  @override
+  String get enhAnnualGeneralAssembly => 'Annual General Assembly';
+
+  @override
+  String get enhWithinFirstDaysOfTheYear => 'Within first 90 days of the year';
+
+  @override
+  String get enhBalikTangkilikReleased => 'Balik-Tangkilik Released';
+
+  @override
+  String get enhPostAssemblyDistribution => 'Post-Assembly Distribution';
+
+  @override
+  String get enhNoSalesTransactionsRecordedYet =>
+      'No sales transactions recorded yet.';
+
+  @override
+  String get enhQty396 => 'Qty';
+
+  @override
+  String get enhRegular => 'Regular';
+
+  @override
+  String get enhDiscount => 'Discount';
+
+  @override
+  String get enhCapitalShares400 => 'Capital Shares';
+
+  @override
+  String get enhTotalShares => 'Total Shares';
+
+  @override
+  String get enhInvestmentValue => 'Investment Value';
+
+  @override
+  String get enhShareValue => 'Share Value';
+
+  @override
+  String enhShare404(String p0) {
+    return '₱$p0 / share';
+  }
+
+  @override
+  String get enhInterestRatesAreDeterminedAnnuallyByTheBoard =>
+      'Interest rates are determined annually by the Board of Directors based on cooperative performance.';
+
+  @override
+  String enhMeetsTheMinimumForALoan(String p0) {
+    return 'Meets the ₱$p0 minimum for a loan.';
+  }
+
+  @override
+  String enhNeedsMoreToReachTheLoanMinimum(String p0, String p1) {
+    return 'Needs ₱$p0 more to reach the ₱$p1 loan minimum.';
+  }
+
+  @override
+  String enhActualPayout(String p0) {
+    return '$p0 Actual Payout';
+  }
+
+  @override
+  String enhNoPayoutDataFor(String p0) {
+    return 'No payout data for $p0.';
+  }
+
+  @override
+  String get enhTotalReceived => 'Total Received';
+
+  @override
+  String enhAlreadyAddedToYourCapitalShare(String p0) {
+    return '₱$p0 already added to your capital share';
+  }
+
+  @override
+  String get enhAddExpenseCategory => 'Add Expense Category';
+
+  @override
+  String get enhEGLivestockFeed => 'e.g. Livestock Feed';
+
+  @override
+  String get enhPleaseSelectACategory => 'Please select a category.';
+
+  @override
+  String get enhPleaseEnterAName => 'Please enter a name.';
+
+  @override
+  String get enhPleaseEnterADescription => 'Please enter a description.';
+
+  @override
+  String get enhPleaseEnterAValidAmount => 'Please enter a valid amount.';
+
+  @override
+  String get enhAddNewExpense => 'Add New Expense';
+
+  @override
+  String get enhAddNewCategory => 'Add New Category';
+
+  @override
+  String get enhEGUreaFertilizer => 'e.g. Urea Fertilizer';
+
+  @override
+  String get enhEGHiredHelpForHarvesting => 'e.g. Hired help for harvesting';
+
+  @override
+  String get enhCoveredBySubsidy => 'Covered by Subsidy';
+
+  @override
+  String get enhThisWonTBeAddedToYourTotal =>
+      'This won\'t be added to your total.';
+
+  @override
+  String get enhSaveExpense => 'Save Expense';
+
+  @override
+  String get enhFailedToDeletePleaseTryAgain =>
+      'Failed to delete. Please try again.';
+
+  @override
+  String get enhGoOnlineToCreateAListing => 'Go online to create a listing';
+
+  @override
+  String get enhListingOverview => 'Listing Overview';
+
+  @override
+  String get enhAvailableListings => 'Available Listings';
+
+  @override
+  String get enhTotalSold => 'Total Sold';
+
+  @override
+  String enhListingPendingApproval(String p0, String p1) {
+    return '$p0 listing$p1 pending approval';
+  }
+
+  @override
+  String get enhAwaitingManagerDecision => 'Awaiting Manager decision';
+
+  @override
+  String get enhListing => 'Listing';
+
+  @override
+  String get enhSearchYourListings => 'Search your listings...';
+
+  @override
+  String enhSubmitted434(String p0, String p1) {
+    return '$p0 • Submitted $p1';
+  }
+
+  @override
+  String enhVolume(String p0) {
+    return 'Volume: $p0';
+  }
+
+  @override
+  String get enhNoListingsMatchThisSearch => 'No listings match this search';
+
+  @override
+  String get enhTryADifferentSearchTermOrFilter =>
+      'Try a different search term or filter';
+
+  @override
+  String get enhCreateAListingFromYourInventoryToStart =>
+      'Create a listing from your inventory to start selling to buyers. Tap the + button to get started.';
+
+  @override
+  String get enhCouldNotSendYourJoinRequestPleaseTry =>
+      'Could not send your join request. Please try again.';
+
+  @override
+  String get enhAGingerCropIsRequired => 'A Ginger Crop Is Required';
+
+  @override
+  String get enhDAAMADMarketLinkingIsExclusiveToGinger =>
+      'DA-AMAD Market Linking is exclusive to Ginger. Add Ginger to your Crop Roster before you can join.';
+
+  @override
+  String get enhGingerCropAwaitingApproval => 'Ginger Crop Awaiting Approval';
+
+  @override
+  String get enhYouVeAlreadyRequestedGingerForYourCrop =>
+      'You\'ve already requested Ginger for your Crop Roster — SP3 is still reviewing it. You\'ll be able to join Market Linking once that\'s approved.';
+
+  @override
+  String get enhViewCropRoster => 'View Crop Roster';
+
+  @override
+  String get enhSPConnectsGingerGrowersWhoHaveJoinedDirectly =>
+      'SP3 connects Ginger growers who have joined directly with DA-AMAD — an institutional buyer offering export pricing, outside the open marketplace. Request to join once to participate; SP3 will review your request.';
+
+  @override
+  String get enhYourPreviousJoinRequestWasClosed =>
+      'Your Previous Join Request Was Closed';
+
+  @override
+  String get enhYouCanSendANewJoinRequestBelow =>
+      'You can send a new join request below.';
+
+  @override
+  String get enhJoinRequestUnderReview => 'Join Request Under Review';
+
+  @override
+  String get enhSPIsReviewingYourDAAMADGingerMarket =>
+      'SP3 is reviewing your DA-AMAD Ginger Market Linking join request. You\'ll be notified once it is approved.';
+
+  @override
+  String get enhNextStepSubmitAGingerHarvest =>
+      'Next Step: Submit a Ginger Harvest';
+
+  @override
+  String get enhYouVeJoinedYouHaveNothingSubmittedFor =>
+      'You\'ve joined — you have nothing submitted for sale yet. Go to Manage Inventory, open a Ginger batch, and tap \"Submit to Sell\" to start the process.';
+
+  @override
+  String get enhGoToManageInventory => 'Go to Manage Inventory';
+
+  @override
+  String get enhMyPrograms => 'My Programs';
+
+  @override
+  String get enhApplicant => 'Applicant';
+
+  @override
+  String get enhRevenueShare => 'Revenue Share';
+
+  @override
+  String get enhGrant => 'Grant';
+
+  @override
+  String get enhProgramDetails => 'Program Details';
+
+  @override
+  String get enhProgramType => 'Program Type';
+
+  @override
+  String get enhProgramPurpose459 => 'Program Purpose';
+
+  @override
+  String get enhDistributionCategory => 'Distribution Category';
+
+  @override
+  String get enhBenefitType => 'Benefit Type';
+
+  @override
+  String get enhAboutThisProgram => 'About This Program';
+
+  @override
+  String get enhNoDescriptionProvided => 'No description provided.';
+
+  @override
+  String get enhThisProgramLetsYouPurchaseCooperativeStockedProducts =>
+      'This program lets you purchase cooperative-stocked products.';
+
+  @override
+  String get enhAwaitingDistribution => 'Awaiting distribution.';
+
+  @override
+  String enhReturnedOn(String p0, String p1) {
+    return 'Returned ₱$p0 on $p1';
+  }
+
+  @override
+  String enhHarvestReturn(String p0, String p1, String p2) {
+    return 'Harvest return: $p0 $p1 $p2';
+  }
+
+  @override
+  String get enhAHarvestReturnIsExpectedByTheCooperative =>
+      'A harvest return is expected by the cooperative.';
+
+  @override
+  String get enhThisDistributionDidNotSucceed =>
+      'This distribution did not succeed.';
+
+  @override
+  String get enhViewInMyLoans => 'View in My Loans';
+
+  @override
+  String get enhThisDistributionWasSuccessful =>
+      'This distribution was successful.';
+
+  @override
+  String get enhOutcomeNotYetRecorded => 'Outcome not yet recorded.';
+
+  @override
+  String get enhAvailableCrops => 'Available Crops';
+
+  @override
+  String get enhSecureGatewayActive => 'Secure Gateway Active';
+
+  @override
+  String get enhCouldNotAddCropPleaseTryAgain =>
+      'Could not add crop. Please try again.';
+
+  @override
+  String get enhCouldNotSubmitRequestPleaseTryAgain =>
+      'Could not submit request. Please try again.';
+
+  @override
+  String get enhRequestNewCrop => 'Request New Crop';
+
+  @override
+  String get enhYouCanUseThisCropRightAwaySP =>
+      'You can use this crop right away — SP3 will review and add it to the official list.';
+
+  @override
+  String get enhAddACropToGrow => 'Add a Crop to Grow';
+
+  @override
+  String get enhChooseFromSPSOfficialCropList =>
+      'Choose from SP3\'s official crop list.';
+
+  @override
+  String get enhSearchCrops => 'Search crops';
+
+  @override
+  String get enhYouVeAlreadyAddedEveryCropInThe =>
+      'You\'ve already added every crop in the catalog.';
+
+  @override
+  String get enhNoMatchesTryADifferentSearchOrRequest =>
+      'No matches. Try a different search, or request a new crop below.';
+
+  @override
+  String get enhCanTFindYourCrop => 'Can\'t find your crop?';
+
+  @override
+  String get enhBackToCropList => 'Back to crop list';
+
+  @override
+  String get enhCropName => 'Crop name';
+
+  @override
+  String get enhMarketTypeSPWillConfirm => 'Market Type (SP3 will confirm)';
+
+  @override
+  String get enhNoPhotoNeededForARequestOnceThe =>
+      'No photo needed for a request. Once the crop is added, take a photo of your actual crop from Crop Roster to sell it.';
+
+  @override
+  String get enhTheCameraCouldNotBeOpenedAllowCamera =>
+      'The camera could not be opened. Allow camera access and try again.';
+
+  @override
+  String get enhPhotoRequired => 'Photo Required';
+
+  @override
+  String get enhCouldNotSaveThePhotoCheckYourConnection =>
+      'Could not save the photo. Check your connection and try again.';
+
+  @override
+  String enhToTakeAPhotoOfYourActualIt(String p0, String p1) {
+    return 'To $p0, take a photo of your actual $p1. It is taken with your camera, and it stays on this crop for every batch.';
+  }
+
+  @override
+  String get enhNotNow => 'Not Now';
+
+  @override
+  String enhAvailable494(String p0, String p1) {
+    return '$p0 • $p1 available';
+  }
+
+  @override
+  String get enhWhatWouldYouLikeToDoWithThis495 =>
+      'What would you like to do with this batch?';
+
+  @override
+  String get enhGingerIsSoldExclusivelyThroughTheDAAMAD =>
+      'Ginger is sold exclusively through the DA-AMAD Market Linking program, not the open Marketplace, Offer to Cooperative, or an informal sale. Check My Market Linking for this batch\'s status.';
+
+  @override
+  String get enhSellThroughMarketplace => 'Sell through Marketplace';
+
+  @override
+  String get enhListForPublicBuyersToPurchase =>
+      'List for public buyers to purchase';
+
+  @override
+  String get enhSPConfirmsTheExactQuantityAndPriceAt =>
+      'SP3 confirms the exact quantity and price at pickup';
+
+  @override
+  String get enhForCashSalesOrOffAppBuyers =>
+      'For cash sales or off-app buyers';
+
+  @override
+  String get enhCouldNotSavePhotoPleaseTryAgain =>
+      'Could not save photo. Please try again.';
+
+  @override
+  String get enhNameCategoryAndMarketTypeAreSetBy =>
+      'Name, category, and market type are set by SP3 and can\'t be changed here.';
+
+  @override
+  String get enhMarketType => 'Market type';
+
+  @override
+  String get enhPendingApproval => 'Pending approval';
+
+  @override
+  String get enhPhotoOfYourCrop => 'Photo of your crop';
+
+  @override
+  String get enhTapToTakeAPhoto => 'Tap to take a photo';
+
+  @override
+  String get enhTakenWithYourCameraTapThePhotoTo =>
+      'Taken with your camera. Tap the photo to retake it.';
+
+  @override
+  String get enhTakeAPhotoOfYourActualCropWith =>
+      'Take a photo of your actual crop with your camera. It is needed to sell on the Marketplace, to the Cooperative, or through Market Linking. You can record harvests and Informal Sales without it.';
+
+  @override
+  String get enhSavePhoto => 'Save Photo';
+
+  @override
+  String enhMemberPatronage(String p0) {
+    return 'Member Patronage ($p0)';
+  }
+
+  @override
+  String enhNoPatronageActivityRecordedFor(String p0) {
+    return 'No patronage activity recorded for $p0.';
+  }
+
+  @override
+  String enhRegularPriceMemberDiscountNet(String p0, String p1, String p2) {
+    return 'Regular price $p0 − member discount $p1 = net $p2';
+  }
+
+  @override
+  String get enhSelectUnit => 'Select unit';
+
+  @override
+  String get enhNewPassword => 'New password';
+
+  @override
+  String get enhConfirmNewPassword => 'Confirm new password';
+
+  @override
+  String enhForRelayThisToThemNowItWon(String p0) {
+    return 'For $p0. Relay this to them now — it won\'t be shown again.';
+  }
+
+  @override
+  String get enhCopiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String get connectionLost => 'No internet connection';
+
+  @override
+  String get connectionRestored => 'Internet connection restored';
+
+  @override
+  String enhMinutesAgo(String p0) {
+    return '${p0}m ago';
+  }
+
+  @override
+  String enhHoursAgo(String p0) {
+    return '${p0}h ago';
+  }
+
+  @override
+  String enhLowStockSuffix(String p0) {
+    return ' • $p0 low stock';
+  }
+
+  @override
+  String get enhOtherUnitBatchExcluded =>
+      'Totals count batches in kg. 1 batch uses another unit and is not included.';
+
+  @override
+  String enhOtherUnitBatchesExcluded(String p0) {
+    return 'Totals count batches in kg. $p0 batches use other units and are not included.';
+  }
+
+  @override
+  String get enhLive => 'Live';
+
+  @override
+  String get systemNoticeAccountCreated0 => 'Account Created';
+
+  @override
+  String get systemNoticeAccountReactivated1 => 'Account Reactivated';
+
+  @override
+  String get systemNoticeAccountSuspended2 => 'Account Suspended';
+
+  @override
+  String get systemNoticeAccountApproved3 => 'Account approved';
+
+  @override
+  String get systemNoticeAccountNotApproved4 => 'Account not approved';
+
+  @override
+  String get systemNoticeAnotherDistribution5 => 'Another Distribution';
+
+  @override
+  String get systemNoticeApplicationDisapproved6 => 'Application Disapproved';
+
+  @override
+  String get systemNoticeApplicationNotApproved7 => 'Application Not Approved';
+
+  @override
+  String get systemNoticeApplicationSubmitted8 => 'Application Submitted';
+
+  @override
+  String get systemNoticeAssistanceApproved9 => 'Assistance Approved';
+
+  @override
+  String get systemNoticeAssistanceRequestNotApproved10 =>
+      'Assistance Request Not Approved';
+
+  @override
+  String get systemNoticeBODMeetingComingUp11 => 'BOD Meeting Coming Up';
+
+  @override
+  String get systemNoticeBODMeetingInDays12 => 'BOD Meeting in 3 Days';
+
+  @override
+  String get systemNoticeBalikTangkilikPayoutRecorded13 =>
+      'Balik-Tangkilik Payout Recorded';
+
+  @override
+  String get systemNoticeBenefitDistributed14 => 'Benefit Distributed';
+
+  @override
+  String get systemNoticeBuyerFoundForYourGinger15 =>
+      'Buyer Found for Your Ginger';
+
+  @override
+  String get systemNoticeCancellationApproved16 => 'Cancellation Approved';
+
+  @override
+  String get systemNoticeCancellationDeclined17 => 'Cancellation Declined';
+
+  @override
+  String get systemNoticeCapitalContributionCancelled18 =>
+      'Capital Contribution Cancelled';
+
+  @override
+  String get systemNoticeCapitalContributionRecorded19 =>
+      'Capital Contribution Recorded';
+
+  @override
+  String get systemNoticeChangesRequested20 => 'Changes Requested';
+
+  @override
+  String get systemNoticeCooperativePriceUpdated21 =>
+      'Cooperative Price Updated';
+
+  @override
+  String get systemNoticeCooperativePurchaseConfirmed22 =>
+      'Cooperative Purchase Confirmed';
+
+  @override
+  String get systemNoticeCooperativePurchaseOfferDeclined23 =>
+      'Cooperative Purchase Offer Declined';
+
+  @override
+  String get systemNoticeCropRequestApproved24 => 'Crop Request Approved';
+
+  @override
+  String get systemNoticeCropRequestDeclined25 => 'Crop Request Declined';
+
+  @override
+  String get systemNoticeEligibleForAnotherDistribution26 =>
+      'Eligible for Another Distribution';
+
+  @override
+  String get systemNoticeGingerSaleCompleted27 => 'Ginger Sale Completed';
+
+  @override
+  String get systemNoticeHarvestAddedToYourRecords28 =>
+      'Harvest Added to Your Records';
+
+  @override
+  String get systemNoticeHarvestReturnDue29 => 'Harvest Return Due';
+
+  @override
+  String get systemNoticeHarvestReturnReceived30 => 'Harvest Return Received';
+
+  @override
+  String get systemNoticeJoinRequestApproved31 => 'Join Request Approved';
+
+  @override
+  String get systemNoticeJoinRequestClosed32 => 'Join Request Closed';
+
+  @override
+  String get systemNoticeListingApproved33 => 'Listing Approved';
+
+  @override
+  String get systemNoticeListingChangesApproved34 => 'Listing Changes Approved';
+
+  @override
+  String get systemNoticeListingChangesDisapproved35 =>
+      'Listing Changes Disapproved';
+
+  @override
+  String get systemNoticeListingRejected36 => 'Listing Rejected';
+
+  @override
+  String get systemNoticeListingSoldOut37 => 'Listing Sold Out';
+
+  @override
+  String get systemNoticeListingStatusUpdated38 => 'Listing Status Updated';
+
+  @override
+  String get systemNoticeLoanAssessmentReferral39 => 'Loan Assessment Referral';
+
+  @override
+  String get systemNoticeLoanIssued40 => 'Loan Issued';
+
+  @override
+  String get systemNoticeLoanPaymentDueSoon41 => 'Loan Payment Due Soon';
+
+  @override
+  String get systemNoticeLoanRequestDisapproved42 => 'Loan Request Disapproved';
+
+  @override
+  String get systemNoticeMarketLinkingCancellationRequested43 =>
+      'Market Linking Cancellation Requested';
+
+  @override
+  String get systemNoticeMarketLinkingJoinRequestApproved44 =>
+      'Market Linking Join Request Approved';
+
+  @override
+  String get systemNoticeMembershipApproved45 => 'Membership Approved';
+
+  @override
+  String get systemNoticeNewCooperativeOffer46 => 'New Cooperative Offer';
+
+  @override
+  String get systemNoticeNewCropRequest47 => 'New Crop Request';
+
+  @override
+  String get systemNoticeNewJoinRequest48 => 'New Join Request';
+
+  @override
+  String get systemNoticeNewListingSubmitted49 => 'New Listing Submitted';
+
+  @override
+  String get systemNoticeNewMarketLinkingRequest50 =>
+      'New Market Linking Request';
+
+  @override
+  String get systemNoticeNewMembershipApplication51 =>
+      'New Membership Application';
+
+  @override
+  String get systemNoticeNewOrderReceived52 => 'New Order Received';
+
+  @override
+  String get systemNoticeNewProgramEnrollmentRequest53 =>
+      'New Program Enrollment Request';
+
+  @override
+  String get systemNoticeNewProgramPurchaseRequest54 =>
+      'New Program Purchase Request';
+
+  @override
+  String get systemNoticeNewOrderPlaced55 => 'New order placed';
+
+  @override
+  String get systemNoticeOrderApproved56 => 'Order Approved';
+
+  @override
+  String get systemNoticeOrderCancelled57 => 'Order Cancelled';
+
+  @override
+  String get systemNoticeOrderCompleted58 => 'Order Completed';
+
+  @override
+  String get systemNoticeOrderPendingReview59 => 'Order Pending Review';
+
+  @override
+  String get systemNoticeOrderRejected60 => 'Order Rejected';
+
+  @override
+  String get systemNoticeOutcomeReportReturned61 => 'Outcome Report Returned';
+
+  @override
+  String get systemNoticeOutcomeReportPending62 => 'Outcome report pending';
+
+  @override
+  String get systemNoticePatronageCapitalReinvested63 =>
+      'Patronage Capital Reinvested';
+
+  @override
+  String get systemNoticePaymentReminder64 => 'Payment Reminder';
+
+  @override
+  String get systemNoticePayoutDecisionConfirmed65 =>
+      'Payout Decision Confirmed';
+
+  @override
+  String get systemNoticePayoutDecisionNotApproved66 =>
+      'Payout Decision Not Approved';
+
+  @override
+  String get systemNoticeProgramEnrollmentDeclined67 =>
+      'Program Enrollment Declined';
+
+  @override
+  String get systemNoticeProgramOutcomeFailed68 => 'Program Outcome: Failed';
+
+  @override
+  String get systemNoticeProgramOutcomeThriving69 =>
+      'Program Outcome: Thriving';
+
+  @override
+  String get systemNoticeProgramReturnSettled70 => 'Program Return Settled';
+
+  @override
+  String get systemNoticePurchaseCancelled71 => 'Purchase Cancelled';
+
+  @override
+  String get systemNoticePurchaseConfirmed72 => 'Purchase Confirmed';
+
+  @override
+  String get systemNoticeReceivedFromProgram73 => 'Received from Program';
+
+  @override
+  String get systemNoticeReturnDue74 => 'Return Due';
+
+  @override
+  String get systemNoticeBodyABuyerHasBeenFoundForYour0 =>
+      'A buyer has been found for your Ginger harvest through Market Linking.';
+
+  @override
+  String systemNoticeBodyABuyerPlacedAnOrderForKg1(String p0, String p1) {
+    return 'A buyer placed an order for $p0 kg of your $p1 listing.';
+  }
+
+  @override
+  String systemNoticeBodyACapitalContributionOfRecordedForYou2(String p0) {
+    return 'A capital contribution of ₱$p0 recorded for you was cancelled.';
+  }
+
+  @override
+  String systemNoticeBodyAFarmerAskedToCancelARequest3(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'A farmer asked to cancel a $p0 request ($p1 kg unsold). Reason: $p2';
+  }
+
+  @override
+  String systemNoticeBodyAFarmerAskedToJoinReviewThe4(String p0) {
+    return 'A farmer asked to join $p0. Review the request.';
+  }
+
+  @override
+  String get systemNoticeBodyAFarmerCancelledTheirPendingProgramPurchase5 =>
+      'A farmer cancelled their pending program purchase.';
+
+  @override
+  String systemNoticeBodyAFarmerRequestedToEnrollInAnd6(String p0) {
+    return 'A farmer requested to enroll in $p0 and needs review.';
+  }
+
+  @override
+  String systemNoticeBodyAFarmerRequestedToEnrollInMarket7(String p0) {
+    return 'A farmer requested to enroll $p0 in Market Linking and needs review.';
+  }
+
+  @override
+  String systemNoticeBodyANewLoanWorthHasBeenIssued8(String p0, String p1) {
+    return 'A new loan ($p0) worth ₱$p1 has been issued to you.';
+  }
+
+  @override
+  String systemNoticeBodyANewLoanWorthHasBeenIssued9(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'A new loan ($p0) worth ₱$p1 has been issued to you: $p2.';
+  }
+
+  @override
+  String systemNoticeBodyANewOrderKgHasBeenPlaced10(String p0) {
+    return 'A new order ($p0 kg) has been placed and is awaiting approval.';
+  }
+
+  @override
+  String systemNoticeBodyAnOrderForYourListingHasBeen11(String p0) {
+    return 'An order for your $p0 listing has been approved.';
+  }
+
+  @override
+  String systemNoticeBodyAnOrderForYourListingWasCancelled12(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'An order for your $p0 listing was cancelled.$p1$p2';
+  }
+
+  @override
+  String systemNoticeBodyAnOrderForYourListingWasRejected13(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'An order for your $p0 listing was rejected.$p1$p2';
+  }
+
+  @override
+  String systemNoticeBodySomeoneCompletedAPurchaseOfYourListing14(String p0) {
+    return 'Someone completed a purchase of your $p0 listing.';
+  }
+
+  @override
+  String get systemNoticeBodyTheFarmerAccountYouCreatedWasApproved15 =>
+      'The Farmer account you created was approved.';
+
+  @override
+  String systemNoticeBodyTheFarmerAccountYouCreatedWasNot16(String p0) {
+    return 'The Farmer account you created was not approved. Reason: $p0';
+  }
+
+  @override
+  String get systemNoticeBodyTheAccountYouCreatedWasApprovedBy17 =>
+      'The account you created was approved by the Manager and can now sign in.';
+
+  @override
+  String systemNoticeBodyTheAccountYouCreatedWasNotApproved18(String p0) {
+    return 'The account you created was not approved by the Manager. Reason: $p0';
+  }
+
+  @override
+  String systemNoticeBodyTheCooperativeChangedThePriceOfYour19(
+    String p0,
+    String p1,
+  ) {
+    return 'The cooperative changed the price of your $p0 listing to ₱$p1/kg.';
+  }
+
+  @override
+  String systemNoticeBodyTheCooperativeRecordedFor20(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return 'The cooperative recorded $p0 $p1 $p2 for $p3.';
+  }
+
+  @override
+  String get systemNoticeBodyTheCooperativeReferredYouForALoan21 =>
+      'The cooperative referred you for a loan assessment. You may request items on loan from the Loan Item Catalog. This is not a loan yet: your request will be assessed and approved as usual.';
+
+  @override
+  String systemNoticeBodyTheCooperativeRemindsYouToReportThe22(
+    String p0,
+    String p1,
+  ) {
+    return 'The cooperative reminds you to report the outcome of the $p0 you received on $p1.';
+  }
+
+  @override
+  String systemNoticeBodyTheCooperativeWillGiveYouAnotherItem23(String p0) {
+    return 'The cooperative will give you another item in $p0 after your earlier outcome. You will be notified when it is handed to you.';
+  }
+
+  @override
+  String get systemNoticeBodyYouCanNowSubmitYourGingerHarvest24 =>
+      'You can now submit your Ginger harvest for sale through Market Linking.';
+
+  @override
+  String systemNoticeBodyYouReceivedFromYourProgram25(String p0, String p1) {
+    return 'You received $p0 $p1 from your program.';
+  }
+
+  @override
+  String systemNoticeBodyYouReceivedFromYourProgram26(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'You received $p0$p1 $p2 from your program.';
+  }
+
+  @override
+  String systemNoticeBodyYourBalikTangkilikPayoutDecisionForHas27(String p0) {
+    return 'Your Balik-Tangkilik payout decision for $p0 has been confirmed by the cooperative.';
+  }
+
+  @override
+  String systemNoticeBodyYourBalikTangkilikPayoutDecisionForWas28(String p0) {
+    return 'Your Balik-Tangkilik payout decision for $p0 was not approved. You may submit a new decision.';
+  }
+
+  @override
+  String systemNoticeBodyYourBalikTangkilikPayoutForOfHas29(
+    String p0,
+    String p1,
+  ) {
+    return 'Your Balik-Tangkilik payout for $p0 of ₱$p1 has been recorded.';
+  }
+
+  @override
+  String get systemNoticeBodyYourGingerSaleThroughMarketLinkingHas30 =>
+      'Your Ginger sale through Market Linking has been completed.';
+
+  @override
+  String get systemNoticeBodyYourSAGANAAccountWasCreatedByThe31 =>
+      'Your SAGANA account was created by the cooperative Manager. Sign in with your temporary password and change it to continue.';
+
+  @override
+  String get systemNoticeBodyYourSAGANAAccountWasCreatedByThe32 =>
+      'Your SAGANA account was created by the cooperative admin. Sign in with your temporary password and change it to continue.';
+
+  @override
+  String get systemNoticeBodyYourSPAccountHasBeenReactivatedWelcome33 =>
+      'Your SP3 account has been reactivated. Welcome back!';
+
+  @override
+  String systemNoticeBodyYourSPAccountHasBeenSuspendedReason34(String p0) {
+    return 'Your SP3 account has been suspended. Reason: $p0 Please contact the SP3 Cooperative.';
+  }
+
+  @override
+  String get systemNoticeBodyYourSPCooperativeMembershipHasBeenApproved35 =>
+      'Your SP3 cooperative membership has been approved. Open SAGANA and tap Continue to activate your farmer access.';
+
+  @override
+  String systemNoticeBodyYourSPCooperativeMembershipHasBeenApproved36(
+    String p0,
+  ) {
+    return 'Your SP3 cooperative membership has been approved. Open SAGANA and tap Continue to activate your farmer access. Your Member ID is $p0.';
+  }
+
+  @override
+  String systemNoticeBodyYourSPMembershipApplicationWasDisapprovedReason37(
+    String p0,
+  ) {
+    return 'Your SP3 membership application was disapproved. Reason: $p0 You may review your details and resubmit.';
+  }
+
+  @override
+  String systemNoticeBodyYourSPMembershipApplicationWasNotApproved38(
+    String p0,
+  ) {
+    return 'Your SP3 membership application was not approved. Reason: $p0 You may review your details and resubmit.';
+  }
+
+  @override
+  String systemNoticeBodyYourAssistanceRequestForWasApproved39(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'Your assistance request $p0 for $p1 was approved ($p2).';
+  }
+
+  @override
+  String systemNoticeBodyYourAssistanceRequestWasNotApproved40(String p0) {
+    return 'Your assistance request $p0 was not approved.';
+  }
+
+  @override
+  String systemNoticeBodyYourCapitalContributionOfWasRecorded41(String p0) {
+    return 'Your capital contribution of ₱$p0 was recorded.';
+  }
+
+  @override
+  String systemNoticeBodyYourChangesToTheListingWereApproved42(String p0) {
+    return 'Your changes to the $p0 listing were approved and are now live.';
+  }
+
+  @override
+  String systemNoticeBodyYourDistributionFromWasRecordedAsFailed43(
+    String p0,
+    String p1,
+  ) {
+    return 'Your distribution from $p0 was recorded as failed and converted to loan $p1.';
+  }
+
+  @override
+  String systemNoticeBodyYourEarlierOutcomeInWasReviewedAnd44(String p0) {
+    return 'Your earlier outcome in $p0 was reviewed and you are eligible for another distribution. You can request it from My Programs; you do not need to join again.';
+  }
+
+  @override
+  String systemNoticeBodyYourEnrollmentRequestForWasDeclinedBecause45(
+    String p0,
+  ) {
+    return 'Your enrollment request for $p0 was declined because the program was completed. You may join other open programs.';
+  }
+
+  @override
+  String systemNoticeBodyYourLoanRequestWasNotApprovedReason46(
+    String p0,
+    String p1,
+  ) {
+    return 'Your loan request $p0 was not approved. Reason: $p1';
+  }
+
+  @override
+  String systemNoticeBodyYourLoanHasAMissedPaymentOutstanding47(
+    String p0,
+    String p1,
+  ) {
+    return 'Your loan $p0 has a missed payment. Outstanding balance: ₱$p1. Please settle at the next BOD meeting or visit the cooperative office.';
+  }
+
+  @override
+  String systemNoticeBodyYourLoanHasAnInstallmentOfDue48(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'Your loan $p0 has an installment of ₱$p1 due on $p2.';
+  }
+
+  @override
+  String get systemNoticeBodyYourMembershipApplicationHasBeenSentTo49 =>
+      'Your membership application has been sent to the SP3 Cooperative for review.';
+
+  @override
+  String systemNoticeBodyYourOfferOfKgWasConfirmedBy50(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'Your offer of ${p0}kg $p1 was confirmed by SP3 for ₱$p2.';
+  }
+
+  @override
+  String systemNoticeBodyYourOfferOfKgWasNotAccepted51(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return 'Your offer of ${p0}kg $p1 was not accepted by SP3.$p2$p3';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderForHasBeenApprovedAnd54(String p0) {
+    return 'Your order for $p0 has been approved and is being prepared.';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderForHasBeenCompletedThank55(String p0) {
+    return 'Your order for $p0 has been completed. Thank you for supporting SP3 farmers!';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderForWasCancelled56(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'Your order for $p0 was cancelled.$p1$p2';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderForWasPlacedAndIs57(String p0) {
+    return 'Your order for $p0 was placed and is pending review.';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderForWasRejected58(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return 'Your order for $p0 was rejected.$p1$p2';
+  }
+
+  @override
+  String systemNoticeBodyYourOutcomeForWasConfirmedAsSuccessful59(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return 'Your outcome for $p0 was confirmed as successful after the field verification. You are to return $p1 $p2 of your harvested $p3 to the cooperative. The rest of your harvest stays with you.';
+  }
+
+  @override
+  String systemNoticeBodyYourOutcomeForWasConfirmedAsSuccessful60(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return 'Your outcome for $p0 was confirmed as successful after the field verification. You are to return $p1 $p2 $p3 to the cooperative.';
+  }
+
+  @override
+  String systemNoticeBodyYourOutcomeForWasSuccessfulTheCooperative61(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return 'Your outcome for $p0 was successful. The cooperative will record your harvest return of $p1 $p2 $p3 when it is received.';
+  }
+
+  @override
+  String systemNoticeBodyYourOutcomeReportForNeedsMoreEvidence62(
+    String p0,
+    String p1,
+  ) {
+    return 'Your outcome report for $p0 needs more evidence: $p1 Please submit a new report.';
+  }
+
+  @override
+  String systemNoticeBodyYourParticipationInWasRecordedAsThriving63(String p0) {
+    return 'Your participation in $p0 was recorded as thriving.';
+  }
+
+  @override
+  String systemNoticeBodyYourProgramPurchaseWasCancelledByThe64(
+    String p0,
+    String p1,
+  ) {
+    return 'Your program purchase was cancelled by the SP3 Admin.$p0$p1';
+  }
+
+  @override
+  String systemNoticeBodyYourPurchaseOfHasBeenConfirmed65(
+    String p0,
+    String p1,
+  ) {
+    return 'Your purchase of $p0 $p1 has been confirmed.';
+  }
+
+  @override
+  String systemNoticeBodyYourRequestToCancelTheRequestWas66(
+    String p0,
+    String p1,
+  ) {
+    return 'Your request to cancel the $p0 request was declined. Reason: $p1';
+  }
+
+  @override
+  String systemNoticeBodyYourRequestToJoinWasApprovedYou67(String p0) {
+    return 'Your request to join $p0 was approved. You are now a member.';
+  }
+
+  @override
+  String systemNoticeBodyYourRequestToJoinWasClosedBecause68(String p0) {
+    return 'Your request to join $p0 was closed because the program was completed. You may join other open programs.';
+  }
+
+  @override
+  String systemNoticeBodyYourRequestedChangesToTheListingWere69(
+    String p0,
+    String p1,
+  ) {
+    return 'Your requested changes to the $p0 listing were not approved. Your listing stays as it was. Reason: $p1';
+  }
+
+  @override
+  String systemNoticeBodyYourReturnOfForHasBeenRecorded70(
+    String p0,
+    String p1,
+  ) {
+    return 'Your return of ₱$p0 for $p1 has been recorded. Thank you!';
+  }
+
+  @override
+  String systemNoticeBodyYourListingHasBeenMarkedRejectedYou71(String p0) {
+    return 'Your $p0 listing has been marked Rejected. You can create a new listing for this batch.';
+  }
+
+  @override
+  String systemNoticeBodyYourListingHasBeenSoldOut72(String p0) {
+    return 'Your $p0 listing has been sold out.';
+  }
+
+  @override
+  String systemNoticeBodyYourListingIsNowLiveOnThe73(String p0) {
+    return 'Your $p0 listing is now live on the Marketplace.';
+  }
+
+  @override
+  String systemNoticeBodyYourListingNeedsChangesBeforeItCan74(
+    String p0,
+    String p1,
+  ) {
+    return 'Your $p0 listing needs changes before it can go live. Note: $p1';
+  }
+
+  @override
+  String systemNoticeBodyYourListingWasRejectedReason75(String p0, String p1) {
+    return 'Your $p0 listing was rejected. Reason: $p1';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderHasBeenApprovedAndIs76(String p0) {
+    return 'Your $p0 order has been approved and is being prepared for the buyer.';
+  }
+
+  @override
+  String systemNoticeBodyYourOrderHasBeenCompletedAndSold77(String p0) {
+    return 'Your $p0 order has been completed and sold.';
+  }
+
+  @override
+  String systemNoticeBodyKgWasOfferedToTheCooperativeAnd79(
+    String p0,
+    String p1,
+  ) {
+    return '$p0 ($p1 kg) was offered to the cooperative and needs review.';
+  }
+
+  @override
+  String systemNoticeBodyKgWasSubmittedForReview80(String p0, String p1) {
+    return '$p0 (${p1}kg) was submitted for review.';
+  }
+
+  @override
+  String systemNoticeBodyCancelledTheirOrderForYourListing81(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return '$p0 cancelled their order for your $p1 listing.$p2$p3';
+  }
+
+  @override
+  String systemNoticeBodyConfirmedReceivingOfYour82(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return '$p0 confirmed receiving $p1 $p2 of your $p3.';
+  }
+
+  @override
+  String systemNoticeBodyConfirmedReceivingOf83(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+  ) {
+    return '$p0 confirmed receiving $p1 $p2 of $p3.';
+  }
+
+  @override
+  String systemNoticeBodyHasBeenAddedToTheOfficialCrop84(String p0) {
+    return '$p0 has been added to the official crop list and is now fully approved.';
+  }
+
+  @override
+  String systemNoticeBodyRegisteredAndNeedsReview85(String p0) {
+    return '$p0 registered and needs review.';
+  }
+
+  @override
+  String systemNoticeBodyReinvestedOfTheirBalikTangkilikPayoutInto86(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return '$p0 reinvested ₱$p1 of their $p2 Balik-Tangkilik payout into their capital share.';
+  }
+
+  @override
+  String systemNoticeBodyRequestedToPurchase87(
+    String p0,
+    String p1,
+    String p2,
+  ) {
+    return '$p0 requested to purchase $p1 $p2.';
+  }
+
+  @override
+  String systemNoticeBodyRequestedToPurchase88(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+    String p4,
+    String p5,
+  ) {
+    return '$p0 requested to purchase $p1 $p2$p3$p4$p5';
+  }
+
+  @override
+  String systemNoticeBodySubmittedAMembershipApplicationAndNeedsReview89(
+    String p0,
+  ) {
+    return '$p0 submitted a membership application and needs review.';
+  }
+
+  @override
+  String systemNoticeBodyWasCreatedByAndNeedsYourApproval90(
+    String p0,
+    String p1,
+  ) {
+    return '$p0 was created by $p1 and needs your approval.';
+  }
+
+  @override
+  String systemNoticeBodyWasNotAddedToTheOfficialList91(String p0, String p1) {
+    return '$p0 was not added to the official list. Reason: $p1';
+  }
+
+  @override
+  String systemNoticeBodyWasRequestedByAFarmerAndNeeds92(String p0) {
+    return '$p0 was requested by a farmer and needs review.';
+  }
+
+  @override
+  String systemNoticeBodyOfFromWasAddedToYourHarvest93(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+    String p4,
+    String p5,
+  ) {
+    return '$p0 $p1 of $p2 from $p3 was added to your Harvest records ($p4).$p5';
+  }
+
+  @override
+  String systemNoticeBodyOfFromWasAddedToYourHarvest94(
+    String p0,
+    String p1,
+    String p2,
+    String p3,
+    String p4,
+  ) {
+    return '$p0 $p1 of $p2 from $p3 was added to your Harvest tab ($p4).';
+  }
+
+  @override
+  String get calendarMonthlyBoardMeeting =>
+      'Monthly meeting of the Board of Directors';
+
+  @override
+  String get calendarLoanPaymentDue => 'Loan payment due';
+
+  @override
+  String calendarHarvestsRecorded(String count) {
+    return '$count harvests recorded';
+  }
+
+  @override
+  String get enhSetNewPasswordTitle => 'Set a New Password';
+
+  @override
+  String get enhSetNewPasswordBody =>
+      'Choose a new password for your SAGANA account.';
+
+  @override
+  String get enhMemberPrograms => 'Member Programs';
+
+  @override
+  String get enhUnknown => 'Unknown';
+
+  @override
+  String get enhRootSpiceCrop => 'Root & Spice Crop';
+
+  @override
+  String get enhTreeCrop => 'Tree Crop';
+
+  @override
+  String get enhFruit => 'Fruit';
+
+  @override
+  String get enhVegetable => 'Vegetable';
+
+  @override
+  String get enhNotAssigned => 'Not yet assigned';
+
+  @override
+  String enhPayoutCashAction(String amount) {
+    return 'keep ₱$amount as cash';
+  }
+
+  @override
+  String enhPayoutCapitalAction(String amount) {
+    return 'add ₱$amount to your capital share';
+  }
+
+  @override
+  String enhPayoutDecisionPending(String action) {
+    return 'Your request to $action is awaiting Manager confirmation.';
+  }
+
+  @override
+  String enhPayoutDecisionConfirmed(String action) {
+    return 'Confirmed: you chose to $action.';
+  }
+
+  @override
+  String get enhFilter => 'Filter';
+
+  @override
+  String get enhLabor => 'Labor';
+
+  @override
+  String get enhTools => 'Tools';
+
+  @override
+  String get enhIrrigation => 'Irrigation';
+
+  @override
+  String get enhTransport => 'Transport';
+
+  @override
+  String get connectivityOfflineTitle => 'You\'re Offline';
+
+  @override
+  String get connectivityOnlineTitle => 'You\'re Back Online';
+
+  @override
+  String get connectivityOfflineRecords =>
+      'You\'re viewing saved data. New records are saved locally and sync when you\'re back online. Some features require internet.';
+
+  @override
+  String get connectivityOnlineRecords =>
+      'Your connection is restored. Your offline records are now syncing.';
+
+  @override
+  String get connectivityOfflineBuyer =>
+      'Please connect to the internet to use SAGANA.';
+
+  @override
+  String get connectivityOnlineBuyer =>
+      'Your internet connection is restored. You can now continue using SAGANA.';
+
+  @override
+  String get connectivityScreenUnknown =>
+      'Open a SAGANA module to view its information.';
+
+  @override
+  String get connectivityScreenFarmMap =>
+      'Choose and review your farm\'s location.';
+
+  @override
+  String get connectivityScreenAddressMap =>
+      'Choose the delivery address on the map.';
+
+  @override
+  String get connectivityScreenCooperativeMap =>
+      'Choose the cooperative location used for pickup and delivery.';
+
+  @override
+  String get connectivityScreenDeliveryMap =>
+      'View this delivery\'s destination and location.';
+
+  @override
+  String get connectivityScreenDistributionYear =>
+      'Review this year\'s member payouts and distribution totals.';
+
+  @override
+  String get connectivityScreenStartup =>
+      'Preparing SAGANA and your account session.';
+
+  @override
+  String get connectivityScreenWelcome =>
+      'Choose how to sign in or explore SAGANA.';
+
+  @override
+  String get connectivityScreenLogin =>
+      'Sign in to access your SAGANA account.';
+
+  @override
+  String get connectivityScreenRegister =>
+      'Enter your details to create a SAGANA account.';
+
+  @override
+  String get connectivityScreenResetPassword =>
+      'Set a new password to regain access to your account.';
+
+  @override
+  String get connectivityScreenChangePassword =>
+      'Replace your temporary password to continue.';
+
+  @override
+  String get connectivityScreenFarmerHome =>
+      'See your farm summary, recent updates, and pending records.';
+
+  @override
+  String get connectivityScreenApplicationStatus =>
+      'Follow the status of your membership application.';
+
+  @override
+  String get connectivityScreenNotifications =>
+      'Read cooperative notices and account updates.';
+
+  @override
+  String get connectivityScreenApplicantProfile =>
+      'Review the personal details in your membership application.';
+
+  @override
+  String get connectivityScreenApplicationReview =>
+      'Check the application details submitted for review.';
+
+  @override
+  String get connectivityScreenActivity =>
+      'Review recent actions and changes in your account.';
+
+  @override
+  String get connectivityScreenHarvestHub =>
+      'Open your crops, harvest records, and farm stock.';
+
+  @override
+  String get connectivityScreenCropRoster =>
+      'View your crops and open their harvest records.';
+
+  @override
+  String get connectivityScreenSelectCrop =>
+      'Choose the crop for a new harvest record.';
+
+  @override
+  String get connectivityScreenCropDetails =>
+      'Review this crop\'s details and approval status.';
+
+  @override
+  String get connectivityScreenRecordHarvest =>
+      'Record the harvest date, quantity, and storage details.';
+
+  @override
+  String get connectivityScreenHarvestHistory =>
+      'Review harvest entries, quantities, and batch details.';
+
+  @override
+  String get connectivityScreenFarmStock =>
+      'Review available, reserved, and sold harvest batches.';
+
+  @override
+  String get connectivityScreenFarmerMarketplace =>
+      'Manage your listings and browse marketplace products.';
+
+  @override
+  String get connectivityScreenCreateListing =>
+      'Prepare a listing with its crop, quantity, and price.';
+
+  @override
+  String get connectivityScreenListingSubmitted =>
+      'Review the listing submitted to the cooperative.';
+
+  @override
+  String get connectivityScreenOwnListing =>
+      'Check your listing\'s stock, price, and review status.';
+
+  @override
+  String get connectivityScreenEditListing =>
+      'Edit a listing or request changes to its approved details.';
+
+  @override
+  String get connectivityScreenListingHistory =>
+      'Read the review and change history of this listing.';
+
+  @override
+  String get connectivityScreenProductDetails =>
+      'Review the product\'s price, availability, and purchase options.';
+
+  @override
+  String get connectivityScreenCooperativeProduct =>
+      'View a cooperative product and its purchase details.';
+
+  @override
+  String get connectivityScreenCart =>
+      'Review items, quantities, and prices before checkout.';
+
+  @override
+  String get connectivityScreenCheckoutResult =>
+      'Review submitted items and any items that need attention.';
+
+  @override
+  String get connectivityScreenOrderConfirmation =>
+      'View your order confirmation and the next steps.';
+
+  @override
+  String get connectivityScreenCheckout =>
+      'Review contact, fulfillment, and payment details before ordering.';
+
+  @override
+  String get connectivityScreenFarmerAnalytics =>
+      'Review trends in your harvests, expenses, and farm activity.';
+
+  @override
+  String get connectivityScreenFarmerProfile =>
+      'View personal information, farm details, and member records.';
+
+  @override
+  String get connectivityScreenEditFarm =>
+      'Update your farm details and location.';
+
+  @override
+  String get connectivityScreenOwnLoans =>
+      'Review your current loans, balances, and due dates.';
+
+  @override
+  String get connectivityScreenRequestLoan =>
+      'Choose agricultural inputs and prepare a loan request.';
+
+  @override
+  String get connectivityScreenOwnLoanRequests =>
+      'Track the review status of your loan requests.';
+
+  @override
+  String get connectivityScreenOwnLoanHistory =>
+      'Review past loans and their repayment progress.';
+
+  @override
+  String get connectivityScreenPaymentHistory =>
+      'Read recorded payments and remaining balances.';
+
+  @override
+  String get connectivityScreenOwnContributions =>
+      'Review your capital shares and Balik-Tangkilik records.';
+
+  @override
+  String get connectivityScreenOwnExpenses =>
+      'Record and review farm expenses.';
+
+  @override
+  String get connectivityScreenBrowsePrograms =>
+      'Browse cooperative programs and their requirements.';
+
+  @override
+  String get connectivityScreenEnrolledPrograms =>
+      'Follow programs you joined and items distributed to you.';
+
+  @override
+  String get connectivityScreenReceivedItems =>
+      'Review items received from cooperative programs.';
+
+  @override
+  String get connectivityScreenProgramDetails =>
+      'Read this program\'s benefits, requirements, and participation details.';
+
+  @override
+  String get connectivityScreenOwnMarketLinking =>
+      'Track crop sale requests arranged through the cooperative.';
+
+  @override
+  String get connectivityScreenTransactions =>
+      'Review recorded purchases and crop sales.';
+
+  @override
+  String get connectivityScreenOwnOffers =>
+      'Track crop offers and price negotiations with the cooperative.';
+
+  @override
+  String get connectivityScreenOwnOfferDetails =>
+      'Review this offer\'s price, quantity, and negotiation history.';
+
+  @override
+  String get connectivityScreenOwnOrders =>
+      'Track orders, payments, and pickup or delivery progress.';
+
+  @override
+  String get connectivityScreenOrderDetails =>
+      'Review this order\'s items, charges, payment, and fulfillment.';
+
+  @override
+  String get connectivityScreenProgramOrderDetails =>
+      'Review items and fulfillment for this cooperative product order.';
+
+  @override
+  String get connectivityScreenSettings =>
+      'Choose your language, appearance, and account preferences.';
+
+  @override
+  String get connectivityScreenEditProfile =>
+      'Update personal details, your photo, and contact information.';
+
+  @override
+  String get connectivityScreenMarketPrices =>
+      'Compare crop prices and market updates.';
+
+  @override
+  String get connectivityScreenCropPrices =>
+      'Read this crop\'s price history and market information.';
+
+  @override
+  String get connectivityScreenStaffDashboard =>
+      'Check cooperative priorities, performance, and pending work.';
+
+  @override
+  String get connectivityScreenManagePrices =>
+      'Review and maintain cooperative crop prices.';
+
+  @override
+  String get connectivityScreenBroadcast =>
+      'Prepare an announcement and choose its recipients.';
+
+  @override
+  String get connectivityScreenSupplyChain =>
+      'View farm locations, crops, and cooperative supply records.';
+
+  @override
+  String get connectivityScreenMembers =>
+      'Find members and review their membership and account status.';
+
+  @override
+  String get connectivityScreenMemberDetails =>
+      'Review this member\'s farm, contributions, loans, and activity.';
+
+  @override
+  String get connectivityScreenAddMember =>
+      'Enter a new member\'s details and prepare their account.';
+
+  @override
+  String get connectivityScreenManageMarketLinking =>
+      'Coordinate crop sale requests and buyers through DA-AMAD.';
+
+  @override
+  String get connectivityScreenMarketLinkingEnrollment =>
+      'Review requests to join the cooperative\'s DA-AMAD market linking.';
+
+  @override
+  String get connectivityScreenListingApprovals =>
+      'Review new crop listings waiting for approval.';
+
+  @override
+  String get connectivityScreenAllListings =>
+      'Browse and manage all marketplace listings.';
+
+  @override
+  String get connectivityScreenReviewListing =>
+      'Review a listing\'s details and record a decision.';
+
+  @override
+  String get connectivityScreenListingChanges =>
+      'Compare proposed listing changes and review the request.';
+
+  @override
+  String get connectivityScreenBuyers =>
+      'Find buyers and review their account activity.';
+
+  @override
+  String get connectivityScreenBuyerDetails =>
+      'Review this buyer\'s profile and marketplace activity.';
+
+  @override
+  String get connectivityScreenBuyerOrderHistory =>
+      'Review this buyer\'s past and current orders.';
+
+  @override
+  String get connectivityScreenStaffLoans =>
+      'Monitor loans, collections, due dates, and pending records.';
+
+  @override
+  String get connectivityScreenIssueLoan =>
+      'Prepare an agricultural input loan for a member.';
+
+  @override
+  String get connectivityScreenRecordPayment =>
+      'Record a member\'s payment against an existing loan.';
+
+  @override
+  String get connectivityScreenStaffLoanDetails =>
+      'Review this loan\'s items, balance, payments, and due dates.';
+
+  @override
+  String get connectivityScreenStaffLoanHistory =>
+      'Search the cooperative\'s issued and completed loans.';
+
+  @override
+  String get connectivityScreenReviewLoanRequests =>
+      'Review member loan requests and record decisions.';
+
+  @override
+  String get connectivityScreenLoanReport =>
+      'Review loan releases, balances, and collections.';
+
+  @override
+  String get connectivityScreenSalesReport =>
+      'Review crop and cooperative product sales.';
+
+  @override
+  String get connectivityScreenHarvestReport =>
+      'Review harvested crops, quantities, and participating farmers.';
+
+  @override
+  String get connectivityScreenExpenseReport =>
+      'Review farm spending by member and expense category.';
+
+  @override
+  String get connectivityScreenContributionReport =>
+      'Review members\' capital contributions and totals.';
+
+  @override
+  String get connectivityScreenReports =>
+      'Open cooperative reports and financial summaries.';
+
+  @override
+  String get connectivityScreenStaffAnalytics =>
+      'Explore cooperative harvest, sales, and member activity trends.';
+
+  @override
+  String get connectivityScreenPatronage =>
+      'Review annual surplus allocations and member payouts.';
+
+  @override
+  String get connectivityScreenExports =>
+      'Choose a report and prepare a downloadable file.';
+
+  @override
+  String get connectivityScreenStaffProfile =>
+      'Review your staff profile and cooperative activity.';
+
+  @override
+  String get connectivityScreenCreateOfficer =>
+      'Enter an Officer\'s details and prepare their account.';
+
+  @override
+  String get connectivityScreenOfficerAccounts =>
+      'Manage Officer accounts and access to modules.';
+
+  @override
+  String get connectivityScreenFarmerAccounts =>
+      'Review and manage member account access.';
+
+  @override
+  String get connectivityScreenManagerAccounts =>
+      'Review and manage Manager accounts.';
+
+  @override
+  String get connectivityScreenMemberExpenses =>
+      'Review this member\'s recorded farm expenses.';
+
+  @override
+  String get connectivityScreenAccountability =>
+      'Review who made changes across cooperative modules.';
+
+  @override
+  String get connectivityScreenStockReport =>
+      'Review cooperative stock levels and replenishment needs.';
+
+  @override
+  String get connectivityScreenBuyerBrowse =>
+      'Browse available products, crop listings, and prices.';
+
+  @override
+  String get connectivityScreenBuyerAccount =>
+      'View your profile, addresses, and account options.';
+
+  @override
+  String get connectivityScreenAddresses =>
+      'Review contact and delivery addresses saved to your account.';
+
+  @override
+  String get connectivityScreenEditAddress =>
+      'Enter contact details and choose a delivery location.';
+
+  @override
+  String get connectivityScreenCooperativeInventory =>
+      'Manage cooperative items, stock movements, and reorder levels.';
+
+  @override
+  String get connectivityScreenCropCatalog =>
+      'Manage the crop catalog and market classifications.';
+
+  @override
+  String get connectivityScreenCropRequests =>
+      'Review requests to add crops to the catalog.';
+
+  @override
+  String get connectivityScreenManagePrograms =>
+      'Manage cooperative programs, distributions, and program sales.';
+
+  @override
+  String get connectivityScreenProgramEnrollment =>
+      'Review requests to join cooperative programs.';
+
+  @override
+  String get connectivityScreenProgramMembers =>
+      'Review participants, distributions, and program progress.';
+
+  @override
+  String get connectivityScreenProgramProducts =>
+      'Manage products offered through this program.';
+
+  @override
+  String get connectivityScreenProgramOutcomes =>
+      'Review reported program results and follow-up decisions.';
+
+  @override
+  String get connectivityScreenOutcomeDetails =>
+      'Review this farmer\'s outcome report and supporting evidence.';
+
+  @override
+  String get connectivityScreenReportOutcome =>
+      'Describe your program results and attach supporting evidence.';
+
+  @override
+  String get connectivityScreenRequestAssistance =>
+      'Prepare a request for program assistance.';
+
+  @override
+  String get connectivityScreenReviewAssistance =>
+      'Review program assistance requests and decisions.';
+
+  @override
+  String get connectivityScreenLoanCatalog =>
+      'Manage agricultural items available for member loans.';
+
+  @override
+  String get connectivityScreenCalendar =>
+      'Review cooperative meetings, harvest events, and loan due dates.';
+
+  @override
+  String get connectivityScreenBroadcastHistory =>
+      'Review announcements and the recipients they reached.';
+
+  @override
+  String get connectivityScreenMemberPrograms =>
+      'View programs available to cooperative members.';
+
+  @override
+  String get connectivityScreenStaffMarketplace =>
+      'Open listings, orders, offers, and marketplace operations.';
+
+  @override
+  String get connectivityScreenManageOrders =>
+      'Review incoming orders and their fulfillment status.';
+
+  @override
+  String get connectivityScreenCooperativeDetails =>
+      'Review cooperative contact information and pickup location.';
+
+  @override
+  String get connectivityScreenDeliverySettings =>
+      'Configure delivery availability and distance-based fees.';
+
+  @override
+  String get connectivityScreenManageOffers =>
+      'Review farmer crop offers and purchase negotiations.';
+
+  @override
+  String get connectivityScreenReviewOffer =>
+      'Review the quantity, price, and progress of this crop offer.';
+
+  @override
+  String get connectivityScreenAboutSagana =>
+      'Learn how SAGANA supports cooperative members and operations.';
+
+  @override
+  String get connectivityScreenAboutCooperative =>
+      'Read cooperative information and contact details.';
+
+  @override
+  String get connectivityScreenPrivacy =>
+      'Read how account information is collected, used, and protected.';
+
+  @override
+  String get connectivityScreenTerms =>
+      'Read the rules for using SAGANA and its services.';
+
+  @override
+  String get pricePricingTypeLabel => 'Pricing Type';
+
+  @override
+  String get priceModeFixed => 'Fixed Price';
+
+  @override
+  String get priceModeRange => 'Reference Price Range';
+
+  @override
+  String get priceMinReferenceLabel => 'Minimum Reference Price';
+
+  @override
+  String get priceMaxReferenceLabel => 'Maximum Reference Price';
+
+  @override
+  String get priceFixedHelp =>
+      'Fixed Price: Marketplace listings of this crop are created at exactly this price. Farmers cannot change it.';
+
+  @override
+  String get priceRangeHelp =>
+      'Reference Price Range: Farmers set their own Marketplace price, anywhere from the minimum to the maximum.';
+
+  @override
+  String get priceMaxAboveMin => 'Must be higher than the minimum';
+
+  @override
+  String get cropMgmtShelfLifeLabel => 'Shelf Life *';
+
+  @override
+  String get cropMgmtShelfLifeHint => 'e.g. 5';
+
+  @override
+  String get cropMgmtShelfLifeHelper =>
+      'Default for every newly recorded harvest of this crop. Each harvest counts down on its own from its harvest date.';
+
+  @override
+  String get cropMgmtShelfLifeRequired => 'Shelf life is required';
+
+  @override
+  String get cropMgmtShelfLifeInvalid =>
+      'Enter a whole number of days, from 1 to 3650';
+
+  @override
+  String cropMgmtShelfLifeSuggested(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days',
+      one: '1 day',
+    );
+    return 'Reference figure: $_temp0';
+  }
+
+  @override
+  String get cropMgmtShelfLifeUse => 'Use';
+
+  @override
+  String get shelfDaysUnit => 'days';
+
+  @override
+  String get shelfLifeLabel => 'Shelf Life';
+
+  @override
+  String shelfDaysCount(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days Days',
+      one: '1 Day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shelfDaysShort(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days',
+      one: '1 day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shelfNotSetShort => 'Not set';
+
+  @override
+  String get shelfNotSetByCoop => 'Not set by the cooperative yet';
+
+  @override
+  String shelfHarvestOverdueWarning(int days) {
+    return 'This harvest date is already beyond the crop\'s $days-day shelf life. You can still record it, but you will not be able to sell it through any channel until you check the produce and confirm it is still good in Manage Inventory.';
+  }
+
+  @override
+  String get shelfDiscountTitle => 'Expiry-Day Marketplace Discount';
+
+  @override
+  String get shelfDiscountBody =>
+      'On the day a harvest reaches its shelf life, its published Marketplace listing is automatically discounted by this percentage. It applies to the Marketplace only. Enter 0 to turn the discount off.';
+
+  @override
+  String get shelfDiscountFieldLabel => 'Discount';
+
+  @override
+  String get shelfDiscountInvalid => 'Enter a percentage from 0 to 90';
+
+  @override
+  String get shelfDiscountSaved => 'Discount saved';
+
+  @override
+  String get shelfDiscountTileSub => 'Applied on the expiry day';
+
+  @override
+  String shelfCropsNotSet(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count crops have no shelf life set yet',
+      one: '1 crop has no shelf life set yet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shelfNotTracked => 'Not tracked';
+
+  @override
+  String shelfDaysLeft(int days) {
+    return '$days days left';
+  }
+
+  @override
+  String get shelfOneDayLeft => '1 day left';
+
+  @override
+  String get shelfEndsToday => 'Ends today';
+
+  @override
+  String get shelfPast => 'Past its shelf life';
+
+  @override
+  String get shelfOnHold => 'Confirm before selling';
+
+  @override
+  String shelfUntil(String date) {
+    return 'until $date';
+  }
+
+  @override
+  String get shelfBack => 'Back';
+
+  @override
+  String shelfCheckTitle(String crop) {
+    return 'Check Your $crop';
+  }
+
+  @override
+  String shelfCheckBody(String crop) {
+    return 'Your $crop is nearing its shelf life or expiration. Please manually check your harvested $crop, then choose what you found.';
+  }
+
+  @override
+  String shelfCheckStock(String available, String reserved) {
+    return 'Available: $available • Reserved: $reserved';
+  }
+
+  @override
+  String shelfActionStillOkay(String crop) {
+    return 'Confirm That My $crop Is Still Okay';
+  }
+
+  @override
+  String shelfActionRotten(String crop) {
+    return 'My $crop Is Already Rotten';
+  }
+
+  @override
+  String get shelfStillGoodTitle => 'Still in Good Condition';
+
+  @override
+  String get shelfStillGoodBody =>
+      'Based on what you saw, how many more days will this produce stay good? The shelf life of this harvest restarts from today.';
+
+  @override
+  String get shelfRemainingDaysLabel => 'Remaining shelf life';
+
+  @override
+  String get shelfRemainingDaysHelper =>
+      'Whole days from today, based on your own check of the produce.';
+
+  @override
+  String get shelfRemainingDaysInvalid =>
+      'Enter a whole number of days, from 1 to 365';
+
+  @override
+  String shelfListingPriceLabel(String unit) {
+    return 'Marketplace price per $unit';
+  }
+
+  @override
+  String get shelfNeedsApprovalUnavailable =>
+      'Your Marketplace listing is unavailable to buyers. This update goes to the cooperative for approval; the listing becomes available again once it is approved.';
+
+  @override
+  String get shelfNeedsApprovalDiscounted =>
+      'Your Marketplace listing was already discounted. This update goes to the cooperative for approval and takes effect once it is approved.';
+
+  @override
+  String get shelfSubmitForApproval => 'Submit for Approval';
+
+  @override
+  String get shelfConfirmAction => 'Confirm';
+
+  @override
+  String get shelfConfirmApplied =>
+      'Shelf life updated. We will keep monitoring this harvest.';
+
+  @override
+  String get shelfConfirmSubmitted =>
+      'Submitted for approval. Your listing changes once the cooperative approves.';
+
+  @override
+  String get shelfRottenTitle => 'Report as Rotten';
+
+  @override
+  String shelfRottenBody(String crop) {
+    return 'Everything still unsold from this $crop harvest will be recorded as a loss and can no longer be sold. This cannot be undone.';
+  }
+
+  @override
+  String get shelfRottenScope =>
+      'This covers what is available plus what is still unsold in its Marketplace listing. Quantities buyers already ordered, or that are committed to a cooperative offer or a DA-AMAD request, are not changed. Your other harvests are not affected.';
+
+  @override
+  String get shelfRottenNoteLabel => 'Note (optional)';
+
+  @override
+  String get shelfRottenNoteHint => 'e.g. Wilted after the rain';
+
+  @override
+  String get shelfRottenAction => 'Record as Loss';
+
+  @override
+  String shelfRottenRecorded(String qty) {
+    return '$qty recorded as a loss.';
+  }
+
+  @override
+  String get shelfFilterAllConditions => 'All Conditions';
+
+  @override
+  String get shelfFilterGood => 'Good';
+
+  @override
+  String get shelfFilterNeedsCheck => 'Needs Check';
+
+  @override
+  String get shelfFilterRotten => 'Rotten/Lost';
+
+  @override
+  String get shelfTagRotten => 'Rotten';
+
+  @override
+  String get shelfTagOnHold => 'On Hold';
+
+  @override
+  String get shelfTagUnavailable => 'Unavailable';
+
+  @override
+  String get shelfTagDiscounted => 'Discounted';
+
+  @override
+  String get shelfCheckMenu => 'Check Produce';
+
+  @override
+  String get shelfCheckNow => 'Check Now';
+
+  @override
+  String shelfLossLine(String qty) {
+    return 'Loss (rotten): $qty';
+  }
+
+  @override
+  String get shelfHoldNote =>
+      'This harvest was recorded after its shelf life had passed. Confirm it is still good before selling it through any channel.';
+
+  @override
+  String get shelfExpiredNote =>
+      'This harvest is past its shelf life. Check it and confirm it is still good, or report it as rotten.';
+
+  @override
+  String shelfNearNote(String crop) {
+    return 'Your $crop is nearing its shelf life. Please check it.';
+  }
+
+  @override
+  String get shelfListingUnavailableHint =>
+      'Past its shelf life: buyers cannot see or buy this listing. Check the produce and confirm it is still good (needs approval), or report it as rotten.';
+
+  @override
+  String shelfListingDiscountedHint(String price) {
+    return 'Discounted automatically today (was ₱$price). Check the produce: you can adjust the price or its shelf life (needs approval).';
+  }
+
+  @override
+  String listingPriceFixedNote(String price, String unit) {
+    return 'Fixed at ₱$price per $unit by the cooperative. It cannot be changed.';
+  }
+
+  @override
+  String listingPriceRangeNote(String min, String max, String unit) {
+    return 'Allowed price: ₱$min to ₱$max per $unit.';
+  }
+
+  @override
+  String get listingPriceInvalid => 'Enter a valid price';
+
+  @override
+  String shelfReviewStaffNote(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days more days',
+      one: '1 more day',
+    );
+    return 'Shelf-life review: the Farmer checked the produce and says it is still good for $_temp0. Approving restarts the shelf life from today, applies the price below and makes the listing available to buyers again.';
+  }
+
+  @override
+  String get shelfStaffUnavailableNote =>
+      'Past its shelf life: this listing is unavailable to buyers until the Farmer confirms the produce and the change is approved.';
+
+  @override
+  String shelfStaffDiscountedNote(String price) {
+    return 'Reached its shelf life: the price was discounted automatically (was ₱$price).';
+  }
+
+  @override
+  String get shelfReportTitle => 'Shelf Life & Losses';
+
+  @override
+  String get shelfReportLoss => 'Reported Rotten';
+
+  @override
+  String get shelfReportDiscounted => 'Listings Discounted';
+
+  @override
+  String get shelfReportUnavailable => 'Made Unavailable';
+
+  @override
+  String get shelfReportNoLoss =>
+      'No produce was reported as rotten in this period.';
+
+  @override
+  String shelfReportLossList(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count loss reports',
+      one: '1 loss report',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shelfReportShowAll(int count) {
+    return 'Show all $count';
+  }
+
+  @override
+  String get shelfReportShowLess => 'Show less';
+
+  @override
+  String get cropMgmtNoReferencePrice => 'No Reference Price';
+
+  @override
+  String get cropMgmtSetReferencePrice => 'Set Price';
+
+  @override
+  String listingNoReferencePrice(String crop, String unit) {
+    return 'The cooperative has not set a Reference Price for $crop per $unit yet, so this harvest cannot be listed on the Marketplace. You can still sell it through your other selling channels.';
+  }
+
+  @override
+  String get priceUpdateRequiredTag => 'Price Update Required';
+
+  @override
+  String priceUpdateRequiredHint(String min, String max, String unit) {
+    return 'The Reference Price changed to ₱$min–₱$max per $unit. Your listing stays available, but please edit its price to within this range and submit it for approval.';
+  }
+
+  @override
+  String priceUpdateRequiredStaffNote(String min, String max, String unit) {
+    return 'Price Update Required: this price is outside the current Reference Price Range of ₱$min–₱$max per $unit. The listing stays available; the Farmer has been asked to submit an updated price for approval.';
+  }
+
+  @override
+  String get cropRequestShelfLifeHelper =>
+      'How many days a harvest of this crop stays good. It becomes the crop\'s shelf life once the cooperative approves your request.';
+
+  @override
+  String cropRequestShelfLifeLine(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days',
+      one: '1 day',
+    );
+    return 'Shelf life given by the Farmer: $_temp0';
+  }
+
+  @override
+  String get rptOutcomeNoLoss => 'No Loss';
+
+  @override
+  String get rptOutcomeRotten => 'Rotten';
+
+  @override
+  String get rptOutcomeLost => 'Lost';
+
+  @override
+  String get assistSearchHint => 'Search farmer, program, or request no.';
+
+  @override
+  String get loanReqMineSearchHint => 'Search request no. or item';
+
+  @override
+  String get assistFromProgram =>
+      'From Program Management · failed program outcome';
+
+  @override
+  String assistFromProgramNamed(String program) {
+    return 'From Program Management · failed outcome in $program';
+  }
+
+  @override
+  String get farmerMgmtSortNameZA => 'Name (Z–A)';
+
+  @override
+  String get farmerMgmtSortNewest => 'Newest Member';
+
+  @override
+  String get farmerMgmtSortCapital => 'Capital Contribution';
+
+  @override
+  String get priceTrendCropSearchHint => 'Select or type a crop';
+
+  @override
+  String get cropMgmtStorageLifeLabel => 'Storage Life';
+
+  @override
+  String get cropMgmtStorageLifeHint => 'e.g. 365';
+
+  @override
+  String get cropMgmtStorageLifeInvalid =>
+      'Enter a whole number of days, from 1 to 36500';
+
+  @override
+  String get cropMgmtShelfLifeHelp =>
+      'Days harvested produce stays good after harvest';
+
+  @override
+  String get cropMgmtStorageLifeHelp =>
+      'Days planting materials stay usable in storage';
+
+  @override
+  String cropCatalogShelfLife(int days) {
+    return 'Shelf Life: $days days';
+  }
+
+  @override
+  String coopLifeDaysLeft(String label, int days, String date) {
+    return '$label: $days days left · until $date';
+  }
+
+  @override
+  String coopLifeEndsTomorrow(String label) {
+    return '$label: ends tomorrow · inspect now';
+  }
+
+  @override
+  String coopLifeHold(String label) {
+    return '$label reached · needs inspection';
+  }
+
+  @override
+  String coopLifeRotten(String quantity) {
+    return 'Rotten/Lost: $quantity';
+  }
+
+  @override
+  String get coopBadgeUnavailable => 'UNAVAILABLE';
+
+  @override
+  String get coopBadgeRotten => 'ROTTEN/LOST';
+
+  @override
+  String coopCheckTitle(String item) {
+    return 'Check $item';
+  }
+
+  @override
+  String coopCheckBody(String item, String life) {
+    return 'This $item is nearing or has reached its $life. Please inspect it, then choose what you found.';
+  }
+
+  @override
+  String coopCheckStock(String quantity) {
+    return 'In this stock: $quantity';
+  }
+
+  @override
+  String coopCheckGood(String item) {
+    return 'Confirm That the $item Is Still Okay';
+  }
+
+  @override
+  String coopCheckRotten(String item) {
+    return 'The $item Is Already Rotten';
+  }
+
+  @override
+  String get coopCheckDaysLabel => 'Remaining days';
+
+  @override
+  String get coopCheckDaysInvalid => 'Enter a whole number of days, at least 1';
+
+  @override
+  String get coopCheckQtyLabel => 'Rotten/Lost quantity';
+
+  @override
+  String coopCheckQtyInvalid(String max) {
+    return 'Enter a quantity greater than 0, up to $max';
+  }
+
+  @override
+  String get coopCheckNoteLabel => 'Note (optional)';
+
+  @override
+  String get coopCheckSaveGood => 'Confirm';
+
+  @override
+  String get coopCheckSaveRotten => 'Record as Rotten/Lost';
+
+  @override
+  String get coopCheckDoneGood => 'Updated. The item is available again.';
+
+  @override
+  String get coopCheckDoneRotten => 'Recorded as Rotten/Lost.';
+
+  @override
+  String get coopFilterTitle => 'Filter';
+
+  @override
+  String get coopFilterGood => 'Good';
+
+  @override
+  String get coopFilterInspect => 'Needs Inspection';
+
+  @override
+  String get coopFilterHold => 'Unavailable';
+
+  @override
+  String get coopFilterRotten => 'Rotten/Lost';
+
+  @override
+  String get loanItemArchivedInInventory =>
+      'Archived in Inventory Management. Restore it there.';
+
+  @override
+  String get cropMgmtStorageLifeRequired => 'Storage life is required';
+
+  @override
+  String get cropMgmtImageRequired => 'Add a crop image';
+
+  @override
+  String get cropMgmtEditCropAction => 'Edit Crop';
+
+  @override
+  String get detailsSectionInfo => 'Details';
+
+  @override
+  String get detailsSectionStock => 'Stock';
+
+  @override
+  String get detailsItemType => 'Item Type';
+
+  @override
+  String get detailsUnit => 'Unit';
+
+  @override
+  String get detailsStatus => 'Status';
+
+  @override
+  String get detailsOnHand => 'On Hand';
+
+  @override
+  String get detailsReserved => 'Reserved';
+
+  @override
+  String get detailsAvailable => 'Available';
+
+  @override
+  String get detailsReorder => 'Reorder Level';
+
+  @override
+  String get detailsUnitCost => 'Unit Cost';
+
+  @override
+  String get detailsLastRestocked => 'Last Restocked';
+
+  @override
+  String get detailsNotSet => 'Not set';
+
+  @override
+  String get detailsSet => 'Set';
+
+  @override
+  String get detailsActive => 'Active';
+
+  @override
+  String detailsLotUntil(String date) {
+    return 'until $date';
+  }
+
+  @override
+  String get detailsLoanPrice => 'Loan Price';
+
+  @override
+  String get detailsAvailableForLoan => 'Available for loans';
+
+  @override
+  String get detailsNotes => 'Notes';
+
+  @override
+  String get detailsEdit => 'Edit';
+
+  @override
+  String get detailsMarketType => 'Market Type';
+
+  @override
+  String get detailsReferencePrice => 'Reference Price';
+
+  @override
+  String get detailsDescription => 'Description';
+
+  @override
+  String get detailsPurpose => 'Purpose';
+
+  @override
+  String get detailsBenefit => 'Benefit Type';
+
+  @override
+  String get detailsBenefitFree => 'Free Distribution';
+
+  @override
+  String get detailsBenefitReturn => 'Harvest Return';
+
+  @override
+  String get detailsSeason => 'Season Year';
+
+  @override
+  String get detailsBudget => 'Budget';
+
+  @override
+  String get detailsItemGiven => 'Item Given';
+
+  @override
+  String get detailsFarmerReturns => 'Farmer Returns';
+
+  @override
+  String get detailsMemberDiscount => 'Member Discount';
+
+  @override
+  String get detailsCreated => 'Created';
+
+  @override
+  String detailsMembers(int count) {
+    return 'Members ($count)';
+  }
+
+  @override
+  String get detailsNoMembers => 'No members yet';
+
+  @override
+  String detailsMemberReceived(String date) {
+    return 'Received $date';
+  }
+
+  @override
+  String detailsMemberEnrolled(String date) {
+    return 'Joined $date';
+  }
+
+  @override
+  String get detailsPriceType => 'Price Type';
+
+  @override
+  String get detailsPriceFixed => 'Fixed Price';
+
+  @override
+  String get detailsPriceRange => 'Reference Price Range';
+
+  @override
+  String get detailsPreviousPrice => 'Previous Price';
+
+  @override
+  String get detailsLastUpdated => 'Last Updated';
+
+  @override
+  String coopLifeConfigured(String label, int days) {
+    return '$label: $days days';
+  }
+
+  @override
+  String coopLifeNotSet(String label) {
+    return '$label: not set in Crop Management';
+  }
+
+  @override
+  String get detailsFromCropManagement => 'From Crop Management';
+
+  @override
+  String get coopFilterSection => 'Condition';
+
+  @override
+  String lifeYears(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count years',
+      one: '1 year',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String lifeDaysCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days',
+      one: '1 day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coopLifeLeft(String label, String duration, String date) {
+    return '$label: $duration left · until $date';
+  }
 }

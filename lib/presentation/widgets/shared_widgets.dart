@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +8,6 @@ import 'web_safe_blur_container.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
-import '../../data/services/connectivity_service.dart';
 
 export 'farmer_top_bar.dart';
 export 'disposal_action_sheet.dart';
@@ -20,7 +20,8 @@ export 'disposal_action_sheet.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 BoxDecoration flatCardDecoration(BuildContext context) {
-  final sagana = Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
+  final sagana =
+      Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
   final cs = Theme.of(context).colorScheme;
   return BoxDecoration(
     color: sagana.cardBackground,
@@ -318,19 +319,51 @@ class ConfirmDialog extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 40),
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 18),
             Row(
               children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, false), child: Text(cancelLabel))),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(
+                      localizeBuiltinLabel(
+                        AppLocalizations.of(context),
+                        cancelLabel,
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: PrimaryButton(label: confirmLabel, height: 44, onPressed: () => Navigator.pop(context, true))),
+                Expanded(
+                  child: PrimaryButton(
+                    label: confirmLabel,
+                    height: 44,
+                    onPressed: () => Navigator.pop(context, true),
+                  ),
+                ),
               ],
             ),
           ],
@@ -344,10 +377,8 @@ class ConfirmDialog extends StatelessWidget {
 // OfflineStatusCard
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Contained soft-red status card for offline state (the Price Management
-/// design, shared). It listens to connectivity itself and shows nothing while
-/// the device is online, unless [showWhenOnline] is set (used for saved-data
-/// notices). [message] should be screen-accurate.
+/// Compatibility for existing callers. The root ConnectivityOverlay owns all
+/// connection notices; this placeholder must never allocate page space.
 class OfflineStatusCard extends StatelessWidget {
   final String? title;
   final String? message;
@@ -361,77 +392,8 @@ class OfflineStatusCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-      stream: ConnectivityService.instance.onConnectivityChanged,
-      initialData: ConnectivityService.instance.isOnline,
-      builder: (context, snapshot) {
-        final online = snapshot.data ?? true;
-        if (online && !showWhenOnline) return const SizedBox.shrink();
-
-        final l10n = AppLocalizations.of(context);
-        final cs = Theme.of(context).colorScheme;
-        final resolvedTitle =
-            title ?? (showWhenOnline ? null : l10n.offlineStatusTitle);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppConstants.spacingSafeH,
-            8,
-            AppConstants.spacingSafeH,
-            8,
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: cs.errorContainer,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.error.withValues(alpha: 0.20)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  online ? Icons.history_rounded : Icons.cloud_off_rounded,
-                  color: cs.error,
-                  size: 22,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (resolvedTitle != null)
-                        Text(
-                          resolvedTitle,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onErrorContainer,
-                          ),
-                        ),
-                      Text(
-                        message ?? l10n.offlineStatusDefaultBody,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: cs.onErrorContainer.withValues(alpha: 0.80),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PriorityCard
-// ─────────────────────────────────────────────────────────────────────────────
 
 enum PrioritySeverity { info, warning, critical }
 
@@ -491,8 +453,11 @@ class PriorityCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: AppConstants.successGreen,
               ),
-              child: const Icon(Icons.check_rounded,
-                  color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.check_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -577,8 +542,11 @@ class PriorityCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded,
-                      color: cs.outline, size: 20),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: cs.outline,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
@@ -612,9 +580,7 @@ class QuickActionButton extends StatelessWidget {
         onTap: onTap,
         scaleDown: 0.95,
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: AppConstants.spacingMd,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingMd),
           decoration: BoxDecoration(
             color: AppConstants.primaryContainer.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -624,7 +590,11 @@ class QuickActionButton extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Icon(icon, color: AppConstants.primaryGreen, size: 24),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 24,
+              ),
               const SizedBox(height: 6),
               Text(
                 label,
@@ -632,7 +602,7 @@ class QuickActionButton extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],
@@ -680,7 +650,9 @@ class StatusStepper extends StatelessWidget {
               height: 2,
               color: isDone
                   ? AppConstants.primaryGreen
-                  : AppConstants.outline.withValues(alpha: 0.20),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.20),
             ),
           );
         }
@@ -696,18 +668,23 @@ class StatusStepper extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: isDone
                     ? AppConstants.primaryGreen
-                    : AppConstants.outline.withValues(alpha: 0.25),
+                    : Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.25),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              labels[stepIndex],
+              localizeBuiltinLabel(
+                AppLocalizations.of(context),
+                labels[stepIndex],
+              ),
               style: GoogleFonts.inter(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
                 color: isDone
-                    ? AppConstants.primaryGreen
-                    : AppConstants.outline,
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.outline,
               ),
             ),
           ],
@@ -716,7 +693,6 @@ class StatusStepper extends StatelessWidget {
     );
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SectionLabel — small uppercase header above a grouped settings/profile
@@ -730,11 +706,7 @@ class SectionLabel extends StatelessWidget {
   final String label;
   final double bottomSpacing;
 
-  const SectionLabel({
-    super.key,
-    required this.label,
-    this.bottomSpacing = 8,
-  });
+  const SectionLabel({super.key, required this.label, this.bottomSpacing = 8});
 
   @override
   Widget build(BuildContext context) {
@@ -776,7 +748,11 @@ class SettingsCard extends StatelessWidget {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
@@ -821,22 +797,40 @@ class SettingsRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return MaterialListTile(
       onTap: onTap,
-      contentPadding: contentPadding ??
+      contentPadding:
+          contentPadding ??
           const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
         width: 36,
         height: 36,
-        decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.10), shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.10),
+          shape: BoxShape.circle,
+        ),
         child: Icon(icon, color: iconColor, size: 18),
       ),
       title: Text(
         title,
-        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: titleColor ?? cs.onSurface),
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: titleColor ?? cs.onSurface,
+        ),
       ),
       subtitle: subtitle != null
-          ? Text(subtitle!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant))
+          ? Text(
+              subtitle!,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
+            )
           : null,
-      trailing: trailing ?? (showChevron ? Icon(Icons.chevron_right_rounded, color: cs.outline, size: 18) : null),
+      trailing:
+          trailing ??
+          (showChevron
+              ? Icon(Icons.chevron_right_rounded, color: cs.outline, size: 18)
+              : null),
     );
   }
 }
@@ -845,11 +839,11 @@ class SettingsDivider extends StatelessWidget {
   const SettingsDivider({super.key});
   @override
   Widget build(BuildContext context) => Divider(
-        height: 1,
-        indent: 16,
-        endIndent: 16,
-        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.10),
-      );
+    height: 1,
+    indent: 16,
+    endIndent: 16,
+    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.10),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -865,7 +859,13 @@ class ToggleRow extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const ToggleRow({super.key, required this.title, this.subtitle, required this.value, required this.onChanged});
+  const ToggleRow({
+    super.key,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -878,11 +878,24 @@ class ToggleRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: cs.onSurface)),
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: cs.onSurface,
+                  ),
+                ),
                 if (subtitle != null && subtitle!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text(subtitle!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                    child: Text(
+                      subtitle!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -917,14 +930,27 @@ class SignOutButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppConstants.errorRed.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-            border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.15)),
+            border: Border.all(
+              color: AppConstants.errorRed.withValues(alpha: 0.15),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.logout_rounded, color: AppConstants.errorRed, size: 18),
+              const Icon(
+                Icons.logout_rounded,
+                color: AppConstants.errorRed,
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppConstants.errorRed)),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.errorRed,
+                ),
+              ),
             ],
           ),
         ),
@@ -953,36 +979,93 @@ class AppBrandingBlock extends StatelessWidget {
       decoration: BoxDecoration(
         color: sagana.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: sagana.cardBackground.withValues(alpha: 0.50)),
-        boxShadow: [BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 10)],
+        border: Border.all(
+          color: sagana.cardBackground.withValues(alpha: 0.50),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF455A64).withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             Container(
-              width: 64, height: 64,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    colors: [AppConstants.primaryGreen, AppConstants.primaryContainer]),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppConstants.primaryGreen,
+                    AppConstants.primaryContainer,
+                  ],
+                ),
               ),
-              child: const Icon(Icons.agriculture_rounded, color: Colors.white, size: 32),
+              child: const Icon(
+                Icons.agriculture_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 12),
-            Text('SAGANA', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-            Text(l10n.brandingTagline,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant, height: 1.4)),
+            Text(
+              AppLocalizations.of(context).appName,
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            Text(
+              l10n.brandingTagline,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text('v1.0.0', style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.amber, letterSpacing: 1.2)),
+            Text(
+              'v1.0.0',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.amber,
+                letterSpacing: 1.2,
+              ),
+            ),
             const SizedBox(height: 16),
-            Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+            Divider(
+              height: 1,
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.10),
+            ),
             const SizedBox(height: 14),
-            Text(l10n.brandingDevelopedBy,
-                textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-            Text(l10n.brandingPartner,
-                textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.onSurface)),
+            Text(
+              l10n.brandingDevelopedBy,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              l10n.brandingPartner,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
           ],
         ),
       ),

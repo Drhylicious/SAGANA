@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -14,6 +15,7 @@ import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/listing_status_badge.dart';
+import '../../widgets/shelf_life_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../widgets/cached_data_notice.dart';
@@ -110,9 +112,11 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
   bool _requireOnline() {
     if (ConnectivityService.instance.isOnline) return true;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text(
-          "This action requires an internet connection. Please try again once you're back online.",
+          AppLocalizations.of(
+            context,
+          ).enhThisActionRequiresAnInternetConnectionPleaseTry,
         ),
         backgroundColor: AppConstants.snackbarWarning,
       ),
@@ -144,14 +148,31 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-        title: Text(l.leCancelRequestTitle, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
-        content: Text(l.leCancelRequestBody, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        ),
+        title: Text(
+          l.leCancelRequestTitle,
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          l.leCancelRequestBody,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l.cancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l.cancel),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppConstants.errorRed, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.errorRed,
+              foregroundColor: Colors.white,
+            ),
             child: Text(l.leCancelRequest),
           ),
         ],
@@ -185,22 +206,26 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
         title: Text(
-          'Withdraw Listing?',
+          AppLocalizations.of(context).enhWithdrawListing,
           style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         content: Text(
-          '${_listing.displayName} will be removed from the marketplace. You can create a new listing for this batch later.',
+          AppLocalizations.of(context).enhWillBeRemovedFromTheMarketplaceYouCan(
+            (_listing.displayName).toString(),
+          ),
           style: GoogleFonts.inter(
             fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
+              AppLocalizations.of(context).cancel,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
           ElevatedButton(
@@ -212,7 +237,10 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
             ),
-            child: Text('Withdraw', style: GoogleFonts.poppins(fontSize: 14)),
+            child: Text(
+              AppLocalizations.of(context).enhWithdraw,
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -228,7 +256,11 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to withdraw. Please try again.')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).enhFailedToWithdrawPleaseTryAgain,
+          ),
+        ),
       );
     }
   }
@@ -242,22 +274,28 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
         title: Text(
-          'Delete Listing?',
+          AppLocalizations.of(context).enhDeleteListing,
           style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'This will permanently delete the listing for ${_listing.displayName}. This action cannot be undone.',
+          AppLocalizations.of(
+            context,
+          ).enhThisWillPermanentlyDeleteTheListingForThis(
+            (_listing.displayName).toString(),
+          ),
           style: GoogleFonts.inter(
             fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
+              AppLocalizations.of(context).cancel,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
           ElevatedButton(
@@ -269,7 +307,10 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
             ),
-            child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
+            child: Text(
+              AppLocalizations.of(context).exportDeleteButton,
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -295,12 +336,12 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     final listing = _listing;
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 72),
+              const TopBarSpacer(height: 72),
               CachedDataNotice(
                 screen: 'batch_${_listing.inventoryBatchId}',
                 isOnline: _isOnline,
@@ -319,6 +360,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                       _buildHeader(context, listing),
                       const SizedBox(height: 10),
                       _buildPrice(listing),
+                      _buildShelfLife(context, listing),
                       if (listing.description != null &&
                           listing.description!.isNotEmpty) ...[
                         const SizedBox(height: 20),
@@ -345,7 +387,9 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
               // canonical_crop_name, via crop_id → crop_master), same source
               // MarketplaceListingModel.displayName uses everywhere else on
               // this screen — never hardcoded per-crop.
-              title: '${listing.displayName} Details',
+              title: AppLocalizations.of(
+                context,
+              ).enhDetails((listing.displayName).toString()),
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -376,22 +420,22 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
   }
 
   Widget _placeholder() => Container(
-    color: AppConstants.infoBlueBg,
+    color: context.adaptiveSurface(AppConstants.infoBlueBg),
     alignment: Alignment.center,
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
+        Icon(
           Icons.eco_rounded,
-          color: AppConstants.primaryGreen,
+          color: Theme.of(context).colorScheme.primary,
           size: 40,
         ),
         const SizedBox(height: 8),
         Text(
-          'No photo available',
+          AppLocalizations.of(context).enhNoPhotoAvailable,
           style: GoogleFonts.inter(
             fontSize: 12,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -408,7 +452,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             style: GoogleFonts.poppins(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -416,8 +460,80 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           context,
           status: listing.status,
           remainingKg: listing.remainingKg,
+          shelfUnavailable: listing.isShelfUnavailable,
         ),
       ],
+    );
+  }
+
+  /// Shelf life of the harvest this listing sells, and what the Farmer should
+  /// do when it was discounted or made unavailable. Farmer-only: a Buyer's
+  /// listing screens never show any of this.
+  Widget _buildShelfLife(BuildContext context, MarketplaceListingModel listing) {
+    final l10n = AppLocalizations.of(context);
+    final batch = _batch;
+    final shelf = batch?.shelfLife;
+    final flagged = listing.isShelfUnavailable || listing.isShelfDiscounted;
+    final priceRule = listing.priceUpdateRule;
+    if (!flagged && priceRule == null && (shelf == null || !shelf.isTracked)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Price Update Required: the Reference Price Range changed and this
+          // price is outside it. The listing stays available; the Farmer edits
+          // the price and it goes through the usual approval.
+          if (priceRule != null) ...[
+            ShelfLifeNote(
+              text: l10n.priceUpdateRequiredHint(
+                priceRule.min.toStringAsFixed(2),
+                priceRule.max.toStringAsFixed(2),
+                priceRule.unit,
+              ),
+              color: AppConstants.errorRed,
+              icon: Icons.price_change_outlined,
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (shelf != null && shelf.isTracked) ShelfLifeLine(shelfLife: shelf),
+          if (flagged) ...[
+            const SizedBox(height: 8),
+            ShelfLifeNote(
+              text: listing.isShelfUnavailable
+                  ? l10n.shelfListingUnavailableHint
+                  : l10n.shelfListingDiscountedHint(
+                      (listing.shelfLife?.preDiscountPrice ?? listing.pricePerKg)
+                          .toStringAsFixed(2),
+                    ),
+              color: listing.isShelfUnavailable
+                  ? Theme.of(context).colorScheme.error
+                  : AppConstants.warningAmber,
+              icon: Icons.fact_check_outlined,
+              action: batch == null
+                  ? null
+                  : TextButton(
+                      onPressed: () async {
+                        final changed = await showShelfLifeCheckSheet(
+                          context,
+                          batch: batch,
+                        );
+                        if (changed && context.mounted) {
+                          Navigator.of(context).pop(true);
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      child: Text(l10n.shelfCheckNow),
+                    ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -431,12 +547,15 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           style: GoogleFonts.poppins(
             fontSize: 26,
             fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         Text(
           '/${unitOrDefault(listing.unit)}',
-          style: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
       ],
     );
@@ -451,11 +570,11 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Product Details',
+            AppLocalizations.of(context).enhProductDetails,
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
@@ -463,7 +582,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             listing.description!,
             style: GoogleFonts.inter(
               fontSize: 13,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               height: 1.5,
             ),
           ),
@@ -493,36 +612,38 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           : Column(
               children: [
                 _DetailRow(
-                  label: 'Available Volume',
+                  label: AppLocalizations.of(context).enhAvailableVolume,
                   value: formatQuantityUnit(listing.remainingKg, listing.unit),
                 ),
                 const SizedBox(height: 12),
                 _DetailRow(
-                  label: 'Original Volume',
+                  label: AppLocalizations.of(context).enhOriginalVolume,
                   value: formatQuantityUnit(listing.volumeKg, listing.unit),
                 ),
                 if (_batch != null) ...[
                   const SizedBox(height: 12),
                   _DetailRow(
-                    label: 'Market Type',
+                    label: AppLocalizations.of(context).priceMarketTypeLabel,
                     value: marketTypeLabelFor(_batch!.cropType),
                   ),
                   if (_batch!.category != null) ...[
                     const SizedBox(height: 12),
-                    _DetailRow(label: 'Category', value: _batch!.category!),
+                    _DetailRow(
+                      label: AppLocalizations.of(context).buyerListingCategory,
+                      value: _batch!.category!,
+                    ),
                   ],
                   const SizedBox(height: 12),
                   _DetailRow(
-                    label: 'Batch Number',
+                    label: AppLocalizations.of(context).enhBatchNumber,
                     value: formatBatchNumber(_batch!.batchNumber),
                   ),
                 ],
                 if (listing.submittedAt != null) ...[
                   const SizedBox(height: 12),
                   _DetailRow(
-                    label: 'Submitted',
-                    value:
-                        AppUtils.formatListingDate(listing.submittedAt!),
+                    label: AppLocalizations.of(context).marketLinkKpiSubmitted,
+                    value: AppUtils.formatListingDate(listing.submittedAt!),
                   ),
                 ],
               ],
@@ -551,7 +672,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           ),
           const SizedBox(height: 12),
           _actionButton(
-            'Withdraw Listing',
+            AppLocalizations.of(context).enhWithdrawListing244,
             AppConstants.errorRed,
             outlined: true,
             onTap: ConnectivityService.instance.isOnline
@@ -605,7 +726,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
         children: [
           if (listing.adminNotes != null && listing.adminNotes!.isNotEmpty) ...[
             Text(
-              'Rejection Reason',
+              AppLocalizations.of(context).enhRejectionReason,
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -617,14 +738,14 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
               listing.adminNotes!,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
             ),
             const SizedBox(height: 20),
           ],
           _actionButton(
-            'Delete Listing',
+            AppLocalizations.of(context).enhDeleteListing246,
             AppConstants.errorRed,
             outlined: true,
             onTap: _confirmDelete,
@@ -640,17 +761,19 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           if (listing.updatedAt != null) ...[
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.history_rounded,
                   size: 15,
-                  color: AppConstants.outline,
+                  color: Theme.of(context).colorScheme.outline,
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Removed on ${AppUtils.formatListingDate(listing.updatedAt!)}',
+                  AppLocalizations.of(context).enhRemovedOn(
+                    (AppUtils.formatListingDate(listing.updatedAt!)).toString(),
+                  ),
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: AppConstants.outline,
+                    color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
               ],
@@ -658,7 +781,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             const SizedBox(height: 20),
           ],
           _actionButton(
-            'Delete Listing',
+            AppLocalizations.of(context).enhDeleteListing246,
             AppConstants.errorRed,
             outlined: true,
             onTap: _confirmDelete,
@@ -679,7 +802,13 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     final unit = r.unit;
     Widget line(String text) => Padding(
       padding: const EdgeInsets.only(top: 4),
-      child: Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.onSurface)),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          fontSize: 12.5,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
     );
     return Container(
       width: double.infinity,
@@ -687,19 +816,28 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       decoration: BoxDecoration(
         color: AppConstants.warningAmber.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.40)),
+        border: Border.all(
+          color: AppConstants.warningAmber.withValues(alpha: 0.40),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.hourglass_top_rounded, size: 18, color: AppConstants.warningAmber),
+              const Icon(
+                Icons.hourglass_top_rounded,
+                size: 18,
+                color: AppConstants.warningAmber,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   l.lePendingBannerTitle,
-                  style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -707,13 +845,27 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           const SizedBox(height: 6),
           Text(
             l.lePendingBannerBody,
-            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.4,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 6),
           if (r.changesQuantity)
-            line(l.wfDetailQuantity(formatQuantityUnit(r.originalQuantity, unit), formatQuantityUnit(r.proposedQuantity, unit))),
+            line(
+              l.wfDetailQuantity(
+                formatQuantityUnit(r.originalQuantity, unit),
+                formatQuantityUnit(r.proposedQuantity, unit),
+              ),
+            ),
           if (r.changesPrice)
-            line(l.wfDetailPrice(formatPricePerUnit(r.originalPrice, unit), formatPricePerUnit(r.proposedPrice, unit))),
+            line(
+              l.wfDetailPrice(
+                formatPricePerUnit(r.originalPrice, unit),
+                formatPricePerUnit(r.proposedPrice, unit),
+              ),
+            ),
           if (r.changesDescription) line(l.wfDetailDescription),
           if (r.changesPhoto) line(l.wfDetailPhoto),
           const SizedBox(height: 12),
@@ -723,7 +875,9 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
               onPressed: _isSubmitting ? null : () => _cancelRequest(r),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppConstants.errorRed,
-                side: BorderSide(color: AppConstants.errorRed.withValues(alpha: 0.5)),
+                side: BorderSide(
+                  color: AppConstants.errorRed.withValues(alpha: 0.5),
+                ),
               ),
               child: Text(l.leCancelRequest),
             ),
@@ -741,19 +895,28 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       decoration: BoxDecoration(
         color: AppConstants.errorRed.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.30)),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.30),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.cancel_outlined, size: 18, color: AppConstants.errorRed),
+              const Icon(
+                Icons.cancel_outlined,
+                size: 18,
+                color: AppConstants.errorRed,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   l.leRejectedBannerTitle,
-                  style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -761,13 +924,21 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           const SizedBox(height: 6),
           Text(
             l.leRejectedBannerBody,
-            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.4,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           if ((r.reviewReason ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               l.leRejectedReason(r.reviewReason!.trim()),
-              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: AppConstants.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ],
         ],
@@ -804,7 +975,9 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'This listing is approved and available for purchase on the marketplace.',
+              AppLocalizations.of(
+                context,
+              ).enhThisListingIsApprovedAndAvailableForPurchase,
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: AppConstants.successGreen,
@@ -827,17 +1000,21 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppConstants.onSurfaceVariant.withValues(alpha: 0.08),
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            listing.isSold ? 'Final Realized Amount' : 'Total Ordered Amount',
+            listing.isSold
+                ? AppLocalizations.of(context).enhFinalRealizedAmount
+                : AppLocalizations.of(context).enhTotalOrderedAmount,
             style: GoogleFonts.inter(
               fontSize: 11,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 4),
@@ -846,7 +1023,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             style: GoogleFonts.poppins(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -937,7 +1114,7 @@ class _DetailRow extends StatelessWidget {
           label,
           style: GoogleFonts.inter(
             fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         Flexible(
@@ -949,7 +1126,7 @@ class _DetailRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: AppConstants.charcoal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),

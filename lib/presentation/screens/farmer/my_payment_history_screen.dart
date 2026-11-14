@@ -82,7 +82,7 @@ class _MyPaymentHistoryScreenState extends State<MyPaymentHistoryScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -104,7 +104,7 @@ class _MyPaymentHistoryScreenState extends State<MyPaymentHistoryScreen> {
             children: [
               const TopBarSpacer(height: 64),
               CachedDataNotice(
-                screen: 'loans',
+                screen: "loans",
                 isOnline: _isOnline,
                 offlineMessage: l10n.offlineLoans,
               ),
@@ -113,7 +113,10 @@ class _MyPaymentHistoryScreenState extends State<MyPaymentHistoryScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : _payments.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -129,7 +132,10 @@ class _MyPaymentHistoryScreenState extends State<MyPaymentHistoryScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
                           children: [
-                            _TotalPaidCard(total: _totalPaid, count: _payments.length),
+                            _TotalPaidCard(
+                              total: _totalPaid,
+                              count: _payments.length,
+                            ),
                             const SizedBox(height: 16),
                             ...items,
                           ],
@@ -171,7 +177,9 @@ class _TotalPaidCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppConstants.successGreen.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: AppConstants.successGreen.withValues(alpha: 0.18),
+        ),
       ),
       child: Row(
         children: [
@@ -181,7 +189,11 @@ class _TotalPaidCard extends StatelessWidget {
               color: AppConstants.successGreen.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
-            child: const Icon(Icons.payments_rounded, size: 22, color: AppConstants.successGreen),
+            child: const Icon(
+              Icons.payments_rounded,
+              size: 22,
+              color: AppConstants.successGreen,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -190,7 +202,10 @@ class _TotalPaidCard extends StatelessWidget {
               children: [
                 Text(
                   l10n.loanMyTotalPaid,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 FittedBox(
                   fit: BoxFit.scaleDown,

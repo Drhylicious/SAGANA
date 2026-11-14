@@ -177,8 +177,8 @@ class _QuantityStepperState extends State<QuantityStepper> {
           fontSize: compact ? 13 : 16,
           fontWeight: FontWeight.w700,
           color: widget.enabled
-              ? AppConstants.primaryGreen
-              : AppConstants.outline,
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outline,
         ),
         decoration: const InputDecoration(
           isDense: true,
@@ -206,14 +206,18 @@ class _QuantityStepperState extends State<QuantityStepper> {
           ? BoxDecoration(
               color: canUse
                   ? context.saganaColors.scaffoldBackground
-                  : AppConstants.outline.withValues(alpha: 0.1),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             )
           : null,
       child: Icon(
         icon,
         size: compact ? 14 : 16,
-        color: canUse ? AppConstants.primaryGreen : AppConstants.outline,
+        color: canUse
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.outline,
       ),
     );
     return GestureDetector(

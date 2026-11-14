@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import '../../../core/utils/item_type_utils.dart';
 import '../../../data/services/staff_permission_service.dart';
@@ -10,8 +11,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/repositories/coop_shelf_life_repository.dart';
+import '../../../core/utils/quantity_utils.dart';
+import '../../widgets/record_details_sheet.dart';
 import '../../../data/repositories/category_repository.dart';
-import '../../../data/services/connectivity_service.dart';
+
 import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/skeleton.dart';
@@ -43,9 +47,15 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
   final _categoryRepo = CategoryRepository();
 
   List<LoanCatalogItem> _items = [];
+  // Each Inventory item's shelf-life standing: the catalog shows the same one.
+  Map<String, CoopItemShelfLife> _shelf = {};
+
+  CoopShelfState _shelfState(LoanCatalogItem i) =>
+      (_shelf[i.inventoryItemId] ?? CoopItemShelfLife.none).state;
+
   List<String> _categories = [];
   bool _isLoading = true;
-  bool _isOnline = true;
+
   String? _selectedCategory;
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -54,10 +64,6 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
     _searchCtrl.addListener(() {
       setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
     });
@@ -80,9 +86,11 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
       // these chips must come from actual Inventory Management category
       // data and pick up newly added categories automatically.
       _categoryRepo.fetchInventoryCategories(),
+      CoopShelfLifeRepository().fetchByItem(),
     ]);
     if (!mounted) return;
     setState(() {
+      _shelf = results[2] as Map<String, CoopItemShelfLife>;
       _items = results[0] as List<LoanCatalogItem>;
       _categories = results[1] as List<String>;
       _isLoading = false;
@@ -91,11 +99,12 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
 
   /// Items offered for new loans.
   List<LoanCatalogItem> get _active =>
-      _items.where((i) => i.isLoanEligible).toList();
+      _items.where((i) => i.isLoanEligible && !i.inventoryArchived).toList();
 
-  /// Items taken out of new loans (archived).
+  /// Items taken out of new loans (archived), including every entry whose
+  /// Inventory item was archived.
   List<LoanCatalogItem> get _archived =>
-      _items.where((i) => !i.isLoanEligible).toList();
+      _items.where((i) => !i.isLoanEligible || i.inventoryArchived).toList();
 
   List<LoanCatalogItem> get _filtered {
     return _active.where((item) {
@@ -288,6 +297,8 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                     return ArchivedLoanItemCard(
                       item: item,
                       onRestore: () async {
+                        // Archived in Inventory: it is restored there, never here.
+                        if (item.inventoryArchived) return;
                         final ok = await _restore(item);
                         if (ok && ctx.mounted) Navigator.pop(ctx);
                       },
@@ -304,130 +315,56 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
   // are only editable from Inventory Management's own Publish/Update Catalog
   // action (_showLoanCatalogSheet in admin_inventory_screen.dart). This sheet
   // shows the item and offers Archive.
-  void _showLoanSettingsSheet(LoanCatalogItem existing) {
-    if (!requireManage(context, StaffModule.dashboard)) return;
+  // Read-only details of a catalog entry (tap the card). Archive is in the
+  // card's three-dot menu; price and notes are set from Inventory Management.
+  void _showItemDetails(LoanCatalogItem item) {
     final l10n = AppLocalizations.of(context);
-    final currency = existing.unitPrice.toStringAsFixed(2);
-
-    showManagementModal(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return ManagementModalShell(
-          title: l10n.loanItemSettingsTitle,
-          subtitle: '${existing.itemName} · ${existing.unit}',
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _readOnlyField(l10n.loanItemNameLabel, existing.itemName, ctx),
-              const SizedBox(height: 12),
-              _readOnlyField(
-                l10n.adminOrderDetailCategory,
-                existing.category,
-                ctx,
-              ),
-              const SizedBox(height: 12),
-              _readOnlyField(l10n.loanItemUnitLabel, existing.unit, ctx),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    l10n.loanItemAvailableInStock,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  Text(
-                    '${existing.quantityOnHand.toStringAsFixed(0)} ${existing.unit}',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _readOnlyField(l10n.loanItemUnitPriceLabel, '₱$currency', ctx),
-              const SizedBox(height: 12),
-              // Source comes from the inventory item (cooperative_inventory
-              // .source), the same value Inventory Management shows. The
-              // loan catalog never stores its own copy.
-              _readOnlyField(
-                l10n.adminInvSourceLabel,
-                existing.source ?? l10n.adminInvSourceNotRecorded,
-                ctx,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Price is set from Inventory Management — use its Publish action to change it. Source is set on the inventory item (Edit Item).',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Divider(height: 1, color: cs.outline.withValues(alpha: 0.12)),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final archived = await _archiveWithConfirm(existing, ctx);
-                  if (archived && ctx.mounted) Navigator.pop(ctx);
-                },
-                icon: const Icon(Icons.archive_outlined, size: 18),
-                label: Text(l10n.loanItemArchiveAction),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(46),
-                  foregroundColor: AppConstants.warningAmber,
-                  side: BorderSide(
-                    color: AppConstants.warningAmber.withValues(alpha: 0.5),
-                  ),
-                  textStyle: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.loanItemArchiveHint,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  height: 1.4,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _readOnlyField(String label, String value, BuildContext ctx) {
-    final cs = Theme.of(ctx).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.4)),
-          ),
-          child: Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
+    final state = _shelfState(item);
+    showRecordDetails(
+      context,
+      title: item.itemName,
+      subtitle: '${item.category} • ${itemTypeLabel(l10n, item.itemType)}',
+      imageUrl: item.imageUrl,
+      placeholderIcon: _categoryIcon(item.category),
+      sections: [
+        DetailSection(
+          title: l10n.detailsSectionInfo,
+          rows: [
+            DetailRow(l10n.buyerListingCategory, item.category),
+            DetailRow(
+              l10n.detailsItemType,
+              itemTypeLabel(l10n, item.itemType),
             ),
-          ),
+            DetailRow(
+              l10n.detailsLoanPrice,
+              '₱${item.unitPrice.toStringAsFixed(2)} / ${item.unit}',
+            ),
+            DetailRow(
+              l10n.detailsOnHand,
+              formatQuantityUnit(item.quantityOnHand, item.unit),
+            ),
+            DetailRow(
+              l10n.adminInvSourceLabel,
+              item.source ?? l10n.adminInvSourceNotRecorded,
+            ),
+            DetailRow(
+              l10n.detailsStatus,
+              item.inventoryArchived || !item.isLoanEligible
+                  ? l10n.cropMgmtArchivedBadge
+                  : state == CoopShelfState.rottenLost
+                  ? l10n.coopFilterRotten
+                  : state == CoopShelfState.onHold
+                  ? l10n.coopFilterHold
+                  : l10n.detailsAvailableForLoan,
+              valueColor:
+                  state == CoopShelfState.onHold ||
+                      state == CoopShelfState.rottenLost
+                  ? AppConstants.errorRed
+                  : null,
+            ),
+            if ((item.notes ?? '').trim().isNotEmpty)
+              DetailRow(l10n.detailsNotes, item.notes!.trim()),
+          ],
         ),
       ],
     );
@@ -512,31 +449,6 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
             ),
           ),
 
-          if (!_isOnline)
-            Container(
-              color: AppConstants.warningAmber,
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.cloud_off_rounded,
-                    size: 14,
-                    color: AppConstants.charcoal,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    AppLocalizations.of(context).offlineChangesNotSaved,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.charcoal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
           Expanded(
             child: _isLoading
                 ? const Padding(
@@ -561,7 +473,9 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                           // uses, as a horizontal row like the other
                           // Management modules.
                           ReportSectionCard(
-                            title: 'Catalog Overview',
+                            title: AppLocalizations.of(
+                              context,
+                            ).enhCatalogOverview,
                             icon: Icons.inventory_2_rounded,
                             accent: AppConstants.buyerBlue,
                             child: SizedBox(
@@ -603,7 +517,8 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                             child: Row(
                               children: [
                                 _CategoryChip(
-                                  label: 'All',
+                                  label:
+                                      '${AppLocalizations.of(context).reportsAll} (${_active.length})',
                                   isSelected: _selectedCategory == null,
                                   onTap: () =>
                                       setState(() => _selectedCategory = null),
@@ -614,7 +529,8 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                                   (cat) => Padding(
                                     padding: const EdgeInsets.only(left: 8),
                                     child: _CategoryChip(
-                                      label: cat,
+                                      label:
+                                          '$cat (${_active.where((i) => i.category == cat).length})',
                                       isSelected: _selectedCategory == cat,
                                       onTap: () => setState(
                                         () => _selectedCategory = cat,
@@ -671,8 +587,18 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                                 item: item,
                                 cs: cs,
                                 sagana: sagana,
+                                // Same standing as the Inventory item.
+                                unavailableLabel: switch (_shelfState(item)) {
+                                  CoopShelfState.onHold =>
+                                    l10n.coopBadgeUnavailable,
+                                  CoopShelfState.rottenLost =>
+                                    l10n.coopBadgeRotten,
+                                  _ => null,
+                                },
                                 icon: _categoryIcon(item.category),
-                                onTap: () => _showLoanSettingsSheet(item),
+                                onTap: () => _showItemDetails(item),
+                                onArchive: () =>
+                                    _archiveWithConfirm(item, context),
                               );
                             },
                           ),
@@ -726,6 +652,13 @@ class LoanItemCard extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
+  /// The three-dot menu's Archive. Null hides the menu.
+  final VoidCallback? onArchive;
+
+  /// UNAVAILABLE or ROTTEN/LOST when the Inventory item is; the card is greyed
+  /// and carries the badge. Null for an item that can be loaned.
+  final String? unavailableLabel;
+
   const LoanItemCard({
     super.key,
     required this.item,
@@ -733,6 +666,8 @@ class LoanItemCard extends StatelessWidget {
     required this.sagana,
     required this.icon,
     required this.onTap,
+    this.onArchive,
+    this.unavailableLabel,
   });
 
   @override
@@ -742,6 +677,12 @@ class LoanItemCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        foregroundDecoration: unavailableLabel == null
+            ? null
+            : BoxDecoration(
+                color: sagana.cardBackground.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              ),
         decoration: BoxDecoration(
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -769,6 +710,69 @@ class LoanItemCard extends StatelessWidget {
                               _CatalogThumb(cs: cs, icon: icon),
                         )
                       : _CatalogThumb(cs: cs, icon: icon),
+                  if (onArchive != null)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: PopupMenuButton<String>(
+                        icon: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.more_vert_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                        onSelected: (v) {
+                          if (v == 'archive') onArchive!();
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'archive',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.archive_rounded, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  l10n.commonArchive,
+                                  style: GoogleFonts.inter(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (unavailableLabel != null)
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.onSurfaceVariant,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
+                        ),
+                        child: Text(
+                          unavailableLabel!,
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -811,7 +815,9 @@ class LoanItemCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Stock: ${item.quantityOnHand.toStringAsFixed(0)}',
+                    AppLocalizations.of(context).enhStock(
+                      (item.quantityOnHand.toStringAsFixed(0)).toString(),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
@@ -959,8 +965,17 @@ class ArchivedLoanItemCard extends StatelessWidget {
                           AppConstants.warningAmber,
                           icon: Icons.archive_outlined,
                         ),
-                        chip(item.category, cs.onSurfaceVariant),
-                        chip(itemTypeLabel(l10n, item.itemType), cs.onSurfaceVariant),
+                        chip(
+                          localizeBuiltinLabel(
+                            AppLocalizations.of(context),
+                            item.category,
+                          ),
+                          cs.onSurfaceVariant,
+                        ),
+                        chip(
+                          itemTypeLabel(l10n, item.itemType),
+                          cs.onSurfaceVariant,
+                        ),
                         chip(
                           '₱${item.unitPrice.toStringAsFixed(2)} / ${item.unit}',
                           cs.primary,
@@ -974,7 +989,10 @@ class ArchivedLoanItemCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Stock: ${item.quantityOnHand.toStringAsFixed(0)} ${item.unit}',
+            AppLocalizations.of(context).enhStock89(
+              (item.quantityOnHand.toStringAsFixed(0)).toString(),
+              (item.unit).toString(),
+            ),
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
@@ -995,6 +1013,16 @@ class ArchivedLoanItemCard extends StatelessWidget {
           const SizedBox(height: 12),
           Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
           const SizedBox(height: 10),
+          if (item.inventoryArchived)
+            Text(
+              l10n.loanItemArchivedInInventory,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+              ),
+            )
+          else
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(

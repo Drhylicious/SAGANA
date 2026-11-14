@@ -8,10 +8,14 @@ import '../../data/models/analytics_model.dart';
 
 String forecastTrendLabel(AppLocalizations l10n, String trend) {
   switch (trend) {
-    case 'trending_up': return l10n.forecastTrendingUp;
-    case 'trending_down': return l10n.forecastTrendingDown;
-    case 'stable': return l10n.forecastStable;
-    default: return l10n.forecastNotEnoughData;
+    case 'trending_up':
+      return l10n.forecastTrendingUp;
+    case 'trending_down':
+      return l10n.forecastTrendingDown;
+    case 'stable':
+      return l10n.forecastStable;
+    default:
+      return l10n.forecastNotEnoughData;
   }
 }
 
@@ -22,9 +26,12 @@ String forecastExplanation(AppLocalizations l10n, PlantingForecast forecast) {
   final diff = forecast.forecastNextCycleKg! - forecast.mostRecentCycleKg;
   final diffAbs = diff.abs().toStringAsFixed(0);
   switch (forecast.trend) {
-    case 'trending_up': return l10n.forecastIncreaseExplanation(diffAbs);
-    case 'trending_down': return l10n.forecastDecreaseExplanation(diffAbs);
-    default: return l10n.forecastStableExplanation;
+    case 'trending_up':
+      return l10n.forecastIncreaseExplanation(diffAbs);
+    case 'trending_down':
+      return l10n.forecastDecreaseExplanation(diffAbs);
+    default:
+      return l10n.forecastStableExplanation;
   }
 }
 
@@ -85,10 +92,10 @@ class PlantingForecastSectionHeader extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              Icon(
                 Icons.info_outline_rounded,
                 size: 18,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -118,7 +125,7 @@ class PlantingForecastCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
     final l10n = AppLocalizations.of(context);
-    final color = _trendColor();
+    final color = _trendColor(context);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -231,7 +238,7 @@ class PlantingForecastCard extends StatelessWidget {
     );
   }
 
-  Color _trendColor() {
+  Color _trendColor(BuildContext context) {
     switch (forecast.trend) {
       case 'trending_up':
         return AppConstants.successGreen;
@@ -240,7 +247,7 @@ class PlantingForecastCard extends StatelessWidget {
       case 'stable':
         return AppConstants.warningAmber;
       default:
-        return AppConstants.outline;
+        return Theme.of(context).colorScheme.outline;
     }
   }
 }
@@ -262,17 +269,14 @@ class ForecastFigure extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 9, color: cs.outline),
-        ),
+        Text(label, style: GoogleFonts.inter(fontSize: 9, color: cs.outline)),
         Text(
           value,
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w700,
             color: highlight
-                ? AppConstants.primaryGreen
+                ? Theme.of(context).colorScheme.primary
                 : cs.onSurface,
           ),
         ),

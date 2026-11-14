@@ -7,6 +7,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/models/admin_reports_model.dart'
     show ReportPeriod, ReportPeriodExt, reportPeriodChipOrder;
+import 'listing_filter_modal.dart' show ListingStatusFilterChip;
 import 'report_summary_widgets.dart';
 import 'trend_chart_painter.dart';
 
@@ -131,11 +132,18 @@ class ReportSearchField extends StatelessWidget {
 class ReportFilterOption<T> {
   final T value;
   final String label;
-  const ReportFilterOption(this.value, this.label);
+
+  /// How many records the chip holds, shown as "Label (n)". Null shows the
+  /// label alone.
+  final int? count;
+  const ReportFilterOption(this.value, this.label, {this.count});
 }
 
-/// Rounded pill filter chips in one horizontally scrolling row — the same look
-/// as Inventory Management's category chips and the Cooperative Stock Report.
+/// The record filter chips of every report, in one horizontally scrolling row.
+/// They are the standard SAGANA chip (ListingStatusFilterChip): the same
+/// "Label (n)" format, height, spacing and selected state as every other
+/// filter row in the app. (The period chips above a report are a different
+/// control, ReportPeriodFilter, and are not changed by this.)
 class ReportFilterChips<T> extends StatelessWidget {
   final List<ReportFilterOption<T>> options;
   final T selected;
@@ -151,49 +159,20 @@ class ReportFilterChips<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
     return SizedBox(
       height: 34,
-      child: ListView(
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        children: [
-          for (var i = 0; i < options.length; i++)
-            Padding(
-              padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
-              child: GestureDetector(
-                onTap: () => onSelected(options[i].value),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: options[i].value == selected
-                        ? cs.primary
-                        : sagana.cardBackground,
-                    borderRadius: BorderRadius.circular(
-                      AppConstants.radiusFull,
-                    ),
-                    border: Border.all(
-                      color: options[i].value == selected
-                          ? cs.primary
-                          : cs.outline.withValues(alpha: 0.20),
-                    ),
-                  ),
-                  child: Text(
-                    options[i].label,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: options[i].value == selected
-                          ? Colors.white
-                          : cs.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => ListingStatusFilterChip(
+          label: options[i].label,
+          count: options[i].count,
+          active: options[i].value == selected,
+          color: cs.primary,
+          onTap: () => onSelected(options[i].value),
+          cs: cs,
+        ),
       ),
     );
   }

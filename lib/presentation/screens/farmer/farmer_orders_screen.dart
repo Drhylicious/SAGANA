@@ -53,15 +53,19 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
-    _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text),
+    );
     _load();
     _orderWatcher = TableChangeWatcher(
       tables: const ['orders', 'program_product_purchases'],
@@ -95,9 +99,11 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
         : _allOrders.where((o) => o.status == _statusFilter);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      list = list.where((o) =>
-          o.title.toLowerCase().contains(q) ||
-          o.reference.toLowerCase().contains(q));
+      list = list.where(
+        (o) =>
+            o.title.toLowerCase().contains(q) ||
+            o.reference.toLowerCase().contains(q),
+      );
     }
     return list.toList();
   }
@@ -112,7 +118,10 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   // "ready for pickup/delivery" notice a buyer in the identical
   // situation sees. Title/body branch on the actual mix of fulfillment
   // methods among the approved orders, same as Buyer's version.
-  Widget _buildApprovedBanner(AppLocalizations l10n, List<ConsumerOrderRow> approved) {
+  Widget _buildApprovedBanner(
+    AppLocalizations l10n,
+    List<ConsumerOrderRow> approved,
+  ) {
     final pickupCount = approved.where((o) => o.isPickup).length;
     final deliveryCount = approved.where((o) => o.isDelivery).length;
     final count = approved.length;
@@ -121,7 +130,10 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
     final String body;
     if (deliveryCount == 0) {
       title = l10n.buyerOrdersPickupBannerTitle;
-      body = l10n.buyerOrdersPickupBannerBody(count, AppConstants.cooperativeName);
+      body = l10n.buyerOrdersPickupBannerBody(
+        count,
+        AppConstants.cooperativeName,
+      );
     } else if (pickupCount == 0) {
       title = l10n.buyerOrdersDeliveryBannerTitle;
       body = l10n.buyerOrdersDeliveryBannerBody(count);
@@ -135,21 +147,39 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppConstants.successGreen.withValues(alpha: 0.08),
-        border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: AppConstants.successGreen.withValues(alpha: 0.2),
+        ),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle_rounded, color: AppConstants.successGreen),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: AppConstants.successGreen,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(body, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                Text(
+                  body,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -160,12 +190,20 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
 
   String _emptyMessage(AppLocalizations l10n) {
     switch (_statusFilter) {
-      case 'pending': return l10n.buyerOrdersEmptyPending;
-      case 'approved': return l10n.buyerOrdersEmptyApproved;
-      case 'completed': return l10n.buyerOrdersEmptyCompleted;
-      case 'cancelled': return l10n.buyerOrdersEmptyCancelled;
-      case null: return l10n.buyerOrdersEmptyAll;
-      default: return l10n.ordersEmptyStatus(buyerOrderStatusLabel(_statusFilter!, l10n));
+      case 'pending':
+        return l10n.buyerOrdersEmptyPending;
+      case 'approved':
+        return l10n.buyerOrdersEmptyApproved;
+      case 'completed':
+        return l10n.buyerOrdersEmptyCompleted;
+      case 'cancelled':
+        return l10n.buyerOrdersEmptyCancelled;
+      case null:
+        return l10n.buyerOrdersEmptyAll;
+      default:
+        return l10n.ordersEmptyStatus(
+          buyerOrderStatusLabel(_statusFilter!, l10n),
+        );
     }
   }
 
@@ -176,11 +214,16 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
     final visible = _filtered;
     // Orders the consumer can now collect or has been sent (the banner's subject).
     final approved = _allOrders
-        .where((o) => o.status == 'ready_for_pickup' || o.status == 'out_for_delivery' || o.status == 'delivered')
+        .where(
+          (o) =>
+              o.status == 'ready_for_pickup' ||
+              o.status == 'out_for_delivery' ||
+              o.status == 'delivered',
+        )
         .toList();
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -188,13 +231,16 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
+                    const TopBarSpacer(height: 72),
                     CachedDataNotice(
-            screen: 'orders',
-            isOnline: _isOnline,
-            offlineMessage: AppLocalizations.of(context).offlineOrders,
-          ),
-                    if (approved.isNotEmpty) _buildApprovedBanner(l10n, approved),
+                      screen: 'orders',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineOrders,
+                    ),
+                    if (approved.isNotEmpty)
+                      _buildApprovedBanner(l10n, approved),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                       child: TextField(
@@ -214,10 +260,19 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
                         children: [
                           for (final status in _kStatuses) ...[
                             ListingStatusFilterChip(
-                              label: status == null ? l10n.farmerMgmtAllFilter : buyerOrderStatusLabel(status, l10n),
+                              label: status == null
+                                  ? l10n.farmerMgmtAllFilter
+                                  : buyerOrderStatusLabel(status, l10n),
+                              // "Label (n)": how many orders the chip holds.
+                              count: status == null
+                                  ? _allOrders.length
+                                  : _allOrders
+                                        .where((o) => o.status == status)
+                                        .length,
                               active: _statusFilter == status,
                               color: _statusColor(status, cs),
-                              onTap: () => setState(() => _statusFilter = status),
+                              onTap: () =>
+                                  setState(() => _statusFilter = status),
                               cs: cs,
                             ),
                             const SizedBox(width: 8),
@@ -228,27 +283,46 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
                     const SizedBox(height: 8),
                     Expanded(
                       child: _isLoading
-                          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SkeletonList(),
+                            )
                           : visible.isEmpty
-                              ? Center(
-                                  child: Text(_emptyMessage(l10n),
-                                      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
-                                )
-                              : RefreshIndicator(
-                                  color: AppConstants.primaryGreen,
-                                  onRefresh: _load,
-                                  child: ListView.separated(
-                                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                                    itemCount: visible.length,
-                                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                                    itemBuilder: (context, i) => _OrderCard(order: visible[i]),
-                                  ),
+                          ? Center(
+                              child: Text(
+                                _emptyMessage(l10n),
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
+                              ),
+                            )
+                          : RefreshIndicator(
+                              color: AppConstants.primaryGreen,
+                              onRefresh: _load,
+                              child: ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  12,
+                                  20,
+                                  24,
+                                ),
+                                itemCount: visible.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, i) =>
+                                    _OrderCard(order: visible[i]),
+                              ),
+                            ),
                     ),
                   ],
                 ),
                 Positioned(
-                  top: 0, left: 0, right: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
                   child: FarmerTopBar(
                     title: l10n.buyerOrdersTitle,
                     onBack: () => Navigator.of(context).pop(),
@@ -280,7 +354,9 @@ class _OrderCard extends StatelessWidget {
 
   void _openDetail(BuildContext context) {
     context.pushRoute(
-      order.isCooperative ? AppRoutes.farmerProgramOrderDetail : AppRoutes.farmerOrderDetail,
+      order.isCooperative
+          ? AppRoutes.farmerProgramOrderDetail
+          : AppRoutes.farmerOrderDetail,
       extra: order.id,
     );
   }
@@ -301,7 +377,11 @@ class _OrderCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border(left: BorderSide(color: _statusColor, width: 4)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
             ],
           ),
           child: Column(
@@ -313,9 +393,22 @@ class _OrderCard extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                     child: order.photoUrl != null
-                        ? Image.network(order.photoUrl!, width: 52, height: 52, fit: BoxFit.cover)
-                        : Container(width: 52, height: 52, color: AppConstants.limeGreen,
-                            child: const Icon(Icons.eco_rounded, size: 22, color: AppConstants.primaryGreen)),
+                        ? Image.network(
+                            order.photoUrl!,
+                            width: 52,
+                            height: 52,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            width: 52,
+                            height: 52,
+                            color: AppConstants.limeGreen,
+                            child: Icon(
+                              Icons.eco_rounded,
+                              size: 22,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -326,15 +419,32 @@ class _OrderCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Text(order.title,
-                                  style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                              child: Text(
+                                order.title,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                              child: Text(buyerOrderStatusLabel(order.status, l10n),
-                                  style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: _statusColor)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                buyerOrderStatusLabel(order.status, l10n),
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: _statusColor,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -343,9 +453,21 @@ class _OrderCard extends StatelessWidget {
                           spacing: 6,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Text('${order.reference} · ${_formatDate(order.createdAt)}',
-                                style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant, letterSpacing: 0.3)),
-                            if (order.isCooperative) const OrderSourceBadge(source: kOrderSourceCooperative),
+                            Text(
+                              '${order.reference} · ${_formatDate(order.createdAt)}',
+                              style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            if (order.isCooperative)
+                              const OrderSourceBadge(
+                                source: kOrderSourceCooperative,
+                              ),
                           ],
                         ),
                       ],
@@ -354,19 +476,33 @@ class _OrderCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+              Divider(
+                height: 1,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.10),
+              ),
               const SizedBox(height: 10),
               if (order.hasFulfillmentChoice) ...[
                 Row(
                   children: [
                     Icon(
-                      order.isPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
-                      size: 13, color: AppConstants.primaryGreen,
+                      order.isPickup
+                          ? Icons.storefront_rounded
+                          : Icons.local_shipping_outlined,
+                      size: 13,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      order.isPickup ? l10n.checkoutFulfillmentPickup : l10n.checkoutFulfillmentDelivery,
-                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+                      order.isPickup
+                          ? l10n.checkoutFulfillmentPickup
+                          : l10n.checkoutFulfillmentDelivery,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -385,15 +521,44 @@ class _OrderCard extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(l10n.buyerOrdersQuantityLabel, style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-                          Text(order.quantityLabel, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                          Text(
+                            l10n.buyerOrdersQuantityLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            order.quantityLabel,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(l10n.buyerOrdersTotalLabel, style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-                          Text('₱${order.total.toStringAsFixed(2)}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                          Text(
+                            l10n.buyerOrdersTotalLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            '₱${order.total.toStringAsFixed(2)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -401,8 +566,12 @@ class _OrderCard extends StatelessWidget {
                 )
               else
                 Text(
-                    l10n.buyerOrdersCancelledOn(_formatDate(order.updatedAt)),
-                    style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                  l10n.buyerOrdersCancelledOn(_formatDate(order.updatedAt)),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -424,7 +593,9 @@ class _OrderCard extends StatelessWidget {
         return PrimaryButton(
           label: order.canConfirmReceipt
               ? l10n.buyerOrderReceivedAction
-              : (order.isWaitingForPayment ? l10n.uoWaitingPaymentTitle : l10n.buyerOrdersViewDetails),
+              : (order.isWaitingForPayment
+                    ? l10n.uoWaitingPaymentTitle
+                    : l10n.buyerOrdersViewDetails),
           height: 40,
           onPressed: () => _openDetail(context),
         );
@@ -432,7 +603,10 @@ class _OrderCard extends StatelessWidget {
         return OutlinedButton(
           onPressed: order.listingId == null
               ? () => context.goTab(AppRoutes.myListings)
-              : () => context.pushRoute(AppRoutes.farmerMarketplaceListingDetail, extra: order.listingId),
+              : () => context.pushRoute(
+                  AppRoutes.farmerMarketplaceListingDetail,
+                  extra: order.listingId,
+                ),
           child: Text(l10n.buyerOrdersReorder),
         );
       case 'cancelled':
@@ -443,12 +617,21 @@ class _OrderCard extends StatelessWidget {
       default: // pending — no action
         return Row(
           children: [
-            const Icon(Icons.schedule_rounded, size: 14, color: AppConstants.warningAmber),
+            const Icon(
+              Icons.schedule_rounded,
+              size: 14,
+              color: AppConstants.warningAmber,
+            ),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(l10n.buyerOrdersAwaitingReview,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+              child: Text(
+                l10n.buyerOrdersAwaitingReview,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
           ],
         );

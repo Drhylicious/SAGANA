@@ -63,10 +63,17 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   }
 
   Future<void> _load() async {
-    final marketIds = widget.orderIds.where((id) => !isProgramOrderToken(id)).toList();
-    final coopIds = widget.orderIds.where(isProgramOrderToken).map(programOrderIdOf).toList();
+    final marketIds = widget.orderIds
+        .where((id) => !isProgramOrderToken(id))
+        .toList();
+    final coopIds = widget.orderIds
+        .where(isProgramOrderToken)
+        .map(programOrderIdOf)
+        .toList();
     final coopRepo = CooperativeOrderRepository();
-    final results = await Future.wait(marketIds.map(_repository.fetchOrderById));
+    final results = await Future.wait(
+      marketIds.map(_repository.fetchOrderById),
+    );
     final coop = await Future.wait(coopIds.map(coopRepo.fetchOrderById));
     if (!mounted) return;
     setState(() {
@@ -84,7 +91,9 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     // choice — read it from whichever order loaded first rather than
     // repeating an identical card once per order.
     final firstOrder = _orders.isNotEmpty ? _orders.first : null;
-    final firstCoop = firstOrder == null && _coopOrders.isNotEmpty ? _coopOrders.first : null;
+    final firstCoop = firstOrder == null && _coopOrders.isNotEmpty
+        ? _coopOrders.first
+        : null;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
@@ -124,7 +133,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -133,7 +142,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
                       fontSize: 13,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -172,7 +181,8 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                       unit: _orders[i].unit,
                       totalPrice: _orders[i].totalPrice,
                     ),
-                    if (i < _orders.length - 1 || _coopOrders.isNotEmpty) const SizedBox(height: 10),
+                    if (i < _orders.length - 1 || _coopOrders.isNotEmpty)
+                      const SizedBox(height: 10),
                   ],
                   for (int i = 0; i < _coopOrders.length; i++) ...[
                     OrderReferenceCard(

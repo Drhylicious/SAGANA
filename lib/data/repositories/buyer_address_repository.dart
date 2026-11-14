@@ -149,7 +149,7 @@ class BuyerAddressRepository {
         .select('id')
         .single();
     await BuyerProfileRepository().logActivity(
-      AdminLogMessage('activityAddressAdded', {'label': '$label'}),
+      AdminLogMessage('activityAddressAdded', {'label': label}),
     );
     return row['id'] as String;
   }
@@ -226,7 +226,7 @@ class BuyerAddressRepository {
         })
         .eq('id', id);
     await BuyerProfileRepository().logActivity(
-      AdminLogMessage('activityAddressUpdated', {'label': '$label'}),
+      AdminLogMessage('activityAddressUpdated', {'label': label}),
     );
   }
 
@@ -252,7 +252,7 @@ class BuyerAddressRepository {
     final label = existing?['label'] as String?;
     if (label != null) {
       await BuyerProfileRepository().logActivity(
-        AdminLogMessage('activityAddressDeleted', {'label': '$label'}),
+        AdminLogMessage('activityAddressDeleted', {'label': label}),
       );
     }
 
@@ -306,7 +306,7 @@ class BuyerAddressRepository {
     final label = existing?['label'] as String?;
     if (logActivity && label != null) {
       await BuyerProfileRepository().logActivity(
-        AdminLogMessage('activityAddressDefault', {'label': '$label'}),
+        AdminLogMessage('activityAddressDefault', {'label': label}),
       );
     }
   }

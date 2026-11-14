@@ -25,8 +25,8 @@ class _BandRow {
   final TextEditingController upTo;
   final TextEditingController fee;
   _BandRow({String upTo = '', String fee = ''})
-      : upTo = TextEditingController(text: upTo),
-        fee = TextEditingController(text: fee);
+    : upTo = TextEditingController(text: upTo),
+      fee = TextEditingController(text: fee);
   void dispose() {
     upTo.dispose();
     fee.dispose();
@@ -74,7 +74,8 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
     super.dispose();
   }
 
-  String _num(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+  String _num(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
   Future<void> _load() async {
     setState(() {
@@ -90,7 +91,10 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
       }
       _rows
         ..clear()
-        ..addAll([for (final b in bands) _BandRow(upTo: _num(b.maxKm), fee: _num(b.fee))]);
+        ..addAll([
+          for (final b in bands)
+            _BandRow(upTo: _num(b.maxKm), fee: _num(b.fee)),
+        ]);
       setState(() {
         _status = status;
         _saved = bands;
@@ -115,7 +119,9 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
       final end = double.tryParse(r.upTo.text.trim());
       final fee = double.tryParse(r.fee.text.trim());
       if (end == null || fee == null) {
-        out.add(DeliveryFeeBand(minKm: start, maxKm: start, fee: -1)); // invalid on purpose
+        out.add(
+          DeliveryFeeBand(minKm: start, maxKm: start, fee: -1),
+        ); // invalid on purpose
         continue;
       }
       out.add(DeliveryFeeBand(minKm: start, maxKm: end, fee: fee));
@@ -125,9 +131,9 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
   }
 
   void _addBand() => setState(() {
-        _rows.add(_BandRow());
-        _dirty = true;
-      });
+    _rows.add(_BandRow());
+    _dirty = true;
+  });
 
   void _removeLast() {
     if (_rows.isEmpty) return;
@@ -189,43 +195,62 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
           const ViewOnlyBanner(module: StaffModule.marketplace),
           Expanded(
             child: _loading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : _loadError != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_loadError!, textAlign: TextAlign.center),
-                              const SizedBox(height: 12),
-                              OutlinedButton(onPressed: _load, child: Text(l10n.retry)),
-                            ],
-                          ),
-                        ),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!canEdit)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(l10n.cdViewOnly,
-                                  key: const Key('dsViewOnly'),
-                                  style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant)),
-                            ),
-                          _pickupCard(l10n, cs, canEdit),
+                          Text(_loadError!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          _deliveryCard(l10n, cs, canEdit),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(l10n.dsOneMethod, style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant)),
+                          OutlinedButton(
+                            onPressed: _load,
+                            child: Text(l10n.retry),
                           ),
-                          const SizedBox(height: 12),
-                          _bandsCard(l10n, cs, canEdit),
                         ],
                       ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                    children: [
+                      if (!canEdit)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            l10n.cdViewOnly,
+                            key: const Key('dsViewOnly'),
+                            style: GoogleFonts.inter(
+                              fontSize: 12.5,
+                              fontStyle: FontStyle.italic,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      _pickupCard(l10n, cs, canEdit),
+                      const SizedBox(height: 12),
+                      _deliveryCard(l10n, cs, canEdit),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          l10n.dsOneMethod,
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            height: 1.4,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _bandsCard(l10n, cs, canEdit),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -247,14 +272,19 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
           child: Text(
             sentence,
             key: textKey,
-            style: GoogleFonts.inter(fontSize: 13, height: 1.4, fontWeight: FontWeight.w600, color: on ? AppConstants.successGreen : cs.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: on ? AppConstants.successGreen : cs.onSurfaceVariant,
+            ),
           ),
         ),
         const SizedBox(width: 8),
         Switch(
           key: switchKey,
           value: on,
-          activeColor: AppConstants.successGreen,
+          activeThumbColor: AppConstants.successGreen,
           onChanged: onTap == null ? null : (_) => onTap(),
         ),
       ],
@@ -275,7 +305,12 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
         sentence: on ? l10n.dsPickupOn : l10n.dsPickupOff,
         on: on,
         cs: cs,
-        onTap: canToggle ? () => _switch(() => _repo.setPickupEnabled(!on), on ? l10n.dsPickupOffToast : l10n.dsPickupOnToast) : null,
+        onTap: canToggle
+            ? () => _switch(
+                () => _repo.setPickupEnabled(!on),
+                on ? l10n.dsPickupOffToast : l10n.dsPickupOnToast,
+              )
+            : null,
       ),
     );
   }
@@ -287,7 +322,11 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
     // is in place and verified it disappears and the Manager can switch Delivery on.
     final showChecklist = !on && !checklist.complete;
     // On: only when everything is in place. Off: only while Pickup is on.
-    final canToggle = canEdit && !_busy && _online && (on ? _status.pickupEnabled : checklist.complete);
+    final canToggle =
+        canEdit &&
+        !_busy &&
+        _online &&
+        (on ? _status.pickupEnabled : checklist.complete);
     return AddressSectionCard(
       title: l10n.dsSwitchTitle,
       child: Column(
@@ -299,7 +338,12 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
             sentence: on ? l10n.dsSwitchOn : l10n.dsSwitchOff,
             on: on,
             cs: cs,
-            onTap: canToggle ? () => _switch(() => _repo.setDeliveryEnabled(!on), on ? l10n.dsDisabledToast : l10n.dsEnabledToast) : null,
+            onTap: canToggle
+                ? () => _switch(
+                    () => _repo.setDeliveryEnabled(!on),
+                    on ? l10n.dsDisabledToast : l10n.dsEnabledToast,
+                  )
+                : null,
           ),
           if (showChecklist) ...[
             const Divider(height: 22),
@@ -307,14 +351,27 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
               key: const Key('dsChecklist'),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.dsChecklistTitle, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                Text(
+                  l10n.dsChecklistTitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 _check('pin', checklist.pinSet, l10n.dsCheckPin, cs),
-                _check('contact', checklist.contactReady, l10n.dsCheckContact, cs),
+                _check(
+                  'contact',
+                  checklist.contactReady,
+                  l10n.dsCheckContact,
+                  cs,
+                ),
                 _check('bands', checklist.bandsSet, l10n.dsCheckBands, cs),
                 const SizedBox(height: 2),
                 TextButton.icon(
                   key: const Key('dsCompleteDetails'),
-                  onPressed: () => context.push(AppRoutes.adminCooperativeDetails).then((_) => _load()),
+                  onPressed: () => context
+                      .push(AppRoutes.adminCooperativeDetails)
+                      .then((_) => _load()),
                   icon: const Icon(Icons.apartment_rounded, size: 18),
                   label: Text(l10n.dsCheckAction),
                 ),
@@ -332,20 +389,34 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
       child: Row(
         key: Key('check_$key'),
         children: [
-          Icon(ok ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 20, color: ok ? AppConstants.successGreen : cs.outline),
+          Icon(
+            ok
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: 20,
+            color: ok ? AppConstants.successGreen : cs.outline,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12.5, color: ok ? cs.onSurface : cs.onSurfaceVariant))),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                color: ok ? cs.onSurface : cs.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   String _problemText(AppLocalizations l10n, BandsProblem p) => switch (p) {
-        BandsProblem.empty => l10n.dsBandsProblemEmpty,
-        BandsProblem.badRow => l10n.dsBandsProblemRow,
-        BandsProblem.notFromZero => l10n.dsBandsProblemZero,
-        BandsProblem.gapOrOverlap => l10n.dsBandsProblemGap,
-      };
+    BandsProblem.empty => l10n.dsBandsProblemEmpty,
+    BandsProblem.badRow => l10n.dsBandsProblemRow,
+    BandsProblem.notFromZero => l10n.dsBandsProblemZero,
+    BandsProblem.gapOrOverlap => l10n.dsBandsProblemGap,
+  };
 
   Widget _bandsCard(AppLocalizations l10n, ColorScheme cs, bool canEdit) {
     final typed = _typed();
@@ -367,7 +438,13 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
                 width: 78,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
-                  child: Text(l10n.dsBandFrom(_num(from)), style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                  child: Text(
+                    l10n.dsBandFrom(_num(from)),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ),
               Expanded(
@@ -375,10 +452,19 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
                   key: Key('bandUpTo_$i'),
                   controller: r.upTo,
                   enabled: canEdit && !_busy,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d*\.?\d{0,2}'),
+                    ),
+                  ],
                   onChanged: (_) => setState(() => _dirty = true),
-                  decoration: InputDecoration(labelText: l10n.dsBandUpTo, isDense: true),
+                  decoration: InputDecoration(
+                    labelText: l10n.dsBandUpTo,
+                    isDense: true,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -387,10 +473,20 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
                   key: Key('bandFee_$i'),
                   controller: r.fee,
                   enabled: canEdit && !_busy,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d*\.?\d{0,2}'),
+                    ),
+                  ],
                   onChanged: (_) => setState(() => _dirty = true),
-                  decoration: InputDecoration(labelText: l10n.dsBandFee, prefixText: '₱ ', isDense: true),
+                  decoration: InputDecoration(
+                    labelText: l10n.dsBandFee,
+                    prefixText: '₱ ',
+                    isDense: true,
+                  ),
                 ),
               ),
             ],
@@ -404,31 +500,62 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.dsBandsHelp, style: GoogleFonts.inter(fontSize: 12, height: 1.45, color: cs.onSurfaceVariant)),
+          Text(
+            l10n.dsBandsHelp,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.45,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           if (_saved.any((b) => b.isDemo))
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(l10n.dsDemoWarning, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+              child: Text(
+                l10n.dsDemoWarning,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.errorRed,
+                ),
+              ),
             ),
           if (_rows.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(l10n.dsBandsEmpty,
-                  key: const Key('bandsEmpty'),
-                  style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant)),
+              child: Text(
+                l10n.dsBandsEmpty,
+                key: const Key('bandsEmpty'),
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  fontStyle: FontStyle.italic,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
             ),
           ...rows,
           if (_saved.isNotEmpty && !_dirty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(l10n.dsFarthest(_num(farthest)),
-                  key: const Key('farthest'), style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600)),
+              child: Text(
+                l10n.dsFarthest(_num(farthest)),
+                key: const Key('farthest'),
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           if (_problem != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Text(_problemText(l10n, _problem!),
-                  key: const Key('bandsProblem'), style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+              child: Text(
+                _problemText(l10n, _problem!),
+                key: const Key('bandsProblem'),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.errorRed,
+                ),
+              ),
             ),
           if (canEdit) ...[
             const SizedBox(height: 12),
@@ -452,7 +579,9 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
               key: const Key('saveBands'),
               label: l10n.dsSaveBands,
               isLoading: _busy,
-              onPressed: (_dirty && typed.isNotEmpty && _online && !_busy) ? _saveBands : null,
+              onPressed: (_dirty && typed.isNotEmpty && _online && !_busy)
+                  ? _saveBands
+                  : null,
             ),
           ],
         ],

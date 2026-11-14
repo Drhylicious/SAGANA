@@ -8,6 +8,7 @@ import '../models/listing_edit_request_model.dart';
 import '../models/workflow_event_model.dart';
 import '../services/app_event_service.dart';
 import 'crop_lookup.dart';
+import 'shelf_life_repository.dart';
 
 class ListingRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -77,11 +78,15 @@ class ListingRepository {
       final rows = await OfflineCache.load(
         screen: 'my_listings',
         fetch: () async {
-          final response = await _client
-              .from('marketplace_listings')
-              .select()
-              .eq('farmer_id', _userId)
-              .order('created_at', ascending: false);
+          final response = await withShelfLifeEmbed(
+            '*',
+            'listing_shelf_life(*)',
+            (columns) => _client
+                .from('marketplace_listings')
+                .select(columns)
+                .eq('farmer_id', _userId)
+                .order('created_at', ascending: false),
+          );
 
           final cropIds = response
               .map((r) => r['crop_id'] as String?)
@@ -89,11 +94,15 @@ class ListingRepository {
               .toSet()
               .toList();
           final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
+          // Listings whose price fell outside a changed Reference Price Range.
+          final priceUpdates = await ShelfLifeRepository()
+              .fetchPriceUpdateRequired();
 
           return response.map<Map<String, dynamic>>((row) {
             final cropId = row['crop_id'] as String?;
             return {
               ...row,
+              'price_update_rule': priceUpdates[row['id']],
               'canonical_crop_name': cropId != null
                   ? canonicalCropNames[cropId]
                   : null,
@@ -229,13 +238,20 @@ class ListingRepository {
   /// not the copy the list screen was holding).
   Future<MarketplaceListingModel?> fetchListing(String listingId) async {
     try {
-      final row = await _client
-          .from('marketplace_listings')
-          .select()
-          .eq('id', listingId)
-          .eq('farmer_id', _userId)
-          .maybeSingle();
-      return row == null ? null : await _hydrate(row);
+      final row = await withShelfLifeEmbed(
+        '*',
+        'listing_shelf_life(*)',
+        (columns) => _client
+            .from('marketplace_listings')
+            .select(columns)
+            .eq('id', listingId)
+            .eq('farmer_id', _userId)
+            .maybeSingle(),
+      );
+      if (row == null) return null;
+      final priceUpdates = await ShelfLifeRepository()
+          .fetchPriceUpdateRequired();
+      return _hydrate({...row, 'price_update_rule': priceUpdates[listingId]});
     } catch (_) {
       return null;
     }

@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/l10n/system_notification_text.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/models/notification_model.dart';
 import 'notification_day_groups.dart';
+import 'recent_activity_widgets.dart';
 
 /// Shared by every notification screen (Manager, Officer, Farmer, Buyer and the
-/// Pending Applicant tab): the time shown on a notification, the three-dot menu
-/// that changes read status, the per-notification read/unread sheet, and the
-/// card the Farmer and Pending Applicant screens use.
+/// Pending Applicant tab): the time shown on a notification, the selection
+/// state, the single-action three-dot menu (Mark as Read / Mark as Unread, only
+/// while selecting), and the one notification card.
 
 /// When a notification happened, in the words that suit its day group:
 ///   Today      "Just now", "5m ago", "3h ago"
@@ -27,127 +28,110 @@ String notificationTimeLabel(
     case NotificationDay.today:
       final diff = current.difference(createdAt);
       if (diff.inMinutes < 1) return l10n.broadcastJustNow;
-      if (diff.inMinutes < 60) return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
+      if (diff.inMinutes < 60) {
+        return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
+      }
       return l10n.buyerNotifTimeHoursAgo(diff.inHours);
     case NotificationDay.yesterday:
       return l10n.buyerNotifTimeYesterday;
     case NotificationDay.earlier:
-      final format = createdAt.year == current.year
-          ? DateFormat.MMMd(l10n.localeName)
-          : DateFormat.yMMMd(l10n.localeName);
-      return format.format(createdAt);
+      // Same format as Recent Activity: "November 12" this year,
+      // "November 12, 2025" in an earlier year.
+      return activityDateLabel(createdAt, l10n.localeName, now: current);
   }
 }
 
-/// The top-right three-dot menu. Offers what applies to the list as it is now:
-/// mark all as read (something is unread), mark all as unread (something is
-/// read), and, where a screen has it, clear all. Nothing to offer, no button.
-class NotificationMenuButton extends StatelessWidget {
-  final bool hasUnread;
-  final bool hasRead;
-  final VoidCallback onMarkAllRead;
-  final VoidCallback onMarkAllUnread;
-  final VoidCallback? onClearAll;
+/// Which notifications are selected (SMS-style). Long-press starts it, a tap
+/// toggles while it is active, and it ends when the last one is unselected.
+/// Screens keep one of these and call setState around its changes.
+class NotificationSelection {
+  final Set<String> _ids = {};
 
-  const NotificationMenuButton({
+  bool get isActive => _ids.isNotEmpty;
+  int get count => _ids.length;
+  bool contains(String id) => _ids.contains(id);
+
+  void toggle(String id) {
+    if (!_ids.add(id)) _ids.remove(id);
+  }
+
+  void clear() => _ids.clear();
+
+  /// The selected notifications, in list order.
+  List<NotificationModel> picked(List<NotificationModel> all) =>
+      all.where((n) => _ids.contains(n.id)).toList();
+
+  /// The one action to offer: "Mark as Read" only when every selected
+  /// notification is unread, otherwise "Mark as Unread".
+  bool offersMarkRead(List<NotificationModel> all) {
+    final selected = picked(all);
+    return selected.isNotEmpty && selected.every((n) => n.isUnread);
+  }
+}
+
+/// The top-right three-dot menu. Screens show it only while a selection is
+/// active; it offers a single action chosen by [markRead].
+class NotificationSelectionMenu extends StatelessWidget {
+  /// True: "Mark as Read". False: "Mark as Unread".
+  final bool markRead;
+  final VoidCallback onApply;
+
+  const NotificationSelectionMenu({
     super.key,
-    required this.hasUnread,
-    required this.hasRead,
-    required this.onMarkAllRead,
-    required this.onMarkAllUnread,
-    this.onClearAll,
+    required this.markRead,
+    required this.onApply,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (!hasUnread && !hasRead && onClearAll == null) {
-      return const SizedBox.shrink();
-    }
-    return PopupMenuButton<String>(
+    return PopupMenuButton<bool>(
       key: const ValueKey('notification-menu'),
       // Opens below the icon instead of over the screen title.
       position: PopupMenuPosition.under,
       tooltip: l10n.notifMenuTooltip,
-      icon: const Icon(
+      icon: Icon(
         Icons.more_vert_rounded,
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
       ),
-      onSelected: (value) {
-        switch (value) {
-          case 'read_all':
-            onMarkAllRead();
-          case 'unread_all':
-            onMarkAllUnread();
-          case 'clear_all':
-            onClearAll?.call();
-        }
-      },
+      onSelected: (_) => onApply(),
       itemBuilder: (context) => [
-        if (hasUnread)
-          PopupMenuItem(
-            value: 'read_all',
-            child: Text(l10n.buyerNotifMenuMarkAllRead),
+        PopupMenuItem<bool>(
+          key: const ValueKey('notification-toggle-read'),
+          value: markRead,
+          child: Text(
+            markRead ? l10n.notifItemMarkRead : l10n.notifItemMarkUnread,
           ),
-        if (hasRead)
-          PopupMenuItem(
-            value: 'unread_all',
-            child: Text(l10n.notifMenuMarkAllUnread),
-          ),
-        if (onClearAll != null)
-          PopupMenuItem(
-            value: 'clear_all',
-            child: Text(l10n.buyerNotifMenuClearAll),
-          ),
+        ),
       ],
     );
   }
 }
 
-/// Long-press on a notification: one action, the opposite of its current state.
-Future<void> showNotificationReadSheet(
-  BuildContext context, {
-  required bool isRead,
-  required VoidCallback onToggle,
-}) {
-  final l10n = AppLocalizations.of(context);
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheetContext) => SafeArea(
-      child: ListTile(
-        key: const ValueKey('notification-toggle-read'),
-        leading: Icon(
-          isRead ? Icons.mark_email_unread_outlined : Icons.drafts_outlined,
-          color: AppConstants.primaryGreen,
-        ),
-        title: Text(
-          isRead ? l10n.notifItemMarkUnread : l10n.notifItemMarkRead,
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
-        ),
-        onTap: () {
-          Navigator.of(sheetContext).pop();
-          onToggle();
-        },
-      ),
-    ),
-  );
-}
+/// The top bar title: the screen's own title, or "N selected" while selecting.
+String notificationTopBarTitle(
+  AppLocalizations l10n,
+  String title,
+  NotificationSelection selection,
+) => selection.isActive ? l10n.notifSelectedCount(selection.count) : title;
 
 /// The icon and colour a notification type is drawn with.
-({IconData icon, Color color}) notificationStyle(NotificationType type) {
+({IconData icon, Color color}) notificationStyle(
+  NotificationType type, {
+  ColorScheme? colorScheme,
+}) {
   switch (type) {
     case NotificationType.order:
       return (icon: Icons.shopping_bag_outlined, color: AppConstants.buyerBlue);
     case NotificationType.listing:
       return (
         icon: Icons.storefront_outlined,
-        color: AppConstants.primaryGreen,
+        color: colorScheme?.primary ?? AppConstants.primaryGreen,
       );
     case NotificationType.loan:
       return (
         icon: Icons.eco_outlined,
-        color: AppConstants.tertiaryContainer,
+        color: colorScheme?.primary ?? AppConstants.tertiaryContainer,
       );
     case NotificationType.price:
       return (icon: Icons.show_chart_rounded, color: AppConstants.amber);
@@ -156,21 +140,24 @@ Future<void> showNotificationReadSheet(
     case NotificationType.cropRequest:
       return (
         icon: Icons.local_florist_outlined,
-        color: AppConstants.primaryGreen,
+        color: colorScheme?.primary ?? AppConstants.primaryGreen,
       );
     case NotificationType.cooperativeOffer:
       return (icon: Icons.groups_outlined, color: AppConstants.successGreen);
     case NotificationType.program:
       return (
         icon: Icons.volunteer_activism_outlined,
-        color: AppConstants.tertiaryContainer,
+        color: colorScheme?.primary ?? AppConstants.tertiaryContainer,
       );
     case NotificationType.capital:
       return (icon: Icons.savings_outlined, color: AppConstants.amber);
     case NotificationType.memberApproved:
       return (icon: Icons.verified_outlined, color: AppConstants.successGreen);
     case NotificationType.memberRejected:
-      return (icon: Icons.info_outline_rounded, color: AppConstants.errorRed);
+      return (
+        icon: Icons.info_outline_rounded,
+        color: colorScheme?.error ?? AppConstants.errorRed,
+      );
     case NotificationType.system:
     case NotificationType.listingSubmitted:
     case NotificationType.loanOverdue:
@@ -181,20 +168,36 @@ Future<void> showNotificationReadSheet(
     case NotificationType.stockDepleted:
       return (
         icon: Icons.info_outline_rounded,
-        color: AppConstants.onSurfaceVariant,
+        color: colorScheme?.onSurfaceVariant ?? AppConstants.onSurfaceVariant,
       );
   }
 }
 
-/// The notification card of the Farmer screen, shared with the Pending
-/// Applicant tab. Swipe to delete when [onDelete] is given; long-press for the
-/// read/unread action when [onLongPress] is given.
+/// One button under a notification's message.
+class NotificationAction {
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  const NotificationAction({
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+}
+
+/// The notification card every role uses. Long-press (or, once selecting, tap)
+/// selects it: the type icon becomes a check, SMS-style. No swipe actions.
 class NotificationCard extends StatelessWidget {
   final NotificationModel item;
   final String timeLabel;
+  final bool selected;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  final VoidCallback? onDelete;
+
+  /// Buttons shown under the message, for a notice the reader answers (the
+  /// shelf-life check: "still okay" / "already rotten"). Empty for the rest.
+  final List<NotificationAction> actions;
 
   const NotificationCard({
     super.key,
@@ -202,27 +205,33 @@ class NotificationCard extends StatelessWidget {
     required this.timeLabel,
     required this.onTap,
     this.onLongPress,
-    this.onDelete,
+    this.selected = false,
+    this.actions = const [],
   });
 
   @override
   Widget build(BuildContext context) {
-    final style = notificationStyle(item.type);
     final cs = Theme.of(context).colorScheme;
+    final style = notificationStyle(item.type, colorScheme: cs);
     final sagana = context.saganaColors;
-    final card = GestureDetector(
+    return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: item.isRead
+          color: selected
+              ? AppConstants.primaryGreen.withValues(alpha: 0.12)
+              : item.isRead
               ? sagana.cardBackground.withValues(alpha: 0.85)
               : cs.primary.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(
-            color: item.isRead
+            color: selected
+                ? AppConstants.primaryGreen.withValues(alpha: 0.55)
+                : item.isRead
                 ? cs.outlineVariant.withValues(alpha: 0.30)
                 : cs.primary.withValues(alpha: 0.15),
           ),
@@ -233,14 +242,24 @@ class NotificationCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
+            AnimatedContainer(
+              key: selected
+                  ? const ValueKey('notification-selected-check')
+                  : null,
+              duration: const Duration(milliseconds: 150),
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: style.color.withValues(alpha: 0.10),
+                color: selected
+                    ? AppConstants.primaryGreen
+                    : style.color.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
-              child: Icon(style.icon, color: style.color, size: 20),
+              child: Icon(
+                selected ? Icons.check_rounded : style.icon,
+                color: selected ? Colors.white : style.color,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -251,13 +270,16 @@ class NotificationCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          item.title,
+                          localizedNotificationTitle(
+                            AppLocalizations.of(context),
+                            item.title,
+                          ),
                           style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: item.isRead
                                 ? FontWeight.w500
                                 : FontWeight.w700,
-                            color: AppConstants.onSurface,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -275,13 +297,70 @@ class NotificationCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item.body,
+                    localizedNotificationBody(
+                      AppLocalizations.of(context),
+                      item.title,
+                      item.body,
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       height: 1.4,
                     ),
                   ),
+                  if (actions.isNotEmpty && !selected) ...[
+                    const SizedBox(height: 10),
+                    for (final action in actions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: action.destructive
+                              ? OutlinedButton(
+                                  onPressed: action.onTap,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppConstants.errorRed,
+                                    side: BorderSide(
+                                      color: AppConstants.errorRed.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    textStyle: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    action.label,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                              : FilledButton(
+                                  onPressed: action.onTap,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppConstants.primaryGreen,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    textStyle: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    action.label,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                        ),
+                      ),
+                  ],
                   const SizedBox(height: 6),
                   Text(
                     timeLabel,
@@ -293,25 +372,6 @@ class NotificationCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-    if (onDelete == null) return card;
-    return Dismissible(
-      key: Key(item.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: AppConstants.errorRed.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        ),
-        child: const Icon(
-          Icons.delete_outline_rounded,
-          color: AppConstants.errorRed,
-        ),
-      ),
-      onDismissed: (_) => onDelete!(),
-      child: card,
     );
   }
 }

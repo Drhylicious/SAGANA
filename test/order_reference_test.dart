@@ -40,13 +40,29 @@ void main() {
     });
 
     test('the Buyer / Farmer order model uses it', () {
-      expect(BuyerOrderModel.fromMap(_orderRow(number: 'ORD-20261024-A001')).orderReference, 'ORD-20261024-A001');
-      expect(BuyerOrderModel.fromMap(_orderRow()).orderReference, 'ORD-7D750007');
+      expect(
+        BuyerOrderModel.fromMap(
+          _orderRow(number: 'ORD-20261024-A001'),
+        ).orderReference,
+        'ORD-20261024-A001',
+      );
+      expect(
+        BuyerOrderModel.fromMap(_orderRow()).orderReference,
+        'ORD-7D750007',
+      );
     });
 
     test('the Manager order model uses it', () {
-      expect(AdminOrderModel.fromMap(_orderRow(number: 'ORD-20261024-A001')).orderReference, 'ORD-20261024-A001');
-      expect(AdminOrderModel.fromMap(_orderRow()).orderReference, 'ORD-7D750007');
+      expect(
+        AdminOrderModel.fromMap(
+          _orderRow(number: 'ORD-20261024-A001'),
+        ).orderReference,
+        'ORD-20261024-A001',
+      );
+      expect(
+        AdminOrderModel.fromMap(_orderRow()).orderReference,
+        'ORD-7D750007',
+      );
     });
 
     test('searching an order by the new number or its date part works', () {
@@ -76,11 +92,13 @@ void main() {
       home: Scaffold(body: SingleChildScrollView(child: child)),
     );
 
-    testWidgets('shows the new number, or the old reference without one', (tester) async {
+    testWidgets('shows the new number, or the old reference without one', (
+      tester,
+    ) async {
       await runIgnoringFontErrors(() async {
         await tester.pumpWidget(
           host(
-            Column(
+            const Column(
               children: [
                 OrderReferenceCard(
                   orderId: _id,

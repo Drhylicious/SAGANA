@@ -32,7 +32,7 @@ class GuestAware extends StatelessWidget {
           );
         }
         return KeyedSubtree(
-          key: ValueKey(mode.isGuest ? 'guest' : 'member'),
+          key: ValueKey(mode.isGuest ? 'guest' : "member"),
           child: signedIn(),
         );
       },
@@ -77,7 +77,11 @@ class _GuestBody extends StatelessWidget {
                   color: AppConstants.primaryGreen.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 40, color: AppConstants.primaryGreen),
+                child: Icon(
+                  icon,
+                  size: 40,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
@@ -95,7 +99,7 @@ class _GuestBody extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 13.5,
                   height: 1.5,
-                  color: AppConstants.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 24),

@@ -1,12 +1,17 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 import 'connectivity_service.dart';
 import 'hive_service.dart';
+import 'offline_read_client.dart';
 
 /// What happened to a user-owned write.
 enum SaveOutcome {
   /// Sent to the server now.
   saved,
 
-  /// Kept on this device. It is sent by the next manual Sync.
+  /// Kept on this device for automatic sync or Sync Now.
   queued,
 }
 
@@ -24,7 +29,7 @@ class PhotoSaveResult {
 }
 
 /// Runs a user-owned write now when the server is reachable, otherwise keeps
-/// it on this device to be sent by the next manual Sync.
+/// it on this device for automatic sync or Sync Now.
 ///
 /// [kind] selects the replay handler in offline_action_replay.dart, and
 /// [payload] must hold everything that handler needs (plain values only, so
@@ -43,11 +48,30 @@ class OfflineActions {
     required Future<void> Function() online,
     bool queueWhenOffline = true,
   }) async {
+    final owner = HiveService.getUserId();
+    if (owner == null) throw const OfflineActionBlocked();
     if (await ConnectivityService.instance.checkConnectivity()) {
-      await online();
-      return SaveOutcome.saved;
+      try {
+        await OfflineReadClient.runForUser(owner, online);
+        return SaveOutcome.saved;
+      } catch (error) {
+        final connectionFailure = isOfflineConnectionFailure(error);
+        // The connection can drop after the probe. Keep the same payload and
+        // retry identity; a server validation failure must still reach the form.
+        if (!connectionFailure ||
+            !queueWhenOffline ||
+            HiveService.getUserRole() == 'buyer' ||
+            HiveService.getUserId() != owner) {
+          rethrow;
+        }
+        await HiveService.saveOfflineAction(kind, payload);
+        return SaveOutcome.queued;
+      }
     }
-    if (!queueWhenOffline) throw const OfflineActionBlocked();
+    if (!queueWhenOffline || HiveService.getUserRole() == 'buyer') {
+      throw const OfflineActionBlocked();
+    }
+    if (HiveService.getUserId() != owner) throw const OfflineActionBlocked();
     await HiveService.saveOfflineAction(kind, payload);
     return SaveOutcome.queued;
   }
@@ -58,3 +82,15 @@ String? encodeDate(DateTime? value) => value?.toIso8601String();
 
 DateTime? decodeDate(Object? value) =>
     value == null ? null : DateTime.parse(value as String);
+
+/// A transport failure can occur after a successful reachability check.
+bool isOfflineConnectionFailure(Object error) =>
+    error is SocketException ||
+    error is TimeoutException ||
+    error is HandshakeException ||
+    error is http.ClientException ||
+    error is StorageException &&
+        ((int.tryParse(error.statusCode ?? '') ?? 0) >= 500 ||
+            RegExp(
+              r'(Socket|Client|Handshake|Timeout)Exception',
+            ).hasMatch(error.statusCode ?? ''));

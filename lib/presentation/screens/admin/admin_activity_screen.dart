@@ -1,8 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -215,9 +213,14 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
   // too many chips to scan at a glance, so chips are consolidated down to
   // the same 6 sections the bottom nav + drawer already use.
   String? _filterCategory;
-  int _page = 0;
+
+  // The Manager's/Officer's own actions are fetched once (up to this many, the
+  // server's per-request ceiling); chips, search and "Load More" then work on
+  // that set in memory, so switching a chip never reloads the screen and the
+  // chip counts are exact for everything fetched.
+  static const _fetchLimit = 1000;
   static const _pageSize = 30;
-  bool _hasMore = true;
+  int _visibleCount = _pageSize;
 
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -227,9 +230,12 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     super.initState();
     AppTheme.applySystemOverlay(context);
     _searchCtrl.addListener(() {
-      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+      setState(() {
+        _searchQuery = _searchCtrl.text.trim().toLowerCase();
+        _visibleCount = _pageSize;
+      });
     });
-    _loadPage(reset: true);
+    _load();
   }
 
   @override
@@ -238,47 +244,44 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     super.dispose();
   }
 
-  Future<void> _loadPage({bool reset = false}) async {
-    if (reset) {
-      setState(() {
-        _page = 0;
-        _items = [];
-        _hasMore = true;
-        _isLoading = true;
-      });
-    }
-    final fetched = await _repo.fetchActivity(
-      limit: _pageSize,
-      offset: _page * _pageSize,
-      moduleFilters: _filterCategory == null
-          ? null
-          : _categoryModules[_filterCategory],
-    );
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    final fetched = await _repo.fetchActivity(limit: _fetchLimit);
     if (!mounted) return;
     setState(() {
-      _items.addAll(fetched);
-      _hasMore = fetched.length == _pageSize;
+      _items = fetched;
+      _visibleCount = _pageSize;
       _isLoading = false;
     });
   }
 
+  // Only the visible records change; nothing is re-fetched.
   void _onFilterTap(String? category) {
-    setState(() => _filterCategory = category);
-    _loadPage(reset: true);
+    setState(() {
+      _filterCategory = category;
+      _visibleCount = _pageSize;
+    });
   }
 
-  // Search is client-side over whatever's already loaded (same as Farmer's
-  // Recent Activity) — it doesn't trigger a new fetch or reset pagination.
+  bool _inCategory(AdminActivityItem item, String? category) =>
+      category == null ||
+      (_categoryModules[category]?.contains(item.sourceModule) ?? false);
+
+  // How many records sit under a chip (search does not change the numbers).
+  int _countFor(String? category) =>
+      _items.where((i) => _inCategory(i, category)).length;
+
+  // Chip and search are both client-side over what was fetched.
   List<AdminActivityItem> get _filteredItems {
-    if (_searchQuery.isEmpty) return _items;
-    return _items
-        .where(
-          (item) => adminActivityDescription(
-            AppLocalizations.of(context),
-            item,
-          ).toLowerCase().contains(_searchQuery),
-        )
-        .toList();
+    final l10n = AppLocalizations.of(context);
+    return _items.where((item) {
+      if (!_inCategory(item, _filterCategory)) return false;
+      if (_searchQuery.isEmpty) return true;
+      return adminActivityDescription(
+        l10n,
+        item,
+      ).toLowerCase().contains(_searchQuery);
+    }).toList();
   }
 
   // Mirrors Farmer's Recent Activity _groupByDate() exactly — same Today/
@@ -299,11 +302,15 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
       );
       String label;
       if (itemDate == today) {
-        label = 'Today';
+        label = AppLocalizations.of(context).buyerActivityToday;
       } else if (itemDate == yesterday) {
-        label = 'Yesterday';
+        label = AppLocalizations.of(context).buyerNotifTimeYesterday;
       } else {
-        label = DateFormat('MMMM d').format(item.timestamp);
+        label = activityDateLabel(
+          item.timestamp,
+          AppLocalizations.of(context).localeName,
+          now: now,
+        );
       }
       groups.putIfAbsent(label, () => []).add(item);
     }
@@ -426,7 +433,8 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
         item.type == AdminActivityType.price ||
         (item.type == AdminActivityType.logged &&
             item.sourceModule != 'members');
-    final tappable = isNavigable &&
+    final tappable =
+        isNavigable &&
         (membersAccessAllowed ||
             !(item.type == AdminActivityType.member ||
                 item.type == AdminActivityType.harvest));
@@ -448,7 +456,9 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final filtered = _filteredItems;
-    final grouped = _groupByDate(filtered);
+    final visible = filtered.take(_visibleCount).toList();
+    final hasMore = _visibleCount < filtered.length;
+    final grouped = _groupByDate(visible);
     final dateKeys = grouped.keys.toList();
     final hasSearch = _searchQuery.isNotEmpty || _filterCategory != null;
 
@@ -468,7 +478,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                   )
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
-                    onRefresh: () => _loadPage(reset: true),
+                    onRefresh: _load,
                     child: CustomScrollView(
                       slivers: [
                         SliverToBoxAdapter(
@@ -489,6 +499,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                   RecentActivityFilterOption<String?>(
                                     value: category,
                                     label: _categoryLabel(l10n, category),
+                                    count: _countFor(category),
                                   ),
                               ],
                               active: _filterCategory,
@@ -510,31 +521,32 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
                             sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final label = dateKeys[index];
-                                  return RecentActivityDateGroup(
-                                    label: label,
-                                    cards: [
-                                      for (final item in grouped[label]!)
-                                        _adminCard(l10n, cs, item),
-                                    ],
-                                  );
-                                },
-                                childCount: dateKeys.length,
-                              ),
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final label = dateKeys[index];
+                                return RecentActivityDateGroup(
+                                  label: label,
+                                  cards: [
+                                    for (final item in grouped[label]!)
+                                      _adminCard(l10n, cs, item),
+                                  ],
+                                );
+                              }, childCount: dateKeys.length),
                             ),
                           ),
-                          if (_hasMore)
+                          if (hasMore)
                             SliverToBoxAdapter(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 child: Center(
                                   child: GestureDetector(
-                                    onTap: () {
-                                      setState(() => _page++);
-                                      _loadPage();
-                                    },
+                                    onTap: () => setState(
+                                      () => _visibleCount += _pageSize,
+                                    ),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 20,
@@ -546,7 +558,9 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                           AppConstants.radiusFull,
                                         ),
                                         border: Border.all(
-                                          color: cs.outline.withValues(alpha: 0.20),
+                                          color: cs.outline.withValues(
+                                            alpha: 0.20,
+                                          ),
                                         ),
                                       ),
                                       child: Text(

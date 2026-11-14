@@ -14,6 +14,7 @@ import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/edit_request_widgets.dart';
+import '../../widgets/shelf_life_widgets.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -28,7 +29,8 @@ class ListingEditRequestScreen extends StatefulWidget {
   const ListingEditRequestScreen({super.key, required this.requestId});
 
   @override
-  State<ListingEditRequestScreen> createState() => _ListingEditRequestScreenState();
+  State<ListingEditRequestScreen> createState() =>
+      _ListingEditRequestScreenState();
 }
 
 class _ListingEditRequestScreenState extends State<ListingEditRequestScreen> {
@@ -160,43 +162,64 @@ class _ListingEditRequestScreenState extends State<ListingEditRequestScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          SubPageTopBar(title: l.leEditRequestTitle, onBack: () => context.pop()),
+          SubPageTopBar(
+            title: l.leEditRequestTitle,
+            onBack: () => context.pop(),
+          ),
           Expanded(
             child: _loading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : r == null
-                    ? Center(child: Text(l.listingReviewNotFound))
-                    : RefreshIndicator(
-                        color: AppConstants.primaryGreen,
-                        onRefresh: _load,
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                          children: [
-                            _Header(request: r),
-                            const SizedBox(height: 14),
-                            if (r.isPending) ...[
-                              EditRequestNotice(text: l.leStaysPublished),
-                              const SizedBox(height: 14),
-                            ],
-                            EditRequestComparison(request: r),
-                            const SizedBox(height: 14),
-                            _Context(request: r),
-                            if (!r.isPending) ...[
-                              const SizedBox(height: 14),
-                              _Decision(request: r),
-                            ],
-                            const SizedBox(height: 14),
-                            OutlinedButton.icon(
-                              onPressed: () => context.push(
-                                AppRoutes.adminListingHistory,
-                                extra: {'listingId': r.listingId, 'title': r.cropName},
-                              ),
-                              icon: const Icon(Icons.history_rounded, size: 18),
-                              label: Text(l.leViewHistory),
+                ? Center(child: Text(l.listingReviewNotFound))
+                : RefreshIndicator(
+                    color: AppConstants.primaryGreen,
+                    onRefresh: _load,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      children: [
+                        _Header(request: r),
+                        const SizedBox(height: 14),
+                        if (r.isPending) ...[
+                          EditRequestNotice(text: l.leStaysPublished),
+                          const SizedBox(height: 14),
+                        ],
+                        // A shelf-life review: the Farmer checked the produce
+                        // after its listing was discounted or made unavailable.
+                        if (r.isShelfLifeReview) ...[
+                          ShelfLifeNote(
+                            text: l.shelfReviewStaffNote(
+                              r.proposedShelfLifeDays!,
                             ),
-                          ],
+                            color: AppConstants.warningAmber,
+                            icon: Icons.timelapse_rounded,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        EditRequestComparison(request: r),
+                        const SizedBox(height: 14),
+                        _Context(request: r),
+                        if (!r.isPending) ...[
+                          const SizedBox(height: 14),
+                          _Decision(request: r),
+                        ],
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: () => context.push(
+                            AppRoutes.adminListingHistory,
+                            extra: {
+                              'listingId': r.listingId,
+                              'title': r.cropName,
+                            },
+                          ),
+                          icon: const Icon(Icons.history_rounded, size: 18),
+                          label: Text(l.leViewHistory),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
@@ -208,7 +231,9 @@ class _ListingEditRequestScreenState extends State<ListingEditRequestScreen> {
                   color: Theme.of(context).colorScheme.surface,
                   border: Border(
                     top: BorderSide(
-                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.15),
                     ),
                   ),
                 ),
@@ -259,7 +284,9 @@ class _Header extends StatelessWidget {
     final name = (request.variety ?? '').trim().isEmpty
         ? request.cropName
         : '${request.cropName} — ${request.variety}';
-    final when = DateFormat.yMMMd(Localizations.localeOf(context).toString()).add_jm();
+    final when = DateFormat.yMMMd(
+      Localizations.localeOf(context).toString(),
+    ).add_jm();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _cardDecoration(context),
@@ -269,7 +296,9 @@ class _Header extends StatelessWidget {
             radius: 20,
             backgroundColor: AppConstants.primaryContainer,
             child: Text(
-              request.farmerName.isEmpty ? 'F' : request.farmerName[0].toUpperCase(),
+              request.farmerName.isEmpty
+                  ? 'F'
+                  : request.farmerName[0].toUpperCase(),
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w700,
                 color: AppConstants.onPrimaryContainer,
@@ -297,7 +326,10 @@ class _Header extends StatelessWidget {
                 ),
                 Text(
                   l.leRequestedOn(when.format(request.createdAt)),
-                  style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -315,7 +347,9 @@ BoxDecoration _cardDecoration(BuildContext context) {
     color: cs.surface,
     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
     border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
-    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+    boxShadow: [
+      BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+    ],
   );
 }
 
@@ -330,9 +364,12 @@ class EditRequestComparison extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final r = request;
     final unit = r.unit;
-    final qtyChanged = (r.shownQuantity * 100).round() != (r.proposedQuantity * 100).round();
-    final priceChanged = (r.shownPrice * 100).round() != (r.proposedPrice * 100).round();
-    final descChanged = (r.shownDescription ?? '').trim() != r.proposedDescription.trim();
+    final qtyChanged =
+        (r.shownQuantity * 100).round() != (r.proposedQuantity * 100).round();
+    final priceChanged =
+        (r.shownPrice * 100).round() != (r.proposedPrice * 100).round();
+    final descChanged =
+        (r.shownDescription ?? '').trim() != r.proposedDescription.trim();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _cardDecoration(context),
@@ -341,18 +378,25 @@ class EditRequestComparison extends StatelessWidget {
         children: [
           Text(
             l.leRequestedChanges,
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 10),
           _ValueRow(
             label: l.editListingFieldQuantity(unitOrDefault(unit)),
             current: formatQuantityUnit(r.shownQuantity, unit),
-            proposed: qtyChanged ? formatQuantityUnit(r.proposedQuantity, unit) : null,
+            proposed: qtyChanged
+                ? formatQuantityUnit(r.proposedQuantity, unit)
+                : null,
           ),
           _ValueRow(
             label: l.editListingFieldPrice,
             current: formatPricePerUnit(r.shownPrice, unit),
-            proposed: priceChanged ? formatPricePerUnit(r.proposedPrice, unit) : null,
+            proposed: priceChanged
+                ? formatPricePerUnit(r.proposedPrice, unit)
+                : null,
           ),
           _TextRow(
             label: l.editListingFieldDescription,
@@ -377,7 +421,11 @@ class _ValueRow extends StatelessWidget {
   final String label;
   final String current;
   final String? proposed; // null = not changed
-  const _ValueRow({required this.label, required this.current, required this.proposed});
+  const _ValueRow({
+    required this.label,
+    required this.current,
+    required this.proposed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -396,31 +444,59 @@ class _ValueRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 6),
           if (!changed)
             Row(
               children: [
                 Text(
                   current,
-                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   l.leNoChange,
-                  style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             )
           else
             Row(
               children: [
-                Expanded(child: _Side(caption: l.leCurrent, value: current, muted: true)),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(Icons.arrow_forward_rounded, size: 18, color: AppConstants.primaryGreen),
+                Expanded(
+                  child: _Side(
+                    caption: l.leCurrent,
+                    value: current,
+                    muted: true,
+                  ),
                 ),
-                Expanded(child: _Side(caption: l.leProposed, value: proposed!, muted: false)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Expanded(
+                  child: _Side(
+                    caption: l.leProposed,
+                    value: proposed!,
+                    muted: false,
+                  ),
+                ),
               ],
             ),
         ],
@@ -433,7 +509,11 @@ class _Side extends StatelessWidget {
   final String caption;
   final String value;
   final bool muted;
-  const _Side({required this.caption, required this.value, required this.muted});
+  const _Side({
+    required this.caption,
+    required this.value,
+    required this.muted,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -441,14 +521,19 @@ class _Side extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(caption, style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant)),
+        Text(
+          caption,
+          style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 2),
         Text(
           value,
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: muted ? cs.onSurfaceVariant : AppConstants.primaryGreen,
+            color: muted
+                ? cs.onSurfaceVariant
+                : Theme.of(context).colorScheme.primary,
             decoration: muted ? TextDecoration.lineThrough : null,
           ),
         ),
@@ -461,41 +546,62 @@ class _TextRow extends StatelessWidget {
   final String label;
   final String current;
   final String? proposed;
-  const _TextRow({required this.label, required this.current, required this.proposed});
+  const _TextRow({
+    required this.label,
+    required this.current,
+    required this.proposed,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final changed = proposed != null;
-    Widget block(String caption, String text, {required bool highlight}) => Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      margin: const EdgeInsets.only(top: 6),
-      decoration: BoxDecoration(
-        color: highlight
-            ? AppConstants.primaryGreen.withValues(alpha: 0.06)
-            : cs.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(caption, style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant)),
-          const SizedBox(height: 2),
-          Text(
-            text.isEmpty ? '—' : text,
-            style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurface),
+    Widget block(String caption, String text, {required bool highlight}) =>
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          margin: const EdgeInsets.only(top: 6),
+          decoration: BoxDecoration(
+            color: highlight
+                ? AppConstants.primaryGreen.withValues(alpha: 0.06)
+                : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(AppConstants.radiusSm),
           ),
-        ],
-      ),
-    );
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                caption,
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                text.isEmpty ? '—' : text,
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
+          ),
+        );
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           if (!changed)
             block(l.leNoChange, current, highlight: false)
           else ...[
@@ -512,7 +618,11 @@ class _PhotoRow extends StatelessWidget {
   final String label;
   final String? current;
   final String? proposed;
-  const _PhotoRow({required this.label, required this.current, required this.proposed});
+  const _PhotoRow({
+    required this.label,
+    required this.current,
+    required this.proposed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -522,7 +632,13 @@ class _PhotoRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(caption, style: GoogleFonts.inter(fontSize: 10.5, color: cs.onSurfaceVariant)),
+          Text(
+            caption,
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(AppConstants.radiusSm),
@@ -538,7 +654,10 @@ class _PhotoRow extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: cs.surfaceContainerHighest,
-                        child: Icon(Icons.broken_image_outlined, color: cs.outline),
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: cs.outline,
+                        ),
                       ),
                     ),
             ),
@@ -549,7 +668,10 @@ class _PhotoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 6),
         if (proposed == null)
           Row(
@@ -560,7 +682,10 @@ class _PhotoRow extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 12, top: 20),
                   child: Text(
                     l.lePhotoUnchanged,
-                    style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
@@ -606,7 +731,10 @@ class _Context extends StatelessWidget {
           for (final line in lines)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(line, style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurface)),
+              child: Text(
+                line,
+                style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurface),
+              ),
             ),
         ],
       ),
@@ -624,9 +752,9 @@ class _Decision extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final when = request.reviewedAt == null
         ? ''
-        : DateFormat.yMMMd(Localizations.localeOf(context).toString())
-              .add_jm()
-              .format(request.reviewedAt!);
+        : DateFormat.yMMMd(
+            Localizations.localeOf(context).toString(),
+          ).add_jm().format(request.reviewedAt!);
     final by = (request.reviewerName ?? '').trim();
     return Container(
       width: double.infinity,
@@ -639,18 +767,31 @@ class _Decision extends StatelessWidget {
             children: [
               EditRequestStatusChip(status: request.status),
               const SizedBox(width: 8),
-              Text(when, style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant)),
+              Text(
+                when,
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
           if (by.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(l.leDecidedBy(by), style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurface)),
+            Text(
+              l.leDecidedBy(by),
+              style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurface),
+            ),
           ],
           if ((request.reviewReason ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               request.reviewReason!.trim(),
-              style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: cs.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontStyle: FontStyle.italic,
+                color: cs.onSurface,
+              ),
             ),
           ],
         ],

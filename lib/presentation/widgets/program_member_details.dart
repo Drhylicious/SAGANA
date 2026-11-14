@@ -1,3 +1,5 @@
+import '../../core/utils/member_access.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,7 +12,6 @@ import '../../data/models/program_outcome_model.dart';
 import '../../data/models/program_return_model.dart';
 import '../../data/repositories/farmer_details_repository.dart';
 import '../../data/repositories/program_repository.dart';
-import '../../routes/app_routes.dart';
 import 'management_modal.dart';
 import 'program_return_panel.dart';
 import 'request_card.dart';
@@ -110,10 +111,20 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
 
   Future<void> _load() async {
     final m = widget.member;
-    final profile = _safe<FarmerProfileModel?>(() => widget.farmerRepo.fetchFarmerProfile(m.farmerId), null);
-    final join = _safe<MemberJoinInfo?>(() => widget.repo.fetchMemberJoinInfo(widget.program.id, m.farmerId), null);
+    final profile = _safe<FarmerProfileModel?>(
+      () => widget.farmerRepo.fetchFarmerProfile(m.farmerId),
+      null,
+    );
+    final join = _safe<MemberJoinInfo?>(
+      () => widget.repo.fetchMemberJoinInfo(widget.program.id, m.farmerId),
+      null,
+    );
     final purchases = widget.program.isSalesProgram
-        ? _safe<List<ProgramPurchase>>(() => widget.repo.fetchMemberPurchases(widget.program.id, m.farmerId), const [])
+        ? _safe<List<ProgramPurchase>>(
+            () =>
+                widget.repo.fetchMemberPurchases(widget.program.id, m.farmerId),
+            const [],
+          )
         : Future<List<ProgramPurchase>>.value(const []);
     final p = await profile;
     final j = await join;
@@ -128,10 +139,7 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
   }
 
   static String _date(DateTime d) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
+    final months = DateFormat.MMM().dateSymbols.SHORTMONTHS;
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
@@ -162,17 +170,17 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
   }
 
   Widget _note(String text) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Text(
-          text,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            height: 1.4,
-            fontStyle: FontStyle.italic,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Text(
+      text,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        height: 1.4,
+        fontStyle: FontStyle.italic,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
 
   // ── sections ──────────────────────────────────────────────────────────────
 
@@ -218,7 +226,10 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
                 ),
                 Text(
                   widget.program.programName,
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -236,20 +247,40 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
     final farm = (p?.farmAddress ?? '').trim();
     // The e-mail is shown only when it has been verified (the same rule the profile uses:
     // the contact e-mail equals the last address proven with a code). Unverified: not shown.
-    final email = (p != null && p.isContactEmailVerified) ? (p.contactEmail ?? '').trim() : '';
+    final email = (p != null && p.isContactEmailVerified)
+        ? (p.contactEmail ?? '').trim()
+        : '';
     return _section(l10n.memDetailsJoining, [
-      RequestDetailRow(label: l10n.memDetailsContact, value: phone.isEmpty ? l10n.memDetailsNone : phone),
-      if (email.isNotEmpty) RequestDetailRow(key: const Key('memberVerifiedEmail'), label: l10n.memDetailsEmail, value: email),
-      RequestDetailRow(label: l10n.memDetailsFarm, value: farm.isEmpty ? l10n.memDetailsNone : farm),
+      RequestDetailRow(
+        label: l10n.memDetailsContact,
+        value: phone.isEmpty ? l10n.memDetailsNone : phone,
+      ),
+      if (email.isNotEmpty)
+        RequestDetailRow(
+          key: const Key('memberVerifiedEmail'),
+          label: l10n.memDetailsEmail,
+          value: email,
+        ),
+      RequestDetailRow(
+        label: l10n.memDetailsFarm,
+        value: farm.isEmpty ? l10n.memDetailsNone : farm,
+      ),
       if (j?.requestedAt != null)
-        RequestDetailRow(label: l10n.memDetailsRequestedOn, value: _date(j!.requestedAt!)),
+        RequestDetailRow(
+          label: l10n.memDetailsRequestedOn,
+          value: _date(j!.requestedAt!),
+        ),
       RequestDetailRow(label: l10n.reqEnrolledOn, value: _date(m.enrolledAt)),
       if (j != null && j.reviewedAt != null)
         RequestDetailRow(
           label: l10n.memDetailsApprovedBy,
           value: j.reviewerName == null
               ? _date(j.reviewedAt!)
-              : l10n.memDetailsByLine(j.reviewerName!, _role(l10n, j.reviewerRole), _date(j.reviewedAt!)),
+              : l10n.memDetailsByLine(
+                  j.reviewerName!,
+                  _role(l10n, j.reviewerRole),
+                  _date(j.reviewedAt!),
+                ),
         )
       else if (j == null)
         _note(l10n.reqEnrolledDirect),
@@ -291,21 +322,31 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
     return _section(l10n.memDetailsOutcome, [
       RequestDetailRow(
         label: l10n.memDetailsReported,
-        value: r.isSuccessfulReport ? l10n.memDetailsOutcomeSuccessful : l10n.memDetailsOutcomeFailed,
-        valueColor: r.isSuccessfulReport ? AppConstants.successGreen : AppConstants.errorRed,
+        value: r.isSuccessfulReport
+            ? l10n.memDetailsOutcomeSuccessful
+            : l10n.memDetailsOutcomeFailed,
+        valueColor: r.isSuccessfulReport
+            ? AppConstants.successGreen
+            : AppConstants.errorRed,
         emphasize: true,
       ),
       if (r.isSuccessfulReport && r.quantityHarvested != null)
-        RequestDetailRow(label: l10n.outcFarmerReported, value: qty(r.quantityHarvested, r.quantityUnit)),
+        RequestDetailRow(
+          label: l10n.outcFarmerReported,
+          value: qty(r.quantityHarvested, r.quantityUnit),
+        ),
       RequestDetailRow(
         label: l10n.memDetailsEvidence,
-        value: r.isReviewed ? by(r.reviewedByName, r.reviewedAt) : l10n.memDetailsPending,
+        value: r.isReviewed
+            ? by(r.reviewedByName, r.reviewedAt)
+            : l10n.memDetailsPending,
       ),
       RequestDetailRow(
         label: l10n.memDetailsFieldCheck,
         value: r.isVerified
             ? [
-                if (r.verifiedQuantity != null) qty(r.verifiedQuantity, r.verifiedUnit),
+                if (r.verifiedQuantity != null)
+                  qty(r.verifiedQuantity, r.verifiedUnit),
                 by(r.verifiedByName, r.verifiedAt),
               ].where((s) => s.isNotEmpty).join(' · ')
             : l10n.memDetailsPending,
@@ -313,8 +354,12 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
       if (m.isOutcomeRecorded)
         RequestDetailRow(
           label: l10n.outcFinalOutcome,
-          value: m.isThriving ? l10n.memDetailsOutcomeSuccessful : l10n.memDetailsOutcomeFailed,
-          valueColor: m.isThriving ? AppConstants.successGreen : AppConstants.errorRed,
+          value: m.isThriving
+              ? l10n.memDetailsOutcomeSuccessful
+              : l10n.memDetailsOutcomeFailed,
+          valueColor: m.isThriving
+              ? AppConstants.successGreen
+              : AppConstants.errorRed,
         ),
     ]);
   }
@@ -336,8 +381,12 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
     }
     if (widget.member.isFailed && res != null) {
       return _section(l10n.memDetailsDecision, [
-        RequestDetailRow(label: l10n.memDetailsDecision, value: resolutionLabel(l10n, res.resolution)),
-        if (res.note != null && res.note!.trim().isNotEmpty) _note('"${res.note}"'),
+        RequestDetailRow(
+          label: l10n.memDetailsDecision,
+          value: resolutionLabel(l10n, res.resolution),
+        ),
+        if (res.note != null && res.note!.trim().isNotEmpty)
+          _note('"${res.note}"'),
       ]);
     }
     return const SizedBox.shrink();
@@ -355,30 +404,46 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
       if (widget.program.hasMemberDiscount)
         RequestDetailRow(
           label: l10n.reqMembership,
-          value: l10n.catMemberBenefitEnrolled(formatQuantity(widget.program.memberDiscountPercent)),
+          value: l10n.catMemberBenefitEnrolled(
+            formatQuantity(widget.program.memberDiscountPercent),
+          ),
         ),
       if (all.isEmpty)
         _note(l10n.memDetailsNoPurchases)
       else ...[
         RequestDetailRow(label: l10n.memDetailsOrders, value: '${all.length}'),
-        RequestDetailRow(label: l10n.memDetailsSpent, value: peso(spent), emphasize: true),
-        if (saved > 0) RequestDetailRow(label: l10n.memDetailsSaved, value: peso(saved)),
-        if (last != null) RequestDetailRow(label: l10n.memDetailsLastPurchase, value: _date(last.requestedAt)),
+        RequestDetailRow(
+          label: l10n.memDetailsSpent,
+          value: peso(spent),
+          emphasize: true,
+        ),
+        if (saved > 0)
+          RequestDetailRow(label: l10n.memDetailsSaved, value: peso(saved)),
+        if (last != null)
+          RequestDetailRow(
+            label: l10n.memDetailsLastPurchase,
+            value: _date(last.requestedAt),
+          ),
         const SizedBox(height: 8),
         Text(
           l10n.memDetailsRecent,
-          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         for (final p in all.take(5))
           RequestDetailRow(
-            label: '${formatQuantity(p.quantity)} ${p.unit} ${p.itemName}'.trim(),
+            label: '${formatQuantity(p.quantity)} ${p.unit} ${p.itemName}'
+                .trim(),
             value: '${peso(p.netAmount)} · ${_statusLabel(l10n, p.status)}',
           ),
       ],
     ]);
   }
 
-  String _statusLabel(AppLocalizations l10n, String s) => adminOrderStatusLabel(l10n, s);
+  String _statusLabel(AppLocalizations l10n, String s) =>
+      adminOrderStatusLabel(l10n, s);
 
   @override
   Widget build(BuildContext context) {
@@ -412,7 +477,7 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
               final id = widget.member.farmerId;
               final router = GoRouter.of(context);
               Navigator.of(context).pop();
-              router.push(AppRoutes.farmerDetails, extra: id);
+              router.push(farmerDetailsLocation(id));
             },
           ),
         ),

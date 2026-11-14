@@ -21,6 +21,15 @@ class PriceRecordModel {
   // crop_master (e.g. history), or for a very old crop_id-less row.
   final String? cropCategory;
 
+  /// How the Reference Price is configured: [modeFixed] (one Fixed Price, in
+  /// [price]) or [modeRange] ([price] is the Minimum Reference Price and
+  /// [priceMax] the Maximum). Records made before ranges existed are fixed.
+  final String priceMode;
+  final double? priceMax;
+
+  static const String modeFixed = 'fixed';
+  static const String modeRange = 'range';
+
   const PriceRecordModel({
     required this.id,
     required this.cropId,
@@ -34,6 +43,8 @@ class PriceRecordModel {
     this.source,
     this.cropImageUrl,
     this.cropCategory,
+    this.priceMode = modeFixed,
+    this.priceMax,
   });
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -44,7 +55,17 @@ class PriceRecordModel {
   double? get priceDifference =>
       previousPrice != null ? price - previousPrice! : null;
 
-  String get formattedPrice => '₱${price.toStringAsFixed(2)}/$unit';
+  /// A Reference Price Range (a minimum and a maximum), not one Fixed Price.
+  bool get isRange =>
+      priceMode == modeRange && priceMax != null && priceMax! > price;
+
+  /// The amount alone: "₱50.00", or "₱50.00–₱80.00" for a range.
+  String get priceText => isRange
+      ? '₱${price.toStringAsFixed(2)}–₱${priceMax!.toStringAsFixed(2)}'
+      : '₱${price.toStringAsFixed(2)}';
+
+  /// "₱50.00/kg", or "₱50.00–₱80.00/kg" for a range.
+  String get formattedPrice => '$priceText/$unit';
 
   String get priceTypeLabel => '${MarketTypes.instance.label(priceType)} Price';
 
@@ -71,6 +92,8 @@ class PriceRecordModel {
               as String?,
       cropCategory:
           (map['crop_master'] as Map<String, dynamic>?)?['category'] as String?,
+      priceMode:     map['price_mode'] as String? ?? modeFixed,
+      priceMax:      (map['price_max'] as num?)?.toDouble(),
     );
   }
 
@@ -86,6 +109,8 @@ class PriceRecordModel {
       'recorded_at':    recordedAt.toIso8601String(),
       'recorded_by':    recordedBy,
       'source':         source,
+      'price_mode':     priceMode,
+      'price_max':      priceMax,
     };
   }
 }

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/l10n/app_localizations.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart'
     show ChangeNotifier, debugPrint, visibleForTesting;
@@ -292,13 +293,18 @@ class MarketTypes extends ChangeNotifier {
     return null;
   }
 
-  bool get _isTagalog => AppSettingsService.instance.locale.languageCode == 'tl';
+  bool get _isTagalog =>
+      AppSettingsService.instance.locale.languageCode == 'tl';
 
   /// Display name for a market-type code, in the app's language. An unknown or
   /// not-yet-loaded code is shown readably (never a raw code, never guessed to
   /// be a particular market).
   String label(String? code) {
-    if (code == null) return 'Not yet assigned';
+    if (code == null) {
+      return lookupAppLocalizations(
+        AppSettingsService.instance.locale,
+      ).enhNotAssigned;
+    }
     final t = byCode(code);
     if (t == null) return _humanize(code);
     final tl = t.nameTl;

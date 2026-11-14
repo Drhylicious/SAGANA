@@ -1,3 +1,4 @@
+import '../../../core/theme/sagana_colors.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -25,15 +26,12 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/top_bar_spacer.dart';
 
 /// What the cooperative has given the Farmer, from the same program records as My Programs (nothing is
-/// stored twice). Non-Crop Items (tools, livestock, fertilizer, supplies) are the Farmer's Received
-/// Items; Crop Items (seeds, seedlings, produce) are listed from the Harvest tab ([cropItems] true).
+/// stored twice). Every item a program gave the Farmer is listed here: seeds, seedlings, produce, tools,
+/// livestock, fertilizer and supplies, whether it came through a Free Distribution or a Harvest Return.
 /// The layout follows the Supply Chain screen: summary cards, search with the shared filter button,
 /// filter chips, then tappable cards that open the item's full details.
 class ReceivedItemsScreen extends StatefulWidget {
-  const ReceivedItemsScreen({super.key, this.cropItems = false});
-
-  /// false: Non-Crop Items, opened from the profile. true: Crop Items, opened from the Harvest tab.
-  final bool cropItems;
+  const ReceivedItemsScreen({super.key});
 
   @override
   State<ReceivedItemsScreen> createState() => _ReceivedItemsScreenState();
@@ -58,9 +56,10 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
   void initState() {
     super.initState();
     _isOnline = ConnectivityService.instance.isOnline;
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((online) {
-      if (mounted) setState(() => _isOnline = online);
-    });
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((online) {
+          if (mounted) setState(() => _isOnline = online);
+        });
     _searchController.addListener(() {
       final q = _searchController.text.trim().toLowerCase();
       if (q != _query) setState(() => _query = q);
@@ -78,7 +77,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
-      _repo.fetchMyReceivedItems(cropItems: widget.cropItems),
+      _repo.fetchMyReceivedItems(),
       _programRepo.fetchMyReturns(),
     ]);
     if (!mounted) return;
@@ -165,9 +164,19 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
   }
 
   String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    final months = [
+      AppLocalizations.of(context).enhJan,
+      AppLocalizations.of(context).enhFeb,
+      AppLocalizations.of(context).enhMar,
+      AppLocalizations.of(context).enhApr,
+      AppLocalizations.of(context).adminCalMonthMay,
+      AppLocalizations.of(context).enhJun,
+      AppLocalizations.of(context).enhJul,
+      AppLocalizations.of(context).enhAug,
+      AppLocalizations.of(context).enhSep,
+      AppLocalizations.of(context).enhOct,
+      AppLocalizations.of(context).enhNov,
+      AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -198,12 +207,12 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
             children: [
-              TopBarSpacer(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'my_programs',
                 isOnline: _isOnline,
@@ -214,7 +223,10 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SkeletonList(),
+                        )
                       : _items.isEmpty
                       ? _buildEmpty(l10n)
                       : _buildContent(l10n),
@@ -227,7 +239,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: widget.cropItems ? l10n.receivedCropTitle : l10n.receivedItemsTitle,
+              title: l10n.receivedItemsTitle,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -246,21 +258,25 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 32),
       children: [
         const SizedBox(height: 90),
-        const Icon(Icons.inventory_2_outlined, size: 56, color: AppConstants.outline),
+        Icon(
+          Icons.inventory_2_outlined,
+          size: 56,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         const SizedBox(height: 14),
         Text(
-          widget.cropItems ? l10n.receivedCropEmptyTitle : l10n.receivedItemsEmptyTitle,
+          l10n.receivedItemsEmptyTitle,
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
         Text(
-          widget.cropItems ? l10n.receivedCropEmptyBody : l10n.receivedItemsEmptyBody,
+          l10n.receivedItemsEmptyBody,
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
             fontSize: 13,
             height: 1.45,
-            color: AppConstants.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -276,7 +292,10 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: AppConstants.spacingGutter, bottom: 32),
+      padding: const EdgeInsets.only(
+        top: AppConstants.spacingGutter,
+        bottom: 32,
+      ),
       children: [
         // Summary: every item, then how they stand (the same cards as the other dashboards).
         _pad(
@@ -335,7 +354,9 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
         ),
         const SizedBox(height: 12),
         MarketplaceFilterBar<_ItemFilter>(
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSafeH,
+          ),
           selected: _filter,
           onSelected: (f) => setState(() => _filter = f),
           options: [
@@ -356,7 +377,10 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
               child: Text(
                 l10n.receivedItemsNoMatch,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           )
@@ -413,13 +437,22 @@ String _qty(double v, String? unit) =>
   if (r == null) {
     return entry.isOutcomeFailed
         ? (label: l10n.receivedItemsReturnClosed, color: AppConstants.outline)
-        : (label: l10n.receivedItemsReturnExpected, color: AppConstants.buyerBlue);
+        : (
+            label: l10n.receivedItemsReturnExpected,
+            color: AppConstants.buyerBlue,
+          );
   }
   switch (r.status) {
     case 'received':
-      return (label: l10n.receivedItemsReturned, color: AppConstants.successGreen);
+      return (
+        label: l10n.receivedItemsReturned,
+        color: AppConstants.successGreen,
+      );
     case 'closed_short':
-      return (label: l10n.receivedItemsReturnClosed, color: AppConstants.outline);
+      return (
+        label: l10n.receivedItemsReturnClosed,
+        color: AppConstants.outline,
+      );
     case 'partial':
       return (
         label: l10n.receivedItemsReturnPartial(
@@ -454,7 +487,11 @@ class _Pill extends StatelessWidget {
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
       ),
     );
   }
@@ -470,7 +507,7 @@ class _ItemPhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final fallback = Icon(
       Icons.inventory_2_outlined,
-      color: AppConstants.primaryGreen,
+      color: Theme.of(context).colorScheme.primary,
       size: size * 0.5,
     );
     return ClipRRect(
@@ -534,7 +571,7 @@ class _ItemCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: AppConstants.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -543,7 +580,7 @@ class _ItemCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -553,7 +590,7 @@ class _ItemCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 11.5,
-                      color: AppConstants.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -571,9 +608,13 @@ class _ItemCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(Icons.chevron_right_rounded, size: 20, color: AppConstants.outline),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ],
         ),
@@ -611,20 +652,30 @@ class _ItemDetailsSheet extends StatelessWidget {
         : l10n.receivedItemsOutcomePending;
 
     final rows = <(String, String)>[
-      (l10n.receivedItemsDetailQuantity, _qty(entry.quantityGiven ?? 0, entry.itemUnit)),
+      (
+        l10n.receivedItemsDetailQuantity,
+        _qty(entry.quantityGiven ?? 0, entry.itemUnit),
+      ),
       (l10n.invItemTypeLabel, itemTypeLabel(l10n, entry.itemType)),
       (l10n.receivedItemsProgram, entry.programName),
       (
         l10n.receivedItemsDetailArrangement,
-        entry.isRevenueShare ? l10n.receivedItemsBenefitReturn : l10n.receivedItemsBenefitFree,
+        entry.isRevenueShare
+            ? l10n.receivedItemsBenefitReturn
+            : l10n.receivedItemsBenefitFree,
       ),
       (l10n.receivedItemsReceived, formatDate(entry.distributedAt!)),
       // A Free Distribution has no outcome; one recorded earlier stays as history.
-      if (entry.isRevenueShare || entry.isOutcomeThriving || entry.isOutcomeFailed)
+      if (entry.isRevenueShare ||
+          entry.isOutcomeThriving ||
+          entry.isOutcomeFailed)
         (l10n.receivedItemsOutcome, outcome),
       if (r != null) ...[
         (l10n.receivedItemsDetailExpected, _qty(r.dueQuantity, r.unit)),
-        (l10n.receivedItemsDetailReceivedBack, _qty(r.receivedQuantity, r.unit)),
+        (
+          l10n.receivedItemsDetailReceivedBack,
+          _qty(r.receivedQuantity, r.unit),
+        ),
       ],
     ];
 
@@ -658,7 +709,12 @@ class _ItemDetailsSheet extends StatelessWidget {
           for (var i = 0; i < rows.length; i++) ...[
             _DetailRow(label: rows[i].$1, value: rows[i].$2),
             if (i < rows.length - 1)
-              Divider(height: 18, color: AppConstants.outline.withValues(alpha: 0.12)),
+              Divider(
+                height: 18,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.12),
+              ),
           ],
         ],
       ),
@@ -686,7 +742,10 @@ class _DetailRow extends StatelessWidget {
           width: 120,
           child: Text(
             label,
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(
@@ -695,7 +754,7 @@ class _DetailRow extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/constants/farmer_registration_address.dart';
 import '../../core/l10n/app_localizations.dart';
 import 'auth_visuals.dart';
@@ -48,7 +47,9 @@ class FixedFarmerAddressFields extends StatelessWidget {
         houseNoController.text.trim().isEmpty;
     String? requiredValidator(String? v) {
       if (allowAllBlank && allBlank()) return null;
-      return (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null;
+      return (v == null || v.trim().isEmpty)
+          ? l10n.registerFieldRequired
+          : null;
     }
 
     return Column(
@@ -61,7 +62,7 @@ class FixedFarmerAddressFields extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 12,
               height: 1.5,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -71,6 +72,7 @@ class FixedFarmerAddressFields extends StatelessWidget {
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           decoration: authFieldDecoration(
+            context: context,
             label: required(l10n.registerStreetLabel),
             icon: Icons.signpost_outlined,
           ),
@@ -82,6 +84,7 @@ class FixedFarmerAddressFields extends StatelessWidget {
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           decoration: authFieldDecoration(
+            context: context,
             label: l10n.registerBuildingLabel,
             icon: Icons.apartment_outlined,
           ),
@@ -91,6 +94,7 @@ class FixedFarmerAddressFields extends StatelessWidget {
           controller: houseNoController,
           textInputAction: TextInputAction.done,
           decoration: authFieldDecoration(
+            context: context,
             label: required(l10n.registerHouseNoLabel),
             icon: Icons.home_outlined,
           ),
@@ -122,7 +126,8 @@ class LockedAreaFields extends StatelessWidget {
   final String barangay;
   final String postalCode;
 
-  Widget _locked({
+  Widget _locked(
+    BuildContext context, {
     required String fieldKey,
     required String label,
     required String value,
@@ -137,6 +142,7 @@ class LockedAreaFields extends StatelessWidget {
         readOnly: true,
         enableInteractiveSelection: false,
         decoration: authFieldDecoration(
+          context: context,
           label: label,
           icon: icon,
           suffix: Padding(
@@ -159,11 +165,46 @@ class LockedAreaFields extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _locked(fieldKey: 'region', label: l10n.registerRegionLabel, value: region, icon: Icons.public_outlined, cs: cs),
-        _locked(fieldKey: 'province', label: l10n.registerProvinceLabel, value: province, icon: Icons.map_outlined, cs: cs),
-        _locked(fieldKey: 'city', label: l10n.registerCityLabel, value: city, icon: Icons.location_city_outlined, cs: cs),
-        _locked(fieldKey: 'barangay', label: l10n.registerBarangayLabel, value: barangay, icon: Icons.holiday_village_outlined, cs: cs),
-        _locked(fieldKey: 'postal', label: l10n.registerPostalLabel, value: postalCode, icon: Icons.markunread_mailbox_outlined, cs: cs),
+        _locked(
+          context,
+          fieldKey: 'region',
+          label: l10n.registerRegionLabel,
+          value: region,
+          icon: Icons.public_outlined,
+          cs: cs,
+        ),
+        _locked(
+          context,
+          fieldKey: 'province',
+          label: l10n.registerProvinceLabel,
+          value: province,
+          icon: Icons.map_outlined,
+          cs: cs,
+        ),
+        _locked(
+          context,
+          fieldKey: 'city',
+          label: l10n.registerCityLabel,
+          value: city,
+          icon: Icons.location_city_outlined,
+          cs: cs,
+        ),
+        _locked(
+          context,
+          fieldKey: 'barangay',
+          label: l10n.registerBarangayLabel,
+          value: barangay,
+          icon: Icons.holiday_village_outlined,
+          cs: cs,
+        ),
+        _locked(
+          context,
+          fieldKey: 'postal',
+          label: l10n.registerPostalLabel,
+          value: postalCode,
+          icon: Icons.markunread_mailbox_outlined,
+          cs: cs,
+        ),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,7 +12,8 @@ import '../../../data/services/connectivity_service.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/management_modal.dart';
-import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge;
+import '../../widgets/listing_filter_modal.dart'
+    show ListingMarketBadge, ListingStatusFilterChip;
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -51,10 +53,12 @@ class _FarmerTransactionHistoryScreenState
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
@@ -108,7 +112,7 @@ class _FarmerTransactionHistoryScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -116,13 +120,15 @@ class _FarmerTransactionHistoryScreenState
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
+                    const TopBarSpacer(height: 72),
                     // The crop image lookup runs first on every load, so it
                     // stands in for the whole history's cache state.
                     CachedDataNotice(
                       screen: 'transactions_crop_images',
                       isOnline: _isOnline,
-                      offlineMessage: AppLocalizations.of(context).offlineTransactions,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineTransactions,
                     ),
                     Expanded(
                       child: RefreshIndicator(
@@ -135,6 +141,7 @@ class _FarmerTransactionHistoryScreenState
                             const SizedBox(height: 12),
                             _TypeChips(
                               types: _sellingTypes,
+                              transactions: _all,
                               active: _activeType,
                               onSelected: _setType,
                             ),
@@ -142,14 +149,15 @@ class _FarmerTransactionHistoryScreenState
                             if (_isLoading)
                               ...List.generate(
                                 4,
-                                (_) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
+                                (_) => const Padding(
+                                  padding: EdgeInsets.only(bottom: 10),
                                   child: SkeletonList(count: 4, rowHeight: 80),
                                 ),
                               )
                             else if (_filtered.isEmpty)
                               _EmptyState(
-                                hasFilter: _searchQuery.isNotEmpty ||
+                                hasFilter:
+                                    _searchQuery.isNotEmpty ||
                                     _activeType != _TypeChips.all,
                               )
                             else
@@ -157,7 +165,8 @@ class _FarmerTransactionHistoryScreenState
                                 (t) => Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
                                   child: GestureDetector(
-                                    onTap: () => _showTransactionDetails(context, t),
+                                    onTap: () =>
+                                        _showTransactionDetails(context, t),
                                     child: _TransactionTile(transaction: t),
                                   ),
                                 ),
@@ -173,7 +182,9 @@ class _FarmerTransactionHistoryScreenState
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Transaction History',
+                    title: AppLocalizations.of(
+                      context,
+                    ).adminInvTransactionHistoryTitle,
                     onBack: () => Navigator.of(context).pop(),
                     hideProfileAvatar: true,
                     onProfileTap: () {},
@@ -209,27 +220,46 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: InputDecoration(
         hintText: AppLocalizations.of(context).txnSearchHint,
         hintStyle: GoogleFonts.inter(
-            fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.60)),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppConstants.outline),
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.60),
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.saganaColors.cardBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -248,52 +278,42 @@ class _TypeChips extends StatelessWidget {
   final String active;
   final ValueChanged<String> onSelected;
 
+  /// The transactions being filtered, for each chip's "Label (n)" count.
+  final List<FarmerTransactionModel> transactions;
+
   const _TypeChips({
     required this.types,
     required this.active,
     required this.onSelected,
+    required this.transactions,
   });
 
+  // The standard SAGANA filter chips, so this row matches every other one.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
     final options = [all, ...types];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: options.map((type) {
-          final isActive = type == active;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onSelected(type),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppConstants.primaryContainer.withValues(alpha: 0.12)
-                      : sagana.cardBackground,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  border: isActive
-                      ? Border.all(
-                          color: AppConstants.primaryContainer.withValues(alpha: 0.30))
-                      : null,
-                ),
-                child: Text(
-                  type == all ? all : sellingTypeLabel(type),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isActive ? AppConstants.primaryContainer : cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final type = options[i];
+          return ListingStatusFilterChip(
+            label: type == all
+                ? localizeBuiltinLabel(AppLocalizations.of(context), all)
+                : sellingTypeLabel(type),
+            count: type == all
+                ? transactions.length
+                : transactions.where((t) => t.sellingType == type).length,
+            active: type == active,
+            color: AppConstants.primaryGreen,
+            onTap: () => onSelected(type),
+            cs: cs,
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -325,7 +345,9 @@ class _TransactionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final color = _colorByType[transaction.sellingType] ?? AppConstants.outline;
+    final color =
+        _colorByType[transaction.sellingType] ??
+        Theme.of(context).colorScheme.outline;
     final icon = _iconByType[transaction.sellingType] ?? Icons.receipt_outlined;
 
     return Container(
@@ -356,7 +378,8 @@ class _TransactionTile extends StatelessWidget {
                   ? Image.network(
                       transaction.cropImageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(icon, color: color, size: 24),
+                      errorBuilder: (_, __, ___) =>
+                          Icon(icon, color: color, size: 24),
                     )
                   : Icon(icon, color: color, size: 24),
             ),
@@ -378,7 +401,10 @@ class _TransactionTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   '${sellingTypeLabel(transaction.sellingType)} • ${formatQuantityUnit(transaction.quantityKg, transaction.unit)}',
-                  style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: cs.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 // The crop's market type (Public / Cooperative) and category
@@ -395,10 +421,17 @@ class _TransactionTile extends StatelessWidget {
                         ListingMarketBadge(marketType: transaction.marketType),
                       if ((transaction.cropCategory ?? '').isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                            color: cs.surfaceContainerHighest.withValues(
+                              alpha: 0.6,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusFull,
+                            ),
                           ),
                           child: Text(
                             transaction.cropCategory!,
@@ -464,13 +497,18 @@ class _TransactionDetailsSheet extends StatelessWidget {
     final rows = <MapEntry<String, String>>[
       MapEntry(l10n.rptSellingChannel, sellingTypeLabel(t.sellingType)),
       if (t.marketType != null)
-        MapEntry(l10n.rptMarketType, MarketTypeDisplay.label(l10n, t.marketType)),
+        MapEntry(
+          l10n.rptMarketType,
+          MarketTypeDisplay.label(l10n, t.marketType),
+        ),
       if ((t.cropCategory ?? '').isNotEmpty)
         MapEntry(l10n.txnCropCategory, t.cropCategory!),
       MapEntry(l10n.rptQuantity, formatQuantityUnit(t.quantityKg, t.unit)),
       if (t.pricePerKg != null)
         MapEntry(
-          t.sellingType == 'marketplace' ? l10n.txnPrice : l10n.mlkDetailAgreedPrice,
+          t.sellingType == 'marketplace'
+              ? l10n.txnPrice
+              : l10n.mlkDetailAgreedPrice,
           formatPricePerUnit(t.pricePerKg!, t.unit),
         ),
       MapEntry(l10n.rptAmount, '₱${money.format(t.amount)}'),
@@ -483,12 +521,19 @@ class _TransactionDetailsSheet extends StatelessWidget {
             : dateTime.format(t.transactionDate),
       ),
       if (t.deliveredAt != null)
-        MapEntry(l10n.txnDeliveredOn, DateFormat('MMM d, yyyy').format(t.deliveredAt!)),
-      if ((t.referenceNo ?? '').isNotEmpty) MapEntry(l10n.rptReferenceNo, t.referenceNo!),
+        MapEntry(
+          l10n.txnDeliveredOn,
+          DateFormat('MMM d, yyyy').format(t.deliveredAt!),
+        ),
+      if ((t.referenceNo ?? '').isNotEmpty)
+        MapEntry(l10n.rptReferenceNo, t.referenceNo!),
       if ((t.batchNumber ?? '').isNotEmpty)
         MapEntry(l10n.txnHarvestBatch, formatBatchNumber(t.batchNumber)),
       if (t.orderStatus != null)
-        MapEntry(l10n.rptOrderStatus, adminOrderStatusLabel(l10n, t.orderStatus!)),
+        MapEntry(
+          l10n.rptOrderStatus,
+          adminOrderStatusLabel(l10n, t.orderStatus!),
+        ),
       if ((t.fulfillmentMethod ?? '').isNotEmpty)
         MapEntry(
           l10n.txnFulfillment,
@@ -538,11 +583,14 @@ class _TransactionDetailsSheet extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-
   final String label;
   final String value;
   final bool isLast;
-  const _DetailRow({required this.label, required this.value, this.isLast = false});
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -556,7 +604,10 @@ class _DetailRow extends StatelessWidget {
             width: 140,
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(
@@ -596,8 +647,13 @@ class _EmptyState extends StatelessWidget {
               color: Color(0xFFDBF1FE),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.receipt_long_outlined,
-                size: 40, color: AppConstants.outline.withValues(alpha: 0.60)),
+            child: Icon(
+              Icons.receipt_long_outlined,
+              size: 40,
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
+            ),
           ),
           const SizedBox(height: 20),
           Text(
@@ -605,7 +661,10 @@ class _EmptyState extends StatelessWidget {
                 ? AppLocalizations.of(context).txnNoMatchTitle
                 : AppLocalizations.of(context).txnEmptyTitle,
             style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -613,7 +672,10 @@ class _EmptyState extends StatelessWidget {
                 ? AppLocalizations.of(context).txnNoMatchBody
                 : AppLocalizations.of(context).txnEmptyBody,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -624,5 +686,3 @@ class _EmptyState extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
-
-

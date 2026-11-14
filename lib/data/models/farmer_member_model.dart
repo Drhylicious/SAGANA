@@ -241,6 +241,9 @@ class FarmerMemberModel {
   final List<String> primaryCrops;
   final DateTime? lastHarvestDate;
   final double outstandingLoanBalance;
+
+  /// Total capital contribution on record (0 when none), for sorting.
+  final double capitalContribution;
   final LoanStatusSummary loanStatus;
   final bool isSynced;
   final DateTime? joinedAt;
@@ -260,6 +263,7 @@ class FarmerMemberModel {
     required this.primaryCrops,
     this.lastHarvestDate,
     required this.outstandingLoanBalance,
+    this.capitalContribution = 0,
     required this.loanStatus,
     required this.isSynced,
     this.joinedAt,
@@ -352,6 +356,8 @@ class FarmerMemberModel {
           : null,
       outstandingLoanBalance: (map['outstanding_balance'] as num? ?? 0)
           .toDouble(),
+      capitalContribution: (map['capital_contribution'] as num? ?? 0)
+          .toDouble(),
       loanStatus: ls,
       isSynced: map['is_synced'] as bool? ?? true,
       joinedAt: map['joined_at'] != null
@@ -432,13 +438,26 @@ class MemberSummaryStats {
 
 // ─── Filter & Sort State ──────────────────────────────────────────────────────
 
-enum FarmerSortOption { nameAZ, recentHarvest, loanBalance }
+enum FarmerSortOption {
+  nameAZ,
+  nameZA,
+  newestMember,
+  recentHarvest,
+  loanBalance,
+  capitalContribution,
+}
 
 extension FarmerSortOptionExt on FarmerSortOption {
   String get label {
     switch (this) {
       case FarmerSortOption.nameAZ:
         return 'Name (A–Z)';
+      case FarmerSortOption.nameZA:
+        return 'Name (Z–A)';
+      case FarmerSortOption.newestMember:
+        return 'Newest Member';
+      case FarmerSortOption.capitalContribution:
+        return 'Capital Contribution';
       case FarmerSortOption.recentHarvest:
         return 'Recent Harvest';
       case FarmerSortOption.loanBalance:

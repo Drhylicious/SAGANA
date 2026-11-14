@@ -236,10 +236,12 @@ class AdminProfileRepository {
     await _client
         .from('user_information')
         .update({
-      // The parts; the database rebuilds full_name from them.
-      if (name != null) ...name.toColumns()
-      else if (fullName != null) 'full_name': fullName.trim(),
-      'phone_number': phoneNumber?.trim(),
+          // The parts; the database rebuilds full_name from them.
+          if (name != null)
+            ...name.toColumns()
+          else if (fullName != null)
+            'full_name': fullName.trim(),
+          'phone_number': phoneNumber?.trim(),
         })
         .eq('user_id', _userId);
 
@@ -261,8 +263,8 @@ class AdminProfileRepository {
     await _client
         .from(table)
         .update({
-      if (dateOfBirth != null) 'date_of_birth': dobValue,
-      if (gender != null) 'gender': gender,
+          if (dateOfBirth != null) 'date_of_birth': dobValue,
+          if (gender != null) 'gender': gender,
         })
         .eq('user_id', _userId);
   }
@@ -313,6 +315,7 @@ class AdminProfileRepository {
       userId: _userId,
       imageBytes: imageBytes,
       fileExtension: fileExtension,
+      throwOnFailure: true,
     );
     if (url == null) throw Exception('Photo upload failed.');
 

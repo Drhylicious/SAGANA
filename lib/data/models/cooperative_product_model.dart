@@ -88,8 +88,9 @@ class CooperativeProduct {
     final program = row['cooperative_programs'] as Map<String, dynamic>?;
     if (program == null ||
         program['status'] != 'active' ||
-        program['program_purpose'] != 'sales')
+        program['program_purpose'] != 'sales') {
       return null;
+    }
     final inv = row['cooperative_inventory'] as Map<String, dynamic>?;
     final allocated = (row['stock_allocated'] as num?)?.toDouble() ?? 0;
     final reserved = (row['stock_reserved'] as num?)?.toDouble() ?? 0;

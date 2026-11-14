@@ -1,3 +1,4 @@
+import '../../core/theme/sagana_colors.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,14 +15,14 @@ class AuthBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFFE6F6FF), // surface-container-low
-            Color(0xFFF9FBF7), // background-off-white
-            Color(0xFFD5ECF8), // surface-container-high
+            context.adaptiveSurface(const Color(0xFFE6F6FF)),
+            context.saganaColors.scaffoldBackground,
+            context.adaptiveSurface(const Color(0xFFD5ECF8)),
           ],
         ),
       ),
@@ -79,7 +80,7 @@ class AuthGlassCard extends StatelessWidget {
           width: double.infinity,
           padding: padding,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: context.saganaColors.cardBackground.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.40),
@@ -104,6 +105,7 @@ class AuthGlassCard extends StatelessWidget {
 /// optional floating [label] in addition to the [hint] Login's own
 /// fields already used, so both screens can share one field look.
 InputDecoration authFieldDecoration({
+  required BuildContext context,
   String? label,
   String? hint,
   IconData? icon,
@@ -114,34 +116,37 @@ InputDecoration authFieldDecoration({
     labelStyle: GoogleFonts.inter(
       fontSize: 13,
       fontWeight: FontWeight.w500,
-      color: AppConstants.onSurfaceVariant,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
     ),
     hintText: hint,
     hintStyle: GoogleFonts.inter(
       fontSize: 14,
-      color: AppConstants.outline.withValues(alpha: 0.50),
+      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.50),
     ),
     filled: true,
-    fillColor: Colors.white.withValues(alpha: 0.55),
+    fillColor: context.saganaColors.cardBackground.withValues(alpha: 0.55),
     prefixIcon: icon == null
         ? null
-        : Icon(icon, size: 20, color: AppConstants.outline),
+        : Icon(icon, size: 20, color: Theme.of(context).colorScheme.outline),
     suffixIcon: suffix,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       borderSide: BorderSide(
-        color: AppConstants.outline.withValues(alpha: 0.20),
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
       ),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       borderSide: BorderSide(
-        color: AppConstants.outline.withValues(alpha: 0.20),
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
       ),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 2,
+      ),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),

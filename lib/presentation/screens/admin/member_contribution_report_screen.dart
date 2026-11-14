@@ -1,4 +1,3 @@
-import 'dart:ui';
 import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -152,7 +151,10 @@ class _MemberContributionReportScreenState
                   if (_isLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 60),
-                      child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      ),
                     )
                   else ...[
                     _buildSummaryCard(context, l10n, cs, sagana),
@@ -176,7 +178,21 @@ class _MemberContributionReportScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return SubPageTopBar(title: l10n.reportsMemberContributionReport, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.file_download_outlined, color: cs.primary), onPressed: () => context.push( AppRoutes.exportCenter, extra: ExportCenterArgs( preselectedModule: ReportModuleType.memberContribution, contributionYear: _year, ), ), tooltip: l10n.reportsExportCenter, ));
+    return SubPageTopBar(
+      title: l10n.reportsMemberContributionReport,
+      onBack: () => context.pop(),
+      trailing: IconButton(
+        icon: Icon(Icons.file_download_outlined, color: cs.primary),
+        onPressed: () => context.push(
+          AppRoutes.exportCenter,
+          extra: ExportCenterArgs(
+            preselectedModule: ReportModuleType.memberContribution,
+            contributionYear: _year,
+          ),
+        ),
+        tooltip: l10n.reportsExportCenter,
+      ),
+    );
   }
 
   // Redesigned off ReportHeroCard's 2-column grid onto a single balanced
@@ -285,7 +301,10 @@ class _MemberContributionReportScreenState
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(width: AppConstants.spacingSm),
@@ -334,11 +353,17 @@ class _MemberContributionReportScreenState
               padding: const EdgeInsets.only(top: AppConstants.spacingSm),
               child: Text(
                 l10n.reportsYearSettingsNotEntered,
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             )
           else ...[
-            line(l10n.reportsYearSettingsSurplus, currency.format(s.distributableSurplus)),
+            line(
+              l10n.reportsYearSettingsSurplus,
+              currency.format(s.distributableSurplus),
+            ),
             line(
               l10n.reportsYearSettingsInterest,
               '${s.interestRatePercent.toStringAsFixed(2)}%',
@@ -426,7 +451,9 @@ class _MemberContributionReportScreenState
     );
 
     return GestureDetector(
-      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, row.farmerId) : null,
+      onTap: membersAccessAllowed
+          ? () => pushFarmerDetails(context, row.farmerId)
+          : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -470,7 +497,7 @@ class _MemberContributionReportScreenState
                       ),
                     ),
                     Text(
-                      'Total Patronage',
+                      AppLocalizations.of(context).enhTotalPatronage,
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         color: cs.onSurfaceVariant,
@@ -489,7 +516,7 @@ class _MemberContributionReportScreenState
               children: [
                 Expanded(
                   child: _sourceShareChip(
-                    label: 'Sold to Co-op',
+                    label: AppLocalizations.of(context).enhSoldToCoOp,
                     percent: row.sharePercent,
                     color: AppConstants.primaryGreen,
                   ),
@@ -497,7 +524,7 @@ class _MemberContributionReportScreenState
                 const SizedBox(width: AppConstants.spacingSm),
                 Expanded(
                   child: _sourceShareChip(
-                    label: 'Bought from Co-op',
+                    label: AppLocalizations.of(context).enhBoughtFromCoOp,
                     percent: row.purchaseSharePercent,
                     color: AppConstants.buyerBlue,
                   ),
@@ -507,7 +534,7 @@ class _MemberContributionReportScreenState
             if (row.hasContributed) ...[
               const SizedBox(height: AppConstants.spacingSm),
               Text(
-                'Selling to Cooperative',
+                AppLocalizations.of(context).enhSellingToCooperative,
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -544,7 +571,7 @@ class _MemberContributionReportScreenState
                 Row(
                   children: [
                     _cropStat(
-                      'Other Crops',
+                      AppLocalizations.of(context).enhOtherCrops,
                       row.otherCropsQtyKg,
                       row.otherCropsAmount,
                       AppConstants.buyerBlue,
@@ -572,7 +599,7 @@ class _MemberContributionReportScreenState
             if (row.programPurchasesAmount > 0) ...[
               const SizedBox(height: AppConstants.spacingSm),
               Text(
-                'Buying from Cooperative',
+                AppLocalizations.of(context).enhBuyingFromCooperative,
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -593,7 +620,11 @@ class _MemberContributionReportScreenState
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Purchases: ${currency.format(row.programPurchasesAmount)}',
+                      AppLocalizations.of(context).enhPurchases(
+                        (currency.format(
+                          row.programPurchasesAmount,
+                        )).toString(),
+                      ),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: cs.onSurfaceVariant,

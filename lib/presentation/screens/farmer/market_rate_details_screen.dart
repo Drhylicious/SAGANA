@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -286,9 +287,9 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline_rounded,
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                           size: 18,
                         ),
                         const SizedBox(width: 10),
@@ -300,9 +301,9 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                               fontStyle: FontStyle.italic,
                               fontWeight: FontWeight.w500,
                               height: 1.5,
-                              color: AppConstants.primaryGreen.withValues(
-                                alpha: 0.9,
-                              ),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.9),
                             ),
                           ),
                         ),
@@ -346,7 +347,9 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
               height: 88,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: context.saganaColors.cardBackground.withValues(
+                  alpha: 0.2,
+                ),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: hasImage
@@ -369,7 +372,9 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: context.saganaColors.cardBackground.withValues(
+                        alpha: 0.2,
+                      ),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -393,7 +398,10 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    rate.cropCategory,
+                    localizeBuiltinLabel(
+                      AppLocalizations.of(context),
+                      rate.cropCategory,
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -418,12 +426,12 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
     // didn't move. When there's no previous price at all, that's not the
     // same thing as stable — there's simply nothing to compare against yet.
     final trendColor = !hasPreviousPrice
-        ? AppConstants.outline
+        ? Theme.of(context).colorScheme.outline
         : rate.isUp
         ? AppConstants.successGreen
         : rate.isDown
         ? AppConstants.errorRed
-        : AppConstants.outline;
+        : Theme.of(context).colorScheme.outline;
     final trendIcon = !hasPreviousPrice
         ? Icons.fiber_new_rounded
         : rate.isUp
@@ -460,13 +468,21 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                '₱${rate.priceValue.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w800,
-                  color: cs.onSurface,
-                  letterSpacing: -0.5,
+              // A Reference Price Range ("₱50.00–₱80.00") is longer than one
+              // price: it is set smaller and may shrink to stay on one line.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    rate.price.priceText,
+                    style: GoogleFonts.poppins(
+                      fontSize: rate.price.isRange ? 26 : 34,
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 6),
@@ -679,7 +695,11 @@ class _DetailRow extends StatelessWidget {
               color: AppConstants.primaryGreen.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 18, color: AppConstants.primaryGreen),
+            child: Icon(
+              icon,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -753,7 +773,7 @@ class _OtherPriceRow extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 6),

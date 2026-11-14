@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../navigation/connectivity_page_observer.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
@@ -235,6 +236,9 @@ class _AdminProgramOrderDetailScreenState
                               ? null
                               : () => Navigator.of(context).push(
                                   MaterialPageRoute(
+                                    settings: RouteSettings(
+                                      name: ConnectivityPage.deliveryMap.name,
+                                    ),
                                     builder: (_) => OrderDeliveryMapScreen(
                                       point: LatLng(
                                         o.deliveryLatitude!,

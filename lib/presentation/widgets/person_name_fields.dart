@@ -174,6 +174,7 @@ class PersonNameFields extends StatelessWidget {
           textInputAction: TextInputAction.next,
           inputFormatters: _partFormatters,
           decoration: authFieldDecoration(
+            context: context,
             label: '${l10n.nameSurnameLabel} *',
             hint: l10n.nameSurnameHint,
             icon: Icons.person_outlined,
@@ -188,6 +189,7 @@ class PersonNameFields extends StatelessWidget {
           textInputAction: TextInputAction.next,
           inputFormatters: _partFormatters,
           decoration: authFieldDecoration(
+            context: context,
             label: '${l10n.nameFirstNameLabel} *',
             hint: l10n.nameFirstNameHint,
             icon: Icons.person_outlined,
@@ -207,6 +209,7 @@ class PersonNameFields extends StatelessWidget {
                 inputFormatters: _initialFormatters,
                 // No leading icon here: two fields share the row.
                 decoration: authFieldDecoration(
+                  context: context,
                   label: l10n.nameMiddleInitialLabel,
                 ).copyWith(errorMaxLines: 3),
                 validator: (v) => _initialError(l10n, v),

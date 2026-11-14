@@ -74,26 +74,41 @@ class FulfillmentInfoCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 30, height: 30,
+                width: 30,
+                height: 30,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppConstants.primaryGreen.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
-                  size: 16, color: AppConstants.primaryGreen,
+                  isPickup
+                      ? Icons.storefront_rounded
+                      : Icons.local_shipping_outlined,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isPickup ? l10n.checkoutFulfillmentPickup : l10n.checkoutFulfillmentDelivery,
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
+                  isPickup
+                      ? l10n.checkoutFulfillmentPickup
+                      : l10n.checkoutFulfillmentDelivery,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               if (onTap != null)
-                Icon(Icons.chevron_right_rounded, size: 20, color: AppConstants.outline.withValues(alpha: 0.7)),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.7),
+                ),
             ],
           ),
           if (isPickup) ...[
@@ -101,7 +116,11 @@ class FulfillmentInfoCard extends StatelessWidget {
             // The address comes from Cooperative Details, the same record checkout uses.
             CooperativeAddressText(
               withName: true,
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.4),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
           ] else ...[
             const SizedBox(height: 12),
@@ -113,33 +132,71 @@ class FulfillmentInfoCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    deliveryRecipientName?.trim().isNotEmpty == true ? deliveryRecipientName! : '—',
-                    style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700),
+                    deliveryRecipientName?.trim().isNotEmpty == true
+                        ? deliveryRecipientName!
+                        : '—',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                if (deliveryContactNumber != null && deliveryContactNumber!.trim().isNotEmpty) ...[
+                if (deliveryContactNumber != null &&
+                    deliveryContactNumber!.trim().isNotEmpty) ...[
                   const SizedBox(width: 10),
-                  Text(deliveryContactNumber!,
-                      style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    deliveryContactNumber!,
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ],
             ),
-            if (deliveryAddress != null && deliveryAddress!.trim().isNotEmpty) ...[
+            if (deliveryAddress != null &&
+                deliveryAddress!.trim().isNotEmpty) ...[
               const SizedBox(height: 5),
-              Text(deliveryAddress!, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface, height: 1.4)),
+              Text(
+                deliveryAddress!,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  height: 1.4,
+                ),
+              ),
             ],
             if (deliveryLabel != null && deliveryLabel!.trim().isNotEmpty) ...[
               const SizedBox(height: 5),
-              Text(deliveryLabel!,
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+              Text(
+                deliveryLabel!,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
             ],
             if (hasNotes || onViewMap != null) ...[
               const SizedBox(height: 10),
-              Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+              Divider(
+                height: 1,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.10),
+              ),
               const SizedBox(height: 10),
             ],
             if (hasNotes)
-              Text(notes, style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.onSurfaceVariant, height: 1.4)),
+              Text(
+                notes,
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
             if (onViewMap != null) ...[
               if (hasNotes) const SizedBox(height: 12),
               InkWell(
@@ -149,15 +206,29 @@ class FulfillmentInfoCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
                     children: [
-                      const Icon(Icons.map_outlined, size: 16, color: AppConstants.primaryGreen),
+                      Icon(
+                        Icons.map_outlined,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           l10n.orderDetailViewFullMap,
-                          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded, size: 20, color: AppConstants.outline.withValues(alpha: 0.7)),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.7),
+                      ),
                     ],
                   ),
                 ),

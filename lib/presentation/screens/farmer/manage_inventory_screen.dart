@@ -1,3 +1,4 @@
+import '../../../core/l10n/localized_labels.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/quantity_utils.dart';
+import '../../../core/utils/listing_order.dart' show stableGroupSort;
 import '../../../data/models/inventory_batch_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
 import '../../../data/repositories/informal_sale_repository.dart';
@@ -32,9 +34,22 @@ import '../../../core/utils/db_error_utils.dart';
 import '../../../data/services/server_only.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
+import '../../widgets/shelf_life_widgets.dart';
+import '../../../data/models/shelf_life_model.dart';
+import '../../../data/repositories/shelf_life_repository.dart';
+
+/// The second set of filter chips: where each batch stands against its shelf
+/// life, including what was reported as rotten (a loss).
+enum _ConditionFilter { all, good, needsCheck, rotten }
 
 class ManageInventoryScreen extends StatefulWidget {
-  const ManageInventoryScreen({super.key});
+  /// A batch to open the produce check for as soon as the list has loaded (the
+  /// shelf-life notifications carry it).
+  final String? checkBatchId;
+
+  const ManageInventoryScreen({super.key, this.checkBatchId});
 
   @override
   State<ManageInventoryScreen> createState() => _ManageInventoryScreenState();
@@ -51,12 +66,17 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   List<InventoryBatchModel> _filtered = [];
   Map<String, double> _summary = {'available': 0, 'reserved': 0, 'sold': 0};
   Map<String, FarmerCropModel> _cropsById = {};
-  bool _hasCrops = true; // assume true until loaded, avoids an empty-state flash
+  bool _hasCrops =
+      true; // assume true until loaded, avoids an empty-state flash
   Set<String> _pendingOfferBatchIds = {};
   Set<String> _activeMarketLinkingBatchIds = {};
   DaAmadEnrollmentStatus? _gingerEnrollmentStatus; // null = never enrolled
 
   String _activeStatusFilter = _StatusFilterRow.all;
+  _ConditionFilter _conditionFilter = _ConditionFilter.all;
+  final _shelfRepo = ShelfLifeRepository();
+  // The produce check asked for by a notification is opened once.
+  bool _openedRequestedCheck = false;
   bool _isLoading = true;
   bool _isOnline = true;
   String _searchQuery = '';
@@ -92,6 +112,10 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
+    // Bring shelf-life state up to date first (reminder, expiry-day discount,
+    // unavailable listings). The database also does this on a schedule; this
+    // call is harmless when there is nothing to do, and does nothing offline.
+    await _shelfRepo.process();
     final results = await Future.wait([
       _repo.fetchBatches(),
       _repo.fetchSummary(),
@@ -113,6 +137,91 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       _applyFilters();
       _isLoading = false;
     });
+    _openRequestedCheck();
+  }
+
+  /// Opens the produce check a shelf-life notification pointed at.
+  void _openRequestedCheck() {
+    // "batchId", or "batchId|good" / "batchId|rotten" when the Farmer tapped
+    // one of the notification's two answers.
+    final requested = widget.checkBatchId;
+    if (requested == null || _openedRequestedCheck) return;
+    _openedRequestedCheck = true;
+    final parts = requested.split('|');
+    final answer = parts.length > 1 ? parts[1] : null;
+    final match = _allBatches.where((b) => b.id == parts.first);
+    if (match.isEmpty || match.first.isLost) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkProduce(match.first, answer: answer);
+    });
+  }
+
+  Future<void> _checkProduce(
+    InventoryBatchModel batch, {
+    String? answer,
+  }) async {
+    if (!_isOnline) {
+      PostActionFeedback.error(
+        context,
+        AppLocalizations.of(
+          context,
+        ).enhThisActionRequiresAnInternetConnectionPleaseTry,
+      );
+      return;
+    }
+    final changed = await showShelfLifeCheckSheet(
+      context,
+      batch: batch,
+      answer: answer,
+    );
+    if (changed && mounted) _loadData();
+  }
+
+  bool _matchesStatus(InventoryBatchModel b, String filter) {
+    switch (filter) {
+      case _StatusFilterRow.available:
+        return b.status == 'available';
+      case _StatusFilterRow.reserved:
+        return b.status == 'reserved' && !b.isLost;
+      // Folds 'withdrawn' into "Sold" — both represent inventory no longer
+      // available to dispose of. A batch emptied by a rotten report is a loss,
+      // not a sale: it is under the Rotten chip instead.
+      case _StatusFilterRow.sold:
+        return (b.isSoldOut || b.isWithdrawn) && !b.isLost;
+      case _StatusFilterRow.lowStock:
+        return b.status == 'low_stock';
+      default:
+        return true;
+    }
+  }
+
+  bool _matchesCondition(InventoryBatchModel b, _ConditionFilter filter) {
+    final hasStock = b.availableKg > 0 || b.reservedKg > 0;
+    switch (filter) {
+      case _ConditionFilter.all:
+        return true;
+      case _ConditionFilter.rotten:
+        return b.hasLoss;
+      case _ConditionFilter.needsCheck:
+        return hasStock && (b.shelfLife?.needsCheck ?? false);
+      case _ConditionFilter.good:
+        return hasStock &&
+            !b.hasLoss &&
+            !(b.shelfLife?.needsCheck ?? false);
+    }
+  }
+
+  int _statusCount(String filter) =>
+      _allBatches.where((b) => _matchesStatus(b, filter)).length;
+
+  int _conditionCount(_ConditionFilter filter) =>
+      _allBatches.where((b) => _matchesCondition(b, filter)).length;
+
+  void _setConditionFilter(_ConditionFilter filter) {
+    setState(() {
+      _conditionFilter = filter;
+      _applyFilters();
+    });
   }
 
   void _onSearchChanged() {
@@ -131,32 +240,20 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
   void _applyFilters() {
     final q = _searchQuery.trim().toLowerCase();
-    _filtered = _allBatches.where((b) {
-      switch (_activeStatusFilter) {
-        case _StatusFilterRow.available:
-          if (b.status != 'available') return false;
-          break;
-        case _StatusFilterRow.reserved:
-          if (b.status != 'reserved') return false;
-          break;
-        // Folds 'withdrawn' into "Sold" — both represent inventory no
-        // longer available to dispose of, matching the old Show-Sold
-        // toggle's own grouping; withdrawn batches are rare enough not to
-        // warrant a 6th chip nobody asked for.
-        case _StatusFilterRow.sold:
-          if (!(b.isSoldOut || b.isWithdrawn)) return false;
-          break;
-        case _StatusFilterRow.lowStock:
-          if (b.status != 'low_stock') return false;
-          break;
-        default: // All — no status filter
-          break;
-      }
+    // The batches arrive newest first. That order is kept, and only whole
+    // groups move: batches that can still be sold stay on top, and the ones
+    // that cannot (Sold Out, Rotten/Lost) go to the bottom, newest first too.
+    _filtered = stableGroupSort(
+      _allBatches.where((b) {
+        if (!_matchesStatus(b, _activeStatusFilter)) return false;
+        if (!_matchesCondition(b, _conditionFilter)) return false;
 
-      if (q.isEmpty) return true;
-      return b.cropName.toLowerCase().contains(q) ||
-          b.batchNumber.toLowerCase().contains(q);
-    }).toList();
+        if (q.isEmpty) return true;
+        return b.cropName.toLowerCase().contains(q) ||
+            b.batchNumber.toLowerCase().contains(q);
+      }),
+      (b) => (b.isSoldOut || b.isWithdrawn || b.isLost) ? 1 : 0,
+    );
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -172,7 +269,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
         title: Text(
-          'Update Quantity',
+          AppLocalizations.of(context).enhUpdateQuantity,
           style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         content: Column(
@@ -183,7 +280,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               '${batch.cropName} • ${formatBatchNumber(batch.batchNumber)}',
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppConstants.outline,
+                color: Theme.of(context).colorScheme.outline,
               ),
             ),
             const SizedBox(height: 16),
@@ -195,7 +292,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               inputFormatters: [DecimalInputFormatter(max: batch.availableKg)],
               autofocus: true,
               decoration: InputDecoration(
-                labelText: 'Available Quantity (${unitOrDefault(batch.unit)})',
+                labelText: AppLocalizations.of(
+                  context,
+                ).enhAvailableQuantity((unitOrDefault(batch.unit)).toString()),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
@@ -203,10 +302,14 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Total batch quantity: ${formatQuantityUnit(batch.quantityKg, batch.unit)}  •  You can only decrease this value',
+              AppLocalizations.of(
+                context,
+              ).enhTotalBatchQuantityYouCanOnlyDecreaseThis(
+                (formatQuantityUnit(batch.quantityKg, batch.unit)).toString(),
+              ),
               style: GoogleFonts.inter(
                 fontSize: 11,
-                color: AppConstants.outline,
+                color: Theme.of(context).colorScheme.outline,
               ),
             ),
           ],
@@ -215,8 +318,10 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
+              AppLocalizations.of(context).cancel,
+              style: GoogleFonts.poppins(
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
           ElevatedButton(
@@ -225,7 +330,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               final raw = controller.text.trim();
               // 0 is allowed here on purpose (it empties the batch); every
               // other value must be a valid decimal within the stock on hand.
-              final isZero = raw.isNotEmpty &&
+              final isZero =
+                  raw.isNotEmpty &&
                   raw != '.' &&
                   RegExp(r'^0*\.?0*$').hasMatch(raw);
               final newQty = isZero
@@ -234,7 +340,11 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               if (newQty == null) {
                 PostActionFeedback.error(
                   context,
-                  'Enter a value between 0 and ${formatQuantityUnit(maxAvailable, batch.unit)}. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhEnterAValueBetweenAndIncreasingBeyondThe(
+                    (formatQuantityUnit(maxAvailable, batch.unit)).toString(),
+                  ),
                 );
                 return;
               }
@@ -242,7 +352,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                 Navigator.pop(context);
                 PostActionFeedback.error(
                   context,
-                  'Updating quantity requires an internet connection. Please try again once you\'re back online.',
+                  AppLocalizations.of(
+                    context,
+                  ).enhUpdatingQuantityRequiresAnInternetConnectionPleaseTry,
                 );
                 return;
               }
@@ -257,7 +369,10 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
             ),
-            child: Text('Save', style: GoogleFonts.poppins(fontSize: 14)),
+            child: Text(
+              AppLocalizations.of(context).save,
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -286,6 +401,20 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   }
 
   Future<void> _handleBatchAction(InventoryBatchModel batch) async {
+    // Reported as rotten: nothing can be sold, the card only leads to history.
+    if (batch.isLost) {
+      context.pushRoute(AppRoutes.harvestHistory, extra: batch.cropName);
+      return;
+    }
+    // Recorded past its shelf life and not confirmed yet: no selling channel
+    // (Marketplace, Offer to Cooperative, Informal Sale, DA-AMAD Market
+    // Linking) takes it until the Farmer confirms the produce. The database
+    // refuses it as well.
+    if (batch.isOnShelfLifeHold) {
+      await _checkProduce(batch);
+      return;
+    }
+
     // Ginger (DA-AMAD-exclusive) batches never go through the generic
     // Marketplace/Cooperative/Informal disposal flow below — Market
     // Linking is their only path. Intercepted here, before the
@@ -307,11 +436,16 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         if (!_isOnline) {
           PostActionFeedback.error(
             context,
-            'This action requires an internet connection. Please try again once you\'re back online.',
+            AppLocalizations.of(
+              context,
+            ).enhThisActionRequiresAnInternetConnectionPleaseTry,
           );
           return;
         }
-        final ready = await _withSellingPhoto(batch, 'submit this batch for Market Linking');
+        final ready = await _withSellingPhoto(
+          batch,
+          AppLocalizations.of(context).enhSubmitThisBatchForMarketLinking,
+        );
         if (ready == null || !mounted) return;
         final result = await showSubmitToSellDialog(context, batch: ready);
         if (result == true) _loadData();
@@ -341,7 +475,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     if (!_isOnline) {
       PostActionFeedback.error(
         context,
-        'This action requires an internet connection. Please try again once you\'re back online.',
+        AppLocalizations.of(
+          context,
+        ).enhThisActionRequiresAnInternetConnectionPleaseTry,
       );
       return;
     }
@@ -358,19 +494,34 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
     switch (action) {
       case DisposalAction.marketplace:
-        final ready = await _withSellingPhoto(batch, 'list this on the Marketplace');
+        final ready = await _withSellingPhoto(
+          batch,
+          AppLocalizations.of(context).enhListThisOnTheMarketplace,
+        );
         if (ready == null || !mounted) return;
-        final result = await context.pushRoute(AppRoutes.createListing, extra: ready);
+        final result = await context.pushRoute(
+          AppRoutes.createListing,
+          extra: ready,
+        );
         if (result == true) _loadData();
         break;
       case DisposalAction.cooperative:
-        final ready = await _withSellingPhoto(batch, 'offer this to the Cooperative');
+        final ready = await _withSellingPhoto(
+          batch,
+          AppLocalizations.of(context).enhOfferThisToTheCooperative,
+        );
         if (ready == null || !mounted) return;
-        final result = await showOfferToCooperativeDialog(context, batch: ready);
+        final result = await showOfferToCooperativeDialog(
+          context,
+          batch: ready,
+        );
         if (result == true) _loadData();
         break;
       case DisposalAction.informal:
-        final result = await showRecordInformalSaleDialog(context, batch: batch);
+        final result = await showRecordInformalSaleDialog(
+          context,
+          batch: batch,
+        );
         if (result == true) _loadData();
         break;
     }
@@ -392,7 +543,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
           Expanded(
@@ -400,104 +551,191 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               children: [
                 Column(
                   children: [
-                    TopBarSpacer(height: 72),
-                    CachedDataNotice(screen: 'inventory_batches', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineInventoryActions),
+                    const TopBarSpacer(height: 72),
+                    CachedDataNotice(
+                      screen: 'inventory_batches',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineInventoryActions,
+                    ),
                     Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadData,
-                  child: ListView(
-                    // No FAB or bottom nav under this pushed (non-tab)
-                    // screen to clear — 100px of bottom padding was
-                    // leaving genuinely dead space at the end of the
-                    // scroll, not reserved space for anything.
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                    children: [
-                      // Summary metrics
-                      _SummaryMetrics(summary: _summary, isLoading: _isLoading),
-                      const SizedBox(height: 20),
-
-                      // Search bar
-                      _SearchBar(controller: _searchController),
-                      const SizedBox(height: 12),
-
-                      // Status filter chips (replaces the old binary
-                      // Show-Sold toggle)
-                      _StatusFilterRow(
-                        active: _activeStatusFilter,
-                        onSelected: _setStatusFilter,
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Section title
-                      Text(
-                        'Inventory Batches',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.charcoal,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Batch list
-                      if (_isLoading)
-                        ...List.generate(
-                          3,
-                          (_) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SkeletonBlock(height: 120),
-                          ),
-                        )
-                      else if (_filtered.isEmpty)
-                        _InventoryEmptyState(
-                          hasCrops: _hasCrops,
-                          hasFilter: _searchQuery.isNotEmpty ||
-                              _activeStatusFilter != _StatusFilterRow.all,
-                          onGoToMyCrops: () =>
-                              context.pushRoute(AppRoutes.cropListing),
-                          onRecordHarvest: () =>
-                              context.pushRoute(AppRoutes.selectCropForHarvest),
-                        )
-                      else
-                        ..._filtered.map(
-                          (b) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _BatchCard(
-                              batch: b,
-                              crop: _cropsById[b.cropId],
-                              hasPendingOffer: _pendingOfferBatchIds.contains(b.id),
-                              hasActiveMarketLinking: _activeMarketLinkingBatchIds.contains(b.id),
-                              gingerEnrollmentApproved:
-                                  _gingerEnrollmentStatus == DaAmadEnrollmentStatus.approved,
-                              onUpdateQuantity: () => _showUpdateQuantityDialog(b),
-                              onViewHarvestRecord: () => context
-                                  .pushRoute(AppRoutes.harvestHistory, extra: b.cropName),
-                              onActionTap: () => _handleBatchAction(b),
-                              onViewStockHistory: () =>
-                                  showStockHistorySheet(context, batch: b),
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadData,
+                        child: ListView(
+                          // No FAB or bottom nav under this pushed (non-tab)
+                          // screen to clear — 100px of bottom padding was
+                          // leaving genuinely dead space at the end of the
+                          // scroll, not reserved space for anything.
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                          children: [
+                            // Summary metrics
+                            _SummaryMetrics(
+                              summary: _summary,
+                              isLoading: _isLoading,
                             ),
-                          ),
+                            const SizedBox(height: 20),
+
+                            // Search bar
+                            _SearchBar(controller: _searchController),
+                            const SizedBox(height: 12),
+
+                            // Status filter chips (replaces the old binary
+                            // Show-Sold toggle)
+                            // The same "Label (n)" chips the Manager / Officer
+                            // screens use (MarketplaceFilterBar).
+                            MarketplaceFilterBar<String>(
+                              selected: _activeStatusFilter,
+                              onSelected: _setStatusFilter,
+                              options: [
+                                for (final option in _StatusFilterRow.options)
+                                  MarketplaceFilterOption(
+                                    value: option,
+                                    label: localizeBuiltinLabel(
+                                      AppLocalizations.of(context),
+                                      option,
+                                    ),
+                                    count: _statusCount(option),
+                                    color: AppConstants.primaryGreen,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // Second set: the condition of the produce, with
+                            // what was reported as rotten (a loss).
+                            MarketplaceFilterBar<_ConditionFilter>(
+                              selected: _conditionFilter,
+                              onSelected: _setConditionFilter,
+                              options: [
+                                MarketplaceFilterOption(
+                                  value: _ConditionFilter.all,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  ).shelfFilterAllConditions,
+                                  count: _conditionCount(_ConditionFilter.all),
+                                  color: AppConstants.primaryGreen,
+                                ),
+                                MarketplaceFilterOption(
+                                  value: _ConditionFilter.good,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  ).shelfFilterGood,
+                                  count: _conditionCount(_ConditionFilter.good),
+                                  color: AppConstants.successGreen,
+                                ),
+                                MarketplaceFilterOption(
+                                  value: _ConditionFilter.needsCheck,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  ).shelfFilterNeedsCheck,
+                                  count: _conditionCount(
+                                    _ConditionFilter.needsCheck,
+                                  ),
+                                  color: AppConstants.warningAmber,
+                                ),
+                                MarketplaceFilterOption(
+                                  value: _ConditionFilter.rotten,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  ).shelfFilterRotten,
+                                  count: _conditionCount(
+                                    _ConditionFilter.rotten,
+                                  ),
+                                  color: AppConstants.errorRed,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Section title
+                            Text(
+                              AppLocalizations.of(
+                                context,
+                              ).reportsInventoryBatches,
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Batch list
+                            if (_isLoading)
+                              ...List.generate(
+                                3,
+                                (_) => const Padding(
+                                  padding: EdgeInsets.only(bottom: 12),
+                                  child: SkeletonBlock(height: 120),
+                                ),
+                              )
+                            else if (_filtered.isEmpty)
+                              _InventoryEmptyState(
+                                hasCrops: _hasCrops,
+                                hasFilter:
+                                    _searchQuery.isNotEmpty ||
+                                    _activeStatusFilter !=
+                                        _StatusFilterRow.all ||
+                                    _conditionFilter != _ConditionFilter.all,
+                                onGoToMyCrops: () =>
+                                    context.pushRoute(AppRoutes.cropListing),
+                                onRecordHarvest: () => context.pushRoute(
+                                  AppRoutes.selectCropForHarvest,
+                                ),
+                              )
+                            else
+                              ..._filtered.map(
+                                (b) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _BatchCard(
+                                    batch: b,
+                                    crop: _cropsById[b.cropId],
+                                    hasPendingOffer: _pendingOfferBatchIds
+                                        .contains(b.id),
+                                    hasActiveMarketLinking:
+                                        _activeMarketLinkingBatchIds.contains(
+                                          b.id,
+                                        ),
+                                    gingerEnrollmentApproved:
+                                        _gingerEnrollmentStatus ==
+                                        DaAmadEnrollmentStatus.approved,
+                                    onUpdateQuantity: () =>
+                                        _showUpdateQuantityDialog(b),
+                                    onViewHarvestRecord: () =>
+                                        context.pushRoute(
+                                          AppRoutes.harvestHistory,
+                                          extra: b.cropName,
+                                        ),
+                                    onActionTap: () => _handleBatchAction(b),
+                                    onCheckProduce: () => _checkProduce(b),
+                                    onViewStockHistory: () =>
+                                        showStockHistorySheet(
+                                          context,
+                                          batch: b,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                    ],
+                      ),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: AppLocalizations.of(context).enhManageInventory,
+                    onBack: () => Navigator.of(context).pop(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
                   ),
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: 'Manage Inventory',
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
-            ),
-          ),
               ],
             ),
           ),
@@ -526,31 +764,36 @@ class _SummaryMetrics extends StatelessWidget {
     final otherUnits = (summary['other_unit_batches'] ?? 0).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [_cards(), if (!isLoading && otherUnits > 0) _otherUnitsNote(otherUnits)],
+      children: [
+        _cards(context),
+        if (!isLoading && otherUnits > 0) _otherUnitsNote(context, otherUnits),
+      ],
     );
   }
 
-  Widget _otherUnitsNote(int count) => Padding(
+  Widget _otherUnitsNote(BuildContext context, int count) => Padding(
     padding: const EdgeInsets.only(top: 8, left: 4),
     child: Text(
       count == 1
-          ? 'Totals count batches in kg. 1 batch uses another unit and is not included.'
-          : 'Totals count batches in kg. $count batches use other units and are not included.',
+          ? AppLocalizations.of(context).enhOtherUnitBatchExcluded
+          : AppLocalizations.of(
+              context,
+            ).enhOtherUnitBatchesExcluded((count).toString()),
       style: GoogleFonts.inter(
         fontSize: 11,
-        color: AppConstants.onSurfaceVariant,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     ),
   );
 
-  Widget _cards() {
+  Widget _cards(BuildContext context) {
     return Row(
       children: [
         Expanded(
           child: ReportIconStatCard(
             icon: Icons.check_circle_outline_rounded,
             accent: AppConstants.successGreen,
-            label: 'Available',
+            label: AppLocalizations.of(context).reportsAvailable,
             value: isLoading ? '—' : '${_fmt(summary['available'] ?? 0)} kg',
           ),
         ),
@@ -559,7 +802,7 @@ class _SummaryMetrics extends StatelessWidget {
           child: ReportIconStatCard(
             icon: Icons.hourglass_top_rounded,
             accent: AppConstants.warningAmber,
-            label: 'Reserved',
+            label: AppLocalizations.of(context).reportsReserved,
             value: isLoading ? '—' : '${_fmt(summary['reserved'] ?? 0)} kg',
           ),
         ),
@@ -568,7 +811,7 @@ class _SummaryMetrics extends StatelessWidget {
           child: ReportIconStatCard(
             icon: Icons.sell_outlined,
             accent: AppConstants.primaryGreen,
-            label: 'Sold',
+            label: AppLocalizations.of(context).reportsSold,
             value: isLoading ? '—' : '${_fmt(summary['sold'] ?? 0)} kg',
           ),
         ),
@@ -591,34 +834,41 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       decoration: InputDecoration(
-        hintText: 'Search batch or crop...',
+        hintText: AppLocalizations.of(context).enhSearchBatchOrCrop,
         hintStyle: GoogleFonts.inter(
           fontSize: 14,
-          color: AppConstants.outline.withValues(alpha: 0.60),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.60),
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search_rounded,
-          color: AppConstants.outline,
+          color: Theme.of(context).colorScheme.outline,
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.saganaColors.cardBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           borderSide: BorderSide(
-            color: AppConstants.outline.withValues(alpha: 0.20),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           borderSide: BorderSide(
-            color: AppConstants.outline.withValues(alpha: 0.20),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.20),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -635,60 +885,16 @@ class _SearchBar extends StatelessWidget {
 // CropCategoryChips elsewhere in this redesign round.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StatusFilterRow extends StatelessWidget {
+/// The stock-status filter values. The chips themselves are the shared
+/// MarketplaceFilterBar ("Label (n)"), the same row the Manager / Officer
+/// screens use, so the design is identical everywhere.
+abstract final class _StatusFilterRow {
   static const all = 'All';
   static const available = 'Available';
   static const reserved = 'Reserved';
   static const sold = 'Sold';
   static const lowStock = 'Low Stock';
-  static const _options = [all, available, reserved, sold, lowStock];
-
-  final String active;
-  final ValueChanged<String> onSelected;
-
-  const _StatusFilterRow({required this.active, required this.onSelected});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _options.map((option) {
-          final isActive = option == active;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onSelected(option),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppConstants.primaryContainer.withValues(alpha: 0.12)
-                      : sagana.cardBackground,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  border: isActive
-                      ? Border.all(
-                          color: AppConstants.primaryContainer.withValues(alpha: 0.30))
-                      : null,
-                ),
-                child: Text(
-                  option,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isActive ? AppConstants.primaryContainer : cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+  static const options = [all, available, reserved, sold, lowStock];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -719,6 +925,7 @@ class _BatchCard extends StatelessWidget {
   final VoidCallback onUpdateQuantity;
   final VoidCallback onViewHarvestRecord;
   final VoidCallback onActionTap;
+  final VoidCallback onCheckProduce;
   final VoidCallback onViewStockHistory;
 
   const _BatchCard({
@@ -730,27 +937,41 @@ class _BatchCard extends StatelessWidget {
     required this.onUpdateQuantity,
     required this.onViewHarvestRecord,
     required this.onActionTap,
+    required this.onCheckProduce,
     required this.onViewStockHistory,
   });
 
   @override
   Widget build(BuildContext context) {
-    final statusInfo = _statusInfo(batch.status);
+    final statusInfo = _statusInfo(context, batch.status);
+    final l10n = AppLocalizations.of(context);
+    final shelf = batch.shelfLife;
+    final hasStock = batch.availableKg > 0 || batch.reservedKg > 0;
+    // Something is left and the Farmer should look at it now.
+    final needsCheck = hasStock && (shelf?.needsCheck ?? false);
 
-    return ClipRRect(
+    // A batch reported as rotten is greyed out: it is a record, not stock.
+    return Opacity(
+      opacity: batch.isLost ? 0.55 : 1,
+      child: ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: (batch.isSoldOut ? const Color(0xFFF8FAFC) : Colors.white)
-                .withValues(alpha: 0.70),
+            color:
+                (batch.isSoldOut || batch.isLost
+                        ? const Color(0xFFF1F5F9)
+                        : Colors.white)
+                    .withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
             boxShadow: [
               BoxShadow(
-                color: AppConstants.infoBlueFg.withValues(alpha: 0.05),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.05),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -779,10 +1000,21 @@ class _BatchCard extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: AppConstants.charcoal,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
-                            _StatusBadge(status: batch.status),
+                            if (batch.isLost)
+                              ShelfLifeTag(
+                                label: l10n.shelfTagRotten,
+                                color: Theme.of(context).colorScheme.outline,
+                              )
+                            else
+                              _StatusBadge(status: batch.status),
+                            if (batch.isOnShelfLifeHold)
+                              ShelfLifeTag(
+                                label: l10n.shelfTagOnHold,
+                                color: AppConstants.errorRed,
+                              ),
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -793,7 +1025,9 @@ class _BatchCard extends StatelessWidget {
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: AppConstants.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                         if (batch.exclusiveChannel != null) ...[
@@ -805,13 +1039,16 @@ class _BatchCard extends StatelessWidget {
                   ),
                   PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.more_vert_rounded,
                       size: 20,
-                      color: AppConstants.outline,
+                      color: Theme.of(context).colorScheme.outline,
                     ),
                     onSelected: (value) {
                       switch (value) {
+                        case 'check':
+                          onCheckProduce();
+                          break;
                         case 'update':
                           onUpdateQuantity();
                           break;
@@ -830,13 +1067,24 @@ class _BatchCard extends StatelessWidget {
                     // records are preserved, not deletable, same
                     // reasoning already applied to Crop Roster's crops.
                     itemBuilder: (context) => [
-                      if (!batch.isSoldOut)
+                      // Confirm it is still good (and set how long), or report
+                      // it as rotten. Offered while anything is left.
+                      if (hasStock)
+                        PopupMenuItem(
+                          value: 'check',
+                          child: _batchMenuRow(
+                            Icons.fact_check_outlined,
+                            l10n.shelfCheckMenu,
+                            Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      if (!batch.isSoldOut && !batch.isLost)
                         PopupMenuItem(
                           value: 'update',
                           child: _batchMenuRow(
                             Icons.edit_outlined,
-                            'Update Quantity',
-                            AppConstants.onSurface,
+                            AppLocalizations.of(context).enhUpdateQuantity,
+                            Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       PopupMenuItem(
@@ -844,15 +1092,15 @@ class _BatchCard extends StatelessWidget {
                         child: _batchMenuRow(
                           Icons.swap_vert_rounded,
                           AppLocalizations.of(context).stockHistoryButton,
-                          AppConstants.onSurface,
+                          Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       PopupMenuItem(
                         value: 'history',
                         child: _batchMenuRow(
                           Icons.receipt_long_outlined,
-                          'View Harvest Record',
-                          AppConstants.onSurface,
+                          AppLocalizations.of(context).enhViewHarvestRecord,
+                          Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -867,10 +1115,16 @@ class _BatchCard extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      'Stock: ${formatQuantity(batch.availableKg)} of ${formatQuantityUnit(batch.quantityKg, batch.unit)}',
+                      AppLocalizations.of(context).enhStockOf(
+                        (formatQuantity(batch.availableKg)).toString(),
+                        (formatQuantityUnit(
+                          batch.quantityKg,
+                          batch.unit,
+                        )).toString(),
+                      ),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: AppConstants.outline,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
                   ),
@@ -890,7 +1144,9 @@ class _BatchCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: batch.stockPercent,
                   minHeight: 8,
-                  backgroundColor: const Color(0xFFD5ECF8),
+                  backgroundColor: context.adaptiveSurface(
+                    const Color(0xFFD5ECF8),
+                  ),
                   valueColor: AlwaysStoppedAnimation<Color>(statusInfo.accent),
                 ),
               ),
@@ -899,6 +1155,62 @@ class _BatchCard extends StatelessWidget {
               // the database keeps, so this card, the Harvest tab and the
               // Manager's reports always agree.
               StockFiguresRow(batch: batch),
+              // Shelf life of THIS harvest (each batch counts down on its own),
+              // and what was reported as rotten.
+              if (shelf != null && (shelf.isTracked || shelf.hasLoss)) ...[
+                const SizedBox(height: 10),
+                if (shelf.isTracked && hasStock)
+                  ShelfLifeLine(shelfLife: shelf),
+                if (shelf.hasLoss) ...[
+                  if (shelf.isTracked && hasStock) const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          l10n.shelfLossLine(
+                            formatQuantityUnit(shelf.spoiledKg, batch.unit),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+              if (needsCheck) ...[
+                const SizedBox(height: 10),
+                ShelfLifeNote(
+                  text: batch.isOnShelfLifeHold
+                      ? l10n.shelfHoldNote
+                      : shelf!.stage == ShelfLifeStage.expired
+                      ? l10n.shelfExpiredNote
+                      : l10n.shelfNearNote(batch.cropName),
+                  color: shelfLifeColor(context, shelf!.stage),
+                  icon: Icons.fact_check_outlined,
+                  action: TextButton(
+                    onPressed: onCheckProduce,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: Text(l10n.shelfCheckNow),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
 
               // Footer
@@ -907,7 +1219,9 @@ class _BatchCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border(
                     top: BorderSide(
-                      color: AppConstants.outline.withValues(alpha: 0.08),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.08),
                     ),
                   ),
                 ),
@@ -918,10 +1232,10 @@ class _BatchCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'HARVEST DATE',
+                          AppLocalizations.of(context).enhHARVESTDATE,
                           style: GoogleFonts.inter(
                             fontSize: 9,
-                            color: AppConstants.outline,
+                            color: Theme.of(context).colorScheme.outline,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -936,13 +1250,18 @@ class _BatchCard extends StatelessWidget {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppConstants.onSurface,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ],
                     ),
                     _ActionButton(
-                      status: batch.status,
+                      // A rotten batch only leads to its history; a batch on
+                      // hold must be confirmed before anything else.
+                      status: batch.isLost ? 'lost' : batch.status,
+                      overrideLabel: batch.isOnShelfLifeHold && !batch.isLost
+                          ? l10n.shelfCheckNow
+                          : null,
                       hasPendingOffer: hasPendingOffer,
                       isDaAmadExclusive:
                           batch.exclusiveChannel == AppConstants.channelDaAmad,
@@ -957,10 +1276,11 @@ class _BatchCard extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
   }
 
-  _StatusInfo _statusInfo(String status) {
+  _StatusInfo _statusInfo(BuildContext context, String status) {
     switch (status) {
       case 'available':
         return _StatusInfo(accent: AppConstants.successGreen);
@@ -969,9 +1289,9 @@ class _BatchCard extends StatelessWidget {
       case 'reserved':
         return _StatusInfo(accent: AppConstants.warningAmber);
       case 'sold_out':
-        return _StatusInfo(accent: AppConstants.outline);
+        return _StatusInfo(accent: Theme.of(context).colorScheme.outline);
       default:
-        return _StatusInfo(accent: AppConstants.outline);
+        return _StatusInfo(accent: Theme.of(context).colorScheme.outline);
     }
   }
 }
@@ -1007,7 +1327,8 @@ class _BatchCropImage extends StatelessWidget {
               width: 56,
               height: 56,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _BatchCropFallbackIcon(category: category),
+              errorBuilder: (_, __, ___) =>
+                  _BatchCropFallbackIcon(category: category),
             )
           : _BatchCropFallbackIcon(category: category),
     );
@@ -1026,7 +1347,7 @@ class _BatchCropFallbackIcon extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
       child: Icon(
         FarmerCropModel.iconForCategory(category),
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         size: 28,
       ),
     );
@@ -1047,7 +1368,7 @@ class _StatusBadge extends StatelessWidget {
         color = AppConstants.successGreen;
         break;
       case 'low_stock':
-        label = 'LOW STOCK';
+        label = AppLocalizations.of(context).reportsLowStockBadge;
         color = AppConstants.warningAmber;
         break;
       case 'reserved':
@@ -1055,8 +1376,8 @@ class _StatusBadge extends StatelessWidget {
         color = AppConstants.warningAmber;
         break;
       case 'sold_out':
-        label = 'SOLD OUT';
-        color = AppConstants.outline;
+        label = AppLocalizations.of(context).enhSOLDOUT;
+        color = Theme.of(context).colorScheme.outline;
         break;
       case 'withdrawn':
         label = 'WITHDRAWN';
@@ -1064,7 +1385,7 @@ class _StatusBadge extends StatelessWidget {
         break;
       default:
         label = status.toUpperCase();
-        color = AppConstants.outline;
+        color = Theme.of(context).colorScheme.outline;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -1093,8 +1414,12 @@ class _ActionButton extends StatelessWidget {
   final bool gingerEnrollmentApproved;
   final VoidCallback onTap;
 
+  /// Replaces the usual label (a batch on shelf-life hold reads "Check Now").
+  final String? overrideLabel;
+
   const _ActionButton({
     required this.status,
+    this.overrideLabel,
     this.hasPendingOffer = false,
     this.isDaAmadExclusive = false,
     this.hasActiveMarketLinking = false,
@@ -1106,32 +1431,37 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     String label;
     bool isOutlined = false;
-    if (isDaAmadExclusive && (status == 'available' || status == 'low_stock')) {
+    if (overrideLabel != null) {
+      label = overrideLabel!;
+    } else if (isDaAmadExclusive &&
+        (status == 'available' || status == 'low_stock')) {
       // Ginger's only path — never "Create Listing", which would imply
       // the Marketplace/Cooperative/Informal flow that doesn't apply here.
       // A farmer who isn't an approved Market Linking participant yet is
       // guided to enroll first, rather than straight to a sale dialog
       // that would just fail server-side.
       label = hasActiveMarketLinking
-          ? 'See Progress'
+          ? AppLocalizations.of(context).enhSeeProgress
           : gingerEnrollmentApproved
-              ? 'Submit to Sell'
-              : 'Join to Sell';
+          ? AppLocalizations.of(context).enhSubmitToSell
+          : AppLocalizations.of(context).enhJoinToSell;
     } else {
       switch (status) {
         case 'available':
         case 'low_stock':
-          label = 'Create Listing';
+          label = AppLocalizations.of(context).enhCreateListing;
           break;
         case 'reserved':
           // Not "View Order" — a reserved batch with no pending cooperative
           // offer means it's tied to a Marketplace listing, not an order;
           // this switches to the My Listings tab, there's no per-order
           // screen in this path.
-          label = hasPendingOffer ? 'Offer Status' : 'View Listing';
+          label = hasPendingOffer
+              ? AppLocalizations.of(context).enhOfferStatus
+              : AppLocalizations.of(context).enhViewListing;
           break;
         default:
-          label = 'View History';
+          label = AppLocalizations.of(context).enhViewHistory;
           isOutlined = true;
       }
     }
@@ -1150,9 +1480,11 @@ class _ActionButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: onTap,
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppConstants.outline,
+            foregroundColor: Theme.of(context).colorScheme.outline,
             side: BorderSide(
-              color: AppConstants.outline.withValues(alpha: 0.30),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.30),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             shape: RoundedRectangleBorder(
@@ -1161,8 +1493,11 @@ class _ActionButton extends StatelessWidget {
           ),
           child: FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(label,
-                maxLines: 1, style: GoogleFonts.poppins(fontSize: 12)),
+            child: Text(
+              label,
+              maxLines: 1,
+              style: GoogleFonts.poppins(fontSize: 12),
+            ),
           ),
         ),
       );
@@ -1186,7 +1521,10 @@ class _ActionButton extends StatelessWidget {
           child: Text(
             label,
             maxLines: 1,
-            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500),
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -1229,32 +1567,36 @@ class _InventoryEmptyState extends StatelessWidget {
             Container(
               width: 96,
               height: 96,
-              decoration: const BoxDecoration(
-                color: AppConstants.infoBlueBg,
+              decoration: BoxDecoration(
+                color: context.adaptiveSurface(AppConstants.infoBlueBg),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.filter_alt_off_rounded,
                 size: 40,
-                color: AppConstants.outline.withValues(alpha: 0.60),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.60),
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              'No Matching Batches',
+              AppLocalizations.of(context).enhNoMatchingBatches,
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Try a different search or adjust your filters.',
+              AppLocalizations.of(
+                context,
+              ).enhTryADifferentSearchOrAdjustYourFilters,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1275,28 +1617,28 @@ class _InventoryEmptyState extends StatelessWidget {
                 color: AppConstants.primaryGreen.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.eco_outlined,
                 size: 40,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              "You don't have any crops yet",
+              AppLocalizations.of(context).enhYouDonTHaveAnyCropsYet,
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Add a crop before you can build up inventory.',
+              AppLocalizations.of(context).enhAddACropBeforeYouCanBuildUp,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 20),
@@ -1314,7 +1656,7 @@ class _InventoryEmptyState extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Go to Crop Roster',
+                AppLocalizations.of(context).enhGoToCropRoster,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -1334,32 +1676,36 @@ class _InventoryEmptyState extends StatelessWidget {
           Container(
             width: 96,
             height: 96,
-            decoration: const BoxDecoration(
-              color: AppConstants.infoBlueBg,
+            decoration: BoxDecoration(
+              color: context.adaptiveSurface(AppConstants.infoBlueBg),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.inventory_2_outlined,
               size: 40,
-              color: AppConstants.outline.withValues(alpha: 0.60),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.60),
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            'No Inventory Yet',
+            AppLocalizations.of(context).enhNoInventoryYet,
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: AppConstants.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Record a harvest to start building your inventory.',
+            AppLocalizations.of(
+              context,
+            ).enhRecordAHarvestToStartBuildingYourInventory,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,
-              color: AppConstants.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 20),
@@ -1368,16 +1714,13 @@ class _InventoryEmptyState extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primaryGreen,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 28,
-                vertical: 14,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               ),
             ),
             child: Text(
-              'Record New Harvest',
+              AppLocalizations.of(context).enhRecordNewHarvest,
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1393,8 +1736,6 @@ class _InventoryEmptyState extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Submit to Sell Dialog (Ginger / Market Linking)
@@ -1449,13 +1790,21 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
       max: widget.batch.availableKg,
       unit: widget.batch.unit,
     );
-    final qty = parseDecimal(_qtyController.text, max: widget.batch.availableKg);
+    final qty = parseDecimal(
+      _qtyController.text,
+      max: widget.batch.availableKg,
+    );
     if (error != null || qty == null) {
-      setState(() => _error = error ?? 'Enter a valid quantity.');
+      setState(
+        () => _error = error ?? AppLocalizations.of(context).retQtyInvalid,
+      );
       return;
     }
 
-    setState(() { _isSubmitting = true; _error = null; });
+    setState(() {
+      _isSubmitting = true;
+      _error = null;
+    });
     try {
       await _repo.submitGingerForSale(
         inventoryBatchId: widget.batch.id,
@@ -1467,8 +1816,8 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
         setState(() {
           _isSubmitting = false;
           _error = isPhotoRequiredError(e)
-              ? 'Take a photo of your actual crop in Crop Roster first.'
-              : 'Could not submit. Please try again.';
+              ? AppLocalizations.of(context).enhTakeAPhotoOfYourActualCropIn
+              : AppLocalizations.of(context).enhCouldNotSubmitPleaseTryAgain;
         });
       }
     }
@@ -1477,22 +1826,22 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
   @override
   Widget build(BuildContext context) {
     return ManagementModalShell(
-      title: 'Submit to Sell',
-      subtitle: 'SP3 will review this and find a DA-AMAD buyer for this batch. '
-          'The quantity you submit is set aside for this sale, and any part that '
-          'is not sold goes back to your stock. Track progress in My Market Linking.',
+      title: AppLocalizations.of(context).enhSubmitToSell,
+      subtitle: AppLocalizations.of(context).enhSPWillReviewThisAndFindADA,
 
       body: TextField(
         controller: _qtyController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [DecimalInputFormatter(max: widget.batch.availableKg)],
         decoration: InputDecoration(
-          labelText: 'Quantity to submit (${unitOrDefault(widget.batch.unit)})',
+          labelText: AppLocalizations.of(
+            context,
+          ).enhQuantityToSubmit((unitOrDefault(widget.batch.unit)).toString()),
           errorText: _error,
         ),
       ),
       footer: ManagementModalActions(
-        primaryLabel: 'Submit Request',
+        primaryLabel: AppLocalizations.of(context).enhSubmitRequest,
         isLoading: _isSubmitting,
         onPrimary: _submit,
       ),
@@ -1519,7 +1868,8 @@ class _OfferToCooperativeDialog extends StatefulWidget {
   const _OfferToCooperativeDialog({required this.batch});
 
   @override
-  State<_OfferToCooperativeDialog> createState() => _OfferToCooperativeDialogState();
+  State<_OfferToCooperativeDialog> createState() =>
+      _OfferToCooperativeDialogState();
 }
 
 class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
@@ -1549,7 +1899,10 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   Future<void> _submit() async {
     final l10n = AppLocalizations.of(context);
     final unit = unitOrDefault(widget.batch.unit);
-    final qty = parseDecimal(_qtyController.text, max: widget.batch.availableKg);
+    final qty = parseDecimal(
+      _qtyController.text,
+      max: widget.batch.availableKg,
+    );
     final price = parseDecimal(_priceController.text);
 
     setState(() {
@@ -1577,10 +1930,13 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
           _isSubmitting = false;
           // The database's own explanation when it wrote one for people (for
           // example the batch is not eligible); otherwise a generic line.
-          _submitError = readableDatabaseMessage(e) ??
+          _submitError =
+              readableDatabaseMessage(e) ??
               (e is ServerOnlyException
                   ? e.toString()
-                  : 'Could not submit offer. Please try again.');
+                  : AppLocalizations.of(
+                      context,
+                    ).enhCouldNotSubmitOfferPleaseTryAgain);
         });
       }
     }
@@ -1593,16 +1949,22 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
     final unit = unitOrDefault(widget.batch.unit);
     final enteredQty = double.tryParse(_qtyController.text.trim());
     final enteredPrice = double.tryParse(_priceController.text.trim());
-    final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
+    final exceedsAvailable =
+        enteredQty != null && enteredQty > widget.batch.availableKg;
 
     return ManagementModalShell(
-      title: 'Offer to Cooperative',
+      title: AppLocalizations.of(context).sellingTypeOfferToCooperative,
       subtitle: l10n.coopOfferDialogSubtitle,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _FieldLabel(label: 'Quantity to offer ($unit)', cs: cs),
+          _FieldLabel(
+            label: AppLocalizations.of(
+              context,
+            ).enhQuantityToOffer((unit).toString()),
+            cs: cs,
+          ),
           TextFormField(
             controller: _qtyController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1613,12 +1975,26 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
           const SizedBox(height: 4),
           Text(
             exceedsAvailable
-                ? 'Only ${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available — reduce the quantity.'
-                : '${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available',
+                ? AppLocalizations.of(
+                    context,
+                  ).enhOnlyAvailableReduceTheQuantity(
+                    (formatQuantityUnit(
+                      widget.batch.availableKg,
+                      widget.batch.unit,
+                    )).toString(),
+                  )
+                : AppLocalizations.of(context).enhAvailable(
+                    (formatQuantityUnit(
+                      widget.batch.availableKg,
+                      widget.batch.unit,
+                    )).toString(),
+                  ),
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: exceedsAvailable ? FontWeight.w600 : FontWeight.w400,
-              color: exceedsAvailable ? AppConstants.errorRed : cs.onSurfaceVariant,
+              color: exceedsAvailable
+                  ? AppConstants.errorRed
+                  : cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 14),
@@ -1647,7 +2023,7 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ],
@@ -1655,13 +2031,16 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
             const SizedBox(height: 12),
             Text(
               _submitError!,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
             ),
           ],
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: 'Submit Offer',
+        primaryLabel: AppLocalizations.of(context).enhSubmitOffer,
         isLoading: _isSubmitting,
         onPrimary: _submit,
       ),
@@ -1688,7 +2067,8 @@ class _RecordInformalSaleDialog extends StatefulWidget {
   const _RecordInformalSaleDialog({required this.batch});
 
   @override
-  State<_RecordInformalSaleDialog> createState() => _RecordInformalSaleDialogState();
+  State<_RecordInformalSaleDialog> createState() =>
+      _RecordInformalSaleDialogState();
 }
 
 class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
@@ -1719,7 +2099,10 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
   }
 
   Future<void> _submit() async {
-    final qty = parseDecimal(_qtyController.text, max: widget.batch.availableKg);
+    final qty = parseDecimal(
+      _qtyController.text,
+      max: widget.batch.availableKg,
+    );
     final buyer = _buyerController.text.trim();
     final amount = parseDecimal(_amountController.text);
 
@@ -1729,13 +2112,20 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
         max: widget.batch.availableKg,
         unit: widget.batch.unit,
       );
-      _buyerError = buyer.isEmpty ? 'Buyer name is required.' : null;
+      _buyerError = buyer.isEmpty
+          ? AppLocalizations.of(context).enhBuyerNameIsRequired
+          : null;
       _amountError = amount == null
-          ? priceErrorText(_amountController.text, label: 'Amount received')
+          ? priceErrorText(
+              _amountController.text,
+              label: AppLocalizations.of(context).enhAmountReceived,
+            )
           : null;
       _submitError = null;
     });
-    if (_qtyError != null || _buyerError != null || _amountError != null) return;
+    if (_qtyError != null || _buyerError != null || _amountError != null) {
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     try {
@@ -1750,7 +2140,9 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _submitError = 'Could not record sale. Please try again.';
+          _submitError = AppLocalizations.of(
+            context,
+          ).enhCouldNotRecordSalePleaseTryAgain;
         });
       }
     }
@@ -1761,16 +2153,22 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
     final cs = Theme.of(context).colorScheme;
     final unit = unitOrDefault(widget.batch.unit);
     final enteredQty = double.tryParse(_qtyController.text.trim());
-    final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
+    final exceedsAvailable =
+        enteredQty != null && enteredQty > widget.batch.availableKg;
 
     return ManagementModalShell(
-      title: 'Record Informal Sale',
-      subtitle: 'For a sale made outside the app — to a neighbor, local buyer, or for personal use.',
+      title: AppLocalizations.of(context).enhRecordInformalSale,
+      subtitle: AppLocalizations.of(context).enhForASaleMadeOutsideTheAppTo,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _FieldLabel(label: 'Quantity sold ($unit)', cs: cs),
+          _FieldLabel(
+            label: AppLocalizations.of(
+              context,
+            ).enhQuantitySold((unit).toString()),
+            cs: cs,
+          ),
           TextFormField(
             controller: _qtyController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1781,22 +2179,42 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
           const SizedBox(height: 4),
           Text(
             exceedsAvailable
-                ? 'Only ${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available — reduce the quantity.'
-                : '${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available',
+                ? AppLocalizations.of(
+                    context,
+                  ).enhOnlyAvailableReduceTheQuantity(
+                    (formatQuantityUnit(
+                      widget.batch.availableKg,
+                      widget.batch.unit,
+                    )).toString(),
+                  )
+                : AppLocalizations.of(context).enhAvailable(
+                    (formatQuantityUnit(
+                      widget.batch.availableKg,
+                      widget.batch.unit,
+                    )).toString(),
+                  ),
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: exceedsAvailable ? FontWeight.w600 : FontWeight.w400,
-              color: exceedsAvailable ? AppConstants.errorRed : cs.onSurfaceVariant,
+              color: exceedsAvailable
+                  ? AppConstants.errorRed
+                  : cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 16),
-          _FieldLabel(label: 'Buyer name', cs: cs),
+          _FieldLabel(label: AppLocalizations.of(context).enhBuyerName, cs: cs),
           TextFormField(
             controller: _buyerController,
-            decoration: InputDecoration(hintText: 'Who bought it?', errorText: _buyerError),
+            decoration: InputDecoration(
+              hintText: AppLocalizations.of(context).enhWhoBoughtIt,
+              errorText: _buyerError,
+            ),
           ),
           const SizedBox(height: 16),
-          _FieldLabel(label: 'Amount received (₱)', cs: cs),
+          _FieldLabel(
+            label: AppLocalizations.of(context).enhAmountReceived355,
+            cs: cs,
+          ),
           TextFormField(
             controller: _amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1811,13 +2229,16 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
             const SizedBox(height: 12),
             Text(
               _submitError!,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.errorRed,
+              ),
             ),
           ],
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: 'Save',
+        primaryLabel: AppLocalizations.of(context).save,
         isLoading: _isSubmitting,
         onPrimary: _submit,
       ),

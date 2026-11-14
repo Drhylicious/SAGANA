@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
@@ -97,10 +98,8 @@ class _ProgramHistoryBodyState extends State<_ProgramHistoryBody> {
       content = ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         itemCount: _entries.length,
-        itemBuilder: (_, i) => _HistoryTile(
-          entry: _entries[i],
-          isLast: i == _entries.length - 1,
-        ),
+        itemBuilder: (_, i) =>
+            _HistoryTile(entry: _entries[i], isLast: i == _entries.length - 1),
       );
     }
 
@@ -110,7 +109,11 @@ class _ProgramHistoryBodyState extends State<_ProgramHistoryBody> {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
           child: Row(
             children: [
-              Icon(Icons.lock_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+              Icon(
+                Icons.lock_outline_rounded,
+                size: 14,
+                color: cs.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -156,7 +159,10 @@ class _Message extends StatelessWidget {
             Text(
               text,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
             ),
             if (actionLabel != null) ...[
               const SizedBox(height: 8),
@@ -245,8 +251,12 @@ class _HistoryTile extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                        color: cs.surfaceContainerHighest.withValues(
+                          alpha: 0.4,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,52 +297,112 @@ class ProgramHistoryText {
   static ProgramHistoryEventStyle styleFor(String type) {
     switch (type) {
       case 'program_created':
-        return const ProgramHistoryEventStyle(Icons.add_circle_outline_rounded, AppConstants.primaryGreen);
+        return const ProgramHistoryEventStyle(
+          Icons.add_circle_outline_rounded,
+          AppConstants.primaryGreen,
+        );
       case 'program_updated':
-        return const ProgramHistoryEventStyle(Icons.edit_outlined, AppConstants.buyerBlue);
+        return const ProgramHistoryEventStyle(
+          Icons.edit_outlined,
+          AppConstants.buyerBlue,
+        );
       case 'enrollment_requested':
-        return const ProgramHistoryEventStyle(Icons.how_to_reg_outlined, AppConstants.warningAmber);
+        return const ProgramHistoryEventStyle(
+          Icons.how_to_reg_outlined,
+          AppConstants.warningAmber,
+        );
       case 'enrollment_declined':
       case 'member_removed':
       case 'activity_deleted':
-        return const ProgramHistoryEventStyle(Icons.remove_circle_outline_rounded, AppConstants.errorRed);
+        return const ProgramHistoryEventStyle(
+          Icons.remove_circle_outline_rounded,
+          AppConstants.errorRed,
+        );
       case 'member_enrolled':
-        return const ProgramHistoryEventStyle(Icons.person_add_alt_1_outlined, AppConstants.primaryGreen);
+        return const ProgramHistoryEventStyle(
+          Icons.person_add_alt_1_outlined,
+          AppConstants.primaryGreen,
+        );
       case 'benefit_distributed':
-        return const ProgramHistoryEventStyle(Icons.inventory_2_outlined, AppConstants.programPurple);
+        return const ProgramHistoryEventStyle(
+          Icons.inventory_2_outlined,
+          AppConstants.programPurple,
+        );
       case 'outcome_recorded':
       case 'return_confirmed':
-        return const ProgramHistoryEventStyle(Icons.fact_check_outlined, AppConstants.buyerBlue);
+        return const ProgramHistoryEventStyle(
+          Icons.fact_check_outlined,
+          AppConstants.buyerBlue,
+        );
       case 'converted_to_loan':
-        return const ProgramHistoryEventStyle(Icons.request_quote_outlined, AppConstants.programPurple);
+        return const ProgramHistoryEventStyle(
+          Icons.request_quote_outlined,
+          AppConstants.programPurple,
+        );
       case 'activity_created':
       case 'activity_updated':
-        return const ProgramHistoryEventStyle(Icons.event_outlined, AppConstants.buyerBlue);
+        return const ProgramHistoryEventStyle(
+          Icons.event_outlined,
+          AppConstants.buyerBlue,
+        );
       case 'outcome_submitted':
-        return const ProgramHistoryEventStyle(Icons.assignment_outlined, AppConstants.warningAmber);
+        return const ProgramHistoryEventStyle(
+          Icons.assignment_outlined,
+          AppConstants.warningAmber,
+        );
       case 'outcome_reviewed':
-        return const ProgramHistoryEventStyle(Icons.rule_rounded, AppConstants.buyerBlue);
+        return const ProgramHistoryEventStyle(
+          Icons.rule_rounded,
+          AppConstants.buyerBlue,
+        );
       case 'outcome_verified':
-        return const ProgramHistoryEventStyle(Icons.agriculture_outlined, AppConstants.programPurple);
+        return const ProgramHistoryEventStyle(
+          Icons.agriculture_outlined,
+          AppConstants.programPurple,
+        );
       case 'outcome_finalized':
-        return const ProgramHistoryEventStyle(Icons.flag_outlined, AppConstants.successGreen);
+        return const ProgramHistoryEventStyle(
+          Icons.flag_outlined,
+          AppConstants.successGreen,
+        );
       case 'return_opened':
       case 'return_adjusted':
       case 'return_receipt':
-        return const ProgramHistoryEventStyle(Icons.agriculture_rounded, AppConstants.primaryGreen);
+        return const ProgramHistoryEventStyle(
+          Icons.agriculture_rounded,
+          AppConstants.primaryGreen,
+        );
       case 'return_closed':
-        return const ProgramHistoryEventStyle(Icons.task_alt_rounded, AppConstants.onSurfaceVariant);
+        return const ProgramHistoryEventStyle(
+          Icons.task_alt_rounded,
+          AppConstants.onSurfaceVariant,
+        );
       case 'resolution_recorded':
-        return const ProgramHistoryEventStyle(Icons.gavel_rounded, AppConstants.programPurple);
+        return const ProgramHistoryEventStyle(
+          Icons.gavel_rounded,
+          AppConstants.programPurple,
+        );
       case 'assistance_requested':
-        return const ProgramHistoryEventStyle(Icons.volunteer_activism_rounded, AppConstants.warningAmber);
+        return const ProgramHistoryEventStyle(
+          Icons.volunteer_activism_rounded,
+          AppConstants.warningAmber,
+        );
       case 'assistance_approved':
-        return const ProgramHistoryEventStyle(Icons.volunteer_activism_rounded, AppConstants.successGreen);
+        return const ProgramHistoryEventStyle(
+          Icons.volunteer_activism_rounded,
+          AppConstants.successGreen,
+        );
       case 'assistance_rejected':
       case 'assistance_cancelled':
-        return const ProgramHistoryEventStyle(Icons.volunteer_activism_rounded, AppConstants.errorRed);
+        return const ProgramHistoryEventStyle(
+          Icons.volunteer_activism_rounded,
+          AppConstants.errorRed,
+        );
       default:
-        return const ProgramHistoryEventStyle(Icons.circle_outlined, AppConstants.outline);
+        return const ProgramHistoryEventStyle(
+          Icons.circle_outlined,
+          AppConstants.outline,
+        );
     }
   }
 
@@ -367,8 +437,8 @@ class ProgramHistoryText {
           d['outcome'] == 'failed'
               ? l10n.programMgmtStageFailed
               : d['outcome'] == 'thriving'
-                  ? l10n.programMgmtThriving
-                  : '${d['outcome']}',
+              ? l10n.programMgmtThriving
+              : '${d['outcome']}',
         );
       case 'return_confirmed':
         return l10n.programHistReturnConfirmed(_name(e));
@@ -404,7 +474,10 @@ class ProgramHistoryText {
       case 'return_adjusted':
         return l10n.programHistReturnAdjusted(_name(e));
       case 'return_receipt':
-        return l10n.programHistReturnReceipt(_name(e), _qtyText(d['quantity'], d));
+        return l10n.programHistReturnReceipt(
+          _name(e),
+          _qtyText(d['quantity'], d),
+        );
       case 'return_closed':
         return l10n.programHistReturnClosed(_name(e));
       case 'resolution_recorded':
@@ -413,9 +486,15 @@ class ProgramHistoryText {
             ? l10n.programHistResolutionDefault(_name(e), res)
             : l10n.programHistResolution(_name(e), res);
       case 'assistance_requested':
-        return l10n.programHistAssistRequested(_name(e), '${d['request_number'] ?? ''}');
+        return l10n.programHistAssistRequested(
+          _name(e),
+          '${d['request_number'] ?? ''}',
+        );
       case 'assistance_approved':
-        return l10n.programHistAssistApproved(_name(e), '${d['reference'] ?? ''}');
+        return l10n.programHistAssistApproved(
+          _name(e),
+          '${d['reference'] ?? ''}',
+        );
       case 'assistance_rejected':
         return l10n.programHistAssistRejected(_name(e));
       case 'assistance_cancelled':
@@ -466,10 +545,7 @@ class ProgramHistoryText {
 
   /// "Nov 4, 2026 · 3:05 PM"
   static String formatStamp(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
+    final months = DateFormat.MMM().dateSymbols.SHORTMONTHS;
     final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final m = dt.minute.toString().padLeft(2, '0');
     final ap = dt.hour >= 12 ? 'PM' : 'AM';
@@ -546,7 +622,10 @@ class ProgramHistoryText {
 
   /// "Budget: ₱5000 → ₱8000" lines for a program edit; the staff note for a
   /// review, verification or final decision.
-  static List<String> changeLines(AppLocalizations l10n, ProgramHistoryEntry e) {
+  static List<String> changeLines(
+    AppLocalizations l10n,
+    ProgramHistoryEntry e,
+  ) {
     if (e.type == 'outcome_reviewed' ||
         e.type == 'outcome_verified' ||
         e.type == 'outcome_finalized') {
@@ -564,13 +643,23 @@ class ProgramHistoryText {
       final reason = (d['reason'] as String?)?.trim() ?? '';
       return [
         if (e.type == 'return_adjusted')
-          l10n.programHistQtyChange(_num(d['before']), _num(d['after']), '${d['unit'] ?? ''}'),
+          l10n.programHistQtyChange(
+            _num(d['before']),
+            _num(d['after']),
+            '${d['unit'] ?? ''}',
+          ),
         if (e.type == 'return_closed')
-          l10n.programHistReceivedOfDue(_num(d['after']), _num(d['before']), '${d['unit'] ?? ''}'),
+          l10n.programHistReceivedOfDue(
+            _num(d['after']),
+            _num(d['before']),
+            '${d['unit'] ?? ''}',
+          ),
         if (reason.isNotEmpty) '"$reason"',
       ];
     }
-    if (e.type == 'return_receipt' || e.type == 'resolution_recorded' || e.type == 'assistance_rejected') {
+    if (e.type == 'return_receipt' ||
+        e.type == 'resolution_recorded' ||
+        e.type == 'assistance_rejected') {
       final note = ((d['reason'] ?? d['note']) as String?)?.trim() ?? '';
       return [if (note.isNotEmpty) '"$note"'];
     }
@@ -579,8 +668,10 @@ class ProgramHistoryText {
       return [if (items.isNotEmpty) items];
     }
     if (e.type != 'program_updated') return const [];
-    final oldV = (e.details['old'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final newV = (e.details['new'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final oldV =
+        (e.details['old'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final newV =
+        (e.details['new'] as Map?)?.cast<String, dynamic>() ?? const {};
     return [
       for (final k in newV.keys)
         if (k != 'updated_at' && k != 'distribution_category')

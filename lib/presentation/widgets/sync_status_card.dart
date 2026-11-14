@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/utils/app_utils.dart';
+import '../../core/utils/app_error_message.dart';
 import '../../data/services/app_event_service.dart';
 import '../../data/services/app_settings_service.dart';
 import '../../data/services/connectivity_service.dart';
@@ -137,7 +138,7 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final busy = _syncing || _retryingId != null;
+    final busy = _syncing || _retryingId != null || SyncService.isSyncing;
     final canSync = _online && !busy;
 
     final statusText = _online ? l10n.syncStatusOnline : l10n.syncStatusOffline;
@@ -182,9 +183,7 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            _queued == 0
-                ? l10n.syncAllSynced
-                : l10n.syncQueuedCount(_queued),
+            _queued == 0 ? l10n.syncAllSynced : l10n.syncQueuedCount(_queued),
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -202,7 +201,10 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
                       AppUtils.formatRelativeTime(_lastSynced!, l10n),
                     )
                   : l10n.syncNeverSynced,
-              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -249,7 +251,9 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
               const SizedBox(height: 10),
               _FailedRecordRow(
                 kindLabel: _kindLabel(l10n, record),
-                error: record.error,
+                error:
+                    messageForDatabaseText(l10n, record.error) ??
+                    l10n.errGeneric,
                 failedAt: record.failedAt,
                 l10n: l10n,
                 retrying: _retryingId == record.localId,

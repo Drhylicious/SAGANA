@@ -1,3 +1,5 @@
+import '../../../core/theme/sagana_colors.dart';
+import '../../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -15,7 +17,8 @@ class ForcePasswordChangeScreen extends StatefulWidget {
   const ForcePasswordChangeScreen({super.key});
 
   @override
-  State<ForcePasswordChangeScreen> createState() => _ForcePasswordChangeScreenState();
+  State<ForcePasswordChangeScreen> createState() =>
+      _ForcePasswordChangeScreenState();
 }
 
 class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
@@ -63,7 +66,9 @@ class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
       if (!mounted) return;
       setState(() {
         _isSaving = false;
-        _formError = 'Could not update your password. Please try again.';
+        _formError = AppLocalizations.of(
+          context,
+        ).enhCouldNotUpdateYourPasswordPleaseTryAgain;
       });
     }
   }
@@ -71,7 +76,7 @@ class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -85,10 +90,16 @@ class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
                 obscureConfirm: _obscureConfirm,
                 isSaving: _isSaving,
                 errorMessage: _formError,
-                subtitle: 'Your password was reset by a Manager. Please choose a new one to continue.',
-                submitLabel: 'Continue',
-                onToggleObscurePassword: () => setState(() => _obscurePassword = !_obscurePassword),
-                onToggleObscureConfirm: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                subtitle: AppLocalizations.of(
+                  context,
+                ).enhYourPasswordWasResetByAManagerPlease,
+                submitLabel: AppLocalizations.of(
+                  context,
+                ).marketLinkCelebrationContinue,
+                onToggleObscurePassword: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+                onToggleObscureConfirm: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
                 onSubmit: _handleSubmit,
               ),
             ),
