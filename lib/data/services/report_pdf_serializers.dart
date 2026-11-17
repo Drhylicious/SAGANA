@@ -4,9 +4,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../core/utils/quantity_utils.dart';
+import '../models/admin_analytics_model.dart';
 import '../models/admin_loan_model.dart';
 import '../models/admin_reports_model.dart';
 import '../models/export_model.dart';
+import 'report_csv_serializers.dart' show analyticsTrendLabel;
 
 /// PDF serialization for each report type — the PDF counterpart to
 /// report_csv_serializers.dart (Phase 15). Deliberately mirrors that
@@ -31,49 +33,127 @@ String _safe(String s) => s.replaceAll('—', '-').replaceAll('–', '-');
 List<String> _safeRow(List<String> row) => row.map(_safe).toList();
 
 /// Puts what the file covers (period, year or "as of" date) in front of the
-/// headline totals. Null for the Member Patronage Report, whose export keeps
+/// headline totals. Null for the Member Contribution Report, whose export keeps
 /// its original subtitle.
 String _withScope(String? scopeText, String text) =>
     scopeText == null ? text : '$scopeText — $text';
+
+final _numFmt = NumberFormat('#,##0.00');
+
+/// A number with thousands separators and two decimals, for reading on paper
+/// (the CSV keeps plain numbers so a spreadsheet can add them up).
+String _n(num v) => _numFmt.format(v);
 
 pw.Document _buildDocument({
   required String title,
   required String subtitle,
   required List<pw.Widget> sections,
+  // Wide tables (many columns) are laid out on a landscape page so each column
+  // stays readable.
+  bool landscape = false,
 }) {
-  final doc = pw.Document();
+  final generated = DateFormat('MMM d, yyyy h:mm a').format(DateTime.now());
+  final doc = pw.Document(title: _safe('SAGANA - $title'), author: 'SAGANA');
   doc.addPage(
     pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(28),
-      header: (context) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            _safe('SAGANA — $title'),
-            style: const pw.TextStyle(
-              fontSize: 18,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.green900,
+      pageFormat: landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.fromLTRB(28, 28, 28, 36),
+      header: (context) => context.pageNumber == 1
+          // First page: brand line, the report name and what it covers.
+          ? pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'SAGANA',
+                  style: const pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.green700,
+                    letterSpacing: 2,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  _safe(title),
+                  style: const pw.TextStyle(
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.green900,
+                  ),
+                ),
+                pw.SizedBox(height: 6),
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.green50,
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Text(
+                    _safe(subtitle),
+                    style: const pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColors.grey800,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+              ],
+            )
+          // Later pages: a slim reminder of which report this is.
+          : pw.Column(
+              children: [
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      _safe(title),
+                      style: const pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.green900,
+                      ),
+                    ),
+                    pw.Text(
+                      'SAGANA',
+                      style: const pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.green700,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.Divider(color: PdfColors.grey400, height: 10),
+              ],
             ),
-          ),
-          pw.Text(
-            _safe(subtitle),
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            'Generated ${DateFormat('MMM d, yyyy h:mm a').format(DateTime.now())}',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-          pw.Divider(color: PdfColors.grey400, height: 16),
-        ],
+      footer: (context) => pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 8),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              'Generated $generated',
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+            ),
+            pw.Text(
+              'Page ${context.pageNumber} of ${context.pagesCount}',
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+            ),
+          ],
+        ),
       ),
       build: (context) => sections,
     ),
   );
   return doc;
 }
+
+final _numericCell = RegExp(r'^-?[\d,]*\.?\d+( [A-Za-z]+)?$');
 
 pw.Widget _table(List<String> headers, List<List<String>> rows) {
   if (rows.isEmpty) {
@@ -85,24 +165,36 @@ pw.Widget _table(List<String> headers, List<List<String>> rows) {
       ),
     );
   }
+  final safeRows = rows.map(_safeRow).toList();
+  // A column whose every filled cell is a number is right-aligned, so the
+  // figures line up under their heading.
+  final alignments = <int, pw.Alignment>{
+    for (var c = 0; c < headers.length; c++)
+      c: () {
+        final cells = [
+          for (final r in safeRows)
+            if (c < r.length && r[c].trim().isNotEmpty) r[c].trim(),
+        ];
+        return cells.isNotEmpty && cells.every(_numericCell.hasMatch)
+            ? pw.Alignment.centerRight
+            : pw.Alignment.centerLeft;
+      }(),
+  };
   return pw.TableHelper.fromTextArray(
     headers: _safeRow(headers),
-    data: rows.map(_safeRow).toList(),
+    data: safeRows,
     headerStyle: const pw.TextStyle(
       fontWeight: pw.FontWeight.bold,
       fontSize: 8,
       color: PdfColors.white,
     ),
     headerDecoration: const pw.BoxDecoration(color: PdfColors.green700),
-    cellStyle: const pw.TextStyle(fontSize: 7.5),
-    cellAlignment: pw.Alignment.centerLeft,
-    cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    headerAlignments: alignments,
+    cellStyle: const pw.TextStyle(fontSize: 8),
+    cellAlignments: alignments,
+    cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
     border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.4),
-    rowDecoration: const pw.BoxDecoration(
-      border: pw.Border(
-        bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.3),
-      ),
-    ),
+    oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
   );
 }
 
@@ -114,14 +206,16 @@ Future<pw.Document> buildSalesReportPdf(
   final rows = data.transactions
       .map(
         (t) => [
-            sellingChannelLabel(t.sellingType),
-            t.marketType ?? '',
-            t.farmerName,
-            t.fromProgram ? '${t.cropName} (Cooperative Program)' : t.cropName,
-            exportQuantity(t.quantityKg, t.unit),
-            t.amount.toStringAsFixed(2),
-            _dateFmt.format(t.saleDate),
-            t.referenceNo ?? '',
+          sellingChannelLabel(t.sellingType),
+          t.marketType ?? '',
+          t.farmerName,
+          t.fromProgram ? '${t.cropName} (Cooperative Program)' : t.cropName,
+          exportQuantity(t.quantityKg, t.unit),
+          _n(t.amount),
+          _dateFmt.format(t.saleDate),
+          t.referenceNo ?? '',
+          t.buyerName ?? '',
+          t.orderStatus ?? '',
         ],
       )
       .toList();
@@ -134,13 +228,16 @@ Future<pw.Document> buildSalesReportPdf(
     'Amount (PHP)',
     'Date',
     'Reference',
+    'Buyer',
+    'Status',
   ], rows);
   if (products == null) {
     return _buildDocument(
+      landscape: true,
       title: 'Sales Report',
       subtitle: _withScope(
         scopeText,
-        'Total Revenue: PHP ${data.totalRevenue.toStringAsFixed(2)} — ${data.transactionCount} transactions',
+        'Total Revenue: PHP ${_n(data.totalRevenue)} — ${data.transactionCount} transactions',
       ),
       sections: [marketplaceTable],
     );
@@ -153,32 +250,24 @@ Future<pw.Document> buildSalesReportPdf(
           r.itemName,
           r.programName ?? '',
           exportQuantity(r.quantity, r.unit),
-          r.amount.toStringAsFixed(2),
+          _n(r.amount),
           _dateFmt.format(r.saleDate),
           r.orderNumber,
         ],
       )
       .toList();
   return _buildDocument(
+    landscape: true,
     title: 'Sales Report',
     subtitle: _withScope(
       scopeText,
-      'Marketplace Sales: PHP ${data.totalRevenue.toStringAsFixed(2)} (${data.transactionCount} transactions) — '
-      'Cooperative Product Sales: PHP ${products.summary.amount.toStringAsFixed(2)} (${products.summary.orders} orders)',
+      'Marketplace Sales: PHP ${_n(data.totalRevenue)} (${data.transactionCount} transactions) — '
+      'Cooperative Product Sales: PHP ${_n(products.summary.amount)} (${products.summary.orders} orders)',
     ),
     sections: [
-      pw.Text(
-        'Marketplace Sales',
-        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
-      ),
-      pw.SizedBox(height: 6),
+      _heading('Marketplace Sales'),
       marketplaceTable,
-      pw.SizedBox(height: 16),
-      pw.Text(
-        'Cooperative Product Sales',
-        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
-      ),
-      pw.SizedBox(height: 6),
+      _heading('Cooperative Product Sales'),
       _table([
         'Member',
         'Product',
@@ -243,16 +332,12 @@ Future<pw.Document> buildHarvestReportPdf(
     title: 'Harvest Report',
     subtitle: _withScope(
       scopeText,
-      'Total Yield: ${data.totalYieldKg.toStringAsFixed(2)} kg — ${data.harvestCount} harvests'
-      ' · Rotten/Lost: ${batches.totalSpoiledKg.toStringAsFixed(2)} kg'
-      '${data.programReceivedCount > 0 ? ' · Received from programs (not harvest): ${data.programReceivedKg.toStringAsFixed(2)} kg' : ''}',
+      'Total Yield: ${_n(data.totalYieldKg)} kg — ${data.harvestCount} harvests'
+      ' · Rotten/Lost: ${_n(batches.totalSpoiledKg)} kg'
+      '${data.programReceivedCount > 0 ? ' · Received from programs (not harvest): ${_n(data.programReceivedKg)} kg' : ''}',
     ),
     sections: [
-      pw.Text(
-        'Harvest Activity',
-        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
-      ),
-      pw.SizedBox(height: 6),
+      _heading('Harvest Activity'),
       _table([
         'Date',
         'Farmer',
@@ -262,12 +347,7 @@ Future<pw.Document> buildHarvestReportPdf(
         'Batch #',
         'Rotten/Lost (kg)',
       ], harvestRows),
-      pw.SizedBox(height: 16),
-      pw.Text(
-        'Batches & Stock: Quantities',
-        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
-      ),
-      pw.SizedBox(height: 6),
+      _heading('Batches & Stock: Quantities'),
       _table([
         'Farmer',
         'Crop',
@@ -278,12 +358,7 @@ Future<pw.Document> buildHarvestReportPdf(
         'Sold (kg)',
         'Rotten/Lost (kg)',
       ], batchQuantityRows),
-      pw.SizedBox(height: 16),
-      pw.Text(
-        'Batches & Stock: Status and Condition',
-        style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
-      ),
-      pw.SizedBox(height: 6),
+      _heading('Batches & Stock: Status and Condition'),
       _table([
         'Farmer',
         'Crop',
@@ -303,12 +378,13 @@ Future<pw.Document> buildExpenseReportPdf(
   final rows = data.expenses
       .map(
         (e) => [
-            _dateFmt.format(e.expenseDate),
-            e.farmerName,
-            e.category,
-            e.description,
-            e.isSubsidy ? '0.00' : e.amount.toStringAsFixed(2),
-            e.isSubsidy ? 'Yes' : 'No',
+          _dateFmt.format(e.expenseDate),
+          e.farmerName,
+          e.name,
+          e.category,
+          e.description,
+          e.isSubsidy ? '0.00' : _n(e.amount),
+          e.isSubsidy ? 'Yes' : 'No',
         ],
       )
       .toList();
@@ -316,12 +392,13 @@ Future<pw.Document> buildExpenseReportPdf(
     title: 'Expense Report',
     subtitle: _withScope(
       scopeText,
-      'Paid by Farmers: PHP ${data.totalFarmerFundedAmount.toStringAsFixed(2)} — ${data.totalEntryCount} entries',
+      'Paid by Farmers: PHP ${_n(data.totalFarmerFundedAmount)} — ${data.totalEntryCount} entries',
     ),
     sections: [
       _table([
         'Date',
         'Farmer',
+        'Expense',
         'Category',
         'Description',
         'Amount (PHP)',
@@ -339,24 +416,29 @@ Future<pw.Document> buildLoanReportPdf(
   final rows = loans
       .map(
         (l) => [
-            l.referenceNo,
-            l.farmerName,
-            _dateFmt.format(l.issuedDate),
-            l.itemNames.join('; '),
-            l.totalValue.toStringAsFixed(2),
-            l.amountPaid.toStringAsFixed(2),
-            l.remainingBalance.toStringAsFixed(2),
-            loanStatusExportLabel(l.status),
+          l.referenceNo,
+          l.farmerName,
+          _dateFmt.format(l.issuedDate),
+          l.itemNames.join('; '),
+          _n(l.totalValue),
+          _n(l.amountPaid),
+          _n(l.remainingBalance),
+          loanStatusExportLabel(l.status),
+          _n(l.monthlyPayment),
+          l.nextPaymentDate == null ? '' : _dateFmt.format(l.nextPaymentDate!),
+          l.sourceProgramName ?? '',
+          l.notes ?? '',
         ],
       )
       .toList();
   return _buildDocument(
+    landscape: true,
     title: 'Loan Report',
     subtitle: _withScope(
       scopeText,
-      '${loans.length} loans issued — Total PHP ${summary.totalIssued.toStringAsFixed(2)}, '
-      'Paid PHP ${summary.totalCollected.toStringAsFixed(2)}, '
-      'Balance PHP ${summary.totalOutstanding.toStringAsFixed(2)}',
+      '${loans.length} loans issued — Total PHP ${_n(summary.totalIssued)}, '
+      'Paid PHP ${_n(summary.totalCollected)}, '
+      'Balance PHP ${_n(summary.totalOutstanding)}',
     ),
     sections: [
       _table([
@@ -368,52 +450,66 @@ Future<pw.Document> buildLoanReportPdf(
         'Paid (PHP)',
         'Balance (PHP)',
         'Status',
+        'Monthly (PHP)',
+        'Next Payment',
+        'From Program',
+        'Notes',
       ], rows),
     ],
   );
 }
 
 Future<pw.Document> buildMemberContributionReportPdf(
-  MemberContributionReportData data,
-) async {
+  MemberContributionReportData data, {
+  String? scopeText,
+}) async {
   final rows = data.rows
       .map(
         (r) => [
-            r.farmerName,
-            r.palayQtyKg.toStringAsFixed(2),
-            r.palayAmount.toStringAsFixed(2),
-            r.peanutQtyKg.toStringAsFixed(2),
-            r.peanutAmount.toStringAsFixed(2),
-            r.otherCropsQtyKg.toStringAsFixed(2),
-            r.otherCropsAmount.toStringAsFixed(2),
-            r.totalAmount.toStringAsFixed(2),
-            r.sharePercent.toStringAsFixed(2),
-            r.programRegularAmount.toStringAsFixed(2),
-            r.programDiscountRatePercent.toStringAsFixed(2),
-            r.programDiscountAmount.toStringAsFixed(2),
-            r.programPurchasesAmount.toStringAsFixed(2),
+          r.farmerName,
+          _n(r.capitalBalance),
+          _n(r.capitalAtYearStart),
+          _n(r.capitalAddedInYear),
+          _n(r.memberPaidInYear),
+          _n(r.purchaseCredited),
+          _n(r.offersCredited),
+          '${r.capitalShares}',
+          _n(r.remainingForNextShare),
+          _n(r.monthlyDue),
+          _n(r.monthlyBalance),
+          '${r.monthsPaid}/${r.monthsPartial}/${r.monthsUnpaid}/${r.monthsOverdue}/${r.monthsWaived}',
+          _n(r.programPurchasesAmount),
+          _n(r.totalAmount),
         ],
       )
       .toList();
   return _buildDocument(
-    title: 'Member Patronage Report — ${data.year}',
-    subtitle:
-        'Total Cooperative Sales: PHP ${data.totalCoopSales.toStringAsFixed(2)} — ${data.contributingMemberCount}/${data.memberCount} contributing members',
+    landscape: true,
+    title: 'Member Contribution Report — ${data.year}',
+    subtitle: _withScope(
+      scopeText,
+      'Total Capital Share: PHP ${_n(data.totalCapital)} — added in ${data.year}: PHP ${_n(data.totalCapitalAdded)} '
+      '(Monthly Contribution ${_n(data.totalMemberPaid)}, '
+      'Cooperative Purchase ${_n(data.totalPurchaseCredited)}, '
+      'Offer to Cooperative ${_n(data.totalOffersCredited)}) — '
+      '${data.contributingMemberCount}/${data.memberCount} members contributed',
+    ),
     sections: [
       _table([
         'Farmer',
-        'Palay (kg)',
-        'Palay (PHP)',
-        'Peanut (kg)',
-        'Peanut (PHP)',
-        'Other (kg)',
-        'Other (PHP)',
-        'Total (PHP)',
-        'Share (%)',
-        'Regular (PHP)',
-        'Disc. rate (%)',
-        'Discount (PHP)',
-        'Net paid (PHP)',
+        'Total Capital Share (PHP)',
+        'At Start of Year (PHP)',
+        'Added in Year (PHP)',
+        'Monthly Contribution (PHP)',
+        'Cooperative Purchase (PHP)',
+        'Offer to Cooperative (PHP)',
+        'Full Shares',
+        'Remaining for Next Share (PHP)',
+        'Monthly Due, Not Counted (PHP)',
+        'Monthly Unpaid, Not Counted (PHP)',
+        'Months Paid/Partial/Unpaid/Overdue/Waived',
+        'Purchases Made (reference)',
+        'Completed Offers (reference)',
       ], rows),
     ],
   );
@@ -426,23 +522,121 @@ Future<pw.Document> buildCoopStockReportPdf(
   final rows = data.items
       .map(
         (i) => [
-            i.itemName,
-            i.category,
-            itemTypeExportLabel(i.itemType),
-            i.quantityOnHand.toStringAsFixed(2),
-            i.unit,
-            i.isLowStock ? 'Yes' : 'No',
+          i.itemName,
+          i.category,
+          itemTypeExportLabel(i.itemType),
+          _n(i.quantityOnHand),
+          i.unit,
+          _n(i.reorderLevel),
+          i.unitCost == null ? '' : _n(i.unitCost!),
+          i.lastRestockedAt == null ? '' : _dateFmt.format(i.lastRestockedAt!),
+          i.isLowStock ? 'Yes' : 'No',
         ],
       )
       .toList();
   return _buildDocument(
+    landscape: true,
     title: 'Cooperative Stock Report',
     subtitle: _withScope(
       scopeText,
       '${data.totalItems} items (${data.seedsItemCount} seeds, ${data.produceItemCount} produce, ${data.nonCropItemCount} non-crop) — ${data.lowStockCount} low stock',
     ),
     sections: [
-      _table(['Item', 'Category', 'Item Type', 'On Hand', 'Unit', 'Low Stock'], rows),
+      _table([
+        'Item',
+        'Category',
+        'Item Type',
+        'On Hand',
+        'Unit',
+        'Reorder Level',
+        'Unit Cost (PHP)',
+        'Last Restocked',
+        'Low Stock',
+      ], rows),
+    ],
+  );
+}
+
+pw.Widget _heading(String text) => pw.Padding(
+  padding: const pw.EdgeInsets.only(top: 14, bottom: 6),
+  child: pw.Text(
+    _safe(text),
+    style: const pw.TextStyle(
+      fontWeight: pw.FontWeight.bold,
+      fontSize: 12,
+      color: PdfColors.green900,
+    ),
+  ),
+);
+
+Future<pw.Document> buildAnalyticsPdf(
+  AnalyticsExportData data, {
+  String? scopeText,
+}) async {
+  final p = data.participation;
+  return _buildDocument(
+    title: 'Analytics Dashboard',
+    subtitle: _withScope(
+      scopeText,
+      '${p.totalMembers} active members, '
+      '${data.participationRatePercent.toStringAsFixed(0)}% took part',
+    ),
+    sections: [
+      _heading('Member Participation'),
+      _table(
+        ['Group', 'Members'],
+        [
+          ['Harvested', '${p.activeHarvestedCount}'],
+          ['Listed Only', '${p.activeListedCount}'],
+          ['No Activity', '${p.inactiveCount}'],
+          ['Active Members', '${p.totalMembers}'],
+        ],
+      ),
+      if (p.inactiveFarmers.isNotEmpty) ...[
+        _heading('Members With No Activity'),
+        _table(['Farmer'], p.inactiveFarmers.map((f) => [f.fullName]).toList()),
+      ],
+      _heading('Top Harvested Crops'),
+      _table([
+        'Crop',
+        'Volume (kg)',
+      ], data.topCrops.map((c) => [c.cropName, _n(c.volumeKg)]).toList()),
+      _heading('Price Snapshot'),
+      _table(
+        [
+          'Crop',
+          'Market Type',
+          'Current (PHP/kg)',
+          'Previous (PHP/kg)',
+          'Updated',
+        ],
+        data.priceCards
+            .map(
+              (c) => [
+                c.cropName,
+                data.marketTypeName(c.priceType),
+                _n(c.currentPrice),
+                c.previousPrice?.toStringAsFixed(2) ?? '',
+                c.recordedAt == null ? '' : _dateFmt.format(c.recordedAt!),
+              ],
+            )
+            .toList(),
+      ),
+      _heading('Planting Forecast'),
+      _table(
+        ['Crop', 'Category', 'Last Cycle (kg)', 'Forecast (kg)', 'Trend'],
+        data.forecasts
+            .map(
+              (f) => [
+                f.cropName,
+                f.category,
+                _n(f.mostRecentCycleKg),
+                f.hasForecast ? _n(f.forecastNextCycleKg!) : '',
+                analyticsTrendLabel(f.trend),
+              ],
+            )
+            .toList(),
+      ),
     ],
   );
 }

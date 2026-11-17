@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../../core/utils/order_reference.dart';
@@ -13,6 +14,8 @@ import '../models/supply_chain_model.dart' show SupplyChainTotals;
 import 'member_sales_aggregation.dart';
 import 'supply_chain_repository.dart';
 import '../services/market_types_service.dart';
+import 'paged_query.dart';
+import 'capital_share_rates_repository.dart';
 
 /// Repository for the Operational Reports hub and five of its six
 /// sub-reports (Sales, Inventory, Harvest, Expense, Member Contribution).
@@ -275,9 +278,13 @@ class AdminReportsRepository {
                 'id, order_number, farmer_id, item_name, program_name, unit, quantity, total_amount, completed_at',
               )
               .eq('status', 'completed');
-          if (lower != null) query = query.gte('completed_at', lower.toUtc().toIso8601String());
-          if (upper != null) query = query.lt('completed_at', upper.toUtc().toIso8601String());
-          return query.order('completed_at', ascending: false);
+          if (lower != null) {
+            query = query.gte('completed_at', lower.toUtc().toIso8601String());
+          }
+          if (upper != null) {
+            query = query.lt('completed_at', upper.toUtc().toIso8601String());
+          }
+          return fetchAllPages(query.order('completed_at', ascending: false));
         },
       );
       final names = await fetchFarmerInfoMap(_client, {
@@ -452,7 +459,7 @@ class AdminReportsRepository {
             return {
               ...row,
               '_crop_name': crop,
-              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
             };
           }).toList();
         },
@@ -502,7 +509,8 @@ class AdminReportsRepository {
       return QuickInsights(
         topCropName: topCropEntry.key,
         topCropAmount: topCropEntry.value,
-        topFarmerName: farmerNames[topFarmerEntry.key] ?? 'Unknown Farmer',
+        topFarmerName:
+            farmerNames[topFarmerEntry.key] ?? currentL10n().dlUnknownFarmer,
         topFarmerAmount: topFarmerEntry.value,
         topExpenseCategory: topExpenseCategory?.key,
         topExpenseAmount: topExpenseCategory?.value,
@@ -591,13 +599,15 @@ class AdminReportsRepository {
       if (startDate != null) {
         listingQuery = listingQuery.gte(
           'submitted_at',
-          startDate.toIso8601String(),
+          startDate.toUtc().toIso8601String(),
         );
       }
       if (endDate != null) {
         listingQuery = listingQuery.lt(
           'submitted_at',
-          _exclusiveUpperBound(endDate),
+          DateTime.parse(
+            _exclusiveUpperBound(endDate),
+          ).toUtc().toIso8601String(),
         );
       }
       final listingRows = await OfflineCache.load(
@@ -797,7 +807,7 @@ class AdminReportsRepository {
     if (endDate != null) {
       query = query.lte('sale_date', _dateOnly(endDate));
     }
-    final rows = await query;
+    final rows = await fetchAllPages(query);
     if (rows.isEmpty) return [];
 
     final farmerIds = rows
@@ -824,7 +834,7 @@ class AdminReportsRepository {
       final crop = cropInfo[(row['crop_name'] as String).toLowerCase()];
       return SalesTransactionRow(
         id: row['id'] as String,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
+        farmerName: info?.fullName ?? currentL10n().dlUnknownFarmer,
         cropType: row['crop_type'] as String? ?? 'palay',
         cropName: row['crop_name'] as String,
         quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -948,11 +958,15 @@ class AdminReportsRepository {
           .eq('status', 'completed');
       if (withReceivedAt) {
         final window = CompletedOrderDates.window(lower, upper);
-        return window == null ? query : query.or(window);
+        return fetchAllPages(window == null ? query : query.or(window));
       }
-      if (lower != null) query = query.gte('created_at', lower.toIso8601String());
-      if (upper != null) query = query.lt('created_at', upper.toIso8601String());
-      return query;
+      if (lower != null) {
+        query = query.gte('created_at', lower.toIso8601String());
+      }
+      if (upper != null) {
+        query = query.lt('created_at', upper.toIso8601String());
+      }
+      return fetchAllPages(query);
     });
     if (rows.isEmpty) return [];
 
@@ -1004,7 +1018,7 @@ class AdminReportsRepository {
       final info = farmerId != null ? farmerInfo[farmerId] : null;
       return SalesTransactionRow(
         id: row['id'] as String,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
+        farmerName: info?.fullName ?? currentL10n().dlUnknownFarmer,
         cropType: cropName.toLowerCase(),
         cropName: cropName,
         quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -1037,13 +1051,19 @@ class AdminReportsRepository {
         .select(
           'id, farmer_id, crop_name, quantity_kg, unit, amount, buyer_name, sale_date, inventory_batch_id',
         );
+    // sale_date is a timestamptz: the day starts at LOCAL midnight (as it does for
+    // Marketplace and Cooperative Product sales), so a sale just after midnight
+    // is in the right period in every report.
     if (startDate != null) {
-      query = query.gte('sale_date', startDate.toIso8601String());
+      query = query.gte('sale_date', startDate.toUtc().toIso8601String());
     }
     if (endDate != null) {
-      query = query.lt('sale_date', _exclusiveUpperBound(endDate));
+      query = query.lt(
+        'sale_date',
+        DateTime.parse(_exclusiveUpperBound(endDate)).toUtc().toIso8601String(),
+      );
     }
-    final rows = await query;
+    final rows = await fetchAllPages(query);
     if (rows.isEmpty) return [];
 
     final farmerIds = rows
@@ -1061,7 +1081,7 @@ class AdminReportsRepository {
       final crop = cropInfo[(row['crop_name'] as String).toLowerCase()];
       return SalesTransactionRow(
         id: row['id'] as String,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
+        farmerName: info?.fullName ?? currentL10n().dlUnknownFarmer,
         cropType: (row['crop_name'] as String).toLowerCase(),
         cropName: row['crop_name'] as String,
         quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -1091,13 +1111,19 @@ class AdminReportsRepository {
     // on it. A database without the email column yet still returns the sale.
     Future<List<Map<String, dynamic>>> read(String columns) async {
       var query = _client.from('market_linking_sales').select(columns);
+      // completed_at is a timestamptz: the day starts at local midnight.
       if (startDate != null) {
-        query = query.gte('completed_at', startDate.toIso8601String());
+        query = query.gte('completed_at', startDate.toUtc().toIso8601String());
       }
       if (endDate != null) {
-        query = query.lt('completed_at', _exclusiveUpperBound(endDate));
+        query = query.lt(
+          'completed_at',
+          DateTime.parse(
+            _exclusiveUpperBound(endDate),
+          ).toUtc().toIso8601String(),
+        );
       }
-      return List<Map<String, dynamic>>.from(await query);
+      return fetchAllPages(query);
     }
 
     const base =
@@ -1138,7 +1164,7 @@ class AdminReportsRepository {
       final cropName = row['crop_name'] as String? ?? 'Ginger';
       return SalesTransactionRow(
         id: row['id'] as String,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
+        farmerName: info?.fullName ?? currentL10n().dlUnknownFarmer,
         cropType: cropName.toLowerCase(),
         cropName: cropName,
         quantityKg: qty,
@@ -1203,10 +1229,12 @@ class AdminReportsRepository {
           final raw = await withShelfLifeEmbed(
             '*',
             'batch_shelf_life(*)',
-            (columns) => _client
-                .from('inventory_batches')
-                .select(columns)
-                .order('created_at', ascending: false),
+            (columns) => fetchAllPages(
+              _client
+                  .from('inventory_batches')
+                  .select(columns)
+                  .order('created_at', ascending: false),
+            ),
           );
           if (raw.isEmpty) return <Map<String, dynamic>>[];
 
@@ -1239,7 +1267,7 @@ class AdminReportsRepository {
             final info = farmerInfo[row['farmer_id']];
             return {
               ...row,
-              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
               '_crop_name': cropName,
             };
           }).toList();
@@ -1377,7 +1405,9 @@ class AdminReportsRepository {
               if (window.endDate != null) {
                 query = query.lte('harvest_date', _dateOnly(window.endDate!));
               }
-              return query.order('harvest_date', ascending: false);
+              return fetchAllPages(
+                query.order('harvest_date', ascending: false),
+              );
             },
           );
           if (raw.isEmpty) return <Map<String, dynamic>>[];
@@ -1414,7 +1444,7 @@ class AdminReportsRepository {
             final info = farmerInfo[row['farmer_id']];
             return {
               ...row,
-              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
               '_crop_name': cropName,
             };
           }).toList();
@@ -1610,7 +1640,9 @@ class AdminReportsRepository {
           if (window.endDate != null) {
             query = query.lte('expense_date', _dateOnly(window.endDate!));
           }
-          final raw = await query.order('expense_date', ascending: false);
+          final raw = await fetchAllPages(
+            query.order('expense_date', ascending: false),
+          );
           if (raw.isEmpty) return <Map<String, dynamic>>[];
 
           final farmerIds = raw
@@ -1621,7 +1653,10 @@ class AdminReportsRepository {
 
           return raw.map<Map<String, dynamic>>((row) {
             final info = farmerInfo[row['farmer_id']];
-            return {...row, '_farmer_name': info?.fullName ?? 'Unknown Farmer'};
+            return {
+              ...row,
+              '_farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
+            };
           }).toList();
         },
       );
@@ -1769,7 +1804,7 @@ class AdminReportsRepository {
       ..sort((a, b) => b.total.compareTo(a.total));
   }
 
-  /// Which years the Member Patronage Report's year selector should
+  /// Which years the Member Contribution Report's year selector should
   /// actually offer — the distinct years member_sales_transactions has
   /// real rows for (the same table fetchMemberSalesTotals() reads),
   /// always including the current year even if it has no rows yet, so
@@ -1777,19 +1812,46 @@ class AdminReportsRepository {
   /// hides the current, most-relevant year while it's still empty.
   /// Sorted most-recent-first, matching every other year-descending list
   /// in Reports.
-  Future<List<int>> fetchAvailablePatronageYears() async {
-    try {
-      final rows = await _client
-          .from('member_sales_transactions')
-          .select('sale_date');
-      final years = rows
-          .map((r) => DateTime.parse(r['sale_date'] as String).year)
-          .toSet();
-      years.add(DateTime.now().year);
-      return years.toList()..sort((a, b) => b.compareTo(a));
-    } catch (_) {
-      return [DateTime.now().year];
+  Future<List<int>> fetchAvailableContributionYears() async {
+    final now = DateTime.now().year;
+    var earliest = now;
+    Future<void> consider(
+      String table,
+      String column, {
+      String? status,
+      String? source,
+    }) async {
+      try {
+        var query = _client.from(table).select(column);
+        if (status != null) query = query.eq('status', status);
+        if (source != null) query = query.eq('source', source);
+        final rows = await query.not(column, 'is', null).order(column).limit(1);
+        if (rows.isEmpty) return;
+        final year = DateTime.parse(
+          rows.first[column] as String,
+        ).toLocal().year;
+        if (year < earliest) earliest = year;
+      } catch (_) {}
     }
+
+    // The first record of any of the three sources decides where the list starts.
+    await Future.wait([
+      consider('member_sales_transactions', 'sale_date'),
+      consider(
+        'program_product_purchases',
+        'completed_at',
+        status: 'completed',
+      ),
+      consider('capital_contribution_events', 'created_at'),
+      // A Starting Capital dated in an earlier year opens that year's report.
+      consider(
+        'capital_contribution_events',
+        'effective_date',
+        source: 'opening_balance',
+      ),
+    ]);
+    // Newest first, with no gaps, and never a year that has not started yet.
+    return [for (var y = now; y >= earliest; y--) y];
   }
 
   /// OfflineCache key for the member contribution rows of [year] (matches the key
@@ -1811,15 +1873,23 @@ class AdminReportsRepository {
             fetchMemberSalesTotals(_client, year),
             fetchMemberProgramPurchaseTotals(_client, year),
             fetchMemberProgramPurchaseBreakdown(_client, year),
+            fetchMemberCapitalYear(_client, year),
+            _fetchCapitalShareRows(),
+            fetchMemberMonthlyYear(_client, year),
           ]);
+          final capitalYear = results[3] as Map<String, MemberCapitalYear>;
+          final capitalRows = results[4] as Map<String, Map<String, dynamic>>;
+          final monthlyYear = results[5] as Map<String, MemberMonthlyYear>;
+          final isThisYear = year == DateTime.now().year;
+          // The settings history: how many times the percentages were changed and
+          // which version is the current one (newly credited = the latest).
+          final versions = await CapitalShareRatesRepository().fetchVersions();
           final salesTotals = results[0] as Map<String, MemberSalesTotals>;
           final purchaseTotals = results[1] as Map<String, double>;
           final purchaseBreakdown =
               results[2] as Map<String, ProgramPurchaseBreakdown>;
 
-          // Active members only — see BalikTangkilikRepository.
-          // fetchDistributionPreview() for the full reasoning; this method
-          // shares the identical previously-unfiltered farmer_profiles bug.
+          // Active members only — a removed or suspended account is not a member of the year.
           final activeRoleRows = await _client
               .from('user_roles')
               .select('user_id')
@@ -1839,22 +1909,13 @@ class AdminReportsRepository {
               .toList();
           final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
-          double totalCoopSales = 0;
-          for (final totals in salesTotals.values) {
-            totalCoopSales += totals.totalAmount;
-          }
-          double totalProgramPurchases = 0;
-          for (final amount in purchaseTotals.values) {
-            totalProgramPurchases += amount;
-          }
-
           return farmerIds.map<Map<String, dynamic>>((farmerId) {
             final info = farmerInfo[farmerId];
             final MemberSalesTotals totals =
                 salesTotals[farmerId] ?? MemberSalesTotals();
             return {
               'farmer_id': farmerId,
-              'farmer_name': info?.fullName ?? 'Unknown Farmer',
+              'farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
               'palay_qty_kg': totals.palayQtyKg,
               'palay_amount': totals.palayAmount,
               'peanut_qty_kg': totals.peanutQtyKg,
@@ -1865,8 +1926,68 @@ class AdminReportsRepository {
               'purchases_amount': purchaseTotals[farmerId] ?? 0,
               'purchases_regular': purchaseBreakdown[farmerId]?.regular ?? 0,
               'purchases_discount': purchaseBreakdown[farmerId]?.discount ?? 0,
-              '_total_coop_sales': totalCoopSales,
-              '_total_program_purchases': totalProgramPurchases,
+              // Paid toward the year's months, from the Contribution section.
+              // Every monthly payment of the year: those tied to a month plus the
+              // earlier ones that were never tied to a month (both are in the
+              // Capital Share, so both are contributions).
+              // Payments received in the year, from the capital ledger (every
+              // member_payment of the year, tied to a month or not): this is what
+              // the Monthly Contributions added to the Capital Share.
+              'monthly': capitalYear[farmerId]?.monthly ?? 0,
+              'capital_at_start':
+                  capitalYear[farmerId]?.balanceAtYearStart ?? 0,
+              'records':
+                  capitalYear[farmerId]?.records ??
+                  const <Map<String, dynamic>>[],
+              'purchase_by_version':
+                  capitalYear[farmerId]?.purchaseByVersion ??
+                  const <String, List<double>>{},
+              'offer_by_version':
+                  capitalYear[farmerId]?.offerByVersion ??
+                  const <String, List<double>>{},
+              'credit_versions':
+                  capitalYear[farmerId]?.creditVersions ??
+                  const <String, int>{},
+              '_latest_version': versions.isEmpty ? 1 : versions.last.version,
+              '_rate_changes': versions.length > 1 ? versions.length - 1 : 0,
+              'months':
+                  ((monthlyYear[farmerId]?.months ??
+                          const <Map<String, dynamic>>[])
+                      .toList()
+                    ..sort(
+                      (a, b) => (a['month'] as String).compareTo(
+                        b['month'] as String,
+                      ),
+                    )),
+              'monthly_due': monthlyYear[farmerId]?.due ?? 0,
+              'monthly_balance': monthlyYear[farmerId]?.balance ?? 0,
+              'months_paid': monthlyYear[farmerId]?.paidMonths ?? 0,
+              'months_partial': monthlyYear[farmerId]?.partial ?? 0,
+              'months_unpaid': monthlyYear[farmerId]?.unpaid ?? 0,
+              'months_overdue': monthlyYear[farmerId]?.overdue ?? 0,
+              'months_waived': monthlyYear[farmerId]?.waived ?? 0,
+              'monthly_unassigned':
+                  capitalYear[farmerId]?.monthlyUnassigned ?? 0,
+              'discount_credited': capitalYear[farmerId]?.discountCredited ?? 0,
+              'purchase_share': capitalYear[farmerId]?.purchaseShare ?? 0,
+              'purchase_share_base':
+                  capitalYear[farmerId]?.purchaseShareBase ?? 0,
+              'offer_share': capitalYear[farmerId]?.offerShare ?? 0,
+              'offer_share_base': capitalYear[farmerId]?.offerShareBase ?? 0,
+              'starting_capital': capitalYear[farmerId]?.startingCapital ?? 0,
+              // This year the figure is the member's live Capital Share (the same
+              // row Farmer Details shows); a past year is the ledger at year end.
+              'capital_balance': isThisYear && capitalRows[farmerId] != null
+                  ? (capitalRows[farmerId]!['total_contribution'] as num? ?? 0)
+                  : (capitalYear[farmerId]?.balanceAtYearEnd ?? 0),
+              'capital_shares': _sharesFor(
+                capitalRows[farmerId],
+                capitalYear[farmerId]?.balanceAtYearEnd ?? 0,
+                isThisYear,
+              ),
+              'share_value':
+                  (capitalRows[farmerId]?['share_value_per_unit'] as num?) ??
+                  2000,
             };
           }).toList();
         },
@@ -1874,48 +1995,69 @@ class AdminReportsRepository {
 
       if (rows.isEmpty) return MemberContributionReportData.empty(year);
 
-      final totalCoopSales = (rows.first['_total_coop_sales'] as num)
-          .toDouble();
-      final totalProgramPurchases =
-          (rows.first['_total_program_purchases'] as num).toDouble();
-
-      final reportRows =
-          rows.map((row) {
-            final totalAmount = (row['total_amount'] as num).toDouble();
-            final purchasesAmount = (row['purchases_amount'] as num).toDouble();
-            final sharePercent = computeMemberSharePercent(
-              memberSales: totalAmount,
-              coopTotalSales: totalCoopSales,
-            );
-            final purchaseSharePercent = computeMemberSharePercent(
-              memberSales: purchasesAmount,
-              coopTotalSales: totalProgramPurchases,
-            );
-            return MemberContributionRow(
-              farmerId: row['farmer_id'] as String,
-              farmerName: row['farmer_name'] as String,
-              palayQtyKg: (row['palay_qty_kg'] as num).toDouble(),
-              palayAmount: (row['palay_amount'] as num).toDouble(),
-              peanutQtyKg: (row['peanut_qty_kg'] as num).toDouble(),
-              peanutAmount: (row['peanut_amount'] as num).toDouble(),
-              totalAmount: totalAmount,
-              sharePercent: sharePercent,
-              otherCropsQtyKg: (row['other_crops_qty_kg'] as num).toDouble(),
-              otherCropsAmount: (row['other_crops_amount'] as num).toDouble(),
-              programPurchasesAmount: purchasesAmount,
-              programRegularAmount:
-                  (row['purchases_regular'] as num?)?.toDouble() ?? 0,
-              programDiscountAmount:
-                  (row['purchases_discount'] as num?)?.toDouble() ?? 0,
-              purchaseSharePercent: purchaseSharePercent,
-            );
-          }).toList()..sort(
-            (a, b) => b.combinedTotalAmount.compareTo(a.combinedTotalAmount),
-          );
+      final reportRows = rows.map((row) {
+        final totalAmount = (row['total_amount'] as num).toDouble();
+        final purchasesAmount = (row['purchases_amount'] as num).toDouble();
+        return MemberContributionRow(
+          farmerId: row['farmer_id'] as String,
+          farmerName: row['farmer_name'] as String,
+          palayQtyKg: (row['palay_qty_kg'] as num).toDouble(),
+          palayAmount: (row['palay_amount'] as num).toDouble(),
+          peanutQtyKg: (row['peanut_qty_kg'] as num).toDouble(),
+          peanutAmount: (row['peanut_amount'] as num).toDouble(),
+          totalAmount: totalAmount,
+          otherCropsQtyKg: (row['other_crops_qty_kg'] as num).toDouble(),
+          otherCropsAmount: (row['other_crops_amount'] as num).toDouble(),
+          programPurchasesAmount: purchasesAmount,
+          programRegularAmount:
+              (row['purchases_regular'] as num?)?.toDouble() ?? 0,
+          programDiscountAmount:
+              (row['purchases_discount'] as num?)?.toDouble() ?? 0,
+          monthlyContributions: (row['monthly'] as num?)?.toDouble() ?? 0,
+          monthlyDue: (row['monthly_due'] as num?)?.toDouble() ?? 0,
+          monthlyBalance: (row['monthly_balance'] as num?)?.toDouble() ?? 0,
+          monthsPaid: (row['months_paid'] as num?)?.toInt() ?? 0,
+          monthsPartial: (row['months_partial'] as num?)?.toInt() ?? 0,
+          monthsUnpaid: (row['months_unpaid'] as num?)?.toInt() ?? 0,
+          monthsOverdue: (row['months_overdue'] as num?)?.toInt() ?? 0,
+          monthsWaived: (row['months_waived'] as num?)?.toInt() ?? 0,
+          monthlyUnassigned:
+              (row['monthly_unassigned'] as num?)?.toDouble() ?? 0,
+          discountCredited: (row['discount_credited'] as num?)?.toDouble() ?? 0,
+          purchaseShareCredited:
+              (row['purchase_share'] as num?)?.toDouble() ?? 0,
+          purchaseShareBase:
+              (row['purchase_share_base'] as num?)?.toDouble() ?? 0,
+          offerShareCredited: (row['offer_share'] as num?)?.toDouble() ?? 0,
+          offerShareBase: (row['offer_share_base'] as num?)?.toDouble() ?? 0,
+          startingCapital: (row['starting_capital'] as num?)?.toDouble() ?? 0,
+          capitalBalance: (row['capital_balance'] as num?)?.toDouble() ?? 0,
+          capitalShares: (row['capital_shares'] as num?)?.toInt() ?? 0,
+          capitalShareValue: (row['share_value'] as num?)?.toDouble() ?? 2000,
+          capitalAtYearStart:
+              (row['capital_at_start'] as num?)?.toDouble() ?? 0,
+          purchaseByVersion: parseCreditSlices(row['purchase_by_version']),
+          offerByVersion: parseCreditSlices(row['offer_by_version']),
+          creditVersions: {
+            if (row['credit_versions'] is Map)
+              for (final e in (row['credit_versions'] as Map).entries)
+                '${e.key}': (e.value as num).toInt(),
+          },
+          latestRateVersion: (row['_latest_version'] as num?)?.toInt() ?? 1,
+          rateChanges: (row['_rate_changes'] as num?)?.toInt() ?? 0,
+          records: [
+            for (final m in (row['records'] as List?) ?? const [])
+              MemberCapitalRecord.fromMap(Map<String, dynamic>.from(m as Map)),
+          ],
+          months: [
+            for (final m in (row['months'] as List?) ?? const [])
+              MemberMonthStatus.fromMap(Map<String, dynamic>.from(m as Map)),
+          ],
+        );
+      }).toList()..sort((a, b) => b.capitalBalance.compareTo(a.capitalBalance));
 
       return MemberContributionReportData(
         year: year,
-        totalCoopSales: totalCoopSales,
         memberCount: reportRows.length,
         contributingMemberCount: reportRows
             .where((r) => r.hasAnyActivity)
@@ -1925,6 +2067,34 @@ class AdminReportsRepository {
     } catch (_) {
       return MemberContributionReportData.empty(year);
     }
+  }
+
+  /// Every member's live Capital Share row (what Farmer Details shows).
+  Future<Map<String, Map<String, dynamic>>> _fetchCapitalShareRows() async {
+    try {
+      final rows = await _client
+          .from('member_capital_shares')
+          .select(
+            'farmer_id, total_shares, share_value_per_unit, total_contribution',
+          );
+      return {for (final r in rows) r['farmer_id'] as String: r};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Whole shares: this year the live count, a past year the ledger balance
+  /// divided by the share value (₱2,000 unless the member's row says otherwise).
+  static int _sharesFor(
+    Map<String, dynamic>? live,
+    double yearEndBalance,
+    bool isThisYear,
+  ) {
+    if (isThisYear && live != null) {
+      return (live['total_shares'] as num?)?.toInt() ?? 0;
+    }
+    final value = (live?['share_value_per_unit'] as num?)?.toDouble() ?? 2000;
+    return value > 0 ? (yearEndBalance / value).floor() : 0;
   }
 
   Future<CoopStockReportData> fetchCoopStockReport() async {

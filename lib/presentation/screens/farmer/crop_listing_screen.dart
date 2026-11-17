@@ -1,3 +1,4 @@
+import '../../../core/utils/life_duration.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -151,7 +152,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadCrops,
                         child: _isLoading
                             ? _LoadingBody()
@@ -485,14 +486,17 @@ class _CropCard extends StatelessWidget {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      _CategoryBadge(category: crop.category),
+                      CropCategoryBadge(category: crop.category),
                       if (crop.cropMasterId != null)
-                        _MarketTypeBadge(cropType: crop.cropType),
+                        CropMarketTypeBadge(cropType: crop.cropType),
                       ChannelOnlyBadge(channel: crop.exclusiveChannel),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  _HarvestStatus(hasHarvests: crop.hasHarvests),
+                  // The crop's Shelf Life, the cooperative's default from Crop Management.
+                  CropShelfLifeLine(crop: crop),
+                  const SizedBox(height: 6),
+                  CropHarvestStatus(hasHarvests: crop.hasHarvests),
                   // The Farmer's own camera photo is needed to sell (not to
                   // harvest or record an Informal Sale). Tapping goes straight
                   // to the camera flow.
@@ -648,14 +652,14 @@ Widget _cropMenuRow(IconData icon, String label, Color color) {
     children: [
       Icon(icon, size: 18, color: color),
       const SizedBox(width: 10),
-      Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+      Flexible(child: Text(label, style: GoogleFonts.inter(fontSize: 13, color: color))),
     ],
   );
 }
 
-class _MarketTypeBadge extends StatelessWidget {
+class CropMarketTypeBadge extends StatelessWidget {
   final String? cropType;
-  const _MarketTypeBadge({required this.cropType});
+  const CropMarketTypeBadge({super.key, required this.cropType});
 
   @override
   Widget build(BuildContext context) {
@@ -711,13 +715,13 @@ class _CropIconBox extends StatelessWidget {
                   width: 68,
                   height: 68,
                   color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
-                  child: const Center(
+                  child: Center(
                     child: SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -740,7 +744,9 @@ class _CategoryIcon extends StatelessWidget {
     return Container(
       width: 68,
       height: 68,
-      decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
+      decoration: BoxDecoration(
+        color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
+      ),
       child: Icon(
         _iconForCategory(category),
         color: Theme.of(context).colorScheme.primary,
@@ -769,9 +775,9 @@ class _CategoryIcon extends StatelessWidget {
   }
 }
 
-class _CategoryBadge extends StatelessWidget {
+class CropCategoryBadge extends StatelessWidget {
   final String category;
-  const _CategoryBadge({required this.category});
+  const CropCategoryBadge({super.key, required this.category});
 
   @override
   Widget build(BuildContext context) {
@@ -779,7 +785,9 @@ class _CategoryBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isGrain ? const Color(0xFFD5ECF8) : const Color(0xFFE6F6FF),
+        color: context.adaptiveSurface(
+          isGrain ? const Color(0xFFD5ECF8) : const Color(0xFFE6F6FF),
+        ),
         borderRadius: BorderRadius.circular(AppConstants.radiusFull),
       ),
       child: Text(
@@ -797,9 +805,9 @@ class _CategoryBadge extends StatelessWidget {
   }
 }
 
-class _HarvestStatus extends StatelessWidget {
+class CropHarvestStatus extends StatelessWidget {
   final bool hasHarvests;
-  const _HarvestStatus({required this.hasHarvests});
+  const CropHarvestStatus({super.key, required this.hasHarvests});
 
   @override
   Widget build(BuildContext context) {
@@ -815,7 +823,7 @@ class _HarvestStatus extends StatelessWidget {
               : Theme.of(context).colorScheme.outline,
         ),
         const SizedBox(width: 5),
-        Text(
+        Flexible(child: Text(
           hasHarvests
               ? AppLocalizations.of(context).enhHasHarvestEntries
               : AppLocalizations.of(context).enhNoHarvestYet,
@@ -826,7 +834,7 @@ class _HarvestStatus extends StatelessWidget {
                 ? AppConstants.successGreen
                 : Theme.of(context).colorScheme.outline,
           ),
-        ),
+        )),
       ],
     );
   }
@@ -962,10 +970,10 @@ class _LoadingBodyState extends State<_LoadingBody>
             _anim.value.clamp(0.0, 1.0),
             (_anim.value + 1).clamp(0.0, 1.0),
           ],
-          colors: const [
-            Color(0xFFE8E8E8),
-            Color(0xFFF5F5F5),
-            Color(0xFFE8E8E8),
+          colors: [
+            context.adaptiveSurface(const Color(0xFFE8E8E8)),
+            context.adaptiveSurface(const Color(0xFFF5F5F5)),
+            context.adaptiveSurface(const Color(0xFFE8E8E8)),
           ],
         ),
       ),
@@ -1056,6 +1064,38 @@ class _AddCropFab extends StatelessWidget {
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
         ),
       ),
+    );
+  }
+}
+
+/// The crop's Shelf Life line, as on the Crop Roster card (the cooperative's default from Crop Management).
+class CropShelfLifeLine extends StatelessWidget {
+  const CropShelfLifeLine({super.key, required this.crop});
+
+  final FarmerCropModel crop;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final value = crop.cropMasterId == null
+        ? l10n.enhPendingApproval
+        : (crop.shelfLifeDays != null
+              ? lifeDurationText(l10n, crop.shelfLifeDays!)
+              : l10n.shelfNotSetShort);
+    return Row(
+      children: [
+        Icon(Icons.schedule_rounded, size: 14, color: cs.onSurfaceVariant),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            '${l10n.shelfLifeLabel}: $value',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+          ),
+        ),
+      ],
     );
   }
 }

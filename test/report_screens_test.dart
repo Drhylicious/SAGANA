@@ -88,14 +88,11 @@ void main() {
       }
     });
 
-    test('Member Patronage and Balik-Tangkilik do not use the new report '
-        'widgets', () {
-      for (final path in [
-        'lib/presentation/screens/admin/member_contribution_report_screen.dart',
-        'lib/presentation/screens/admin/balik_tangkilik_management_screen.dart',
-      ]) {
-        expect(_read(path), isNot(contains('report_ui_widgets')), reason: path);
-      }
+    test('Member Contribution Report uses the year navigator', () {
+      expect(
+        _read('lib/presentation/screens/admin/member_contribution_report_screen.dart'),
+        contains('YearNavigator('),
+      );
     });
   });
 

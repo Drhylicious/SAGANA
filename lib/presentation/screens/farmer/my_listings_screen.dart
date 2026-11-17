@@ -29,6 +29,8 @@ import '../../widgets/cached_data_notice.dart';
 import 'farmer_marketplace_tab.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/app_error_message.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 class MyListingsScreen extends StatefulWidget {
   const MyListingsScreen({super.key});
@@ -307,7 +309,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     context.pushRoute(AppRoutes.myListingDetail, extra: listing);
   }
 
-  void _handleFabTap() {
+  Future<void> _handleFabTap() async {
     if (GuestModeService.active) {
       context.promptFarmer(
         (l) => l.guestCreateListingTitle,
@@ -326,6 +328,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       );
       return;
     }
+    // A restricted Farmer cannot start a new listing; existing ones are untouched.
+    if (!await ensureFeatureAvailable(context, RestrictableFeature.marketplaceListing)) return;
+    if (!mounted) return;
     context.pushRoute(AppRoutes.createListing).then((result) {
       if (result == true) _loadData();
     });
@@ -354,7 +359,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(0, 16, 0, 100),
@@ -664,14 +669,14 @@ class _ListingOverviewCard extends StatelessWidget {
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 5),
-              Text(
+              Flexible(child: Text(
                 label,
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 4),
@@ -1188,7 +1193,7 @@ class _StandardContent extends StatelessWidget {
                       color: Theme.of(context).colorScheme.outline,
                     ),
                     const SizedBox(width: 5),
-                    Text(
+                    Flexible(child: Text(
                       AppLocalizations.of(context).enhRemovedOn(
                         (AppUtils.formatListingDate(
                           listing.updatedAt!,
@@ -1198,7 +1203,7 @@ class _StandardContent extends StatelessWidget {
                         fontSize: 11,
                         color: Theme.of(context).colorScheme.outline,
                       ),
-                    ),
+                    )),
                   ],
                 ),
               ],
@@ -1227,7 +1232,7 @@ Widget _menuRow(IconData icon, String label, Color color) {
     children: [
       Icon(icon, size: 18, color: color),
       const SizedBox(width: 10),
-      Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+      Flexible(child: Text(label, style: GoogleFonts.inter(fontSize: 13, color: color))),
     ],
   );
 }

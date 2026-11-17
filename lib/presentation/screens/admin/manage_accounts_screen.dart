@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/account_management_repository.dart';
 import '../../widgets/account_card.dart';
+import '../../widgets/cooperative_id_card.dart';
 import '../../../data/services/staff_permission_service.dart';
 import '../../widgets/view_only_banner.dart';
 import '../../widgets/profile_avatar.dart';
@@ -121,9 +122,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
             color: Theme.of(context).scaffoldBackgroundColor,
             child: TabBar(
               controller: _tabController,
-              labelColor: AppConstants.primaryGreen,
+              labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: AppConstants.primaryGreen,
+              indicatorColor: Theme.of(context).colorScheme.primary,
               labelStyle: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
@@ -205,8 +206,8 @@ class _AccountList extends StatelessWidget {
         final account = accounts[index];
         return AccountCard(
           account: account,
-          // Display-only: a card opens nothing.
-          onTap: null,
+          // Opens the account's Cooperative ID Card (information only, for everyone).
+          onTap: () => showCooperativeIdCard(context, account),
           roleLabel: roleLabelFor?.call(account),
         );
       },

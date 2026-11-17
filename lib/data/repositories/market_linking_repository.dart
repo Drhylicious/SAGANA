@@ -1,3 +1,4 @@
+import '../services/server_only.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../core/utils/person_name.dart';
@@ -5,6 +6,7 @@ import '../../core/constants/app_constants.dart';
 import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart' show fetchFarmerCropImageMap;
+import 'crop_repository.dart';
 import '../models/admin_log_message.dart';
 
 // ─── Market Linking Status ─────────────────────────────────────────────────────
@@ -749,6 +751,7 @@ class MarketLinkingRepository {
     required double pricePerKg,
     String? notes,
   }) async {
+    await ServerOnly.ensureOnline();
     final id = await _client.rpc(
       'record_market_linking_sale',
       params: {
@@ -777,6 +780,7 @@ class MarketLinkingRepository {
     required String programId,
     required String reason,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'request_market_linking_cancellation',
       params: {'p_program_id': programId, 'p_reason': reason.trim()},
@@ -791,6 +795,7 @@ class MarketLinkingRepository {
     required bool approve,
     String? notes,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'respond_to_market_linking_cancellation',
       params: {
@@ -844,6 +849,7 @@ class MarketLinkingRepository {
     required String inventoryBatchId,
     required double volumeKg,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'submit_ginger_for_sale',
       params: {
@@ -932,10 +938,16 @@ class MarketLinkingRepository {
   /// that distinction, which MyMarketLinkingScreen needs so it doesn't
   /// tell a farmer to "add Ginger" when they already have, and are just
   /// waiting on Admin's crop approval.
-  Future<bool> fetchHasGingerCrop() async {
+  Future<bool> fetchHasGingerCrop() async =>
+      await fetchHasGingerCropOrUnknown() ?? false;
+
+  /// The same answer, or null when it cannot be known: the server could not be
+  /// reached and the Crop Roster is not saved on this device either. A failed
+  /// read is never reported as "no Ginger".
+  Future<bool?> fetchHasGingerCropOrUnknown() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return false;
     try {
-      final uid = _client.auth.currentUser?.id;
-      if (uid == null) return false;
       final daAmadCropIds = await _daAmadCropMasterIds();
       if (daAmadCropIds.isEmpty) return false;
       final rows = await _client
@@ -946,7 +958,13 @@ class MarketLinkingRepository {
           .limit(1);
       return rows.isNotEmpty;
     } catch (_) {
-      return false;
+      // Offline: the saved Crop Roster already says which crops are approved
+      // and which selling channel each belongs to.
+      if (OfflineCache.savedAt('farmer_crops') == null) return null;
+      final crops = await CropRepository().fetchCrops(approvedOnly: true);
+      return crops.any(
+        (c) => c.exclusiveChannel == AppConstants.channelDaAmad,
+      );
     }
   }
 
@@ -1031,6 +1049,7 @@ class MarketLinkingRepository {
   /// check above is only for showing the right screen before the farmer
   /// even tries, not the real gate.
   Future<void> submitEnrollment() async {
+    await ServerOnly.ensureOnline();
     await _client.rpc('submit_da_amad_enrollment');
   }
 

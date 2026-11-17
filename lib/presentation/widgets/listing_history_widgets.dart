@@ -211,13 +211,13 @@ class ListingHistoryHeaderCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              Text(
+              Flexible(child: Text(
                 l.lhCurrentStatus,
                 style: GoogleFonts.inter(
                   fontSize: 11.5,
                   color: cs.onSurfaceVariant,
                 ),
-              ),
+              )),
               const SizedBox(width: 8),
               ListingStatusBadge.forListing(
                 context,
@@ -827,7 +827,9 @@ class _ActorPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final color = isYou ? AppConstants.primaryGreen : cs.onSurfaceVariant;
+    final color = isYou
+        ? Theme.of(context).colorScheme.primary
+        : cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(

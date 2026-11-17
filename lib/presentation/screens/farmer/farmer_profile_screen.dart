@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../../../core/theme/sagana_colors.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -31,6 +32,7 @@ import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/skeleton.dart';
+import '../../../data/services/feature_restriction_service.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
   const FarmerProfileScreen({super.key});
@@ -102,6 +104,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
+    // What the Farmer is restricted from, for the My Restrictions row below.
+    unawaited(FeatureRestrictionService.instance.refresh());
     final results = await Future.wait([
       _repo.fetchProfile(),
       _repo.fetchOutstandingLoans(),
@@ -210,7 +214,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                       otherScreens: const [
                         'profile_farmer',
                         'profile_crops',
-                        'profile_capital_shares',
+                        'profile_capital_balance',
                         'profile_account_status',
                       ],
                       isOnline: _isOnline,
@@ -220,7 +224,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: _isLoading
                             ? const Padding(
@@ -316,6 +320,32 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                     onYearChanged: _selectYear,
                                   ),
                                   const SizedBox(height: 20),
+                                  // Only shown while at least one restriction is in force.
+                                  AnimatedBuilder(
+                                    animation: FeatureRestrictionService.instance,
+                                    builder: (context, _) {
+                                      final active = FeatureRestrictionService
+                                          .instance
+                                          .restrictions;
+                                      if (active.isEmpty) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final l10n = AppLocalizations.of(context);
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 20),
+                                        child: _RecordRow(
+                                          icon: Icons.lock_outline_rounded,
+                                          title: l10n.myRestrictionsTitle,
+                                          subtitle: active
+                                              .map((r) => r.feature.label(l10n))
+                                              .join(', '),
+                                          onTap: () => context.pushRoute(
+                                            AppRoutes.myRestrictions,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                   _FarmRecordsSection(
                                     outstandingLoans: _outstandingLoans,
                                     pendingLoanRequests: _pendingLoanRequests,
@@ -385,7 +415,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                     icon: Icons.groups_outlined,
                                     title: AppLocalizations.of(
                                       context,
-                                    ).enhBalikTangkilikCapitalShare,
+                                    ).benefitsTrackingTitle,
                                     subtitle: AppLocalizations.of(context)
                                         .enhCapitalShares(
                                           (_profile!.capitalShares
@@ -393,7 +423,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                               .toString(),
                                         ),
                                     onTap: () => context.pushRoute(
-                                      AppRoutes.myContribution,
+                                      AppRoutes.benefitsTracking,
                                     ),
                                   ),
                                   const SizedBox(height: 20),
@@ -630,7 +660,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
+                              Flexible(child: Row(
                                 children: [
                                   const Icon(
                                     Icons.sync_problem_rounded,
@@ -638,7 +668,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                                     color: AppConstants.warningAmber,
                                   ),
                                   const SizedBox(width: 10),
-                                  Text(
+                                  Flexible(child: Text(
                                     AppLocalizations.of(
                                       context,
                                     ).enhUnsyncedRecord(
@@ -651,17 +681,17 @@ class _ProfileHeaderCard extends StatelessWidget {
                                       fontWeight: FontWeight.w500,
                                       color: AppConstants.warningAmber,
                                     ),
-                                  ),
+                                  )),
                                 ],
-                              ),
-                              Text(
+                              )),
+                              Flexible(child: Text(
                                 AppLocalizations.of(context).enhSYNCNOW,
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: AppConstants.warningAmber,
                                 ),
-                              ),
+                              )),
                             ],
                           ),
                         ),
@@ -781,7 +811,9 @@ class _FarmDetailsSection extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
+                    Flexible(
+                      child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.agriculture_rounded,
@@ -789,7 +821,8 @@ class _FarmDetailsSection extends StatelessWidget {
                           size: 20,
                         ),
                         const SizedBox(width: 10),
-                        Text(
+                        Flexible(
+                          child: Text(
                           AppLocalizations.of(context).editFarmDetails,
                           style: GoogleFonts.poppins(
                             fontSize: 15,
@@ -797,7 +830,9 @@ class _FarmDetailsSection extends StatelessWidget {
                             color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
+                        ),
                       ],
+                    ),
                     ),
                     Icon(
                       expanded
@@ -1214,7 +1249,7 @@ class _YearStepper extends StatelessWidget {
           tooltip: tooltip,
           icon: Icon(icon, size: 20),
           visualDensity: VisualDensity.compact,
-          color: AppConstants.primaryGreen,
+          color: Theme.of(context).colorScheme.primary,
           disabledColor: Theme.of(
             context,
           ).colorScheme.outline.withValues(alpha: 0.4),
@@ -1506,10 +1541,6 @@ class _RecordRow extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Balik-Tangkilik Card
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Market Linking Entry Card

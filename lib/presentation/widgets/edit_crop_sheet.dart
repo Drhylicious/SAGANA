@@ -1,4 +1,5 @@
 import '../../core/l10n/localized_labels.dart';
+import '../../core/utils/life_duration.dart';
 import '../../core/theme/sagana_colors.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -122,16 +123,26 @@ class _EditCropModalState extends State<_EditCropModal> {
                 ? marketTypeLabelFor(crop.cropType)
                 : AppLocalizations.of(context).enhPendingApproval,
           ),
+          const SizedBox(height: 12),
+          // The cooperative's default for this crop (Crop Management). Read-only: a Farmer never edits it.
+          _LockedField(
+            label: AppLocalizations.of(context).shelfLifeLabel,
+            value: crop.cropMasterId == null
+                ? AppLocalizations.of(context).enhPendingApproval
+                : (crop.shelfLifeDays != null
+                      ? lifeDurationText(AppLocalizations.of(context), crop.shelfLifeDays!)
+                      : AppLocalizations.of(context).shelfNotSetByCoop),
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Text(
+              Flexible(child: Text(
                 AppLocalizations.of(context).enhPhotoOfYourCrop,
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
+              )),
               const SizedBox(width: 8),
               if (!crop.hasPhoto && _pickedImageBytes == null)
                 const PhotoRequiredBadge(compact: true),

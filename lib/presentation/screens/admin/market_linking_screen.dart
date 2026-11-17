@@ -26,7 +26,7 @@ import '../../widgets/workflow_history_sheet.dart';
 String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
   switch (s) {
     case MarketLinkingStatus.requested:
-      return 'Requested';
+      return l10n.reqRequested;
     case MarketLinkingStatus.submitted:
       return l10n.marketLinkKpiSubmitted;
     case MarketLinkingStatus.buyerFound:
@@ -310,7 +310,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
               ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(

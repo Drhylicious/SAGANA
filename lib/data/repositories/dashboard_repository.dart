@@ -696,6 +696,19 @@ class DashboardRepository {
       ),
     );
 
+    // Loan request, program outcome report and assistance request — the
+    // Farmer's own submissions.
+    items.addAll(await _fetchLoanRequestActivity(limit: sourceLimit));
+    items.addAll(await _fetchOutcomeReportActivity(limit: sourceLimit));
+    items.addAll(await _fetchAssistanceRequestActivity(limit: sourceLimit));
+    items.addAll(
+      await _fetchShelfLifeActivity(userId: _userId, limit: sourceLimit),
+    );
+    items.addAll(await _fetchListingEditActivity(limit: sourceLimit));
+    items.addAll(
+      await _fetchQuantityAdjustedActivity(userId: _userId, limit: sourceLimit),
+    );
+
     // Sync Now — only when a manual sync actually had something queued to
     // push (see the call site in FarmerDashboardScreen). Not search-filtered.
     items.addAll(await _fetchSyncActivity(userId: _userId, limit: sourceLimit));
@@ -1192,6 +1205,212 @@ class DashboardRepository {
       );
     }
     return items;
+  }
+
+  // ─── Loan, Outcome and Assistance requests ────────────────────────────────────
+  // The Farmer's own submissions only; the cooperative's decision is a
+  // notification, not the Farmer's activity. The Farmer has no direct read access
+  // to these tables, so each is read through the same get_my_* function its own
+  // screen uses (staff identities are never included). A failed read leaves the
+  // feed as it was.
+
+  Future<List<ActivityItem>> _fetchRequestsActivity({
+    required String rpc,
+    required String timeKey,
+    required ActivityType type,
+    required String title,
+    required String Function(Map<String, dynamic> r) subtitle,
+    String? Function(Map<String, dynamic> r)? valueLabel,
+    int limit = 15,
+  }) async {
+    try {
+      final res = await _client.rpc(rpc);
+      final items = <ActivityItem>[];
+      for (final raw in (res as List? ?? const [])) {
+        final r = Map<String, dynamic>.from(raw as Map);
+        final when = r[timeKey] as String?;
+        if (when == null) continue;
+        items.add(
+          ActivityItem(
+            id: r['id'] as String,
+            type: type,
+            title: title,
+            subtitle: subtitle(r),
+            valueLabel: valueLabel?.call(r),
+            statusLabel: _l.activityPendingReview,
+            timestamp: DateTime.parse(when).toLocal(),
+          ),
+        );
+      }
+      items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return items.take(limit).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ActivityItem>> _fetchLoanRequestActivity({int limit = 15}) =>
+      _fetchRequestsActivity(
+        rpc: 'get_my_loan_requests',
+        timeKey: 'requested_at',
+        type: ActivityType.loanRequested,
+        title: _l.activityLoanRequested,
+        subtitle: (r) => (r['request_no'] as String?) ?? '',
+        valueLabel: (r) => r['total_value'] == null
+            ? null
+            : '₱${(r['total_value'] as num).toStringAsFixed(2)}',
+        limit: limit,
+      );
+
+  Future<List<ActivityItem>> _fetchListingEditActivity({int limit = 15}) =>
+      _fetchRequestsActivity(
+        rpc: 'get_my_listing_edit_activity',
+        timeKey: 'created_at',
+        type: ActivityType.listingEditRequested,
+        title: _l.activityListingEditRequested,
+        subtitle: (r) => (r['crop_name'] as String?) ?? '',
+        limit: limit,
+      );
+
+  /// The Farmer reducing the available quantity of a harvest batch. The
+  /// database records every batch change as a stock movement; only the Farmer's
+  /// own manual reductions are shown. A rotten report also moves stock, but it
+  /// is already shown as its own entry, so a movement made within seconds of one
+  /// is skipped.
+  Future<List<ActivityItem>> _fetchQuantityAdjustedActivity({
+    required String userId,
+    int limit = 15,
+  }) async {
+    try {
+      final rows = await _client
+          .from('stock_movements')
+          .select(
+            'id, batch_id, quantity, unit, created_at, inventory_batches(crop_name, batch_number)',
+          )
+          .eq('farmer_id', userId)
+          .eq('actor_id', userId)
+          .eq('movement_type', 'adjusted')
+          .order('created_at', ascending: false)
+          .limit(limit);
+      final rotten = await _client
+          .from('shelf_life_events')
+          .select('batch_id, created_at')
+          .eq('farmer_id', userId)
+          .eq('event_type', 'reported_rotten');
+      bool nearRotten(String batchId, DateTime at) => rotten.any(
+        (e) =>
+            e['batch_id'] == batchId &&
+            DateTime.parse(
+                  e['created_at'] as String,
+                ).difference(at).inSeconds.abs() <=
+                5,
+      );
+      final items = <ActivityItem>[];
+      for (final r in rows) {
+        final at = DateTime.parse(r['created_at'] as String);
+        if (nearRotten(r['batch_id'] as String, at)) continue;
+        final batch = r['inventory_batches'] as Map?;
+        final qty = (r['quantity'] as num);
+        items.add(
+          ActivityItem(
+            id: r['id'] as String,
+            type: ActivityType.quantityAdjusted,
+            title: _l.activityQuantityAdjusted,
+            subtitle: [
+              batch?['crop_name'],
+              batch?['batch_number'],
+            ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+            valueLabel:
+                '-${qty.toStringAsFixed(qty % 1 == 0 ? 0 : 2)} ${r['unit'] ?? 'kg'}',
+            timestamp: at.toLocal(),
+          ),
+        );
+      }
+      return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ActivityItem>> _fetchOutcomeReportActivity({int limit = 15}) =>
+      _fetchRequestsActivity(
+        rpc: 'get_my_outcome_reports',
+        timeKey: 'submitted_at',
+        type: ActivityType.outcomeReported,
+        title: _l.activityOutcomeReported,
+        subtitle: (r) => (r['program_name'] as String?) ?? '',
+        limit: limit,
+      );
+
+  Future<List<ActivityItem>> _fetchAssistanceRequestActivity({
+    int limit = 15,
+  }) => _fetchRequestsActivity(
+    rpc: 'get_my_assistance_requests',
+    timeKey: 'created_at',
+    type: ActivityType.assistanceRequested,
+    title: _l.activityAssistanceRequested,
+    subtitle: (r) => [
+      r['request_number'],
+      r['program_name'],
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+    limit: limit,
+  );
+
+  // ─── Produce checks (shelf life) ──────────────────────────────────────────────
+  // What the Farmer did about a batch nearing its shelf life: confirmed it is
+  // still good (or asked for that to be reviewed), or reported it rotten. The
+  // table also holds the system's own events (automatic discount, listing made
+  // unavailable, reminders) and staff decisions; only the Farmer's own actions
+  // belong here.
+
+  Future<List<ActivityItem>> _fetchShelfLifeActivity({
+    required String userId,
+    int limit = 15,
+  }) async {
+    try {
+      final rows = await _client
+          .from('shelf_life_events')
+          .select(
+            'id, event_type, crop_name, batch_number, quantity, unit, created_at',
+          )
+          .eq('farmer_id', userId)
+          .eq('actor_id', userId)
+          .inFilter('event_type', [
+            'confirmed_good',
+            'review_requested',
+            'reported_rotten',
+          ])
+          .order('created_at', ascending: false)
+          .limit(limit);
+      final items = <ActivityItem>[];
+      for (final r in rows) {
+        final rotten = r['event_type'] == 'reported_rotten';
+        final qty = r['quantity'] as num?;
+        items.add(
+          ActivityItem(
+            id: r['id'] as String,
+            type: rotten
+                ? ActivityType.produceRotten
+                : ActivityType.shelfLifeChecked,
+            title: rotten
+                ? _l.activityProduceRotten
+                : _l.activityShelfLifeChecked,
+            subtitle: [
+              r['crop_name'],
+              r['batch_number'],
+            ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+            valueLabel: rotten && qty != null
+                ? '${qty.toStringAsFixed(qty % 1 == 0 ? 0 : 2)} ${r['unit'] ?? 'kg'}'
+                : null,
+            isAlert: rotten,
+            timestamp: DateTime.parse(r['created_at'] as String).toLocal(),
+          ),
+        );
+      }
+      return items;
+    } catch (_) {
+      return [];
+    }
   }
 
   // ─── Sync Activity ───────────────────────────────────────────────────────────

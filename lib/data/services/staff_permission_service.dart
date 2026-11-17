@@ -64,6 +64,10 @@ class StaffPermissions extends ChangeNotifier {
   static bool get _isManager => _role == 'admin';
   static bool get _isOfficer => _role == 'officer';
 
+  /// True only for the Manager. An Officer is never the Manager, whatever Manage levels they have. For the few
+  /// actions kept Manager-only (the cooperative's own details, Pickup and Delivery settings).
+  bool get isManager => _isManager;
+
   /// The level for [module]. Managers: always manage. Officers: the loaded
   /// level, else view. Everyone else: view (they never reach these screens).
   StaffAccess levelFor(StaffModule module) {

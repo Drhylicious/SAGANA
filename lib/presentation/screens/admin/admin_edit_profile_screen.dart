@@ -594,7 +594,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                         children: [
                           SettingsRow(
                             icon: Icons.lock_reset_rounded,
-                            iconColor: AppConstants.primaryGreen,
+                            iconColor: Theme.of(context).colorScheme.primary,
                             title: l10n.changePassword,
                             subtitle: l10n.updateYourPassword,
                             onTap: () => AppDialog.show<void>(

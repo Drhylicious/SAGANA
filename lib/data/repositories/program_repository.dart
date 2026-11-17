@@ -103,20 +103,29 @@ class ProgramRepository {
       List<Map<String, dynamic>> rows;
       try {
         rows = await read(
-          '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity, round_no',
+          '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity, round_no, requested_item_id',
         );
       } catch (_) {
-       try {
-        rows = await read(
-          '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity',
-        );
-       } catch (_) {
         try {
-          rows = await read('$baseCols, distributed_item_name, distributed_unit');
+          // Before the requested-item column: still keep the round number.
+          rows = await read(
+            '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity, round_no',
+          );
         } catch (_) {
-          rows = await read(baseCols);
+          try {
+            rows = await read(
+              '$baseCols, distributed_item_name, distributed_unit, return_item_id, return_quantity',
+            );
+          } catch (_) {
+            try {
+              rows = await read(
+                '$baseCols, distributed_item_name, distributed_unit',
+              );
+            } catch (_) {
+              rows = await read(baseCols);
+            }
+          }
         }
-       }
       }
 
       if (rows.isEmpty) return [];
@@ -134,7 +143,7 @@ class ProgramRepository {
       return rows
           .map(
             (r) => ProgramMember.fromMap({
-        ...r,
+              ...r,
               'user_information': {
                 'full_name': nameMap[r['farmer_id'] as String] ?? 'Unknown',
               },
@@ -237,8 +246,7 @@ class ProgramRepository {
             // program works the same before and after the pricing script.
             if (memberDiscountPercent != null)
               'member_discount_percent': memberDiscountPercent,
-            if (sourceCategories != null)
-              'source_categories': sourceCategories,
+            if (sourceCategories != null) 'source_categories': sourceCategories,
             // The default item a Harvest Return Farmer returns (blank = the item they were given).
             if (returnItemId != null) 'return_item_id': returnItemId,
           })
@@ -247,7 +255,9 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'created',
-        message: AdminLogMessage('adminLogProgramCreated', {'name': name.trim()}),
+        message: AdminLogMessage('adminLogProgramCreated', {
+          'name': name.trim(),
+        }),
         referenceId: row['id'] as String?,
       );
       return row['id'] as String?;
@@ -283,8 +293,7 @@ class ProgramRepository {
           .update({
             if (memberDiscountPercent != null)
               'member_discount_percent': memberDiscountPercent,
-            if (sourceCategories != null)
-              'source_categories': sourceCategories,
+            if (sourceCategories != null) 'source_categories': sourceCategories,
             'program_name': name.trim(),
             'program_type': type.trim(),
             'description': description?.trim(),
@@ -302,7 +311,9 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'updated',
-        message: AdminLogMessage('adminLogProgramUpdated', {'name': name.trim()}),
+        message: AdminLogMessage('adminLogProgramUpdated', {
+          'name': name.trim(),
+        }),
         referenceId: id,
       );
       return true;
@@ -322,11 +333,32 @@ class ProgramRepository {
       final res = await _client.rpc('get_programs_completion_status');
       return {
         for (final r in (res as List))
-          (r as Map)['program_id'] as String:
-              ProgramCompletionStatus.fromMap(Map<String, dynamic>.from(r)),
+          (r as Map)['program_id'] as String: ProgramCompletionStatus.fromMap(
+            Map<String, dynamic>.from(r),
+          ),
       };
     } catch (_) {
       return {};
+    }
+  }
+
+  /// What completing would leave behind: referred Farmers with no approved loan request (none sent, or all
+  /// disapproved) and members still waiting for an item. Completing is allowed, but staff are asked to confirm.
+  /// Zeros when the database does not have the rule yet.
+  Future<({int unapprovedReferrals, int waitingMembers})>
+  fetchCompletionWarnings(String programId) async {
+    try {
+      final res = await _client.rpc(
+        'program_completion_warnings',
+        params: {'p_program_id': programId},
+      );
+      final m = res as Map;
+      return (
+        unapprovedReferrals: (m['unapproved_referrals'] as num?)?.toInt() ?? 0,
+        waitingMembers: (m['waiting_members'] as num?)?.toInt() ?? 0,
+      );
+    } catch (_) {
+      return (unapprovedReferrals: 0, waitingMembers: 0);
     }
   }
 
@@ -335,16 +367,24 @@ class ProgramRepository {
   // the screens only decide what to show.
 
   Future<List<ProgramReturn>> fetchReturns({String? programId}) async {
-    final res = await _client.rpc('get_program_returns', params: {'p_program_id': programId});
+    final res = await _client.rpc(
+      'get_program_returns',
+      params: {'p_program_id': programId},
+    );
     return (res as List)
         .map((r) => ProgramReturn.fromMap(Map<String, dynamic>.from(r as Map)))
         .toList();
   }
 
   Future<List<FailedResolution>> fetchResolutions({String? programId}) async {
-    final res = await _client.rpc('get_failed_resolutions', params: {'p_program_id': programId});
+    final res = await _client.rpc(
+      'get_failed_resolutions',
+      params: {'p_program_id': programId},
+    );
     return (res as List)
-        .map((r) => FailedResolution.fromMap(Map<String, dynamic>.from(r as Map)))
+        .map(
+          (r) => FailedResolution.fromMap(Map<String, dynamic>.from(r as Map)),
+        )
         .toList();
   }
 
@@ -354,11 +394,19 @@ class ProgramRepository {
     required String reason,
   }) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('adjust_program_return', params: {
-      'p_return_id': returnId,
-      'p_new_quantity': newQuantity,
-      'p_reason': reason,
-    });
+    await _client.rpc(
+      'adjust_program_return',
+      params: {
+        'p_return_id': returnId,
+        'p_new_quantity': newQuantity,
+        'p_reason': reason,
+      },
+    );
+    logStaffAction(
+      'programs',
+      'return_adjusted',
+      'adminLogProgramReturnAdjusted',
+    );
   }
 
   Future<void> recordReturnReceipt({
@@ -367,19 +415,27 @@ class ProgramRepository {
     String? note,
   }) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('record_program_return_receipt', params: {
-      'p_return_id': returnId,
-      'p_quantity': quantity,
-      'p_note': note,
-    });
+    await _client.rpc(
+      'record_program_return_receipt',
+      params: {'p_return_id': returnId, 'p_quantity': quantity, 'p_note': note},
+    );
+    logStaffAction(
+      'programs',
+      'return_received',
+      'adminLogProgramReturnReceived',
+    );
   }
 
-  Future<void> closeReturn({required String returnId, required String reason}) async {
+  Future<void> closeReturn({
+    required String returnId,
+    required String reason,
+  }) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('close_program_return', params: {
-      'p_return_id': returnId,
-      'p_reason': reason,
-    });
+    await _client.rpc(
+      'close_program_return',
+      params: {'p_return_id': returnId, 'p_reason': reason},
+    );
+    logStaffAction('programs', 'return_closed', 'adminLogProgramReturnClosed');
   }
 
   Future<void> recordFailedResolution({
@@ -388,25 +444,48 @@ class ProgramRepository {
     required String note,
   }) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('record_failed_resolution', params: {
-      'p_program_member_id': programMemberId,
-      'p_resolution': resolution,
-      'p_note': note,
-    });
+    await _client.rpc(
+      'record_failed_resolution',
+      params: {
+        'p_program_member_id': programMemberId,
+        'p_resolution': resolution,
+        'p_note': note,
+      },
+    );
+    logStaffAction(
+      'programs',
+      'failed_resolution',
+      'adminLogProgramFailedResolution',
+    );
   }
 
   /// Marks the program Completed and returns how many pending enrollment
   /// requests were declined with it. Throws when refused.
-  Future<int> completeProgram(String programId) async {
+  Future<int> completeProgram(
+    String programId, {
+    int confirmedReferrals = 0,
+    int confirmedWaiting = 0,
+  }) async {
+    final confirmed = confirmedReferrals > 0 || confirmedWaiting > 0;
     await ServerOnly.ensureOnline();
     final res = await _client.rpc(
       'complete_program',
-      params: {'p_program_id': programId},
+      params: {
+        'p_program_id': programId,
+        // Sent only when needed, so a database without the confirmation rule still accepts the call.
+        if (confirmed) 'p_confirm_warnings': true,
+      },
     );
+    // When staff confirmed warnings, the log says so (and how many), not just "Completed".
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'updated',
-      message: const AdminLogMessage('adminLogProgramCompleted'),
+      message: confirmed
+          ? AdminLogMessage('adminLogProgramCompletedWarned', {
+              'referred': '$confirmedReferrals',
+              'waiting': '$confirmedWaiting',
+            })
+          : const AdminLogMessage('adminLogProgramCompleted'),
       referenceId: programId,
     );
     return (res as num?)?.toInt() ?? 0;
@@ -443,21 +522,35 @@ class ProgramRepository {
         .eq('status', 'active');
     if (memberRows.isEmpty) return [];
 
-    final farmerIds = memberRows.map((r) => r['farmer_id'] as String).toSet().toList();
+    final farmerIds = memberRows
+        .map((r) => r['farmer_id'] as String)
+        .toSet()
+        .toList();
     final results = await Future.wait([
-      _client.from('user_information').select('user_id, full_name').inFilter('user_id', farmerIds),
+      _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', farmerIds),
       _client
           .from('program_enrollment_requests')
-          .select('id, farmer_id, program_id, admin_notes, submitted_at, reviewed_at')
+          .select(
+            'id, farmer_id, program_id, admin_notes, submitted_at, reviewed_at',
+          )
           .eq('status', 'approved')
           .inFilter('farmer_id', farmerIds)
           .order('reviewed_at', ascending: false),
     ]);
-    final names = {for (final r in results[0] as List) r['user_id'] as String: r['full_name'] as String?};
+    final names = {
+      for (final r in results[0] as List)
+        r['user_id'] as String: r['full_name'] as String?,
+    };
     // The latest approved request per farmer and program.
     final requests = <String, Map<String, dynamic>>{};
     for (final q in results[1] as List) {
-      requests.putIfAbsent('${q['program_id']}|${q['farmer_id']}', () => Map<String, dynamic>.from(q as Map));
+      requests.putIfAbsent(
+        '${q['program_id']}|${q['farmer_id']}',
+        () => Map<String, dynamic>.from(q as Map),
+      );
     }
 
     final list = memberRows.map((m) {
@@ -477,9 +570,13 @@ class ProgramRepository {
     }).toList();
     // Grouped by program, newest enrollment first within each.
     list.sort((a, b) {
-      final p = a.programName.toLowerCase().compareTo(b.programName.toLowerCase());
+      final p = a.programName.toLowerCase().compareTo(
+        b.programName.toLowerCase(),
+      );
       if (p != 0) return p;
-      return (b.enrolledAt ?? b.submittedAt).compareTo(a.enrolledAt ?? a.submittedAt);
+      return (b.enrolledAt ?? b.submittedAt).compareTo(
+        a.enrolledAt ?? a.submittedAt,
+      );
     });
     return list;
   }
@@ -499,7 +596,7 @@ class ProgramRepository {
         ),
       );
     return combined;
-      }
+  }
 
   Future<List<ProgramEnrollmentRequest>> _fetchEnrollmentRequestsByStatus(
     String status,
@@ -561,7 +658,10 @@ class ProgramRepository {
 
   /// A join request is approved, never declined: it ends either here or, if its program
   /// is completed first, when the database closes it. (The database refuses a decline.)
-  Future<bool> approveEnrollmentRequest({required String id, String? notes}) async {
+  Future<bool> approveEnrollmentRequest({
+    required String id,
+    String? notes,
+  }) async {
     try {
       await _client.rpc(
         'respond_to_program_enrollment_request',
@@ -589,40 +689,74 @@ class ProgramRepository {
   // failing silently would let inventory drift from reality.
 
   Future<List<DistributionItem>> fetchDistributionItems() async {
-    const base = 'id, item_name, category, unit, quantity_on_hand, source, source_farmer_id, item_type, crop_master_id';
+    const base =
+        'id, item_name, category, unit, quantity_on_hand, source, source_farmer_id, item_type, crop_master_id';
     List<Map<String, dynamic>> rows;
     try {
-      rows = List<Map<String, dynamic>>.from(await _client
-          .from('cooperative_inventory')
-          .select('$base, return_item_id')
-          .eq('is_active', true)
-          .order('item_name'));
+      rows = List<Map<String, dynamic>>.from(
+        await _client
+            .from('cooperative_inventory')
+            .select('$base, return_item_id')
+            .eq('is_active', true)
+            .order('item_name'),
+      );
     } catch (_) {
       // The return-item setting is not in the database yet.
-      rows = List<Map<String, dynamic>>.from(await _client
-          .from('cooperative_inventory')
-          .select(base)
-          .eq('is_active', true)
-          .order('item_name'));
+      rows = List<Map<String, dynamic>>.from(
+        await _client
+            .from('cooperative_inventory')
+            .select(base)
+            .eq('is_active', true)
+            .order('item_name'),
+      );
     }
     return rows.map((r) => DistributionItem.fromMap(r)).toList();
   }
 
   /// Pending requests for another distribution in a program, by the failed round they follow.
-  Future<Map<String, RedistributionRequest>> fetchRedistributionRequests(String programId) async {
+  /// Throws when the read fails: the screen tells staff, instead of quietly hiding a Farmer's request.
+  Future<Map<String, RedistributionRequest>> fetchRedistributionRequests(
+    String programId,
+  ) async {
+    final rows = await _client
+        .from('program_redistribution_requests')
+        .select('id, program_member_id, note, requested_at')
+        .eq('program_id', programId)
+        .eq('status', 'pending');
+    return {
+      for (final r in rows)
+        r['program_member_id'] as String: RedistributionRequest(
+          id: r['id'] as String,
+          memberId: r['program_member_id'] as String,
+          note: r['note'] as String? ?? '',
+          requestedAt: DateTime.tryParse(
+            r['requested_at'] as String? ?? '',
+          )?.toLocal(),
+        ),
+    };
+  }
+
+  /// The failed rounds that were followed by another distribution, keyed 'farmerId:roundNo', so the new round's
+  /// card can say what the Farmer got the first time. Information only: a failed read just shows no note.
+  Future<Map<String, EarlierRound>> fetchEarlierRounds(String programId) async {
     try {
       final rows = await _client
-          .from('program_redistribution_requests')
-          .select('id, program_member_id, note, requested_at')
+          .from('program_members')
+          .select(
+            'farmer_id, round_no, distributed_item_name, distributed_unit, quantity_given, distributed_at',
+          )
           .eq('program_id', programId)
-          .eq('status', 'pending');
+          .eq('status', 'completed')
+          .eq('distribution_outcome', 'failed');
       return {
-        for (final r in rows)
-          r['program_member_id'] as String: RedistributionRequest(
-            id: r['id'] as String,
-            memberId: r['program_member_id'] as String,
-            note: r['note'] as String? ?? '',
-            requestedAt: DateTime.tryParse(r['requested_at'] as String? ?? '')?.toLocal(),
+        for (final x in rows)
+          '${x['farmer_id']}:${x['round_no'] ?? 1}': EarlierRound(
+            itemName: x['distributed_item_name'] as String?,
+            unit: x['distributed_unit'] as String?,
+            quantity: (x['quantity_given'] as num?)?.toDouble(),
+            distributedAt: DateTime.tryParse(
+              x['distributed_at'] as String? ?? '',
+            )?.toLocal(),
           ),
       };
     } catch (_) {
@@ -633,7 +767,10 @@ class ProgramRepository {
   /// Approves a Farmer's request: starts the next distribution round. There is no decline.
   Future<String?> approveRedistribution(String requestId) async {
     await ServerOnly.ensureOnline();
-    final res = await _client.rpc('approve_program_redistribution', params: {'p_request_id': requestId});
+    final res = await _client.rpc(
+      'approve_program_redistribution',
+      params: {'p_request_id': requestId},
+    );
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'redistributed',
@@ -645,12 +782,15 @@ class ProgramRepository {
 
   /// Starts a NEW distribution for a Farmer whose Failed outcome was decided "Eligible for Reassessment".
   /// The failed round stays in the history. Returns the new member id. A note is required.
-  Future<String?> redistributeMember({required String memberId, required String note}) async {
+  Future<String?> redistributeMember({
+    required String memberId,
+    required String note,
+  }) async {
     await ServerOnly.ensureOnline();
-    final res = await _client.rpc('redistribute_program_member', params: {
-      'p_member_id': memberId,
-      'p_note': note,
-    });
+    final res = await _client.rpc(
+      'redistribute_program_member',
+      params: {'p_member_id': memberId, 'p_note': note},
+    );
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'redistributed',
@@ -676,6 +816,11 @@ class ProgramRepository {
         'p_return_quantity': returnQuantity,
       },
     );
+    logStaffAction(
+      'programs',
+      'return_arrangement',
+      'adminLogProgramReturnArrangement',
+    );
   }
 
   /// Atomic via distribute_program_benefit() — see
@@ -694,10 +839,10 @@ class ProgramRepository {
     await _client.rpc(
       'distribute_program_benefit',
       params: {
-      'p_program_member_id': programMemberId,
-      'p_inventory_item_id': inventoryItemId,
-      'p_quantity': quantity,
-      'p_recorded_by': _client.auth.currentUser?.id,
+        'p_program_member_id': programMemberId,
+        'p_inventory_item_id': inventoryItemId,
+        'p_quantity': quantity,
+        'p_recorded_by': _client.auth.currentUser?.id,
       },
     );
     AdminActivityRepository().log(
@@ -718,9 +863,13 @@ class ProgramRepository {
     try {
       final rows = await _client
           .from('program_product_purchases')
-          .select('product_id, farmer_id, status, quantity, total_amount, discount_amount')
+          .select(
+            'product_id, farmer_id, status, quantity, total_amount, discount_amount',
+          )
           .eq('program_id', programId);
-      return ProgramSalesSummary.fromRows(List<Map<String, dynamic>>.from(rows));
+      return ProgramSalesSummary.fromRows(
+        List<Map<String, dynamic>>.from(rows),
+      );
     } catch (_) {
       return const ProgramSalesSummary();
     }
@@ -730,8 +879,14 @@ class ProgramRepository {
   /// database refuses a change to a completed program's products anyway.
   Future<String> fetchProgramStatus(String programId) async {
     try {
-      final rows = await _client.from('cooperative_programs').select('status').eq('id', programId).limit(1);
-      return rows.isEmpty ? 'active' : (rows.first['status'] as String? ?? 'active');
+      final rows = await _client
+          .from('cooperative_programs')
+          .select('status')
+          .eq('id', programId)
+          .limit(1);
+      return rows.isEmpty
+          ? 'active'
+          : (rows.first['status'] as String? ?? 'active');
     } catch (_) {
       return 'active';
     }
@@ -809,7 +964,9 @@ class ProgramRepository {
         .select('source_categories')
         .eq('id', programId)
         .single();
-    return ((row['source_categories'] as List?) ?? const []).map((e) => '$e').toList();
+    return ((row['source_categories'] as List?) ?? const [])
+        .map((e) => '$e')
+        .toList();
   }
 
   /// Adds a product. Throws with the database's reason when refused (for example
@@ -833,7 +990,10 @@ class ProgramRepository {
     // The stock for this program is set by a guarded function (the database checks that it
     // fits what is on hand and not already set aside for something else).
     if (allocated > 0) {
-      await setProductAllocation(productId: row['id'] as String, allocated: allocated);
+      await setProductAllocation(
+        productId: row['id'] as String,
+        allocated: allocated,
+      );
     }
     AdminActivityRepository().log(
       module: 'programs',
@@ -845,11 +1005,14 @@ class ProgramRepository {
 
   /// Sets the stock for this program. Throws with the database's reason when refused
   /// (more than is free, or less than open orders have reserved).
-  Future<void> setProductAllocation({required String productId, required double allocated}) async {
-    await _client.rpc('set_program_product_allocation', params: {
-      'p_product_id': productId,
-      'p_allocated': allocated,
-    });
+  Future<void> setProductAllocation({
+    required String productId,
+    required double allocated,
+  }) async {
+    await _client.rpc(
+      'set_program_product_allocation',
+      params: {'p_product_id': productId, 'p_allocated': allocated},
+    );
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'product_stock_set',
@@ -860,7 +1023,10 @@ class ProgramRepository {
 
   /// Gives the unsold part of the program stock back to the cooperative's shared stock.
   Future<void> releaseProductAllocation(String productId) async {
-    await _client.rpc('release_program_product_allocation', params: {'p_product_id': productId});
+    await _client.rpc(
+      'release_program_product_allocation',
+      params: {'p_product_id': productId},
+    );
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'product_stock_released',
@@ -901,7 +1067,10 @@ class ProgramRepository {
 
   /// When a member asked to join and who approved it. Null when there is no approved
   /// request (a member the cooperative added directly).
-  Future<MemberJoinInfo?> fetchMemberJoinInfo(String programId, String farmerId) async {
+  Future<MemberJoinInfo?> fetchMemberJoinInfo(
+    String programId,
+    String farmerId,
+  ) async {
     try {
       final rows = await _client
           .from('program_enrollment_requests')
@@ -933,8 +1102,12 @@ class ProgramRepository {
         } catch (_) {}
       }
       return MemberJoinInfo(
-        requestedAt: r['submitted_at'] != null ? DateTime.tryParse('${r['submitted_at']}')?.toLocal() : null,
-        reviewedAt: r['reviewed_at'] != null ? DateTime.tryParse('${r['reviewed_at']}')?.toLocal() : null,
+        requestedAt: r['submitted_at'] != null
+            ? DateTime.tryParse('${r['submitted_at']}')?.toLocal()
+            : null,
+        reviewedAt: r['reviewed_at'] != null
+            ? DateTime.tryParse('${r['reviewed_at']}')?.toLocal()
+            : null,
         reviewerName: name,
         reviewerRole: role,
       );
@@ -945,7 +1118,9 @@ class ProgramRepository {
 
   /// Every member's purchase figures for one Product Sales program, from ONE read (not one
   /// per member). A failed read gives none, so the member list still shows.
-  Future<Map<String, MemberPurchaseSummary>> fetchPurchaseSummaries(String programId) async {
+  Future<Map<String, MemberPurchaseSummary>> fetchPurchaseSummaries(
+    String programId,
+  ) async {
     try {
       final rows = await _client
           .from('program_product_purchases')
@@ -959,13 +1134,17 @@ class ProgramRepository {
 
   /// The latest reminder sent for each member of a program. A failed read (or a database
   /// without p20) gives none, so the member list still shows.
-  Future<Map<String, ProgramReportReminder>> fetchLastReminders(String programId) async {
+  Future<Map<String, ProgramReportReminder>> fetchLastReminders(
+    String programId,
+  ) async {
     try {
       final rows = await _client
           .from('program_report_reminders')
           .select('program_member_id, created_at, sent_by_role')
           .eq('program_id', programId);
-      return ProgramReportReminder.latest(List<Map<String, dynamic>>.from(rows));
+      return ProgramReportReminder.latest(
+        List<Map<String, dynamic>>.from(rows),
+      );
     } catch (_) {
       return {};
     }
@@ -975,11 +1154,22 @@ class ProgramRepository {
   /// distributed item per calendar day and records it in the Accountability Log; its
   /// reason is thrown to the screen if it refuses.
   Future<void> remindReport(String programMemberId) async {
-    await _client.rpc('remind_program_report', params: {'p_program_member_id': programMemberId});
+    await _client.rpc(
+      'remind_program_report',
+      params: {'p_program_member_id': programMemberId},
+    );
+    logStaffAction(
+      'programs',
+      'report_reminder',
+      'adminLogProgramReportReminder',
+    );
   }
 
   /// One Farmer's purchases in one Product Sales program, newest first.
-  Future<List<ProgramPurchase>> fetchMemberPurchases(String programId, String farmerId) async {
+  Future<List<ProgramPurchase>> fetchMemberPurchases(
+    String programId,
+    String farmerId,
+  ) async {
     try {
       final rows = await _client
           .from('program_product_purchases')
@@ -1038,16 +1228,21 @@ class ProgramRepository {
     required String reportId,
     required bool validate,
     String? note,
-  }) => _outcomeCall(
-    () => _client.rpc(
+  }) => _outcomeCall(() async {
+    await _client.rpc(
       'review_program_outcome',
       params: {
         'p_report_id': reportId,
         'p_decision': validate ? 'validated' : 'returned',
         'p_note': note,
       },
-    ),
-  );
+    );
+    logStaffAction(
+      'programs',
+      'outcome_reviewed',
+      'adminLogProgramOutcomeReviewed',
+    );
+  });
 
   Future<void> verifyOutcome({
     required String reportId,
@@ -1076,10 +1271,18 @@ class ProgramRepository {
           'p_finding': confirms ? 'confirms' : 'disputes',
           'p_verified_quantity': measuredQuantity,
           'p_verified_unit': measuredUnit,
-          'p_field_visit_date': fieldVisitDate.toIso8601String().split('T').first,
+          'p_field_visit_date': fieldVisitDate
+              .toIso8601String()
+              .split('T')
+              .first,
           'p_note': note,
           'p_photo_paths': paths,
         },
+      );
+      logStaffAction(
+        'programs',
+        'outcome_verified',
+        'adminLogProgramOutcomeVerified',
       );
     } on PostgrestException catch (e) {
       await evidence.removeAll(paths);
@@ -1101,8 +1304,8 @@ class ProgramRepository {
     String? returnUnit,
     String? resolution,
     String? resolutionNote,
-  }) => _outcomeCall(
-    () => _client.rpc(
+  }) => _outcomeCall(() async {
+    await _client.rpc(
       'finalize_program_outcome',
       params: {
         'p_report_id': reportId,
@@ -1113,8 +1316,13 @@ class ProgramRepository {
         'p_resolution': successful ? null : resolution,
         'p_resolution_note': successful ? null : resolutionNote,
       },
-    ),
-  );
+    );
+    logStaffAction(
+      'programs',
+      'outcome_finalized',
+      'adminLogProgramOutcomeFinalized',
+    );
+  });
 
   /// Short-lived links for evidence photos (the bucket is private).
   Future<Map<String, String>> evidenceUrls(List<String> paths) =>
@@ -1125,13 +1333,18 @@ class ProgramRepository {
   // get_program_history() in supabase_schema_program_rework_5a_creation_history.sql.
   // Throws on failure so the History sheet can show an error with Retry
   // instead of an empty list that looks like "nothing happened".
-  Future<List<ProgramHistoryEntry>> fetchProgramHistory(String programId) async {
+  Future<List<ProgramHistoryEntry>> fetchProgramHistory(
+    String programId,
+  ) async {
     final rows = await _client.rpc(
       'get_program_history',
       params: {'p_program_id': programId},
     );
     return (rows as List)
-        .map((r) => ProgramHistoryEntry.fromMap(Map<String, dynamic>.from(r as Map)))
+        .map(
+          (r) =>
+              ProgramHistoryEntry.fromMap(Map<String, dynamic>.from(r as Map)),
+        )
         .toList();
   }
 }

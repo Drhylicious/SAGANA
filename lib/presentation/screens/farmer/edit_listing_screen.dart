@@ -501,13 +501,13 @@ class _EditListingScreenState extends State<EditListingScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                Flexible(child: Text(
                   l.editListingEstimatedTotal,
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ),
+                )),
                 Text(
                   formatPesos(moneyOf(qty, price)),
                   style: GoogleFonts.poppins(

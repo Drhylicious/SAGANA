@@ -767,7 +767,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                   color: Theme.of(context).colorScheme.outline,
                 ),
                 const SizedBox(width: 6),
-                Text(
+                Flexible(child: Text(
                   AppLocalizations.of(context).enhRemovedOn(
                     (AppUtils.formatListingDate(listing.updatedAt!)).toString(),
                   ),
@@ -775,7 +775,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.outline,
                   ),
-                ),
+                )),
               ],
             ),
             const SizedBox(height: 20),

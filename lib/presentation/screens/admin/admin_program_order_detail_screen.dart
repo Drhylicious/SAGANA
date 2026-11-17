@@ -218,7 +218,7 @@ class _AdminProgramOrderDetailScreenState
                     ),
                   )
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),

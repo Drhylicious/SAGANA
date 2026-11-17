@@ -430,7 +430,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 children: [
                   const Icon(Icons.eco_rounded, size: 12, color: Colors.white),
                   const SizedBox(width: 4),
-                  Text(
+                  Flexible(child: Text(
                     AppLocalizations.of(context).enhFromProgramDistribution(
                       (loan.sourceProgramName).toString(),
                     ),
@@ -439,7 +439,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
-                  ),
+                  )),
                 ],
               ),
             ),
@@ -672,13 +672,13 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Flexible(child: Text(
                 l10n.issueLoanNextPaymentDue,
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: cs.onSurfaceVariant,
                 ),
-              ),
+              )),
               Text(
                 nextDate != null
                     ? DateFormat('MMMM d, yyyy').format(nextDate)
@@ -695,13 +695,13 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Flexible(child: Text(
                 l10n.issueLoanMonthlyPayment,
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: cs.onSurfaceVariant,
                 ),
-              ),
+              )),
               Text(
                 currency.format(loan.monthlyPayment),
                 style: GoogleFonts.poppins(

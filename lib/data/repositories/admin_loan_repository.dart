@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'coop_shelf_life_repository.dart';
 import '../services/offline_actions.dart'
     show isOfflineConnectionFailure, OfflineActionBlocked;
@@ -9,11 +10,13 @@ import '../services/server_only.dart';
 import '../services/hive_service.dart';
 import '../../core/utils/bod_schedule_utils.dart';
 import '../models/admin_loan_model.dart';
+import '../models/loan_capital_standing.dart';
 import '../models/loan_model.dart';
 import '../models/loan_request_model.dart';
 import 'admin_activity_repository.dart';
 import 'farmer_lookup.dart';
 import '../models/admin_log_message.dart';
+import 'paged_query.dart';
 
 /// Repository for all admin-side loan operations.
 ///
@@ -220,7 +223,7 @@ class AdminLoanRepository {
                 .toList();
             return {
               ...row,
-              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
               '_item_names': items,
             };
           }).toList();
@@ -288,7 +291,9 @@ class AdminLoanRepository {
             query = query.lte('issued_date', _dateOnly(issuedBefore));
           }
 
-          final rows = await query.order('issued_date', ascending: false);
+          final rows = await fetchAllPages(
+            query.order('issued_date', ascending: false),
+          );
 
           if (rows.isEmpty) return <Map<String, dynamic>>[];
 
@@ -305,7 +310,7 @@ class AdminLoanRepository {
                 .toList();
             return {
               ...row,
-              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_farmer_name': info?.fullName ?? currentL10n().dlUnknownFarmer,
               '_item_names': items,
             };
           }).toList();
@@ -440,7 +445,7 @@ class AdminLoanRepository {
 
       return AdminLoanSummary.fromRow(
         row,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
+        farmerName: info?.fullName ?? currentL10n().dlUnknownFarmer,
         itemNames: items,
       );
     } catch (_) {
@@ -493,7 +498,8 @@ class AdminLoanRepository {
 
       final names = {
         for (final r in infoRows)
-          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown Farmer',
+          r['user_id'] as String:
+              r['full_name'] as String? ?? currentL10n().dlUnknownFarmer,
       };
       final photos = {
         for (final r in infoRows)
@@ -504,7 +510,7 @@ class AdminLoanRepository {
           .map(
             (r) => FarmerPickerResult(
               id: r['user_id'] as String,
-              fullName: names[r['user_id']] ?? 'Unknown Farmer',
+              fullName: names[r['user_id']] ?? currentL10n().dlUnknownFarmer,
               profilePhotoUrl: photos[r['user_id']],
             ),
           )
@@ -536,11 +542,33 @@ class AdminLoanRepository {
         if (row['status'] == 'overdue') hasOverdue = true;
       }
 
-      // No capital-share check: the minimum-capital requirement is no longer part
-      // of issuing a loan (see supabase_schema_farmer_loan_requests.sql).
+      // The old "minimum capital contribution" is not part of issuing a loan
+      // (see supabase_schema_farmer_loan_requests.sql). The rule now is per loan
+      // item: its value cannot exceed the Capital Share. The database enforces it
+      // (supabase_schema_loan_capital_eligibility.sql); the number is read here
+      // only so the screen can show the limit. If it cannot be read it is null.
+      double? capitalShare;
+      double? overdueBalance;
+      try {
+        final res =
+            await _client.rpc(
+                  'get_loan_capital_standing',
+                  params: {'p_farmer_id': farmerId},
+                )
+                as List;
+        if (res.isNotEmpty) {
+          final standing = LoanCapitalStanding.fromMap(
+            Map<String, dynamic>.from(res.first as Map),
+          );
+          capitalShare = standing.maxItemValue;
+          overdueBalance = standing.overdueBalance;
+        }
+      } catch (_) {}
       return FarmerLoanStanding(
         outstandingBalance: outstanding,
-        hasOverdueLoan: hasOverdue,
+        hasOverdueLoan: hasOverdue || (overdueBalance ?? 0) > 0,
+        capitalShare: capitalShare,
+        overdueBalance: overdueBalance,
       );
     } catch (_) {
       return const FarmerLoanStanding(
@@ -741,6 +769,35 @@ class AdminLoanRepository {
       } catch (_) {}
     }
 
+    // Each waiting farmer's standing now: Capital Share and unpaid overdue loans.
+    // A request with a line worth more than the Capital Share, from a farmer with
+    // no Capital Share, or from a farmer with an overdue loan not paid in full,
+    // cannot be approved (the database refuses it). The figures come from the
+    // database function that also enforces the rule.
+    final standingIds = <String>{
+      for (final r in rows)
+        if (r['status'] == 'pending') r['farmer_id'] as String,
+    }.toList();
+    final standings = <String, LoanCapitalStanding>{};
+    await Future.wait([
+      for (final id in standingIds)
+        () async {
+          try {
+            final res =
+                await _client.rpc(
+                      'get_loan_capital_standing',
+                      params: {'p_farmer_id': id},
+                    )
+                    as List;
+            if (res.isNotEmpty) {
+              standings[id] = LoanCapitalStanding.fromMap(
+                Map<String, dynamic>.from(res.first as Map),
+              );
+            }
+          } catch (_) {}
+        }(),
+    ]);
+
     return [
       for (final r in rows)
         _withStock(
@@ -750,6 +807,8 @@ class AdminLoanRepository {
             farmerPhone: people[r['farmer_id']]?.phone,
             reviewerName: people[r['reviewed_by']]?.name,
             loanReference: loanRefs[r['loan_id']],
+            farmerCapitalShare: standings[r['farmer_id']]?.maxItemValue,
+            farmerOverdueBalance: standings[r['farmer_id']]?.overdueBalance,
           ),
           stock,
         ),
@@ -774,6 +833,8 @@ class AdminLoanRepository {
       farmerPhone: r.farmerPhone,
       reviewerName: r.reviewerName,
       loanId: r.loanId,
+      farmerCapitalShare: r.farmerCapitalShare,
+      farmerOverdueBalance: r.farmerOverdueBalance,
     );
   }
 
@@ -1057,7 +1118,8 @@ class AdminLoanRepository {
 
       return AdminLoanDetail(
         loan: loan,
-        farmerName: infoRow?['full_name'] as String? ?? 'Unknown Farmer',
+        farmerName:
+            infoRow?['full_name'] as String? ?? currentL10n().dlUnknownFarmer,
         farmerPhotoUrl: infoRow?['profile_photo_url'] as String?,
       );
     } catch (_) {

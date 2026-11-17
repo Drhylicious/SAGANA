@@ -563,7 +563,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             value: (_farmerStep + 1) / titles.length,
             minHeight: 4,
             backgroundColor: AppConstants.primaryGreen.withValues(alpha: 0.12),
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ],
@@ -984,13 +984,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      Flexible(child: Text(
                         l10n.registerAlreadyHaveAccount,
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: cs.onSurfaceVariant,
                         ),
-                      ),
+                      )),
                       GestureDetector(
                         onTap: () => context.go(AppRoutes.login),
                         child: Text(

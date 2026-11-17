@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
@@ -197,9 +198,9 @@ class AdminOrderModel {
   String get harvestedLabel {
     if (harvestDate == null) return '';
     final diff = DateTime.now().difference(harvestDate!);
-    if (diff.inDays <= 0) return 'Harvested today';
-    if (diff.inDays == 1) return 'Harvested yesterday';
-    return 'Harvested ${diff.inDays} days ago';
+    if (diff.inDays <= 0) return currentL10n().dlHarvestedToday;
+    if (diff.inDays == 1) return currentL10n().dlHarvestedYesterday;
+    return currentL10n().dlHarvestedDaysAgo(diff.inDays);
   }
 
   String get marketTypeLabel => marketTypeLabelFor(marketType);
@@ -718,11 +719,16 @@ class AdminOrderRepository {
   /// The cash for an order that was already Delivered before payments were recorded.
   Future<void> recordPayment({required String orderId, required double amount, String? note}) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('record_order_payment', params: {
-      'p_order_id': orderId,
-      'p_amount': amount,
-      'p_note': note,
-    });
+    await _client.rpc(
+      'record_order_payment',
+      params: {'p_order_id': orderId, 'p_amount': amount, 'p_note': note},
+    );
+    logStaffAction(
+      'orders',
+      'payment_recorded',
+      'adminLogOrderPaymentRecorded',
+      referenceId: orderId,
+    );
   }
 
   /// The consumer cannot confirm: staff complete it. Needs a reason and a photo; the database
@@ -741,11 +747,16 @@ class AdminOrderRepository {
       bytes: photoBytes,
       extension: photoExtension,
     );
-    await _client.rpc('staff_complete_order', params: {
-      'p_order_id': orderId,
-      'p_reason': reason,
-      'p_photo_url': url,
-    });
+    await _client.rpc(
+      'staff_complete_order',
+      params: {'p_order_id': orderId, 'p_reason': reason, 'p_photo_url': url},
+    );
+    logStaffAction(
+      'orders',
+      'completed_for_customer',
+      'adminLogOrderCompletedForCustomer',
+      referenceId: orderId,
+    );
   }
 
   // There is no Manager "reject / cancel order" any more. An order ends in one of

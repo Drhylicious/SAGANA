@@ -249,9 +249,9 @@ class _ProgramEnrollmentRequestsScreenState
             ),
             TabBar(
               controller: _tabController,
-              labelColor: AppConstants.primaryGreen,
+              labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: AppConstants.primaryGreen,
+              indicatorColor: Theme.of(context).colorScheme.primary,
               tabs: [
                 Tab(text: l10n.reqTabPending(_pending.length)),
                 Tab(text: l10n.reqTabEnrolled(_enrolled.length)),

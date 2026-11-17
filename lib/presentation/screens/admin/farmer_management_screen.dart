@@ -27,6 +27,10 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/temp_password_dialog.dart';
 import '../../widgets/skeleton.dart';
+import '../../../core/utils/app_error_message.dart';
+import '../../../data/models/member_restriction.dart';
+import '../../../data/repositories/member_restriction_repository.dart';
+import '../../widgets/restriction_dialogs.dart';
 
 void _safePop(BuildContext context, [Object? result]) {
   if (Navigator.canPop(context)) {
@@ -81,6 +85,12 @@ class FarmerManagementScreen extends StatefulWidget {
 class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   final _repo = FarmerManagementRepository();
   final _accountRepo = AccountManagementRepository();
+  final _restrictionRepo = MemberRestrictionRepository();
+
+  // Feature restrictions in force, per member (for the chips on each card and the
+  // Restricted filter).
+  Map<String, List<MemberRestriction>> _restrictions = {};
+  bool _restrictedOnly = false;
 
   // Applicants an Officer created: user id -> who created the account and when.
   // Self-registered applicants have no entry.
@@ -160,18 +170,33 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       _repo.fetchFarmers(),
       _repo.fetchDistinctCrops(),
       _repo.fetchOfficerCreatedSources(),
+      // A failed read only means no chips; it never blocks the list.
+      _restrictionRepo.fetchActiveByMember().catchError(
+        (_) => <String, List<MemberRestriction>>{},
+      ),
     ]);
     if (!mounted) return;
     setState(() {
       _allFarmers = results[0] as List<FarmerMemberModel>;
       _cropNames = results[1] as List<String>;
       _sources = results[2] as Map<String, AccountSource>;
+      _restrictions = results[3] as Map<String, List<MemberRestriction>>;
       _isLoading = false;
     });
   }
 
-  List<FarmerMemberModel> get _filteredFarmers =>
-      _allFarmers.applyFilter(_filter, _searchQuery);
+  List<FarmerMemberModel> get _filteredFarmers {
+    final list = _allFarmers.applyFilter(_filter, _searchQuery);
+    if (!_restrictedOnly) return list;
+    return list
+        .where((f) => (_restrictions[f.userId] ?? const []).isNotEmpty)
+        .toList();
+  }
+
+  /// Members with at least one restriction in force.
+  int get _restrictedCount => _allFarmers
+      .where((f) => (_restrictions[f.userId] ?? const []).isNotEmpty)
+      .length;
 
   /// Live count per status from the loaded list — this is what makes the
   /// derived Inactive count (and Suspended) correct without a server stat.
@@ -179,7 +204,18 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       _allFarmers.where((f) => f.memberStatus == s).length;
 
   void _setStatusFilter(MemberStatus? s) {
-    setState(() => _filter = _filter.copyWith(statusFilter: s));
+    setState(() {
+      _restrictedOnly = false;
+      _filter = _filter.copyWith(statusFilter: s);
+    });
+  }
+
+  void _toggleRestrictedFilter() {
+    setState(() {
+      _restrictedOnly = !_restrictedOnly;
+      if (_restrictedOnly) _filter = _filter.copyWith(statusFilter: null);
+      _visibleCount = _pageSize;
+    });
   }
 
   void _showAddMemberTypeSheet() {
@@ -275,6 +311,10 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           await _repo.reactivateMember(userId: farmer.userId);
           _loadAll();
         }
+      case 'restrict':
+        await _restrictFlow(farmer);
+      case 'manageRestrictions':
+        await _manageRestrictions(farmer);
       case 'reset':
         await _resetPassword(farmer);
       case 'issueLoan':
@@ -290,7 +330,6 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         }
         await _rejectMember(farmer);
       case 'delete':
-        if (HiveService.isOfficer) return;
         await _confirmDeleteRejected(farmer);
     }
   }
@@ -483,6 +522,55 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     }
   }
 
+  /// Restrict features (account stays Active): same two steps as Suspend.
+  Future<void> _restrictFlow(FarmerMemberModel farmer) async {
+    if (!requireManage(context, StaffModule.members)) return;
+    final l10n = AppLocalizations.of(context);
+    final request = await promptRestriction(
+      context: context,
+      displayName: farmer.fullName,
+    );
+    if (request == null) return;
+
+    try {
+      await _restrictionRepo.restrictMember(
+        userId: farmer.userId,
+        features: request.features,
+        reason: request.reason,
+        endsAt: request.endsAt,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.restrictedToast(farmer.fullName)),
+          backgroundColor: AppConstants.charcoal,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadAll(silent: true);
+    } catch (e, st) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyError(l10n, e, st, l10n.restrictActionError)),
+          backgroundColor: AppConstants.errorRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _manageRestrictions(FarmerMemberModel farmer) async {
+    if (!requireManage(context, StaffModule.members)) return;
+    final changed = await showManageRestrictions(
+      context: context,
+      displayName: farmer.fullName,
+      memberId: farmer.userId,
+      repo: _restrictionRepo,
+    );
+    if (changed == true) _loadAll(silent: true);
+  }
+
   Future<void> _suspendMemberFlow(FarmerMemberModel farmer) async {
     if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
@@ -584,7 +672,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                               label: l10n.farmerMgmtAllFilter,
                               count: _allFarmers.length,
                               color: cs.primary,
-                              selected: _filter.statusFilter == null,
+                              selected:
+                                  _filter.statusFilter == null &&
+                                  !_restrictedOnly,
                               onTap: () => _setStatusFilter(null),
                             ),
                             for (final s in MemberStatusExt.filterable)
@@ -597,6 +687,15 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                                   _filter.statusFilter == s ? null : s,
                                 ),
                               ),
+                            // Any feature restriction in force (the account itself
+                            // stays Active, so this is a separate chip).
+                            MembersStatusChip(
+                              label: l10n.farmerMgmtStatusRestrictedLabel,
+                              count: _restrictedCount,
+                              color: AppConstants.warningAmber,
+                              selected: _restrictedOnly,
+                              onTap: _toggleRestrictedFilter,
+                            ),
                           ],
                         ),
                       ),
@@ -604,7 +703,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                       // ── Farmer list ────────────────────────────────────────
                       Expanded(
                         child: RefreshIndicator(
-                          color: AppConstants.primaryGreen,
+                          color: Theme.of(context).colorScheme.primary,
                           onRefresh: _loadAll,
                           child: ListView(
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -627,6 +726,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                                       onTap: () =>
                                           pushFarmerDetails(context, f.userId),
                                       source: _sources[f.userId],
+                                      restrictions:
+                                          _restrictions[f.userId] ?? const [],
                                       onMenuSelected: (value) =>
                                           _onMenuSelected(f, value),
                                     ),
@@ -686,6 +787,60 @@ Color _statusColor(MemberStatus s, ColorScheme cs) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Restriction chips on a member's card: "Restricted" and the features, at most
+// three, then "+N".
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RestrictionChips extends StatelessWidget {
+  final List<MemberRestriction> restrictions;
+  const _RestrictionChips({required this.restrictions});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final features = <RestrictableFeature>[];
+    for (final r in restrictions) {
+      if (!features.contains(r.feature)) features.add(r.feature);
+    }
+    const maxShown = 3;
+    Widget chip(String text, {bool strong = false}) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppConstants.warningAmber.withValues(alpha: strong ? 0.20 : 0.12),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Theme.of(context).colorScheme.onSecondaryContainer
+              : const Color(0xFF8A5A00),
+        ),
+      ),
+    );
+
+    return Wrap(
+      key: const ValueKey('member-restriction-chips'),
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Icon(
+          Icons.lock_outline_rounded,
+          size: 14,
+          color: AppConstants.warningAmber,
+        ),
+        chip(l10n.restrictChipRestricted, strong: true),
+        for (final f in features.take(maxShown)) chip(f.chipLabel(l10n)),
+        if (features.length > maxShown) chip('+${features.length - maxShown}'),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Farmer Card
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -700,8 +855,12 @@ class _FarmerCard extends StatelessWidget {
   /// registered on their own.
   final AccountSource? source;
 
+  /// Feature restrictions in force on this member (empty = none).
+  final List<MemberRestriction> restrictions;
+
   const _FarmerCard({
     this.source,
+    this.restrictions = const [],
     required this.farmer,
     required this.cs,
     required this.sagana,
@@ -787,6 +946,27 @@ class _FarmerCard extends StatelessWidget {
               cs.onSurface,
             ),
           );
+        case MemberListAction.restrictFeatures:
+          entries.add(
+            _menuItem(
+              'restrict',
+              Icons.lock_outline_rounded,
+              l10n.restrictMenuAction,
+              cs.onSurface,
+            ),
+          );
+        case MemberListAction.manageRestrictions:
+          // Only when there is something to manage.
+          if (restrictions.isNotEmpty) {
+            entries.add(
+              _menuItem(
+                'manageRestrictions',
+                Icons.lock_open_rounded,
+                l10n.restrictMenuManage,
+                cs.onSurface,
+              ),
+            );
+          }
         case MemberListAction.toggleSuspend:
           final suspend = status.isEffectivelyActive;
           if (suspend) entries.add(const PopupMenuDivider());
@@ -961,6 +1141,12 @@ class _FarmerCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
+            // What this member is restricted from (account itself is still Active).
+            if (restrictions.isNotEmpty) ...[
+              _RestrictionChips(restrictions: restrictions),
+              const SizedBox(height: 12),
+            ],
+
             // Crop tags — every crop from this farmer's actual Crop Roster
             // (farmer_crops, same source the Farmer side and Farmer
             // Details both read), not just a 3-crop preview. Horizontal
@@ -1053,9 +1239,12 @@ class _FarmerCard extends StatelessWidget {
                 Flexible(
                   child: _LoanIndicator(farmer: farmer, cs: cs),
                 ),
-                Row(
+                Flexible(
+                  child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
+                    Flexible(
+                      child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 5,
@@ -1083,7 +1272,8 @@ class _FarmerCard extends StatelessWidget {
                                 : cs.outline,
                           ),
                           const SizedBox(width: 4),
-                          Text(
+                          Flexible(
+                            child: Text(
                             farmer.isSynced
                                 ? l10n.farmerMgmtSyncedStatus
                                 : l10n.buyerOrderDetailPendingTimestamp,
@@ -1095,8 +1285,10 @@ class _FarmerCard extends StatelessWidget {
                                   : cs.outline,
                             ),
                           ),
+                          ),
                         ],
                       ),
+                    ),
                     ),
                     const SizedBox(width: 4),
                     Icon(
@@ -1105,6 +1297,7 @@ class _FarmerCard extends StatelessWidget {
                       size: 16,
                     ),
                   ],
+                ),
                 ),
               ],
             ),
@@ -1124,14 +1317,14 @@ Widget _menuRow(IconData icon, String label, Color color) {
     children: [
       Icon(icon, size: 18, color: color),
       const SizedBox(width: 12),
-      Text(
+      Flexible(child: Text(
         label,
         style: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: color,
         ),
-      ),
+      )),
     ],
   );
 }
@@ -1256,7 +1449,7 @@ class _LoanIndicator extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
+          Flexible(child: Text(
             isOverdue
                 ? l10n.farmerMgmtOverdueBadge
                 : l10n.farmerMgmtActiveBadge,
@@ -1265,7 +1458,7 @@ class _LoanIndicator extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: color,
             ),
-          ),
+          )),
         ],
       ),
     );

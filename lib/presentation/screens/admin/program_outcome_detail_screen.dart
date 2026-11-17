@@ -55,6 +55,11 @@ class _ProgramOutcomeDetailScreenState
 
   // Final decision
   bool? _finalSuccessful;
+  // The cooperative's current decision on a Failed outcome, and the choice staff make while it is still pending.
+  FailedResolution? _resolution;
+  String? _newDecision;
+  final _newDecisionNote = TextEditingController();
+  String? _newDecisionError;
   final _finalNote = TextEditingController();
   String? _finalError;
   // Successful (Harvest Return): what the Farmer must return, decided by the
@@ -83,10 +88,12 @@ class _ProgramOutcomeDetailScreenState
     }
     _loadUrls();
     _reload(silent: true);
+    _loadResolution();
   }
 
   @override
   void dispose() {
+    _newDecisionNote.dispose();
     _reviewNote.dispose();
     _measuredQty.dispose();
     _verifyNote.dispose();
@@ -249,17 +256,22 @@ class _ProgramOutcomeDetailScreenState
     }
     setState(() => _finalError = null);
     await _run(
-      () => _repo.finalizeOutcome(
-        reportId: _r.id,
-        successful: successful,
-        note: _finalNote.text.trim(),
-        returnQuantity: successful && _r.isHarvestReturn ? qty : null,
-        returnUnit: successful && _r.isHarvestReturn ? _returnUnit : null,
-        resolution: successful ? null : _decision,
-        resolutionNote: _decisionNote.text.trim().isEmpty
-            ? null
-            : _decisionNote.text.trim(),
-      ),
+      () async {
+        await _repo.finalizeOutcome(
+          reportId: _r.id,
+          successful: successful,
+          note: _finalNote.text.trim(),
+          returnQuantity: successful && _r.isHarvestReturn ? qty : null,
+          returnUnit: successful && _r.isHarvestReturn ? _returnUnit : null,
+          resolution: successful ? null : _decision,
+          resolutionNote: _decisionNote.text.trim().isEmpty
+              ? null
+              : _decisionNote.text.trim(),
+        );
+        // The decision was recorded together with the outcome; read it back so the screen shows it now
+        // (it was only read when the screen opened, so it kept showing "Pending Cooperative Decision").
+        if (!successful) await _loadResolution();
+      },
       successful && _r.isHarvestReturn
           ? l10n.outcFinalizedReturnDue
           : l10n.outcFinalized,
@@ -708,7 +720,7 @@ class _ProgramOutcomeDetailScreenState
         ),
         RequestDetailRow(
           label: l10n.outcDoneBy,
-          value: _by(l10n, r.verifiedByName, 'officer', r.verifiedAt),
+          value: _by(l10n, r.verifiedByName, r.verifiedByRole, r.verifiedAt),
         ),
         if (r.fieldVisitDate != null)
           RequestDetailRow(
@@ -744,6 +756,9 @@ class _ProgramOutcomeDetailScreenState
       ]);
     } else if (!r.isPending) {
       children.add(_notice(l10n.outcNotAvailable));
+    } else if (!r.isReviewed) {
+      // One order: the evidence review is submitted first; only then does the field verification open.
+      children.add(_notice(l10n.outcVerifyAfterReview));
     } else {
       children.addAll([
         Text(
@@ -963,6 +978,109 @@ class _ProgramOutcomeDetailScreenState
     const SizedBox(height: 12),
   ];
 
+  // ─── Cooperative decision on a Failed outcome ────────────────────────────
+
+  Future<void> _loadResolution() async {
+    try {
+      final all = await _repo.fetchResolutions(programId: _r.programId);
+      final mine = all.where((x) => x.programMemberId == _r.programMemberId).firstOrNull;
+      if (mounted) setState(() => _resolution = mine);
+    } catch (_) {
+      // The decision line is simply left out if it cannot be read.
+    }
+  }
+
+  Future<void> _submitNewDecision() async {
+    final l10n = AppLocalizations.of(context);
+    if (_newDecision == null) {
+      setState(() => _newDecisionError = l10n.outcDecisionRequired);
+      return;
+    }
+    if (_newDecisionNote.text.trim().isEmpty) {
+      setState(() => _newDecisionError = l10n.outcDecisionNoteRequired);
+      return;
+    }
+    setState(() => _newDecisionError = null);
+    final chosen = _newDecision!;
+    final note = _newDecisionNote.text.trim();
+    await _run(() async {
+      await _repo.recordFailedResolution(
+        programMemberId: _r.programMemberId,
+        resolution: chosen,
+        note: note,
+      );
+      _newDecision = null;
+      _newDecisionNote.clear();
+      await _loadResolution();
+    }, l10n.resSaved);
+  }
+
+  /// The current cooperative decision, and, while it is still "Pending Cooperative Decision", the other three
+  /// options so staff can make the decision when the cooperative is ready.
+  List<Widget> _resolutionSection(AppLocalizations l10n) {
+    final res = _resolution?.resolution ?? FailedResolution.pendingCooperativeDecision;
+    final pending = res == FailedResolution.pendingCooperativeDecision;
+    final cs = Theme.of(context).colorScheme;
+    final options = [
+      FailedResolution.closedNoFurtherObligation,
+      FailedResolution.eligibleForReassessment,
+      FailedResolution.referredForLoanAssessment,
+    ];
+    return [
+      RequestDetailRow(
+        label: l10n.outcDecisionSection,
+        value: resolutionLabel(l10n, res),
+        valueColor: pending ? AppConstants.warningAmber : AppConstants.programPurple,
+      ),
+      if ((_resolution?.note ?? '').trim().isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            '"${_resolution!.note}"',
+            style: GoogleFonts.inter(fontSize: 13, fontStyle: FontStyle.italic),
+          ),
+        ),
+      if (pending) ...[
+        const SizedBox(height: 14),
+        Text(
+          l10n.outcPendingChoose,
+          style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
+        ),
+        RadioGroup<String>(
+          groupValue: _newDecision,
+          onChanged: (v) {
+            if (!_busy && v != null) setState(() => _newDecision = v);
+          },
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              children: [
+                for (final o in options)
+                  RadioListTile<String>(
+                    value: o,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(
+                      resolutionLabel(l10n, o),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        TextField(
+          controller: _newDecisionNote,
+          maxLines: 2,
+          enabled: !_busy,
+          decoration: InputDecoration(labelText: '${l10n.outcDecisionNoteLabel} *'),
+        ),
+        _error(_newDecisionError),
+        _submitButton(l10n.resSave, _submitNewDecision),
+      ],
+    ];
+  }
+
   Widget _finalCard(AppLocalizations l10n) {
     final r = _r;
     final children = <Widget>[];
@@ -992,6 +1110,10 @@ class _ProgramOutcomeDetailScreenState
               ),
             ),
           ),
+        if (failed) ...[
+          const SizedBox(height: 10),
+          ..._resolutionSection(l10n),
+        ],
       ]);
     } else if (r.isReturned) {
       children.add(

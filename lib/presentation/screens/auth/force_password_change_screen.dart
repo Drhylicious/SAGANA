@@ -6,6 +6,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/password_requirements.dart';
 import '../../widgets/set_password_form.dart';
 
 /// Forced stop after logging in with an admin-issued temporary password
@@ -46,6 +47,16 @@ class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
       _formError = null;
     });
     try {
+      // The password the reset replaced cannot come back; the temporary one is
+      // refused by the server (shown the same way, inline under the fields).
+      if (await AuthService.newPasswordMatchesPrevious(_passwordController.text)) {
+        if (!mounted) return;
+        setState(() {
+          _isSaving = false;
+          _formError = AppLocalizations.of(context).passwordErrPrevious;
+        });
+        return;
+      }
       await AuthService.changePassword(_passwordController.text);
       await AuthService.clearMustChangePassword();
       if (!mounted) return;
@@ -62,13 +73,14 @@ class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
         default:
           context.go(AppRoutes.farmerDashboard);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       setState(() {
         _isSaving = false;
-        _formError = AppLocalizations.of(
-          context,
-        ).enhCouldNotUpdateYourPasswordPleaseTryAgain;
+        _formError =
+            passwordUpdateErrorMessage(e, l10n) ??
+            l10n.enhCouldNotUpdateYourPasswordPleaseTryAgain;
       });
     }
   }

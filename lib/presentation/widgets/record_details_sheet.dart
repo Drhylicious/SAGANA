@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import 'management_modal.dart';
 
@@ -254,11 +255,4 @@ class _CollapsibleDetailSectionState extends State<CollapsibleDetailSection> {
 }
 
 /// A date as the details views show it: "Nov 13, 2026".
-String detailDate(DateTime d) {
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  final local = d.toLocal();
-  return '${months[local.month - 1]} ${local.day}, ${local.year}';
-}
+String detailDate(DateTime d) => DateFormat('MMM d, y').format(d.toLocal());

@@ -163,10 +163,10 @@ class _WorkflowActivityCardState extends State<WorkflowActivityCard> {
             children: [
               Icon(Icons.history_rounded, size: 18, color: cs.primary),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 l.wfActivityTitle,
                 style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 12),

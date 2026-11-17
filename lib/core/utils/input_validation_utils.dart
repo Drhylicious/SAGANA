@@ -1,3 +1,5 @@
+import '../l10n/localized_labels.dart';
+
 bool isValidCurrencyValue(String? value) {
   if (value == null) return false;
   final normalized = value.trim();
@@ -61,9 +63,9 @@ bool isValidUsernameFormat(String? value) {
 /// does not depend on when the screen last rebuilt.
 String? validateLoginIdentifier(String? value) {
   final v = (value ?? '').trim();
-  if (v.isEmpty) return 'Username or email is required';
+  if (v.isEmpty) return currentL10n().dlLoginIdRequired;
   if (v.contains('@') && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
-    return 'Enter a valid email address';
+    return currentL10n().enhEnterAValidEmailAddress;
   }
   return null;
 }

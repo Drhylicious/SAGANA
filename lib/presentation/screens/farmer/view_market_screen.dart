@@ -233,7 +233,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
         .reduce((a, b) => a.isAfter(b) ? a : b);
 
     return RefreshIndicator(
-      color: AppConstants.primaryGreen,
+      color: Theme.of(context).colorScheme.primary,
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(

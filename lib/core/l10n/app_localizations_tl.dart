@@ -124,9 +124,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get genericAdd => 'Magdagdag';
 
   @override
-  String get aboutSaganaDeveloperRole => 'Pangkat na bumuo ng SAGANA';
-
-  @override
   String get dateOfBirthLabel => 'Petsa ng Kapanganakan';
 
   @override
@@ -607,10 +604,6 @@ class AppLocalizationsTl extends AppLocalizations {
       'Walang naitalang benta sa kooperatiba para sa panahong ito.';
 
   @override
-  String get reportsNoSearchResults =>
-      'Walang transaksyong tumugma sa iyong hinanap.';
-
-  @override
   String get reportsCoopStockReport => 'Ulat ng Stock ng Kooperatiba';
 
   @override
@@ -710,7 +703,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get reportsMemberContributionReport =>
-      'Ulat ng Pagtangkilik ng Miyembro';
+      'Ulat ng Kontribusyon ng Miyembro';
 
   @override
   String reportsTotalCoopSalesLabel(int year) {
@@ -757,9 +750,6 @@ class AppLocalizationsTl extends AppLocalizations {
       'Inilalagay ng Tagapamahala sa Balik-Tangkilik Management.';
 
   @override
-  String get reportsContributingMembers => 'Mga Miyembrong Nag-aambag';
-
-  @override
   String get reportsParticipationRate => 'Rate ng Partisipasyon';
 
   @override
@@ -782,193 +772,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get reportsAnalyticsDashboard => 'Buod ng pagsusuri';
 
   @override
-  String get reportsBalikTangkilikManagement => 'Pamamahala ng Balik-Tangkilik';
-
-  @override
-  String get balikTangkilikSettingsTab => 'Mga Setting';
-
-  @override
   String get balikTangkilikDistributionTab => 'Distribusyon';
-
-  @override
-  String get balikTangkilikHistoryTab => 'Kasaysayan';
-
-  @override
-  String get balikTangkilikHistoryTitle => 'Kasaysayan ng Distribusyon';
-
-  @override
-  String get balikTangkilikNoHistoryYet => 'Wala pang naitalang distribusyon.';
-
-  @override
-  String balikTangkilikYearLogTitle(int year) {
-    return 'Distribusyon ng $year';
-  }
-
-  @override
-  String balikTangkilikYearLogSubtitle(int count) {
-    return '$count miyembro ang nabayaran';
-  }
-
-  @override
-  String get balikTangkilikTotalCoopSales => 'Kabuuang Benta sa Kooperatiba';
-
-  @override
-  String get balikTangkilikPoolAmount =>
-      'Halaga ng Pool na Maaaring I-distribute';
-
-  @override
-  String get balikTangkilikInterestRate => 'Antas ng interes (%)';
-
-  @override
-  String balikTangkilikLiveTotalHint(String amount) {
-    return 'Live total mula sa mga naitalang benta: $amount';
-  }
-
-  @override
-  String balikTangkilikReconciliationHint(String entered, String liveTotal) {
-    return 'Pagkakaiba ang halaga na pinasok ($entered) at ang live total ($liveTotal). Pakisuri bago mag-save.';
-  }
-
-  @override
-  String get balikTangkilikUseThisValue => 'Gamitin ang live total na ito';
-
-  @override
-  String get balikTangkilikPoolHint =>
-      'Ilagay ang halaga na available para sa pag-distribute sa mga miyembro.';
-
-  @override
-  String get balikTangkilikSalesSectionTitle =>
-      'Pagtangkilik ng Cooperative Sales';
-
-  @override
-  String get balikTangkilikSalesSectionHint =>
-      'Ang pondo para sa mga magsasakang nagbenta ng ani sa kooperatiba sa pamamagitan ng Offer to Cooperative — hindi ito pinagsasama sa Programa sa pagbebenta ng produkto pool sa ibaba.';
-
-  @override
-  String get balikTangkilikProgramSectionTitle =>
-      'Pagtangkilik ng Programa sa pagbebenta ng produkto';
-
-  @override
-  String get balikTangkilikProgramSectionHint =>
-      'Hiwalay na pondo para sa mga magsasakang bumili ng produkto sa pamamagitan ng isang Programa sa pagbebenta ng produkto — hindi ito pinagsasama sa Cooperative Sales pool sa itaas.';
-
-  @override
-  String get balikTangkilikTotalProgramSales => 'Kabuuang Program Sales';
-
-  @override
-  String get balikTangkilikProgramPoolAmount =>
-      'Distributable na Program Pool Amount';
-
-  @override
-  String get balikTangkilikProgramPoolHint =>
-      'Ilagay ang halaga na available para sa pag-distribute sa mga miyembro mula sa mga binili sa Programa sa pagbebenta ng produkto.';
-
-  @override
-  String balikTangkilikLiveProgramTotalHint(String amount) {
-    return 'Live total mula sa mga kumpirmadong program purchase: $amount';
-  }
-
-  @override
-  String get balikTangkilikInterestHint =>
-      'Ilagay ang taunang interest rate para sa pool.';
-
-  @override
-  String get balikTangkilikAfsFinalized => 'Pinal na ulat sa pananalapi';
-
-  @override
-  String get balikTangkilikAfsFinalizedHint =>
-      'Markahan ito bilang finalized matapos aprubahan ang taunang financial statement.';
-
-  @override
-  String get balikTangkilikSaveSettings => 'I-save ang Mga Setting';
-
-  @override
-  String get balikTangkilikInvalidValues =>
-      'Pakituloy ang valid at non-negative na halaga sa lahat ng field.';
-
-  @override
-  String get balikTangkilikZeroPoolWarningTitle =>
-      'Walang halagang ipapamahagi?';
-
-  @override
-  String get balikTangkilikZeroPoolWarningMessage =>
-      'Ang pag-save ng zero distributable pool habang finalized ang AFS ay maaaring hadlangan ang future distribution. Ituloy pa rin?';
-
-  @override
-  String get balikTangkilikContinueAnyway => 'Ituloy Pa Rin';
-
-  @override
-  String balikTangkilikSettingsSaved(int year) {
-    return 'Na-save ang mga setting para sa $year.';
-  }
-
-  @override
-  String get balikTangkilikSaveError =>
-      'Hindi ma-save ang Balik-Tangkilik settings. Subukan muli.';
-
-  @override
-  String get balikTangkilikMemberBreakdown => 'Detalye ng Miyembro';
-
-  @override
-  String get balikTangkilikRefreshEstimates => 'I-refresh ang Estimate';
-
-  @override
-  String get balikTangkilikEstimatesRefreshed => 'Na-refresh ang estimate.';
-
-  @override
-  String get balikTangkilikRefreshError =>
-      'Hindi na-refresh ang estimate. Subukan muli.';
-
-  @override
-  String get balikTangkilikAfsNotFinalizedWarning =>
-      'Hindi pa tapos ang AFS para sa taong ito. Pumunta sa Settings tab para itapos ito bago maitala ang distribusyon.';
-
-  @override
-  String balikTangkilikAlreadyDistributedBanner(int year) {
-    return 'Naipamahagi na ang Balik-Tangkilik para sa $year.';
-  }
-
-  @override
-  String balikTangkilikTotalEstimated(int year) {
-    return 'Kabuuang Tinatayang Bayad ($year)';
-  }
-
-  @override
-  String balikTangkilikTotalDistributed(int year) {
-    return 'Kabuuang Naipamahagi ($year)';
-  }
-
-  @override
-  String get balikTangkilikRecordDistribution => 'Itala ang Distribusyon';
-
-  @override
-  String balikTangkilikAlreadyDistributed(int year) {
-    return 'Naipamahagi na para sa $year';
-  }
-
-  @override
-  String get balikTangkilikConfirmTitle => 'Kumpirmahin ang Distribusyon';
-
-  @override
-  String balikTangkilikConfirmMessage(int year, int count, String amount) {
-    return 'Itatapos mo na ang Balik-Tangkilik para sa $year para sa $count na nag-ambag na miyembro, na may kabuuang $amount.';
-  }
-
-  @override
-  String get balikTangkilikIrreversibleWarning =>
-      'Permanente ang aksyon na ito at hindi na maibabalik.';
-
-  @override
-  String get balikTangkilikConfirmDistribute => 'Ipamahagi Na';
-
-  @override
-  String balikTangkilikDistributionSuccess(String amount) {
-    return 'Naitala ang distribusyon. Kabuuang naibayad: $amount.';
-  }
-
-  @override
-  String get balikTangkilikDistributionError =>
-      'Hindi naitala ang distribusyon. Subukan muli.';
 
   @override
   String get exportSelectReports => 'Pumili ng Ulat';
@@ -978,7 +782,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get exportYearForContributionReport =>
-      'Ang Ulat ng Pagtangkilik ng Miyembro ay gumagamit ng partikular na taon, hindi panahon:';
+      'Ang Ulat ng Kontribusyon ng Miyembro ay gumagamit ng partikular na taon, hindi ng panahon:';
 
   @override
   String get exportSelectAtLeastOne =>
@@ -1263,6 +1067,29 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get loanHistoryFilterAll => 'Lahat';
+
+  @override
+  String get assistRecordItems => 'Mga Item';
+
+  @override
+  String get assistRecordApproved => 'Naaprubahan';
+
+  @override
+  String get assistRecordRepayment => 'Bayad';
+
+  @override
+  String get assistRecordNone => 'Wala';
+
+  @override
+  String assistRecordApprovedOn(String date) {
+    return 'Naaprubahan $date';
+  }
+
+  @override
+  String get loanHistoryFilterAssistance => 'Tulong';
+
+  @override
+  String get loanHistoryNoAssistance => 'Wala pang naaprubahang tulong.';
 
   @override
   String get loanHistoryFilterPaid => 'Bayad na';
@@ -2332,6 +2159,40 @@ class AppLocalizationsTl extends AppLocalizations {
   String get suspendNoticeOk => 'Sige';
 
   @override
+  String get appUpdateTitle => 'May bagong update';
+
+  @override
+  String get appUpdateRequiredTitle => 'Kailangan ng update';
+
+  @override
+  String appUpdateBody(String newVersion, String currentVersion) {
+    return 'Handa na ang SAGANA $newVersion. Gamit mo ang $currentVersion.';
+  }
+
+  @override
+  String appUpdateRequiredBody(String newVersion) {
+    return 'Hindi na sinusuportahan ang bersyong ito ng SAGANA. I-install ang SAGANA $newVersion para magamit pa ang app.';
+  }
+
+  @override
+  String get appUpdateNotesTitle => 'Ano\'ng bago';
+
+  @override
+  String get appUpdateNow => 'I-update ngayon';
+
+  @override
+  String get appUpdateLater => 'Mamaya';
+
+  @override
+  String get appUpdateOpenFailed =>
+      'Hindi mabuksan ang download page. Tingnan ang koneksyon at subukan ulit.';
+
+  @override
+  String aboutVersion(String version, String build) {
+    return 'Bersyon $version (build $build)';
+  }
+
+  @override
   String get buyerOrdersViewPickupDetails => 'Tingnan ang Detalye ng Pickup';
 
   @override
@@ -2668,46 +2529,24 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get aboutSaganaBody =>
-      'Tinutulungan ng SAGANA ang mga mamimili na makipag-ugnayan sa mga pinagkakatiwalaang magsasaka ng SP3 at pamahalaan ang kanilang mga pagbili sa isang lugar.';
+      'Hinahayaan ka ng SAGANA na mag-browse sa Public Market, magkumpara ng presyo, umorder para sa pickup o delivery, at sundan ang bawat order sa iisang lugar.';
 
   @override
   String get adminAboutSaganaBody =>
-      'Tinutulungan ng SAGANA ang mga Tagapamahala ng kooperatiba na pamahalaan ang mga miyembro, listahan sa pamilihan, pautang, imbentaryo, at ulat sa iisang lugar.';
+      'Tinutulungan ng SAGANA ang mga Manager at Officer ng kooperatiba na pangasiwaan ang mga miyembro, palengke, utang, imbentaryo, programa, at ulat sa iisang lugar.';
 
   @override
   String get farmerAboutSaganaBody =>
-      'Tinutulungan ka ng SAGANA na itala ang mga ani, ilista ang produkto, subaybayan ang mga pautang at gastos, at pamahalaan ang iyong mga kontribusyon sa kooperatiba sa iisang lugar.';
-
-  @override
-  String get aboutSaganaFullDescription =>
-      'Ang SAGANA (Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics) ay ginawa bilang capstone project para sa SP3 Agriculture Cooperative sa Barangay Payanas, Torrijos, Marinduque. Pinapalitan nito ang dating manu-manong pagtatala sa logbook, at pinagsasama-sama ang pagiging miyembro ng kooperatiba, mga ani, listahan sa pamilihan, pautang, presyo, at ulat sa iisang sistema — ginawa upang gumana kahit walang internet, dahil walang tiyak na signal sa barangay, at awtomatikong magpadala kapag muling may koneksyon.';
-
-  @override
-  String get aboutSaganaBuiltBy => 'Ginawa Ni';
-
-  @override
-  String get aboutSaganaDeveloperLabel => 'Tagabuo';
+      'Tinutulungan ka ng SAGANA na itago ang iyong mga tala ng pananim at ani, magbenta sa palengke o sa kooperatiba, humiling ng utang, sumali sa mga programa, at sundan ang sarili mong mga tala sa iisang lugar.';
 
   @override
   String get aboutCooperative => 'Tungkol sa Kooperatiba';
 
   @override
-  String get aboutCooperativeBody =>
-      'Ang SP3 Agriculture Cooperative (Samahan ng Pagkakaisa sa Pag-unlad ng Payanas) ay naglilingkod sa mga magsasakang miyembro sa Barangay Payanas, Torrijos, Marinduque. Opisyal itong nairehistro sa Cooperative Development Authority (CDA) noong Pebrero 1, 2017 (Registration No. 9520-1040000000036899), at inuri bilang isang Micro cooperative.\n\nNahahati ang kita ng kooperatiba sa mga miyembro sa pamamagitan ng dalawang paraang kinikilala sa kanilang by-laws: ang Balik-Tangkilik (pagtangkilik refund batay sa dami ng ibinentang ani ng miyembro sa kooperatiba) at ang Interest on Share Puhunan (batay sa naipong puhunan contribution ng bawat miyembro). Kabilang sa pangunahing negosyo ng kooperatiba ang Copra Buy and Sell, Peanut Cookies Production, at Rice and Feeds Retailing, at ang mga miyembro nito ay pangunahing nagtatanim ng mani, luya, saging, at palay.\n\nUpang maging miyembro, dapat residente ng Barangay Payanas, 18 taong gulang pataas, at magbayad ng hindi bababa sa ₱100 kada buwan para sa puhunan build-up, kasama ang taunang puhunan na ₱2,000.\n\nEmail Address\n(placeholder — ilalagay pa)\n\nContact Number\n(placeholder — ilalagay pa)';
-
-  @override
   String get privacyPolicy => 'Patakaran sa Privacy';
 
   @override
-  String get privacyPolicyBody =>
-      'Ipinapaliwanag ng Patakarang ito sa Privacy kung anong personal na impormasyon ang kinokolekta ng SAGANA, kung bakit, at paano ito ginagamit, batay sa aktwal na paggana ng sistema ngayon.\n\nAno ang kinokolekta namin: buong pangalan, numero ng telepono, at detalye photo, na karaniwan sa lahat ng account. Kinokolekta rin ng mga magsasaka account ang petsa ng kapanganakan, kasarian, detalye ng bukid, at impormasyon sa pananim. Maaaring kolektahin din ng mga mamimili account ang petsa ng kapanganakan, kasarian, at tunay na contact email. Kinokolekta ng mga Tagapamahala at opisyal account ang posisyon at departamento;\n\nPaano ka nag-lo-log in: ang Magsasaka, Opisyal, at Tagapamahala account ay gumagamit ng username na itinalaga ng kooperatiba sa halip na pampublikong email address — ginagamit ito ng SAGANA sa loob lamang ng sistema para gumawa ng account, ngunit hindi ito nakikita ng ibang user. Ang Mamimili account ay maaaring mag-rehistro gamit ang tunay na email address.\n\nBakit namin ito kinokolekta: upang pangasiwaan ang iyong pagiging miyembro sa kooperatiba (kasama ang puhunan at Balik-Tangkilik na rekord), mag-isyu at subaybayan ang mga pautang sa agrikultura, patakbuhin ang pamilihan (listahan, order, at Ginger market-linking kasama ang DA-AMAD), at makipag-ugnayan sa iyo tungkol sa mga usaping pangkooperatiba tulad ng BOD meeting at paalala sa pautang.\n\nPaano ito iniimbak at pinoprotektahan: ang iyong impormasyon ay iniimbak sa isang pinamamahalaang Supabase database na may row-level security rules na naglilimita sa bawat account sa sarili lamang nitong rekord. Ang mga Tagapamahala at Opisyal account ay may mas malawak na access na strictong para lamang sa mga operasyon ng kooperatiba na nabanggit — halimbawa, para suriin ang aplikasyon ng pautang o aprubahan ang isang listahan sa pamilihan — hindi para sa ibang layunin.\n\nSino ang makakakita ng iyong impormasyon: hindi direktang nakikita ng ibang Magsasaka at Mamimili ang iyong personal na detalye sa pakikipag-ugnayan; makikita lamang nila ang kinakailangan para sa isang partikular na transaksyon, tulad ng pananim at presyo sa isang listahan. Makikita ng Tagapamahala at Opisyal ang impormasyon ng Magsasaka at Mamimili na kinakailangan para sa mga operasyon ng kooperatiba, kasama ang lokasyon at pananim ng iyong bukid, na ginagamit para sa Supply Chain map.\n\nPag-update ng iyong impormasyon: maaari mong i-update ang iyong pangalan, numero ng telepono, larawan, kasarian, at petsa ng kapanganakan (kung naaangkop) anumang oras mula sa Edit Detalye. Hindi na maaaring baguhin ang iyong username at login email pagkatapos mag-rehistro.\n\nPagsuspinde ng account: maaaring suspindihin ng Tagapamahala ang isang account kung may sapat na dahilan, na itatala. Ang suspensyon ay humaharang sa pag-log in ngunit hindi awtomatikong binubura ang iyong mga rekord — wala pang self-service na paraan ang SAGANA para burahin ang account o datos; kung kailangan mong burahin ang iyong datos, makipag-ugnayan nang direkta sa kooperatiba gamit ang impormasyong nasa Tungkol sa Kooperatiba.\n\nSeguridad: ang mga password ay pinamamahalaan sa pamamagitan ng authentication service ng Supabase at hindi kailanman nakikita ng tauhan ng kooperatiba. Maaari kang bigyan ng Tagapamahala ng pansamantalang password kung nawalan ka ng access sa iyong account.\n\nMga tanong: para sa mga alalahanin tungkol sa privacy, makipag-ugnayan sa kooperatiba gamit ang impormasyong nasa Tungkol sa Kooperatiba.';
-
-  @override
   String get termsOfUse => 'Mga Tuntunin ng Paggamit';
-
-  @override
-  String get termsOfUseBody =>
-      'Sa paggamit ng SAGANA, sumasang-ayon ka sa mga sumusunod na tuntunin, batay sa aktwal na paggana ng sistema ngayon.\n\nMga account at tungkulin: may apat na tungkulin ang SAGANA — Tagapamahala, Opisyal, Magsasaka, at Mamimili. Ang mga Tagapamahala at Opisyal account ay ginagawa ng kooperatiba; magagamit ng Opisyal ang lahat ng feature ng Tagapamahala maliban sa pamamahala ng pagiging miyembro sa kooperatiba. Ang mga Magsasaka account ay maaaring gawin ng Tagapamahala o sa pamamagitan ng self-registration na susundan ng pagsusuri at pag-apruba ng Tagapamahala. Ang mga Mamimili account ay maaaring mag-self-register.\n\nWastong impormasyon: sumasang-ayon kang magbigay ng tumpak at totoong impormasyon — kasama ang mga rekord ng ani, listahan ng pananim, at personal na detalye — at panatilihing napapanahon ito sa pamamagitan ng Edit Detalye.\n\nPamilihan: kinakailangan ng pag-apruba ng Tagapamahala o Opisyal ang mga listahan ng Magsasaka bago ito makita ng mga Mamimili. Ang ani ng luya ay maaari ding ibenta sa pamamagitan ng DA-AMAD pag-uugnay sa mamimili o direktang ialok sa kooperatiba (Offer to Cooperative) bilang alternatibo sa pampublikong listahan. Parehong responsable ang Mamimili at Magsasaka sa pagtupad sa mga tuntunin ng anumang order na kanilang inilagay o tinanggap.\n\nMga pautang: ang mga pautang na inisyu sa pamamagitan ng SAGANA ay mga agricultural input loan (tulad ng abono, feeds, o binhi), hindi cash, at available lamang sa mga miyembrong nakakatugon sa kinakailangang puhunan ng kooperatiba. Ang iskedyul ng pagbabayad ay susunod sa mga tuntuning ipinapakita sa oras na inisyu ang pautang.\n\nBalik-Tangkilik at puhunan: anumang Balik-Tangkilik o Interest on Share Puhunan na ipinapakita sa SAGANA ay tantiya lamang batay sa naitalang aktibidad sa taon; ang aktwal na ipamamahagi ay tinutukoy at inaaprubahan sa Annual General Assembly ng kooperatiba, hindi ng app.\n\nSeguridad ng account: responsable kang panatilihing kumpidensyal ang iyong login credentials at hindi dapat ibahagi ang iyong account sa ibang tao. Kung may kinatatakutan kang unauthorized access, agad makipag-ugnayan sa kooperatiba.\n\nPagsuspinde: maaaring suspindihin ng Tagapamahala ang isang account kung may sapat na dahilan — tulad ng mapanlinlang na impormasyon, maling paggamit ng pamilihan, o paglabag sa mga tuntuning ito — na itatala. Hindi makakapag-log in ang suspendidong account hanggang ito ay muling paganahin.\n\nPaggamit walang internet: gumagana ang ilang feature kahit walang internet at awtomatikong nagpapadala kapag muling may koneksyon. Ang mga aksyong naitala nang walang internet (tulad ng pagtatala ng ani) ay maaaring hindi agad makita ng iba hanggang matapos ang pagpapadala na iyon.\n\nAvailability ng sistema: ang SAGANA ay isang panloob na sistema ng kooperatiba na ginawa bilang capstone project, hindi isang komersyal na platform, at hindi ginagarantiya ang availability sa lahat ng oras.\n\nMga pagbabago sa mga tuntuning ito: maaaring i-update ang mga tuntuning ito habang nagbabago ang mga feature ng SAGANA. Ang patuloy na paggamit ng SAGANA pagkatapos ng update ay nangangahulugang pagtanggap sa binagong mga tuntunin.';
 
   @override
   String get logOut => 'Mag-log Out';
@@ -3983,9 +3822,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get farmerDetailsNoRecords => 'Walang rekord';
 
   @override
-  String get farmerDetailsCompletedShares => 'Mga Nakumpletong Share';
-
-  @override
   String get farmerDetailsCapitalContribution => 'Kontribusyon sa Puhunan';
 
   @override
@@ -4014,12 +3850,11 @@ class AppLocalizationsTl extends AppLocalizations {
   String get farmerDetailsSourceOpeningBalance => 'Panimulang Puhunan';
 
   @override
-  String get farmerDetailsEstBalikTangkilik =>
-      'Tinatayang Kabuuang Pagtangkilik';
+  String get farmerDetailsViewPatronageReport =>
+      'Tingnan ang Ulat ng Kontribusyon ng Miyembro';
 
   @override
-  String get farmerDetailsViewFullContribution =>
-      'Tingnan ang Buong Kontribusyon';
+  String get patViewFarmerProfile => 'Tingnan ang Profile ng Magsasaka';
 
   @override
   String get farmerDetailsNoExpenseHistory => 'Wala pang history ng gastos.';
@@ -4051,9 +3886,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get farmerDetailsSourcePaymentFull => 'Bayad sa puhunan';
 
   @override
-  String get farmerDetailsSourcePatronageFull => 'Payout para sa Puhunan';
-
-  @override
   String get farmerDetailsSourceAdjustmentFull => 'Pagwawasto (+ o −)';
 
   @override
@@ -4080,9 +3912,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get farmerDetailsRecordAction => 'Itala';
-
-  @override
-  String get farmerDetailsReverseContribution => 'Kanselahin ang Kontribusyon';
 
   @override
   String get farmerDetailsContributionDetails => 'Detalye ng Kontribusyon';
@@ -4140,26 +3969,11 @@ class AppLocalizationsTl extends AppLocalizations {
       'Maglagay ng dahilan (hindi bababa sa 3 titik).';
 
   @override
-  String farmerDetailsReverseExplain(String amount) {
-    return 'Kakanselahin nito ang talang $amount sa pamamagitan ng katapat na tala para sa miyembrong ito. Mananatili sa kasaysayan ang orihinal na tala.';
-  }
-
-  @override
-  String get farmerDetailsReverseAction => 'Kanselahin ang Kontribusyon';
-
-  @override
   String get farmerDetailsKeepContribution => 'Panatilihin ang Kontribusyon';
 
   @override
-  String get farmerDetailsContributionReversed => 'Nakansela ang kontribusyon.';
-
-  @override
-  String get farmerDetailsReverseNeedsInternet =>
-      'Kailangan ng internet para makansela ang kontribusyon.';
-
-  @override
   String get farmerDetailsReverseElsewhere =>
-      'Ang payout na idinagdag sa puhunan ay kinakansela sa Balik-Tangkilik, hindi dito.';
+      'Ang naunang payout na idinagdag sa puhunan ay permanente at hindi maaaring kanselahin dito.';
 
   @override
   String staffActContributionReversed(String amount, String name) {
@@ -5877,7 +5691,7 @@ class AppLocalizationsTl extends AppLocalizations {
       'Mga layunin, target na pananim, o benepisyaryo';
 
   @override
-  String get programMgmtCreateAction => 'Gumawa ng Program';
+  String get programMgmtCreateAction => 'Magdagdag ng Bagong Program';
 
   @override
   String get programMgmtNoProgramsYet => 'Wala pang program';
@@ -7898,7 +7712,28 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get assistInfo =>
-      'Hindi naging matagumpay ang resulta ng iyong programa. Maaari kang humiling sa kooperatiba ng mga item mula sa katalogo ng pautang. Hindi ito pautang: walang utang at walang babayarang muli. Susuriin ito ng staff.';
+      'Ipinasa ka ng kooperatiba para sa tulong matapos ang resulta ng iyong programa. Maaari kang humiling sa kooperatiba ng mga item mula sa katalogo. Hindi ito pautang: walang babayaran. Susuriin ng staff ang hiling mo.';
+
+  @override
+  String get assistSearchHint => 'Maghanap ng item...';
+
+  @override
+  String get assistNoMatch => 'Walang item na tumutugma sa hinahanap mo.';
+
+  @override
+  String get assistQtyLabel => 'Dami';
+
+  @override
+  String assistSelectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count item ang napili',
+      one: '1 item ang napili',
+      zero: 'Walang napiling item',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get assistChooseItems => 'Pumili ng mga item';
@@ -7977,7 +7812,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get assistStaffEmpty => 'Walang hiling na tulong dito.';
 
   @override
-  String get assistBadge => 'Tulong sa nabigong programa · hindi pautang';
+  String get assistBadge => 'Tulong · hindi pautang';
 
   @override
   String assistAfterProgram(String program) {
@@ -8008,7 +7843,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get assistApprove => 'Aprubahan';
 
   @override
-  String get assistReject => 'Tanggihan';
+  String get assistReject => 'Huwag aprubahan';
 
   @override
   String get assistApproveTitle => 'Aprubahan ang hiling na ito?';
@@ -8024,13 +7859,13 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
-  String get assistRejectTitle => 'Tanggihan ang hiling na ito?';
+  String get assistRejectTitle => 'Huwag aprubahan ang hiling na ito?';
 
   @override
   String get assistRejectReason => 'Dahilan (makikita ito ng Magsasaka)';
 
   @override
-  String get assistRejected => 'Tinanggihan ang hiling.';
+  String get assistRejected => 'Hindi inaprubahan ang hiling.';
 
   @override
   String get retStatusPending => 'Naghihintay ang harvest return';
@@ -8054,6 +7889,11 @@ class AppLocalizationsTl extends AppLocalizations {
   String get retManage => 'Pamahalaan ang return';
 
   @override
+  String farmerProgHistory(int count) {
+    return 'Kasaysayan ($count)';
+  }
+
+  @override
   String get farmerProgRoundSecond => 'Pangalawang distribusyon';
 
   @override
@@ -8067,10 +7907,10 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get farmerRedistEligibleBody =>
-      'Sinuri ng kooperatiba ang naunang resulta mo sa programang ito. Maaari kang humiling ng panibagong distribusyon; hindi mo na kailangang sumali muli.';
+      'Sinuri ng kooperatiba ang naunang resulta mo sa programang ito. Maaari mong hilingin muli ang parehong item; hindi mo na kailangang sumali muli.';
 
   @override
-  String get farmerRedistRequestButton => 'Humiling ng panibagong distribusyon';
+  String get farmerRedistRequestButton => 'Hilingin muli ang item na ito';
 
   @override
   String get farmerRedistPending =>
@@ -8085,13 +7925,13 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get farmerRedistSheetInfo =>
-      'Tingnan ang iniulat mo, saka sabihin sa kooperatiba kung bakit gusto mong sumali muli. Mapupunta ito sa kooperatiba, na aaprubahan ito.';
+      'Hinihiling mo ang parehong item na natanggap mo noon. Tingnan ang iniulat mo, saka sabihin sa kooperatiba kung bakit gusto mong sumali muli. Aaprubahan ito ng kooperatiba.';
 
   @override
   String get farmerRedistReported => 'Ang iniulat mo';
 
   @override
-  String get farmerRedistItemGiven => 'Item na natanggap mo';
+  String get farmerRedistItemGiven => 'Item na hinihiling mo muli';
 
   @override
   String get farmerRedistReportedOutcome => 'Ang ulat mo';
@@ -8116,8 +7956,30 @@ class AppLocalizationsTl extends AppLocalizations {
       'Naipadala ang hiling. Tutugon ang kooperatiba.';
 
   @override
+  String get memRedistLoadFailed =>
+      'Hindi na-load ang mga hiling ng Farmer para sa isa pang distribution. I-pull down para subukan muli.';
+
+  @override
+  String memRedistWaitingNotice(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count Farmer ang naghihintay ng pag-apruba para makatanggap ng isa pang distribution. Buksan ang tab na Failed.',
+      one:
+          '1 Farmer ang naghihintay ng pag-apruba para makatanggap ng isa pang distribution. Buksan ang tab na Failed.',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String memRedistRequestTitle(String name) {
     return 'Humiling si $name ng panibagong distribusyon';
+  }
+
+  @override
+  String memRedistRequestedItem(String what) {
+    return 'Item na hiniling muli: $what';
   }
 
   @override
@@ -8154,6 +8016,15 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String memRedistributeDone(String name) {
     return 'Nasimulan ang bagong distribusyon para kay $name. Makikita ito sa To Distribute.';
+  }
+
+  @override
+  String get memWaitingToReceiveAgain =>
+      'Naghihintay na makatanggap ng isa pang item';
+
+  @override
+  String memEarlierRound(String what, String date) {
+    return 'Naunang distribusyon (hindi matagumpay): $what · $date';
   }
 
   @override
@@ -8205,13 +8076,91 @@ class AppLocalizationsTl extends AppLocalizations {
       'Ang tatanggapin ng kooperatiba kapag isinauli ng Magsasaka ang item na ito sa programang Harvest Return. Karaniwang inaani ang isinasauli sa binhi; ang hayop ay parehong hayop.';
 
   @override
+  String programMgmtBlockedReassess(int count) {
+    return '$count Farmer na may Eligible for Reassessment ang wala pang ikalawang distribusyon. Aprubahan ang hiling nila o magbigay ng isa pang item';
+  }
+
+  @override
+  String programMgmtCompleteWaiting(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count miyembro ang naghihintay pa ng kanilang item at hindi na ito matatanggap kapag nakumpleto ang programa.',
+      one:
+          '1 miyembro ang naghihintay pa ng kanyang item at hindi na ito matatanggap kapag nakumpleto ang programa.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get programMgmtCompleteAreYouSure =>
+      'Sigurado ka bang kukumpletuhin ang programang ito?';
+
+  @override
+  String adminLogProgramCompletedWarned(String referred, String waiting) {
+    return 'Minarkahang Tapos na ang programa matapos kumpirmahin ang mga babala: $referred isinangguning Farmer na walang naaprubahang hiling na tulong, $waiting miyembrong naghihintay pa ng item.';
+  }
+
+  @override
+  String programMgmtCompleteUnapproved(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count Farmer ang isinangguni para sa tulong ngunit walang naaprubahang hiling na tulong.',
+      one:
+          '1 Farmer ang isinangguni para sa tulong ngunit walang naaprubahang hiling na tulong.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get errShelfLifeRequired =>
+      'Hindi pa available ang pananim na ito. Itatakda pa ng kooperatiba ang shelf life nito sa Crop Management.';
+
+  @override
+  String get errCoopShelfHold =>
+      'Narating na ng item na ito ang petsa ng pagtatapos at kailangan munang siyasatin. Gamitin ang Check Produce sa Inventory Management.';
+
+  @override
+  String get errCompletionConfirm =>
+      'May mga Farmer na naghihintay pa ng item o walang naaprubahang hiling na tulong. Kumpirmahin para makumpleto ang programa.';
+
+  @override
+  String programMgmtBlockedAssistance(int count) {
+    return '$count hiling na tulong mula sa mga isinangguning Farmer ang wala pang desisyon';
+  }
+
+  @override
   String programMgmtBlockedDecisions(int count) {
     return '$count na hindi matagumpay na resulta ang may nakabinbing desisyon ng kooperatiba';
   }
 
   @override
   String get resFarmerReferredNote =>
-      'Hindi pa ito utang. Maaari kang humiling ng mga item na utang mula sa Katalogo ng Item sa Utang, at susuriin ang hiling mo gaya ng dati. Iba ang hiling na tulong: walang bayarin.';
+      'Ipinasa ka ng kooperatiba para sa tulong. Maaari kang humiling ng mga item bilang tulong mula sa kooperatiba. Hindi ito pautang: walang babayaran. Susuriin ng staff ang hiling mo.';
+
+  @override
+  String get resFarmerLoanSubmitted => 'Naipadala na ang hiling na utang';
+
+  @override
+  String get resFarmerLoanApproved => 'Naaprubahan ang hiling na utang';
+
+  @override
+  String get resFarmerLoanDisapproved =>
+      'Hindi naaprubahan ang hiling na utang';
+
+  @override
+  String get resFarmerViewLoanRequest => 'Tingnan ang hiling';
+
+  @override
+  String get errLoanReferralInvalid =>
+      'Hindi ka na makakapagpadala ng hiling na utang mula sa programang ito.';
+
+  @override
+  String get errLoanReferralAlreadyRequested =>
+      'May hiling ka nang utang para sa programang ito.';
 
   @override
   String get resFarmerRequestLoan => 'Humiling ng utang';
@@ -8366,7 +8315,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get resReassess => 'Maaaring Suriing Muli';
 
   @override
-  String get resReferred => 'Inirefer para sa Pagsusuri ng Pautang';
+  String get resReferred => 'Inirefer para sa Pagsusuri ng Tulong';
 
   @override
   String get resSet => 'Itakda ang resolusyon';
@@ -8479,7 +8428,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get errOffline =>
-      'Walang internet ka. Kailangan ng internet para sa aksyong ito.';
+      'Kailangan ng internet para sa aksyong ito. Pakisuri ang iyong internet at subukan muli.';
 
   @override
   String get errNetwork =>
@@ -9331,6 +9280,14 @@ class AppLocalizationsTl extends AppLocalizations {
   String get outcFinalOutcome => 'Pinal na resulta';
 
   @override
+  String get outcVerifyAfterReview =>
+      'Tapusin at isumite muna ang pagsusuri ng ebidensya. Magbubukas ang field verification kapag napatunayan na ang ebidensya.';
+
+  @override
+  String get outcPendingChoose =>
+      'Wala pang desisyon ang kooperatiba. Kapag handa na, pumili ng isa sa tatlong iba pang desisyon.';
+
+  @override
   String get outcFinalWaiting =>
       'Magagamit kapag napatunayan na ang ebidensya at natapos na ang beripikasyon sa bukid.';
 
@@ -9595,6 +9552,10 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get farmerProgNoMatch =>
       'Walang programang tumutugma sa hinahanap mo.';
+
+  @override
+  String get errResolutionFinal =>
+      'Pinal na ang desisyong ito at hindi na maaaring baguhin.';
 
   @override
   String get errResolutionLocked =>
@@ -10173,6 +10134,140 @@ class AppLocalizationsTl extends AppLocalizations {
       'Inaprubahan ang isang alok sa pamilihan.';
 
   @override
+  String get adminLogExpiryDiscountSaved =>
+      'Na-update ang porsyento ng diskwento sa pag-expire.';
+
+  @override
+  String get adminLogInventoryReturnItemSet =>
+      'Itinakda ang ibabalik kapag isinauli ng Magsasaka ang isang item sa imbentaryo.';
+
+  @override
+  String get adminLogMemberRestricted =>
+      'Nilimitahan ang isang miyembro sa isang feature.';
+
+  @override
+  String get adminLogMemberRestrictionLifted =>
+      'Inalis ang limitasyon ng miyembro sa feature.';
+
+  @override
+  String get adminLogContributionWaived =>
+      'Pinawalang-bisa ang buwanang kontribusyon ng miyembro.';
+
+  @override
+  String get adminLogContributionWaiverRemoved =>
+      'Inalis ang pagpapawalang-bisa sa buwanang kontribusyon ng miyembro.';
+
+  @override
+  String get adminLogApplicantDeleted =>
+      'Binura ang account ng hindi inaprubahang aplikante.';
+
+  @override
+  String get adminLogListingEditApproved => 'Inaprubahan ang binagong alok.';
+
+  @override
+  String get adminLogListingEditRejected =>
+      'Hindi inaprubahan ang binagong alok.';
+
+  @override
+  String get adminLogOrderPaymentRecorded =>
+      'Itinala ang bayad para sa isang order.';
+
+  @override
+  String get adminLogOrderCompletedForCustomer =>
+      'Kinumpleto ang order para sa customer.';
+
+  @override
+  String get adminLogCoopOrderApproved =>
+      'Inaprubahan ang order ng produkto ng kooperatiba.';
+
+  @override
+  String get adminLogCoopOrderReady =>
+      'Minarkahang handa na sa pickup ang order ng produkto ng kooperatiba.';
+
+  @override
+  String get adminLogCoopOrderOutForDelivery =>
+      'Minarkahang ipinadadala na ang order ng produkto ng kooperatiba.';
+
+  @override
+  String get adminLogCoopOrderHandover =>
+      'Itinala ang pag-abot ng order ng produkto ng kooperatiba.';
+
+  @override
+  String get adminLogCoopOrderCompleted =>
+      'Kinumpleto ang order ng produkto ng kooperatiba para sa miyembro.';
+
+  @override
+  String get adminLogProgramReturnAdjusted =>
+      'Inayos ang dami ng ibabalik sa programa.';
+
+  @override
+  String get adminLogProgramReturnReceived =>
+      'Itinala ang natanggap na ibinalik sa programa.';
+
+  @override
+  String get adminLogProgramReturnClosed => 'Isinara ang ibabalik sa programa.';
+
+  @override
+  String get adminLogProgramFailedResolution =>
+      'Itinala ang desisyon sa nabigong resulta ng programa.';
+
+  @override
+  String get adminLogProgramReturnArrangement =>
+      'Itinakda ang ibabalik ng miyembro ng programa.';
+
+  @override
+  String get adminLogProgramReportReminder =>
+      'Pinaalalahanan ang miyembro na mag-ulat ng resulta ng programa.';
+
+  @override
+  String get adminLogProgramOutcomeReviewed =>
+      'Nirepaso ang ulat ng resulta ng programa.';
+
+  @override
+  String get adminLogProgramOutcomeVerified =>
+      'Itinala ang field verification ng programa.';
+
+  @override
+  String get adminLogProgramOutcomeFinalized =>
+      'Kinumpirma ang resulta ng programa.';
+
+  @override
+  String get adminLogProgramAssistanceReviewed =>
+      'Nirepaso ang hiling na tulong sa programa.';
+
+  @override
+  String get adminLogCoopLotStillGood =>
+      'Kinumpirmang maayos pa ang nakaimbak na stock ng kooperatiba.';
+
+  @override
+  String get adminLogCoopLotRotten =>
+      'Iniulat na nawala ang nakaimbak na stock ng kooperatiba.';
+
+  @override
+  String get adminLogCoopDetailsSaved =>
+      'Na-update ang lokasyon at contact ng kooperatiba.';
+
+  @override
+  String get adminLogCoopContactVerified =>
+      'Na-verify ang contact number ng kooperatiba.';
+
+  @override
+  String get adminLogDeliveryFeesSaved =>
+      'Na-update ang mga delivery fee band.';
+
+  @override
+  String get adminLogPickupEnabled => 'Binuksan ang pickup.';
+
+  @override
+  String get adminLogPickupDisabled => 'Isinara ang pickup.';
+
+  @override
+  String get adminLogDeliveryEnabled => 'Binuksan ang delivery.';
+
+  @override
+  String get adminLogDeliveryDisabled => 'Isinara ang delivery.';
+
+  @override
   String get adminLogListingRejected =>
       'Tinanggihan ang isang alok sa pamilihan.';
 
@@ -10570,6 +10665,29 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get activityProgramEnrollmentRequested =>
       'Humiling na Sumali sa isang Programa';
+
+  @override
+  String get activityLoanRequested => 'Humiling ng Pautang';
+
+  @override
+  String get activityQuantityAdjusted =>
+      'Binawasan ang Magagamit na Dami ng Ani';
+
+  @override
+  String get activityShelfLifeChecked => 'Sinuri ang Ani: Maayos Pa';
+
+  @override
+  String get activityProduceRotten => 'Iniulat ang Nabulok na Ani';
+
+  @override
+  String get activityOutcomeReported => 'Nag-ulat ng Resulta ng Programa';
+
+  @override
+  String get activityAssistanceRequested => 'Humiling ng Tulong sa Programa';
+
+  @override
+  String get activityListingEditRequested =>
+      'Nag-edit ng Alok para sa Pag-apruba';
 
   @override
   String get activityProgramPurchaseRequested =>
@@ -11141,13 +11259,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get rptHubExpenseSub => 'Gastos ng magsasaka ayon sa kategorya';
 
   @override
-  String get rptHubPatronageSub => 'Benta ng miyembro at pagtangkilik';
+  String get rptHubPatronageSub => 'Capital Share at mga kontribusyon';
 
   @override
   String get rptHubAnalyticsSub => 'Partisipasyon, presyo at forecast';
-
-  @override
-  String get rptHubBalikSub => 'Taunang payout ng pagtangkilik';
 
   @override
   String get rptHubExportSub => 'I-download o ibahagi ang mga ulat';
@@ -11186,6 +11301,63 @@ class AppLocalizationsTl extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get patFilterOverdue => 'Lampas sa takda';
+
+  @override
+  String get patFilterWithShares => 'May shares';
+
+  @override
+  String patTitleContributions(int year) {
+    return 'Capital Share noong $year';
+  }
+
+  @override
+  String get patTotalContributions => 'Kabuuang Capital Share';
+
+  @override
+  String get patSourceMonthly => 'Buwanang Kontribusyon';
+
+  @override
+  String get patSourcePurchases => 'Pagbili sa Kooperatiba';
+
+  @override
+  String get patSourceOffers => 'Alok sa Kooperatiba';
+
+  @override
+  String get patShortMonthly => 'Buwanan';
+
+  @override
+  String get patShortPurchases => 'Pagbili';
+
+  @override
+  String get patShortOffers => 'Alok';
+
+  @override
+  String patMembersLine(int count, int total) {
+    return '$count sa $total miyembro ang nag-ambag';
+  }
+
+  @override
+  String get patTotalCapital => 'Kabuuang Capital';
+
+  @override
+  String get patDiscountCredited => 'Naidagdag sa Capital Share';
+
+  @override
+  String patDiscountLine(String amount) {
+    return 'Diskwento $amount';
+  }
+
+  @override
+  String get patFilterContributed => 'Nag-ambag';
+
+  @override
+  String get patFilterNone => 'Walang ambag';
+
+  @override
+  String get patNoContributionYear => 'Walang naitalang ambag ngayong taon.';
 
   @override
   String get rptAllDates => 'Lahat ng petsa';
@@ -11396,7 +11568,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get rptExportDescSales =>
-      'Mga natapos na benta mula sa lahat ng paraan ng pagbebenta';
+      'Benta ayon sa paraan ng pagbebenta, kasama ang benta ng Cooperative Product';
 
   @override
   String get rptExportDescHarvest =>
@@ -11411,7 +11583,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get rptExportDescPatronage =>
-      'Benta ng miyembro at bahagi sa pagtangkilik';
+      'Capital Share at mga kontribusyon ng bawat miyembro';
+
+  @override
+  String get rptExportDescAnalytics =>
+      'Partisipasyon, nangungunang pananim, presyo at forecast';
 
   @override
   String get rptExportDescCoopStock => 'Antas ng stock ng kooperatiba ngayon';
@@ -11586,7 +11762,8 @@ class AppLocalizationsTl extends AppLocalizations {
   String get memberProfileCoordinates => 'Koordinado';
 
   @override
-  String get memberContributionPatronageSection => 'Pagtangkilik';
+  String get memberContributionPatronageSection =>
+      'Ulat ng Kontribusyon ng Miyembro';
 
   @override
   String get memberContributionCapitalSection => 'Puhunan';
@@ -12918,15 +13095,15 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get guestMyCropsTitle =>
-      'Handa ka na bang pamahalaan ang iyong mga pananim?';
+      'Handa ka na bang buuin ang iyong Crop Roster?';
 
   @override
   String get guestMyCropsMessage =>
-      'Mag-login o magparehistro bilang Magsasaka para makita at mapamahalaan ang mga pananim na itinatanim mo.';
+      'Mag-login o magparehistro bilang Magsasaka para idagdag sa iyong Crop Roster ang mga pananim na itinatanim mo.';
 
   @override
   String get guestInventoryTitle =>
-      'Handa ka na bang pamahalaan ang iyong stock?';
+      'Handa ka na bang pamahalaan ang iyong imbentaryo?';
 
   @override
   String get guestInventoryMessage =>
@@ -12938,7 +13115,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get guestHarvestHistoryMessage =>
-      'Mag-login o magparehistro bilang Magsasaka para makita at ma-edit ang sarili mong mga tala ng ani.';
+      'Mag-login o magparehistro bilang Magsasaka para makita ang sarili mong mga tala ng ani.';
 
   @override
   String get guestCreateListingTitle =>
@@ -12946,7 +13123,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get guestCreateListingMessage =>
-      'Mag-login o magparehistro bilang Magsasaka para makagawa ng alok para sa iyong ani.';
+      'Mag-login o magparehistro bilang Magsasaka para gumawa ng listing mula sa iyong ani. Susuriin ito ng kooperatiba bago makita ng mga Mamimili.';
 
   @override
   String get guestManageListingTitle =>
@@ -13449,6 +13626,9 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get loanReqOutOfStock => 'Walang stock';
+
+  @override
+  String get loanReqMax => 'Pinakamarami';
 
   @override
   String get loanReqAdd => 'Idagdag';
@@ -14149,6 +14329,16 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
+  String staffLogChangedFields(String changes) {
+    return 'Binago: $changes';
+  }
+
+  @override
+  String staffLogChangedMore(String changes, int count) {
+    return '$changes (+$count pa)';
+  }
+
+  @override
   String staffActGenericAdded(String thing, String ref) {
     return 'Nagdagdag ng $thing: $ref';
   }
@@ -14323,6 +14513,123 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get staffThingProgramAssistanceRequests => 'kahilingan sa tulong';
+
+  @override
+  String get staffLogFeatureMonthlyContributions => 'Buwanang kontribusyon';
+
+  @override
+  String get staffLogFeatureRestrictions => 'Mga paghihigpit';
+
+  @override
+  String get staffThingMemberMonthlyContributions => 'buwanang kontribusyon';
+
+  @override
+  String get staffThingMemberRestrictions => 'paghihigpit';
+
+  @override
+  String get staffThingProgramTypes => 'uri ng programa';
+
+  @override
+  String get staffThingShelfLifeSettings => 'setting sa shelf life';
+
+  @override
+  String get staffThingProgramRedistributionRequests =>
+      'kahilingan sa muling pamamahagi';
+
+  @override
+  String get staffLogFeatureBodReminders => 'Mga paalala sa BOD';
+
+  @override
+  String get staffThingBodMeetingNotices => 'paalala sa pulong ng BOD';
+
+  @override
+  String get idCardSubtitle => 'ID ng Kooperatiba';
+
+  @override
+  String get idCardRoleFarmer => 'Magsasaka';
+
+  @override
+  String get idCardTapToFlip => 'I-tap ang card para i-flip';
+
+  @override
+  String get idCardTapToFlipBack => 'I-tap ang card para ibalik';
+
+  @override
+  String get idCardContact => 'Kontak';
+
+  @override
+  String get idCardPhone => 'Numero ng telepono';
+
+  @override
+  String get idCardEmail => 'Email';
+
+  @override
+  String get idCardVerified => 'Na-verify';
+
+  @override
+  String get idCardNotVerified => 'Hindi pa na-verify';
+
+  @override
+  String get idCardPersonal => 'Personal';
+
+  @override
+  String get idCardBirthDate => 'Petsa ng kapanganakan';
+
+  @override
+  String get idCardGender => 'Kasarian';
+
+  @override
+  String get idCardAddress => 'Tirahan';
+
+  @override
+  String get idCardFarm => 'Detalye ng Sakahan';
+
+  @override
+  String get idCardFarmName => 'Pangalan ng sakahan';
+
+  @override
+  String get idCardFarmSize => 'Lawak ng sakahan';
+
+  @override
+  String idCardFarmSizeValue(String size) {
+    return '$size ektarya';
+  }
+
+  @override
+  String get idCardCrops => 'Pangunahing pananim';
+
+  @override
+  String get idCardAccount => 'Account';
+
+  @override
+  String get idCardLastActive => 'Huling aktibo';
+
+  @override
+  String get idCardNotSet => 'Hindi pa nailalagay';
+
+  @override
+  String get idCardLoadError => 'Hindi na-load ang ilang detalye.';
+
+  @override
+  String get idCardDateJoined => 'Petsa ng Pagsali';
+
+  @override
+  String get idCardContactInfo => 'Impormasyon sa Pakikipag-ugnayan';
+
+  @override
+  String get idCardPersonalInfo => 'Personal na Impormasyon';
+
+  @override
+  String get idCardAccountInfo => 'Impormasyon ng Account';
+
+  @override
+  String get idCardFullAddress => 'Buong tirahan';
+
+  @override
+  String get idCardFarmAddress => 'Address ng sakahan';
+
+  @override
+  String get idCardYearsFarming => 'Taon sa pagsasaka';
 
   @override
   String get staffAccountabilityTitle => 'Pananagutan ng Staff';
@@ -14970,86 +15277,6 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
-  String get enhInterest => 'Interes';
-
-  @override
-  String get enhPurchasePatronage => 'Balik sa mga binili';
-
-  @override
-  String enhShare(String p0) {
-    return '$p0% bahagi';
-  }
-
-  @override
-  String get enhTotalDistributed => 'Kabuuang naipamahagi';
-
-  @override
-  String get enhMemberRecords => 'Mga tala ng miyembro';
-
-  @override
-  String get enhPayoutBreakdown => 'Hati ng matatanggap';
-
-  @override
-  String enhPurchasesRegularMemberDiscountNetPaid(
-    String p0,
-    String p1,
-    String p2,
-  ) {
-    return 'Mga binili: karaniwan $p0 − diskuwento ng miyembro $p1 = binayaran $p2';
-  }
-
-  @override
-  String enhConfirmThatHasReceivedInCash(String p0, String p1) {
-    return 'Natanggap na ba ni $p0 ang $p1 na salapi?';
-  }
-
-  @override
-  String enhConfirmAddingToSCapitalShareThisCannot(String p0, String p1) {
-    return 'Idagdag ang $p0 sa puhunan ni $p1? Hindi ito mababawi.';
-  }
-
-  @override
-  String get enhConfirmPayoutDecision => 'Kumpirmahin ang pasya sa bayad';
-
-  @override
-  String enhPayoutDecisionConfirmedFor(String p0) {
-    return 'Nakumpirma ang pasya sa bayad para kay $p0.';
-  }
-
-  @override
-  String enhCouldNotConfirm(String p0) {
-    return 'Hindi makumpirma. Subukan muli.';
-  }
-
-  @override
-  String get enhRejectPayoutDecision => 'Tanggihan ang pasya sa bayad';
-
-  @override
-  String enhThisSendsTheDecisionBackSoCanSubmit(String p0) {
-    return 'Maibabalik ito kay $p0 para maitama ang pinili. Magpatuloy?';
-  }
-
-  @override
-  String enhPayoutDecisionRejectedCanResubmit(String p0) {
-    return 'Tinanggihan ang pasya sa bayad — maaaring magsumite muli si $p0.';
-  }
-
-  @override
-  String enhCouldNotReject(String p0) {
-    return 'Hindi matanggihan. Subukan muli.';
-  }
-
-  @override
-  String enhKeepAsCash(String p0) {
-    return 'Tanggapin bilang salapi — $p0';
-  }
-
-  @override
-  String enhAddToCapital(String p0) {
-    return 'Idagdag sa puhunan — $p0';
-  }
-
-  @override
   String get enhEGBananaTomato => 'hal. Saging, Kamatis';
 
   @override
@@ -15123,7 +15350,7 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
-  String get enhTotalPatronage => 'Kabuuang balik sa pagtangkilik';
+  String get enhTotalPatronage => 'Kabuuang Capital Share';
 
   @override
   String get enhSoldToCoOp => 'Naibenta sa kooperatiba';
@@ -15449,6 +15676,14 @@ class AppLocalizationsTl extends AppLocalizations {
   String get enhAddedOn => 'Idinagdag noong';
 
   @override
+  String harvestEntriesCountLabel(int count) {
+    return '$count Mga Tala ng Ani';
+  }
+
+  @override
+  String get harvestNoEntriesLabel => 'Walang Tala ng Ani';
+
+  @override
   String get enhHarvestEntries => 'Mga tala ng ani';
 
   @override
@@ -15663,11 +15898,8 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
-  String get enhBalikTangkilikCapitalShare => 'Balik-Tangkilik at puhunan';
-
-  @override
   String enhCapitalShares(String p0) {
-    return 'Puhunan: ₱$p0';
+    return 'Capital Share: ₱$p0';
   }
 
   @override
@@ -16021,179 +16253,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get enhAmountReceived355 => 'Halagang natanggap (₱)';
 
   @override
-  String get enhEnterAValidAmount => 'Maglagay ng wastong halaga.';
-
-  @override
-  String enhCannotExceed(String p0) {
-    return 'Hindi maaaring lumampas sa ₱$p0.';
-  }
-
-  @override
-  String get enhAddToCapitalShare => 'Idagdag sa puhunan';
-
-  @override
-  String enhRequestToMovePartOrAllOfYour(String p0) {
-    return 'Hilinging ilipat sa puhunan ang bahagi o buong bayad mo sa $p0. Kailangan ang kumpirmasyon ng tagapamahala. Kapag nagsumite ka, hindi mo na mapipili ang pagtanggap bilang salapi para sa taong ito.';
-  }
-
-  @override
-  String enhAvailable360(String p0) {
-    return 'Magagamit: ₱$p0';
-  }
-
-  @override
-  String enhRequestToAddToYourCapitalShareWas(String p0) {
-    return 'Naisumite ang kahilingang magdagdag ng ₱$p0 sa iyong puhunan para kumpirmahin ng tagapamahala.';
-  }
-
-  @override
-  String enhCouldNotSubmitRequest(String p0) {
-    return 'Hindi maisumite ang kahilingan. Subukan muli.';
-  }
-
-  @override
-  String get enhKeepAsCash363 => 'Tanggapin bilang salapi';
-
-  @override
-  String enhRequestToReceiveYourPayoutOfAsCash(String p0, String p1) {
-    return 'Hilinging tanggapin bilang salapi ang bayad mong ₱$p1 sa $p0. Kailangan ang kumpirmasyon ng tagapamahala. Kapag nagsumite ka, hindi mo na mapipili ang pagdagdag sa puhunan para sa taong ito.';
-  }
-
-  @override
-  String get enhYourRequestToReceiveThisPayoutAsCash =>
-      'Naisumite ang kahilingang tanggapin bilang salapi ang bayad para kumpirmahin ng tagapamahala.';
-
-  @override
-  String get enhRecentSales => 'Mga kamakailang benta';
-
-  @override
-  String get enhRecentPurchases => 'Mga kamakailang binili';
-
-  @override
-  String enhMyActivityThisYear(String p0) {
-    return 'Aking gawain ngayong taon ($p0)';
-  }
-
-  @override
-  String get enhGingerSalesThroughDAAMADMarketLinkingAre =>
-      'Hindi kasama ang benta ng luya sa pag-uugnay ng DA-AMAD sa mamimili.';
-
-  @override
-  String enhRegularPriceMemberDiscountNetPaid(String p0, String p1, String p2) {
-    return 'Karaniwang presyo ₱$p0 − diskuwento ng miyembro ₱$p1 = binayaran ₱$p2';
-  }
-
-  @override
-  String get enhMyShare => 'Aking bahagi';
-
-  @override
-  String get enhMyTotal => 'Aking kabuuan';
-
-  @override
-  String get enhFINALIZED => '✓  PINAL NA';
-
-  @override
-  String get enhESTIMATEONLY => '⚠️  TANTIYA LAMANG';
-
-  @override
-  String enhBalikTangkilikPayout(String p0) {
-    return 'Bayad sa Balik-Tangkilik sa $p0';
-  }
-
-  @override
-  String enhEstimatedDistribution(String p0) {
-    return 'Tinatayang pamamahagi sa $p0';
-  }
-
-  @override
-  String get enhMoneyBackFromCropsYouSoldToThe =>
-      'Balik mula sa mga pananim na ibinenta mo sa kooperatiba.';
-
-  @override
-  String get enhInterestOnCapitalShare => 'Interes sa puhunan';
-
-  @override
-  String get enhMoneyBackFromProductsYouBoughtFromThe =>
-      'Balik mula sa mga produktong binili mo sa kooperatiba.';
-
-  @override
-  String get enhTotalPayout => 'Kabuuang bayad';
-
-  @override
-  String get enhTotalDistribution => 'Kabuuang pamamahagi';
-
-  @override
-  String get enhWhatWouldYouLikeToDoWithThis =>
-      'Ano ang gusto mong gawin sa bayad na ito?';
-
-  @override
-  String get enhAddToCapital385 => 'Idagdag sa puhunan';
-
-  @override
-  String enhYouAddedTheFullToYourCapitalShare(String p0) {
-    return 'Idinagdag mo ang buong ₱$p0 sa iyong puhunan.';
-  }
-
-  @override
-  String get enhThisIsAnEstimateOnlyActualDistributionAmounts =>
-      'Tantiya lamang ito. Ang pinal na halaga ay nakabatay sa sinuring ulat sa pananalapi ng kooperatiba at iaanunsyo sa taunang pagpupulong sa unang 90 araw ng susunod na taon.';
-
-  @override
-  String get enhHowDoesThisWork => 'Paano ito gumagana?';
-
-  @override
-  String get enhAuditedFinancialStatement => 'Sinuring ulat sa pananalapi';
-
-  @override
-  String get enhJanuaryMarch => 'Enero – Marso';
-
-  @override
-  String get enhAnnualGeneralAssembly => 'Taunang pangkalahatang pagpupulong';
-
-  @override
-  String get enhWithinFirstDaysOfTheYear => 'Sa unang 90 araw ng taon';
-
-  @override
-  String get enhBalikTangkilikReleased => 'Naibigay ang Balik-Tangkilik';
-
-  @override
-  String get enhPostAssemblyDistribution =>
-      'Pamamahagi matapos ang pagpupulong';
-
-  @override
-  String get enhNoSalesTransactionsRecordedYet => 'Wala pang naitalang benta.';
-
-  @override
-  String get enhQty396 => 'Dami';
-
-  @override
-  String get enhRegular => 'Karaniwan';
-
-  @override
-  String get enhDiscount => 'Diskuwento';
-
-  @override
-  String get enhCapitalShares400 => 'Puhunan';
-
-  @override
-  String get enhTotalShares => 'Kabuuang bahagi';
-
-  @override
-  String get enhInvestmentValue => 'Halaga ng puhunan';
-
-  @override
-  String get enhShareValue => 'Halaga bawat bahagi';
-
-  @override
-  String enhShare404(String p0) {
-    return '₱$p0 / bahagi';
-  }
-
-  @override
-  String get enhInterestRatesAreDeterminedAnnuallyByTheBoard =>
-      'Taun-taong itinatakda ng lupon ang interes batay sa kita ng kooperatiba.';
-
-  @override
   String enhMeetsTheMinimumForALoan(String p0) {
     return 'Naabot ang pinakamababang ₱$p0 para sa pautang.';
   }
@@ -16201,24 +16260,6 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String enhNeedsMoreToReachTheLoanMinimum(String p0, String p1) {
     return 'Kulang pa ng ₱$p0 para maabot ang pinakamababang ₱$p1 para sa pautang.';
-  }
-
-  @override
-  String enhActualPayout(String p0) {
-    return 'Aktuwal na bayad sa $p0';
-  }
-
-  @override
-  String enhNoPayoutDataFor(String p0) {
-    return 'Walang tala ng bayad para sa $p0.';
-  }
-
-  @override
-  String get enhTotalReceived => 'Kabuuang natanggap';
-
-  @override
-  String enhAlreadyAddedToYourCapitalShare(String p0) {
-    return 'Naidagdag na ang ₱$p0 sa iyong puhunan';
   }
 
   @override
@@ -16542,7 +16583,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get enhNameCategoryAndMarketTypeAreSetBy =>
-      'Ang SP3 ang nagtatakda ng pangalan, kategorya, at uri ng merkado. Hindi ito mababago rito.';
+      'Ang SP3 ang nagtatakda ng pangalan, kategorya, uri ng merkado, at shelf life. Hindi ito mababago rito.';
 
   @override
   String get enhMarketType => 'Uri ng merkado';
@@ -16569,12 +16610,12 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String enhMemberPatronage(String p0) {
-    return 'Pagtangkilik ng miyembro ($p0)';
+    return 'Mga kontribusyon noong $p0';
   }
 
   @override
   String enhNoPatronageActivityRecordedFor(String p0) {
-    return 'Walang naitalang pagtangkilik para sa $p0.';
+    return 'Walang naitalang kontribusyon para sa $p0.';
   }
 
   @override
@@ -16768,6 +16809,13 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get systemNoticeListingStatusUpdated38 =>
       'Nabago ang kalagayan ng alok';
+
+  @override
+  String get systemNoticeAssistanceReferral => 'Referral para sa Tulong';
+
+  @override
+  String get systemNoticeBodyTheCooperativeReferredYouForAssistance =>
+      'Ipinasa ka ng kooperatiba para sa pagsusuri ng tulong. Maaari kang humiling ng mga item bilang tulong mula sa kooperatiba. Hindi ito pautang: walang babayaran.';
 
   @override
   String get systemNoticeLoanAssessmentReferral39 =>
@@ -17546,26 +17594,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get enhNotAssigned => 'Wala pang nakatalaga';
 
   @override
-  String enhPayoutCashAction(String amount) {
-    return 'kunin ang ₱$amount na cash';
-  }
-
-  @override
-  String enhPayoutCapitalAction(String amount) {
-    return 'idagdag ang ₱$amount sa iyong puhunan';
-  }
-
-  @override
-  String enhPayoutDecisionPending(String action) {
-    return 'Hinihintay ang kumpirmasyon ng tagapamahala sa hiling mong $action.';
-  }
-
-  @override
-  String enhPayoutDecisionConfirmed(String action) {
-    return 'Nakumpirma ang pinili mong $action.';
-  }
-
-  @override
   String get enhFilter => 'Salain';
 
   @override
@@ -17965,10 +17993,6 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get connectivityScreenStaffAnalytics =>
       'Tingnan ang takbo ng ani, benta, at gawain ng mga miyembro.';
-
-  @override
-  String get connectivityScreenPatronage =>
-      'Suriin ang taunang hatian ng sobrang kita at bayad sa miyembro.';
 
   @override
   String get connectivityScreenExports =>
@@ -18508,10 +18532,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get rptOutcomeLost => 'Nawala';
 
   @override
-  String get assistSearchHint =>
-      'Maghanap ng magsasaka, programa, o request no.';
-
-  @override
   String get loanReqMineSearchHint => 'Maghanap ng request no. o item';
 
   @override
@@ -18840,4 +18860,2075 @@ class AppLocalizationsTl extends AppLocalizations {
   String coopLifeLeft(String label, String duration, String date) {
     return '$label: $duration na lang · hanggang $date';
   }
+
+  @override
+  String get restrictFeatureMarketplaceListing =>
+      'Bagong listing sa Marketplace';
+
+  @override
+  String get restrictFeatureCoopOffer => 'Alok sa Kooperatiba';
+
+  @override
+  String get restrictFeatureInformalSale => 'Impormal na Bentahan';
+
+  @override
+  String get restrictFeatureGinger => 'Bentahan ng Luya sa DA-AMAD';
+
+  @override
+  String get restrictFeatureCheckout => 'Checkout at Buy Now';
+
+  @override
+  String get restrictFeatureLoan => 'Humiling ng Pautang';
+
+  @override
+  String get restrictFeatureProgram => 'Sumali sa Programa';
+
+  @override
+  String get restrictChipMarketplaceListing => 'Mga Listing';
+
+  @override
+  String get restrictChipCoopOffer => 'Mga Alok';
+
+  @override
+  String get restrictChipInformalSale => 'Impormal';
+
+  @override
+  String get restrictChipGinger => 'Luya';
+
+  @override
+  String get restrictChipCheckout => 'Checkout';
+
+  @override
+  String get restrictChipLoan => 'Pautang';
+
+  @override
+  String get restrictChipProgram => 'Programa';
+
+  @override
+  String get restrictMenuAction => 'Limitahan ang mga feature';
+
+  @override
+  String get restrictMenuManage => 'Ayusin ang mga limitasyon';
+
+  @override
+  String restrictFlowTitle(String name) {
+    return 'Limitahan si $name';
+  }
+
+  @override
+  String get restrictFlowFeaturesLabel => 'Mga feature na lilimitahan';
+
+  @override
+  String get restrictFlowDurationLabel => 'Haba ng limitasyon';
+
+  @override
+  String get restrictSummaryTitle => 'Limitahan ang mga feature na ito?';
+
+  @override
+  String get restrictSummaryAction => 'Limitahan';
+
+  @override
+  String get restrictSummaryMember => 'Miyembro';
+
+  @override
+  String get restrictSummaryFeatures => 'Mga feature';
+
+  @override
+  String get restrictSummaryUntil => 'Magtatapos sa';
+
+  @override
+  String get restrictSummaryNote =>
+      'Hindi maaapektuhan ang mga kasalukuyang listing, alok, order, pautang at programa.';
+
+  @override
+  String get restrictDurationNoEnd =>
+      'Walang petsa ng pagtatapos (hanggang alisin)';
+
+  @override
+  String get restrictUntilLifted => 'Hanggang alisin ng kooperatiba';
+
+  @override
+  String restrictedToast(String name) {
+    return 'Nalimitahan si $name.';
+  }
+
+  @override
+  String get restrictLiftedToast => 'Naalis ang limitasyon.';
+
+  @override
+  String get restrictActionError =>
+      'Hindi ma-update ang mga limitasyon. Subukang muli.';
+
+  @override
+  String get restrictManageTitle => 'Mga Limitasyon';
+
+  @override
+  String get restrictManageEmpty => 'Walang aktibong limitasyon.';
+
+  @override
+  String get restrictLift => 'Alisin';
+
+  @override
+  String get restrictLiftConfirmTitle => 'Alisin ang limitasyong ito?';
+
+  @override
+  String restrictLiftConfirmBody(String feature) {
+    return 'Magagamit muli ng miyembro ang $feature.';
+  }
+
+  @override
+  String get restrictCurrentTitle => 'Mga aktibong limitasyon';
+
+  @override
+  String get restrictHistoryTitle => 'Mga limitasyon at suspensyon';
+
+  @override
+  String get restrictHistoryEmpty =>
+      'Walang naitalang limitasyon o suspensyon.';
+
+  @override
+  String get restrictStatusActive => 'Aktibo';
+
+  @override
+  String get restrictStatusLifted => 'Inalis';
+
+  @override
+  String get restrictStatusEnded => 'Natapos';
+
+  @override
+  String get restrictStatusClosed => 'Isinara nang muling na-activate';
+
+  @override
+  String get restrictHistorySuspended => 'Sinuspinde';
+
+  @override
+  String get restrictHistoryReactivated => 'Muling na-activate';
+
+  @override
+  String restrictHistoryBy(String name) {
+    return 'Ni $name';
+  }
+
+  @override
+  String restrictHistoryStarted(String date) {
+    return 'Nagsimula $date';
+  }
+
+  @override
+  String restrictHistoryEnds(String date) {
+    return 'Magtatapos $date';
+  }
+
+  @override
+  String restrictHistoryEnded(String date) {
+    return 'Natapos $date';
+  }
+
+  @override
+  String get restrictChipRestricted => 'Limitado';
+
+  @override
+  String get farmerMgmtStatusRestrictedLabel => 'Limitado';
+
+  @override
+  String get myRestrictionsTitle => 'Aking mga Limitasyon';
+
+  @override
+  String get myRestrictionsEmpty =>
+      'Wala kang limitasyon. Magagamit mo ang lahat.';
+
+  @override
+  String get myRestrictionsIntro =>
+      'Limitado muna ang mga feature na ito. Magpapatuloy ang mga nasimulan mo na.';
+
+  @override
+  String restrictedNoticeTitle(String feature) {
+    return 'Limitado ang $feature';
+  }
+
+  @override
+  String restrictedNoticeUntil(String date) {
+    return 'Hanggang $date';
+  }
+
+  @override
+  String get restrictedNoticeView => 'Tingnan ang detalye';
+
+  @override
+  String get restrictedNoticeOk => 'OK';
+
+  @override
+  String get harvDetSectionHarvest => 'Ani';
+
+  @override
+  String get harvDetSectionRoster => 'Crop Roster';
+
+  @override
+  String get harvDetSectionStock => 'Stock (Imbentaryo)';
+
+  @override
+  String get harvDetSectionShelf => 'Shelf Life';
+
+  @override
+  String get harvDetSource => 'Pinagmulan';
+
+  @override
+  String get harvDetSourceOwn => 'Sariling ani';
+
+  @override
+  String get harvDetSourceProgram => 'Natanggap mula sa programa';
+
+  @override
+  String get harvDetProgram => 'Programa';
+
+  @override
+  String get harvDetMarketType => 'Uri ng Pamilihan';
+
+  @override
+  String get harvDetRosterStatus => 'Paano naidagdag';
+
+  @override
+  String get harvDetRosterFromProgram => 'Idinagdag ng programa';
+
+  @override
+  String get harvDetRosterRequestPending =>
+      'Hiniling, naghihintay ng pag-apruba';
+
+  @override
+  String get harvDetRosterRequestRejected => 'Tinanggihan ang hiling';
+
+  @override
+  String get harvDetRosterRequestApproved => 'Hiniling, at inaprubahan';
+
+  @override
+  String get harvDetRosterFromCatalog => 'Idinagdag mula sa catalog ng pananim';
+
+  @override
+  String get harvDetRosterAddedOn => 'Idinagdag noong';
+
+  @override
+  String get harvDetStockLost => 'Lugi (bulok)';
+
+  @override
+  String get harvDetStockHistoryButton => 'Tingnan ang Kasaysayan ng Stock';
+
+  @override
+  String get harvDetShelfDuration => 'Shelf life';
+
+  @override
+  String get harvDetShelfNotSet => 'Hindi pa naitakda';
+
+  @override
+  String get harvDetShelfDefault => 'Default ng pananim';
+
+  @override
+  String get harvDetShelfStarts => 'Binibilang mula';
+
+  @override
+  String get harvDetShelfExpires => 'Mag-e-expire sa';
+
+  @override
+  String get harvDetShelfStatus => 'Katayuan';
+
+  @override
+  String get harvDetShelfConfirmed => 'Huling kinumpirma';
+
+  @override
+  String get harvDetShelfLossOn => 'Naiulat ang lugi noong';
+
+  @override
+  String get harvDetShelfHistory => 'Kasaysayan ng shelf life';
+
+  @override
+  String get harvDetEventHeld =>
+      'Naitala na lampas na sa shelf life: naka-hold';
+
+  @override
+  String get harvDetEventReminder => 'Naipadala ang paalala na suriin ang ani';
+
+  @override
+  String harvDetEventConfirmed(int days) {
+    return 'Kinumpirmang mabuti pa: $days pang araw';
+  }
+
+  @override
+  String harvDetEventRotten(String qty) {
+    return 'Naiulat na bulok: $qty';
+  }
+
+  @override
+  String get harvDetEventDiscount =>
+      'Awtomatikong binawasan ang presyo ng listing';
+
+  @override
+  String get harvDetEventUnavailable => 'Ginawang hindi available ang listing';
+
+  @override
+  String get harvDetEventReviewRequested =>
+      'Ipinadala ang pagbabago para sa pag-apruba';
+
+  @override
+  String get harvDetEventReviewApproved => 'Naaprubahan ang pagbabago';
+
+  @override
+  String get monthlyContribTitle => 'Buwanang Kontribusyon';
+
+  @override
+  String get monthlyTotalDue => 'Kabuuang Dapat Bayaran';
+
+  @override
+  String get monthlyRemaining => 'Natitirang Balanse';
+
+  @override
+  String get monthlyStatusUnpaid => 'Hindi Pa Bayad';
+
+  @override
+  String get monthlyStatusPartial => 'Bahagyang Bayad';
+
+  @override
+  String get monthlyStatusPaid => 'Bayad Na';
+
+  @override
+  String get monthlyStatusOverdue => 'Lampas sa Takdang Petsa';
+
+  @override
+  String get monthlyStatusWaived => 'Hindi Sisingilin';
+
+  @override
+  String monthlyDueOn(String date) {
+    return 'Takdang petsa: $date';
+  }
+
+  @override
+  String monthlyPaidOfDue(String paid, String due) {
+    return 'Nabayaran: $paid sa $due';
+  }
+
+  @override
+  String get monthlyEmpty => 'Wala pang buwanang kontribusyon.';
+
+  @override
+  String get monthlyViewAll => 'Tingnan ang lahat ng buwan';
+
+  @override
+  String get monthlyRecordPayment => 'Magtala ng Bayad';
+
+  @override
+  String get monthlyPaymentAmount => 'Halagang binayad';
+
+  @override
+  String get monthlyPaymentDate => 'Petsa ng bayad';
+
+  @override
+  String get monthlyPaymentReference => 'Reference o tala sa bayad (opsyonal)';
+
+  @override
+  String monthlyPaymentRemainingHint(String amount) {
+    return 'Natitirang balanse: $amount';
+  }
+
+  @override
+  String get monthlyPaymentTooMuch =>
+      'Mas malaki ang halaga kaysa sa natitirang balanse.';
+
+  @override
+  String get monthlyPaymentRecorded => 'Naitala ang bayad.';
+
+  @override
+  String get monthlyWaiveAction => 'Huwag singilin ang buwang ito';
+
+  @override
+  String get monthlyWaiveReason => 'Dahilan ng pag-waive';
+
+  @override
+  String get monthlyWaiveDone => 'Na-waive ang buwan.';
+
+  @override
+  String get monthlyReinstateAction => 'Ibalik ang buwang ito';
+
+  @override
+  String get monthlyReinstateDone => 'Naibalik ang buwan.';
+
+  @override
+  String monthlyWaivedReason(String reason) {
+    return 'Na-waive: $reason';
+  }
+
+  @override
+  String get monthlyPaymentsTitle => 'Mga Bayad';
+
+  @override
+  String get monthlyNoPayments => 'Walang naitalang bayad sa buwang ito.';
+
+  @override
+  String monthlyRecordedBy(String name) {
+    return 'Itinala ni $name';
+  }
+
+  @override
+  String get monthlyCancelledPayment => 'Kinanselang bayad';
+
+  @override
+  String monthlyUnassignedNote(String amount) {
+    return 'Mga naunang bayad na walang buwan: $amount';
+  }
+
+  @override
+  String monthlyBalanceOf(String amount) {
+    return 'Balanse $amount';
+  }
+
+  @override
+  String get systemNoticeMonthlyContributionReminder =>
+      'Paalala sa Buwanang Kontribusyon';
+
+  @override
+  String get systemNoticeMonthlyContributionAnnouncement =>
+      'Anunsyo sa Buwanang Kontribusyon';
+
+  @override
+  String get systemNoticeMonthlyContributionOverdue =>
+      'Lampas na ang Buwanang Kontribusyon';
+
+  @override
+  String systemNoticeBodyMonthlyEve(
+    String amount,
+    String month,
+    String balance,
+  ) {
+    return 'Bukas ang BOD meeting. Ang buwanang kontribusyon na ₱$amount para sa $month ay iaanunsyo roon. Natitirang balanse: ₱$balance.';
+  }
+
+  @override
+  String systemNoticeBodyMonthlyMeeting(
+    String amount,
+    String month,
+    String balance,
+  ) {
+    return 'Ngayon ang BOD meeting. Ang buwanang kontribusyon na ₱$amount para sa $month ay bahagi ng anunsyo sa pulong. Natitirang balanse: ₱$balance.';
+  }
+
+  @override
+  String systemNoticeBodyMonthlyOverdue(
+    String month,
+    String date,
+    String balance,
+  ) {
+    return 'Ang buwanang kontribusyon mo para sa $month ay takdang bayaran noong $date. Natitirang balanse: ₱$balance.';
+  }
+
+  @override
+  String get monthlyDueDateLabel => 'Takdang petsa';
+
+  @override
+  String get contribSectionTitle => 'Mga Kontribusyon';
+
+  @override
+  String get contribHistoryTitle => 'Kasaysayan ng Kontribusyon';
+
+  @override
+  String get contribAdjustCapital => 'Ayusin ang capital';
+
+  @override
+  String get contribSourceMonthly => 'Buwanang bayad';
+
+  @override
+  String get contribSourceDiscount => 'Diskwento sa pagbili';
+
+  @override
+  String get contribAdjustTitle => 'Ayusin ang Capital';
+
+  @override
+  String get contribAdjustSignHint =>
+      'Gumamit ng minus para ibawas, hal. -100.00';
+
+  @override
+  String get contribAmountLabel => 'Halaga';
+
+  @override
+  String get contribNoteLabel => 'Tala (opsyonal)';
+
+  @override
+  String get contribNoteHint => 'Dahilan o reference';
+
+  @override
+  String get contribTypeHintCorrection =>
+      'Itinatama ang pagkakamali sa kabuuang capital. Maaaring magdagdag o magbawas.';
+
+  @override
+  String get contribTypeHintStarting =>
+      'Ang capital na mayroon na ang miyembro bago gumamit ng SAGANA.';
+
+  @override
+  String get benefitsTrackingTitle => 'Aking Capital Share';
+
+  @override
+  String benefitsNoPurchases(int year) {
+    return 'Walang pagbili ng Cooperative Product sa presyong pang-miyembro noong $year.';
+  }
+
+  @override
+  String benefitsNoOffers(int year) {
+    return 'Walang matagumpay na alok sa Kooperatiba noong $year.';
+  }
+
+  @override
+  String benefitsViewAll(int count) {
+    return 'Tingnan lahat ($count)';
+  }
+
+  @override
+  String get startingCapitalDateLabel => 'Petsa ng Panimulang Capital';
+
+  @override
+  String get startingCapitalDateHint => 'Piliin ang araw, buwan at taon';
+
+  @override
+  String get startingCapitalDateHelp =>
+      'Ang petsa kung kailan talagang nasa miyembro ang capital na ito. Ang nakaraang petsa ay lalabas sa Ulat ng Kontribusyon ng Miyembro ng taong iyon.';
+
+  @override
+  String get startingCapitalDateRequired =>
+      'Piliin ang petsa ng Panimulang Capital.';
+
+  @override
+  String contribStartingAsOf(String date) {
+    return 'Panimulang Capital (noong $date)';
+  }
+
+  @override
+  String get patMembersTitle => 'Kontribusyon ng Bawat Miyembro';
+
+  @override
+  String get patSummaryMonthlyDue => 'Buwanang dapat bayaran';
+
+  @override
+  String get patSummaryNotYetPaid => 'Hindi pa bayad';
+
+  @override
+  String get patSummaryOverdueMonths => 'Buwang lampas na sa takdang petsa';
+
+  @override
+  String get capShareProgressTitle => 'Progreso ng Capital Share';
+
+  @override
+  String capShareRequired(String amount) {
+    return '$amount ang kailangan';
+  }
+
+  @override
+  String capSharePercentDone(int percent) {
+    return '$percent% ang natapos';
+  }
+
+  @override
+  String capShareRemaining(String amount) {
+    return '$amount ang natitira';
+  }
+
+  @override
+  String capShareMsgNone(String name, String amount, String required) {
+    return 'May $amount si $name, ngunit hindi pa naaabot ang $required na kailangan para sa isang buong share.';
+  }
+
+  @override
+  String capShareMsgSome(String name, int shares, String amount) {
+    String _temp0 = intl.Intl.pluralLogic(
+      shares,
+      locale: localeName,
+      other: '$shares buong share',
+      one: '1 buong share',
+    );
+    return 'Nakumpleto na ni $name ang $_temp0 at may kabuuang $amount.';
+  }
+
+  @override
+  String capShareResult(int shares) {
+    String _temp0 = intl.Intl.pluralLogic(
+      shares,
+      locale: localeName,
+      other: '$shares buong share',
+      one: '1 buong share',
+    );
+    return 'Resulta: $_temp0';
+  }
+
+  @override
+  String get patObligationHeader => 'Buwanang obligasyon (hindi binibilang)';
+
+  @override
+  String get monthlyTotalPaid => 'Kabuuang Nabayaran';
+
+  @override
+  String get benefitsViewOrders => 'Tingnan ang Mga Order';
+
+  @override
+  String get benefitsViewAllCoopOffers =>
+      'Tingnan ang Lahat ng Alok sa Kooperatiba';
+
+  @override
+  String get loanViewHistoryAction => 'Tingnan ang Kasaysayan ng Utang';
+
+  @override
+  String get loanViewPaymentsAction => 'Tingnan ang Kasaysayan ng Bayad';
+
+  @override
+  String loanCapTitle(String amount) {
+    return 'Ang Capital Share mo: $amount';
+  }
+
+  @override
+  String loanCapBody(String amount) {
+    return 'Ang bawat loan item na hihilingin mo ay maaaring nagkakahalaga hanggang $amount (dami × presyo).';
+  }
+
+  @override
+  String get loanCapZero =>
+      'Wala pang loan item na maaaring hilingin. Lumalaki ang iyong Capital Share sa pamamagitan ng iyong mga kontribusyon at pagbili sa presyong miyembro.';
+
+  @override
+  String get loanCapAbove => 'Higit sa iyong Capital Share';
+
+  @override
+  String loanCapQtyNote(String qty) {
+    return 'Hanggang $qty ng item na ito ang pinapayagan ng iyong Capital Share.';
+  }
+
+  @override
+  String loanCapQtyTooMuch(String value, String capital, String qty) {
+    return 'Nagkakahalaga ito ng $value, higit sa iyong Capital Share na $capital. Ang pinakamarami mong mahihiling ay $qty.';
+  }
+
+  @override
+  String get loanCapLineAbove => 'Higit sa Capital Share';
+
+  @override
+  String loanCapFarmerShare(String amount) {
+    return 'Capital Share: ₱$amount';
+  }
+
+  @override
+  String loanCapStaffWarning(String amount) {
+    return 'Ang Capital Share ng magsasakang ito ay ₱$amount. May kahit isang item na mas mahal dito, kaya hindi ito maaaprubahan. Maaari mo itong hindi aprubahan na may dahilan.';
+  }
+
+  @override
+  String issueLoanItemOverCapital(String item, String value, String capital) {
+    return 'Ang $item ($value) ay higit sa Capital Share na $capital. Bawasan ang dami o alisin ito.';
+  }
+
+  @override
+  String issueLoanItemOverCapitalMax(String value, String capital, String qty) {
+    return 'Nagkakahalaga ito ng $value, higit sa Capital Share na $capital. Ang pinakamarami na pasok ay $qty.';
+  }
+
+  @override
+  String issueLoanItemOverCapitalNone(String value, String capital) {
+    return 'Nagkakahalaga ito ng $value, higit sa Capital Share na $capital. Kahit maliit na dami ay hindi pasok; pumili ng ibang item.';
+  }
+
+  @override
+  String issueLoanCapitalInfo(String capital) {
+    return 'Capital Share $capital: ang bawat loan item ay maaaring nagkakahalaga hanggang dito.';
+  }
+
+  @override
+  String get issueLoanCapitalZeroNow =>
+      '₱0.00 ang Capital Share. Wala pang loan item na maaaring ibigay sa magsasakang ito.';
+
+  @override
+  String issueLoanCapitalLimitsQuantity(String capital, String qty) {
+    return 'Capital Share $capital: hanggang $qty ng item na ito ang pasok.';
+  }
+
+  @override
+  String get issueLoanBlockedTitle => 'Hindi karapat-dapat sa utang';
+
+  @override
+  String get issueLoanBlockedZeroCapital =>
+      'Walang Capital Share (₱0.00). Hindi makapagbibigay ng loan item hangga\'t walang Capital Share ang magsasaka.';
+
+  @override
+  String issueLoanBlockedOverdue(String amount) {
+    return 'Lampas sa takda na utang: $amount ang hindi pa bayad. Dapat itong bayaran nang buo bago makapagbigay ng bagong utang. Hindi ibinabalik ng bahagyang bayad ang pagiging karapat-dapat.';
+  }
+
+  @override
+  String get loanBlockedTitle => 'Hindi ka makakahiling ng utang ngayon';
+
+  @override
+  String get loanBlockedZeroCapital =>
+      'Walang Capital Share (₱0.00). Lumalaki ang iyong Capital Share sa pamamagitan ng iyong mga kontribusyon at pagbili sa presyong miyembro.';
+
+  @override
+  String loanBlockedOverdue(String amount) {
+    return 'Lampas sa takda na utang: $amount ang hindi pa bayad. Bayaran ito nang buo para makahiling muli. Hindi ibinabalik ng bahagyang bayad ang pagiging karapat-dapat.';
+  }
+
+  @override
+  String get loanBlockedItem => 'Hindi available: may lampas-takdang utang';
+
+  @override
+  String loanReqOverdueWarning(String amount) {
+    return 'May lampas sa takda na utang ang magsasakang ito (₱$amount ang hindi pa bayad). Hindi maaaprubahan ang kahilingan hangga\'t hindi ito nababayaran nang buo. Maaari mo itong hindi aprubahan na may dahilan.';
+  }
+
+  @override
+  String get supportLastUpdated => 'Huling na-update: Nobyembre 2026';
+
+  @override
+  String get supportInShort => 'Sa madaling salita';
+
+  @override
+  String get supportInThisDocument => 'Sa dokumentong ito';
+
+  @override
+  String get supportLblAllAccounts => 'Lahat ng account';
+
+  @override
+  String get supportLblBuyers => 'Mga Mamimili';
+
+  @override
+  String get supportLblFarmers => 'Mga Magsasaka';
+
+  @override
+  String get supportLblStaff => 'Mga Officer at Manager';
+
+  @override
+  String get supportLblYou => 'Ikaw';
+
+  @override
+  String get supportLblManager => 'Manager';
+
+  @override
+  String get supportLblOfficers => 'Mga Officer';
+
+  @override
+  String get supportLblOthers => 'Ibang Mamimili at Magsasaka';
+
+  @override
+  String get supportLblGuests => 'Mga Bisita';
+
+  @override
+  String get supportLblBuyer => 'Mamimili';
+
+  @override
+  String get supportLblFarmer => 'Magsasaka';
+
+  @override
+  String get supportLblOfficer => 'Officer';
+
+  @override
+  String get aboutSaganaTagline =>
+      'Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics';
+
+  @override
+  String get aboutSaganaHeroSubtitle =>
+      'Isang mobile system para sa SP3 Agriculture Cooperative ng Barangay Payanas, Torrijos, Marinduque.';
+
+  @override
+  String get aboutSaganaForYou => 'Ano ang magagawa ng SAGANA para sa iyo';
+
+  @override
+  String get aboutSaganaWhatsInside => 'Ano ang nasa loob';
+
+  @override
+  String get aboutFeat1Title => 'Mga tala sa sakahan';
+
+  @override
+  String get aboutFeat1Desc =>
+      'Crop roster, mga ani, imbentaryo, at mga gastos sa iisang lugar.';
+
+  @override
+  String get aboutFeat2Title => 'Digital na palengke';
+
+  @override
+  String get aboutFeat2Desc =>
+      'Mga aprubadong listing, cart, order na pickup o delivery, at pagsubaybay sa order.';
+
+  @override
+  String get aboutFeat3Title => 'Mga serbisyo ng kooperatiba';
+
+  @override
+  String get aboutFeat3Desc =>
+      'Mga utang, programa, at tala ng kapital na pinangangasiwaan kasama ng kooperatiba.';
+
+  @override
+  String get aboutFeat4Title => 'Mga presyo at pagsusuri';
+
+  @override
+  String get aboutFeat4Desc =>
+      'Mga reference price, kasaysayan ng presyo, analytics ng ani, at forecast sa pagtatanim.';
+
+  @override
+  String get aboutFeat5Title => 'Gumagana kahit offline';
+
+  @override
+  String get aboutFeat5Desc =>
+      'May mga talang mase-save sa iyong telepono at maipapadala mamaya gamit ang Sync.';
+
+  @override
+  String get aboutFeat6Title => 'English at Filipino';
+
+  @override
+  String get aboutFeat6Desc =>
+      'Gamitin ang SAGANA sa alinmang wika, sa light o dark mode.';
+
+  @override
+  String get aboutSaganaBuiltForTitle => 'Ginawa para sa SP3';
+
+  @override
+  String get aboutSaganaBuiltForBody =>
+      'Ang SAGANA ay binuo bilang capstone project para sa SP3 Agriculture Cooperative. Pinapalitan nito ang mga papel na logbook at nakakalat na tala ng iisang sistema para sa pagiging miyembro, mga ani, benta sa palengke, mga utang, programa, presyo, at ulat, at idinisenyo itong gumana kahit mahina o walang signal.';
+
+  @override
+  String get aboutTeamTitle => 'Ang koponan';
+
+  @override
+  String get aboutTeamSubtitle => 'Ang mga taong nasa likod ng SAGANA';
+
+  @override
+  String get aboutTeamNamePlaceholder => 'Idadagdag pa ang pangalan';
+
+  @override
+  String get aboutRoleLeadDeveloper => 'Lead Developer';
+
+  @override
+  String get aboutRoleLeadDeveloperDesc =>
+      'Namumuno sa teknikal na pagbuo ng SAGANA: ang Flutter mobile app, ang Supabase database at mga panuntunan nito sa seguridad, offline sync, at ang kabuuang arkitektura ng sistema.';
+
+  @override
+  String get aboutRoleUiUxDesigner => 'UI/UX Designer';
+
+  @override
+  String get aboutRoleUiUxDesignerDesc =>
+      'Nagdidisenyo kung paano ang hitsura at pakiramdam ng SAGANA: mga screen, nabigasyon, at istilong biswal, na may simple at bilinggwal na layout para sa mga miyembrong magkakaiba ang karanasan sa digital.';
+
+  @override
+  String get aboutRoleSystemAnalyst => 'System Analyst';
+
+  @override
+  String get aboutRoleSystemAnalystDesc =>
+      'Nangangalap at nagdodokumento ng pangangailangan ng kooperatiba: mga panayam sa Lupon at mga miyembro, mga proseso, mga patakaran sa negosyo, at ang mga requirement na pinagbabatayan ng sistema.';
+
+  @override
+  String get aboutRoleQaTester => 'QA Tester';
+
+  @override
+  String get aboutRoleQaTesterDesc =>
+      'Tinitiyak na gumagana ang SAGANA ayon sa detalye: sinusubok ang mga feature para sa bawat role, sinusuri ang mga patakaran sa negosyo at mga espesyal na kaso, nag-uulat ng depekto, at kinukumpirma ang mga ayos bago ilabas.';
+
+  @override
+  String get coopHeroFilipino =>
+      'Samahan ng Pagkakaisa sa Pag-unlad ng Payanas';
+
+  @override
+  String get coopHeroPlace => 'Barangay Payanas, Torrijos, Marinduque';
+
+  @override
+  String get coopAtAGlance => 'Sa isang tingin';
+
+  @override
+  String get coopFactRegisteredLabel => 'Nakarehistro sa CDA';
+
+  @override
+  String get coopFactRegisteredValue => 'Pebrero 1, 2017';
+
+  @override
+  String get coopFactRegNoLabel => 'Numero ng rehistro';
+
+  @override
+  String get coopFactTypeLabel => 'Uri';
+
+  @override
+  String get coopFactTypeValue => 'Micro cooperative';
+
+  @override
+  String get coopPurposeTitle => 'Ang aming layunin';
+
+  @override
+  String get coopPurposeBody =>
+      'Ang SP3 ay isang kooperatiba ng mga magsasaka sa Barangay Payanas. Pangunahing layunin nitong magbigay ng serbisyo at dagdag na kita sa mga miyembrong magsasaka. Ang kita ay pinaghahati-hatian ng mga miyembro sa pamamagitan ng balik-tangkilik (patronage refund) at interes.';
+
+  @override
+  String get coopWorkTitle => 'Ano ang ginagawa ng kooperatiba';
+
+  @override
+  String get coopWorkBody =>
+      'May tatlong negosyo ang kooperatiba. Ang mga miyembro ay pangunahing nagtatanim ng mani, luya, saging, palay, at copra, at may mga programa rin ang kooperatiba para sa mga miyembro, tulad ng pamamahagi ng binhing mani para sa susunod na taniman.';
+
+  @override
+  String get coopWorkBiz1 => 'Copra Buy and Sell';
+
+  @override
+  String get coopWorkBiz2 => 'Peanut Cookies Production';
+
+  @override
+  String get coopWorkBiz3 => 'Rice and Feeds Retailing';
+
+  @override
+  String get coopMembershipTitle => 'Pagiging miyembro';
+
+  @override
+  String get coopMem1 => 'Residente ng Barangay Payanas';
+
+  @override
+  String get coopMem2 => 'Hindi bababa sa 18 taong gulang';
+
+  @override
+  String get coopMem3 =>
+      'Handang tumupad sa mga responsibilidad ng isang miyembro';
+
+  @override
+  String get coopMem4 => '₱100 kada buwan para sa capital build-up';
+
+  @override
+  String get coopMem5 => '₱2,000 kada taon bilang capital share';
+
+  @override
+  String get coopMemNote =>
+      'Ito ang mga requirement na sinabi ng Lupon ng mga Direktor ng kooperatiba. Sa SAGANA, sinusuri at inaaprubahan ng kooperatiba ang aplikasyon ng isang Magsasaka bago mabuksan ang mga feature ng miyembro.';
+
+  @override
+  String get coopGovTitle => 'Paano ito pinamamahalaan';
+
+  @override
+  String get coopGovBody =>
+      'Pinamumunuan ng Lupon ng mga Direktor ang kooperatiba at nagpupulong ito buwan-buwan tungkol sa mga patakaran at ulat ng operasyon. Ang general manager ang namamahala sa mga proyekto at negosyo nito. Dumadaan din ang kooperatiba sa taunang compliance audit ng Cooperative Development Authority (CDA).';
+
+  @override
+  String get coopSaganaTitle => 'Ang kooperatiba at ang SAGANA';
+
+  @override
+  String get coopSaganaBody =>
+      'Ang SAGANA ang digital na sistema ng kooperatiba. Ginagamit ito ng Manager at mga Officer sa pang-araw-araw na operasyon, ng mga Magsasaka para sa kanilang ani, benta, utang, at programa, at ng mga Mamimili para umorder sa Public Market. Pinagsasama nito ang mga tala ng kooperatiba sa iisang lugar, ngunit hindi nito pinapalitan ang by-laws ng kooperatiba o ang mga desisyon ng Lupon at mga miyembro nito.';
+
+  @override
+  String get coopSaganaMarket1 =>
+      'Public Market: bukas sa mga Mamimili at Magsasaka.';
+
+  @override
+  String get coopSaganaMarket2 =>
+      'Cooperative Market at mga produkto ng programa ng kooperatiba: para lamang sa mga Magsasaka.';
+
+  @override
+  String get privHeroSubtitle =>
+      'Paano pinangangasiwaan ng SAGANA ang iyong impormasyon.';
+
+  @override
+  String get privInShort1 =>
+      'Kinokolekta ng SAGANA ang kailangan ng kooperatiba para patakbuhin ang mga account, ang palengke, at ang mga serbisyo nito.';
+
+  @override
+  String get privInShort2 =>
+      'Ang iyong password ay hawak ng sign-in service at hindi kailanman ipinapakita sa mga kawani ng kooperatiba.';
+
+  @override
+  String get privInShort3 =>
+      'Nakikita lamang ng mga kawani ang mga tala ng miyembro at Mamimili ayon sa kanilang role.';
+
+  @override
+  String get privInShort4 =>
+      'Ang pag-explore bilang bisita ay hindi lumilikha ng account at hindi nagse-save ng personal na impormasyon.';
+
+  @override
+  String get privS1Title => 'Para kanino ito';
+
+  @override
+  String get privS1Body =>
+      'Sakop ng patakarang ito ang lahat ng gumagamit ng SAGANA: mga Mamimili, Magsasaka, Officer, ang Manager, at mga bisitang nag-e-explore nang walang account. Pinatatakbo ng SP3 Agriculture Cooperative ang SAGANA para sa mga operasyon nito at binuo ito bilang capstone project.';
+
+  @override
+  String get privS2Title => 'Impormasyong kinokolekta namin';
+
+  @override
+  String get privS2All =>
+      'Pangalan, username, password (hawak ng sign-in service), opsyonal na email address at mobile number, opsyonal na larawan sa profile, at ang iyong napiling wika at itsura.';
+
+  @override
+  String get privS2Buyers =>
+      'Mga naka-save na address ng delivery (tatanggap, mobile number, address, at opsyonal na map pin), ang iyong cart, at ang iyong mga order.';
+
+  @override
+  String get privS2Farmers =>
+      'Petsa ng kapanganakan, kasarian, ang iyong address sa Barangay Payanas, detalye ng sakahan at pin ng lokasyon ng sakahan, crop roster, mga ani, imbentaryo, gastos, listing, benta, alok, aktibidad sa programa, mga utang at bayad, at mga kontribusyon sa kapital.';
+
+  @override
+  String get privS2Staff =>
+      'Pangalan at detalye sa pakikipag-ugnayan, at talaan ng mga ginawang pamamahala.';
+
+  @override
+  String get privS2Note =>
+      'Nagtatala rin ang mga kawani ng impormasyon para sa iyo, tulad ng mga bayad sa utang, kontribusyon sa kapital, at pag-abot ng order.';
+
+  @override
+  String get privS3Title => 'Mga larawan, camera, at lokasyon';
+
+  @override
+  String get privS3B1 =>
+      'Kumukuha ang mga Magsasaka ng larawan ng pananim gamit ang camera. Ginagamit din ang mga larawan bilang patunay sa resulta ng programa, delivery sa kooperatiba, at pag-abot ng order, at iniimbak kasama ng iyong mga tala.';
+
+  @override
+  String get privS3B2 =>
+      'Hihingin lamang ang lokasyon kapag ipinagamit mo sa SAGANA ang iyong kasalukuyang lokasyon sa pagdaragdag ng address o pin ng sakahan. Maaari mo ring ilagay ang pin nang mano-mano, at maaari mong patayin ang pahintulot sa settings ng iyong telepono.';
+
+  @override
+  String get privS4Title => 'Aktibidad at impormasyon ng device';
+
+  @override
+  String get privS4B1 =>
+      'Iniingatan ang mga order, notification, at tala ng aktibidad para masundan mo at ng kooperatiba ang nangyari.';
+
+  @override
+  String get privS4B2 =>
+      'Itinatala ng SAGANA kung kailan ka huling naging aktibo. Ginagamit ito ng kooperatiba para ipakita kung aktibo o hindi aktibo ang isang miyembro.';
+
+  @override
+  String get privS4B3 =>
+      'Kung papayagan mo ang mga notification, isi-save ang notification token ng iyong telepono para makapagpadala ang SAGANA ng phone notification para sa parehong pangyayaring makikita sa app.';
+
+  @override
+  String get privS4B4 =>
+      'Itinatala ang mga ginagawang pamamahala ng mga kawani para masuri ng Manager kung sino ang gumawa ng ano.';
+
+  @override
+  String get privS5Title => 'Paano namin ginagamit ang iyong impormasyon';
+
+  @override
+  String get privS5B1 =>
+      'Patakbuhin ang iyong account, sign-in, at pagbawi ng account.';
+
+  @override
+  String get privS5B2 =>
+      'Suriin at pamahalaan ang mga aplikasyon at pagiging miyembro ng mga Magsasaka.';
+
+  @override
+  String get privS5B3 =>
+      'Patakbuhin ang palengke: mga listing, order, pickup at delivery, at mga notification.';
+
+  @override
+  String get privS5B4 =>
+      'Magbigay ng mga serbisyo ng kooperatiba tulad ng mga utang, programa, at tala ng kapital.';
+
+  @override
+  String get privS5B5 =>
+      'Ipakita ang mga presyo, ulat, at analytics ng buong kooperatiba tulad ng ranggo ng ani at forecast sa pagtatanim.';
+
+  @override
+  String get privS5B6 =>
+      'Magpadala ng mga anunsyo at abiso mula sa kooperatiba.';
+
+  @override
+  String get privS6Title => 'Sino ang nakakakita nito';
+
+  @override
+  String get privS6Body =>
+      'Limitado ang access ayon sa role, at ipinatutupad ito ng database gamit ang row-level security rules bukod pa sa mga screen ng app.';
+
+  @override
+  String get privS6You =>
+      'Ang sarili mong profile, mga tala, order, at notification.';
+
+  @override
+  String get privS6Manager =>
+      'Mga tala ng miyembro at Mamimili at bawat management module.';
+
+  @override
+  String get privS6Officers =>
+      'Ang parehong mga module, na limitado sa View Only o Manage access na ibinigay ng Manager.';
+
+  @override
+  String get privS6Others =>
+      'Mga listing sa palengke (pananim, dami, presyo, larawan, at paglalarawan) nang walang pangalan o contact details ng nagbebenta, at mga pampublikong presyo.';
+
+  @override
+  String get privS6Guests => 'Mga pampublikong listing at presyo lamang.';
+
+  @override
+  String get privS7Title => 'Mga serbisyong tumutulong sa SAGANA';
+
+  @override
+  String get privS7B1 =>
+      'Iniimbak ng Supabase ang datos, nagsa-sign in sa iyo, at nag-iimbak ng mga larawan.';
+
+  @override
+  String get privS7B2 =>
+      'Inihahatid ng Firebase Cloud Messaging ang mga phone notification.';
+
+  @override
+  String get privS7B3 =>
+      'Ang OpenStreetMap ang nagbibigay ng mga larawan ng mapa. Ang LocationIQ, na naaabot sa pamamagitan ng serbisyo ng SAGANA, ang nagpapalit sa naka-pin na lokasyon bilang pangalan ng lugar.';
+
+  @override
+  String get privS7B4 =>
+      'Nagpapadala ng verification code ang isang email service kapag nagdagdag o nagpalit ka ng email address.';
+
+  @override
+  String get privS7Note =>
+      'Ginagamit lamang ang mga serbisyong ito para sa mga layuning inilalarawan dito.';
+
+  @override
+  String get privS8Title => 'Sa iyong device';
+
+  @override
+  String get privS8B1 =>
+      'Ang mga talang na-save offline ay nakaantabay sa iyong telepono hanggang pindutin mo ang Sync. Nakatago rin sa iyong telepono ang mga kopya ng mga talang tiningnan mo, ang iyong cart, at ang iyong mga kagustuhan.';
+
+  @override
+  String get privS8B2 =>
+      'Iniingatan ang mga talang hindi nag-sync para maulit mo ang pagpapadala.';
+
+  @override
+  String get privS9Title => 'Seguridad ng account';
+
+  @override
+  String get privS9B1 =>
+      'Ang mga password ay pinangangasiwaan ng sign-in service. Hindi makikita ng mga kawani ang iyong password.';
+
+  @override
+  String get privS9B2 =>
+      'Kung nawalan ka ng access, maaaring magbigay ang kooperatiba ng pansamantalang password. Kailangan mong magtakda ng sarili mong bagong password sa susunod mong pag-sign in.';
+
+  @override
+  String get privS9B3 =>
+      'Magagamit lamang ang email address sa pag-sign in matapos mo itong i-verify gamit ang code.';
+
+  @override
+  String get privS9B4 =>
+      'Maaaring i-suspend ng Manager ang isang account o higpitan ang mga partikular na feature dahil sa sapat na dahilan, na may itinalang paliwanag.';
+
+  @override
+  String get privS10Title => 'Ang iyong mga pagpipilian';
+
+  @override
+  String get privS10B1 =>
+      'I-update ang iyong pangalan, numero ng telepono, larawan, email, at detalye ng sakahan sa Edit Profile.';
+
+  @override
+  String get privS10B2 => 'Piliin ang iyong wika at itsura sa Settings.';
+
+  @override
+  String get privS10B3 =>
+      'Payagan o harangin ang mga notification, lokasyon, at camera sa settings ng iyong telepono.';
+
+  @override
+  String get privS10B4 =>
+      'Walang sariling opsyon ang SAGANA para burahin ang isang account o ang mga tala nito. Magtanong sa Manager ng kooperatiba kung kailangang itama o alisin ang impormasyon.';
+
+  @override
+  String get privS11Title => 'Mga bisita';
+
+  @override
+  String get privS11Body =>
+      'Hindi kailangan ng account para mag-explore bilang Mamimili o Magsasaka. Pampublikong listing at presyo lamang ang binabasa ng mga screen ng bisita, sample na datos ang gamit sa preview ng Magsasaka, at walang ginagawa mo bilang bisita ang nase-save sa tala ng miyembro.';
+
+  @override
+  String get privS12Title => 'Mga pagbabago sa patakarang ito';
+
+  @override
+  String get privS12Body =>
+      'Maaaring baguhin ang patakarang ito habang nagbabago ang SAGANA. Laging makikita ang pinakabagong bersyon sa Privacy Policy sa navigation menu.';
+
+  @override
+  String get termsHeroSubtitle => 'Ang mga patakaran sa paggamit ng SAGANA.';
+
+  @override
+  String get termsInShort1 =>
+      'Pinatatakbo ng SP3 Agriculture Cooperative ang SAGANA para sa mga miyembro at Mamimili nito.';
+
+  @override
+  String get termsInShort2 =>
+      'Magbigay ng tamang impormasyon at itago ang iyong sign-in.';
+
+  @override
+  String get termsInShort3 =>
+      'Sinusuri muna ang mga listing bago makita ng mga Mamimili, at sumusunod ang mga order sa mga hakbang ng kooperatiba sa pickup o delivery.';
+
+  @override
+  String get termsInShort4 =>
+      'Maaaring i-suspend ng kooperatiba ang account o higpitan ang mga feature dahil sa sapat na dahilan.';
+
+  @override
+  String get termsS1Title => 'Paggamit ng SAGANA';
+
+  @override
+  String get termsS1Body =>
+      'Sa paggawa ng account o paggamit ng SAGANA, sumasang-ayon ka sa mga tuntuning ito. Maaaring mag-explore ang mga bisita nang walang account ngunit hindi sila makakaorder o makakabago ng anumang tala. Ang SAGANA ay sistemang pinatatakbo ng kooperatiba at binuo bilang capstone project, hindi isang komersyal na platform, at maaaring hindi ito magamit minsan.';
+
+  @override
+  String get termsS2Title => 'Mga account at role';
+
+  @override
+  String get termsS2Buyer =>
+      'Nagrerehistro nang mag-isa at maaaring umorder sa Public Market.';
+
+  @override
+  String get termsS2Farmer =>
+      'Nagrerehistro nang mag-isa at naghihintay sa desisyon ng kooperatiba, o ginawa ng Manager o ng isang Officer. Dapat hindi bababa sa 18 taong gulang ang mga Magsasaka. Hangga\'t hindi pa naaaprubahan, status ng aplikasyon, mga notification, at profile lamang ang magagamit.';
+
+  @override
+  String get termsS2Officer =>
+      'Ginagawa ng Manager, na may View Only o Manage access sa bawat module.';
+
+  @override
+  String get termsS2Manager =>
+      'Namamahala sa mga operasyon ng kooperatiba sa SAGANA. Tanging ang Manager ang gumagawa ng mga Officer, nagpapasya sa mga account ng Magsasakang ginawa ng mga Officer, at namamahala sa mga setting ng delivery.';
+
+  @override
+  String get termsS2Guest =>
+      'Maaaring mag-explore ng mga preview na pambasa lamang. Walang tala na nabubuo sa anumang gawin ng bisita.';
+
+  @override
+  String get termsS3Title => 'Ang iyong account';
+
+  @override
+  String get termsS3B1 =>
+      'Magbigay ng totoo at kumpletong impormasyon at panatilihin itong napapanahon.';
+
+  @override
+  String get termsS3B2 =>
+      'Isang tao sa bawat account. Itago ang iyong username at password at huwag itong ibahagi.';
+
+  @override
+  String get termsS3B3 =>
+      'Agad na ipaalam sa kooperatiba kung sa palagay mo ay may ibang gumamit ng iyong account.';
+
+  @override
+  String get termsS3B4 =>
+      'Ang pansamantalang password na ibinigay ng kooperatiba ay dapat palitan ng sarili mong password pag-sign in mo.';
+
+  @override
+  String get termsS4Title => 'Mga tala at listing ng Magsasaka';
+
+  @override
+  String get termsS4B1 =>
+      'Dapat totoo ang mga ani, gastos, at benta na itinatala mo. Dapat ang sarili mong pananim ang makikita sa mga larawan.';
+
+  @override
+  String get termsS4B2 =>
+      'Ang listing ay ginagawa mula sa karapat-dapat na batch ng ani sa presyong iminumungkahi mo. Sinusuri ito ng kooperatiba at maaari nitong aprubahan, o hindi aprubahan na may paliwanag. Kailangan ding aprubahan ang mga pagbabago sa nailathalang listing, at nananatiling available ang kasalukuyang listing habang hinihintay ito.';
+
+  @override
+  String get termsS4B3 =>
+      'Nakareserba ang dami sa isang listing. Ibinabalik ito kapag binawi ang nakabinbing listing o hindi inaprubahan ang isang listing.';
+
+  @override
+  String get termsS4B4 =>
+      'Maaari kang mag-alok ng pananim sa kooperatiba at makipagnegosasyon sa presyo, sumali sa Ginger Market Linking, at magtala ng mga benta nang harapan, ayon sa mga hakbang sa bawat screen.';
+
+  @override
+  String get termsS5Title => 'Mga palengke at presyo';
+
+  @override
+  String get termsS5B1 =>
+      'Maaaring umorder ng mga listing sa Public Market ang mga Mamimili at Magsasaka. Ang mga listing sa Cooperative Market at mga produkto ng programa ng kooperatiba ay para lamang sa mga Magsasaka.';
+
+  @override
+  String get termsS5B2 =>
+      'Itinatakda ng kooperatiba ang mga reference price para sa bawat pananim, palengke, at yunit. Gabay lamang ang mga ito. Ang presyo sa listing ang presyong babayaran mo.';
+
+  @override
+  String get termsS5B3 =>
+      'Hindi maaaring umorder ang Magsasaka sa sarili niyang listing.';
+
+  @override
+  String get termsS6Title => 'Mga order';
+
+  @override
+  String get termsS6B1 =>
+      'Napupunta ang mga order sa kooperatiba para aprubahan. Iniaalok lamang ang pickup o delivery kung saan ito pinagana ng kooperatiba. Kailangan ng karapat-dapat na address ang delivery at maaaring may delivery fee.';
+
+  @override
+  String get termsS6B2 =>
+      'Cash ang bayad. Hiwalay na itinatala ng kooperatiba ang bayad sa status ng order, at kailangan ng larawang patunay sa pag-abot ng delivery.';
+
+  @override
+  String get termsS6B3 =>
+      'Matapos maitala ang bayad at maiabot ang order, kumpirmahin ang pagtanggap sa app. Maaaring kumpletuhin ng mga kawani para sa iyo ang order na bayad na at naiabot na, na may paliwanag at larawang patunay.';
+
+  @override
+  String get termsS6B4 =>
+      'Maaari mong kanselahin ang sarili mong order habang nakabinbin pa ito lamang. Ibinabalik na noon ang nakareserbang dami.';
+
+  @override
+  String get termsS7Title => 'Mga utang, programa, at kapital';
+
+  @override
+  String get termsS7B1 =>
+      'Ang mga utang ay mga bagay (tulad ng pataba, pakain, o binhi), hindi pera. Maaari kang humiling ng utang mula sa katalogo. Inaaprubahan ito ng kooperatiba na may mga tuntunin sa pagbabayad, o hindi inaaprubahan na may paliwanag.';
+
+  @override
+  String get termsS7B2 =>
+      'Ang limitasyon ng utang ay maaaring nakadepende sa iyong capital share, ayon sa mga patakaran ng kooperatiba. Itinatala ng mga kawani ang mga bayad, at awtomatikong minamarkahang overdue ang utang kapag huli ang bayad.';
+
+  @override
+  String get termsS7B3 =>
+      'Kailangan ng pag-apruba para sumali sa mga programa (Free Distribution, Harvest Return, at Product Sales). Mag-ulat ng resulta nang tapat na may tala at larawan. Ang mga obligasyong ibalik at ang mga desisyon sa bigong resulta ay batay sa mga tala ng programa.';
+
+  @override
+  String get termsS7B4 =>
+      'Itinatala ng mga kawani ang mga kontribusyon sa kapital. Ang maling entry ay binabawi na may paliwanag, at nananatili ang orihinal na tala.';
+
+  @override
+  String get termsS7Note =>
+      'Mga tala ang mga numero sa SAGANA. Ang mga desisyon tungkol sa pamamahagi o patronage ay sa kooperatiba at ayon sa by-laws nito.';
+
+  @override
+  String get termsS8Title => 'Tamang paggamit at suspensyon';
+
+  @override
+  String get termsS8B1 =>
+      'Huwag maglagay ng maling tala, abusuhin ang palengke, o subukang abutin ang datos o feature na labas sa iyong role.';
+
+  @override
+  String get termsS8B2 =>
+      'Maaaring i-suspend ng Manager, o ng Officer na may Members Manage access, ang isang account o higpitan ang mga partikular na feature dahil sa sapat na dahilan. Itinatala at ipinapakita sa iyo ang dahilan, at maaaring may petsa ng pagtatapos ang suspensyon.';
+
+  @override
+  String get termsS8B3 =>
+      'Hindi makakapag-sign in ang na-suspend na account hangga\'t hindi ito naibabalik.';
+
+  @override
+  String get termsS9Title => 'Offline na paggamit at Sync';
+
+  @override
+  String get termsS9B1 =>
+      'May mga talang maaaring i-save offline, tulad ng mga ani, gastos, at mga sinusuportahang pagbabago sa profile, at ipinapadala kapag pinindot mo ang Sync.';
+
+  @override
+  String get termsS9B2 =>
+      'Iniingatan ang mga talang hindi nag-sync, kasama ang ipinapakitang dahilan, para maulit mo ang pagpapadala.';
+
+  @override
+  String get termsS9B3 =>
+      'Kailangan ng internet ang pagpapalabas ng utang, mga transaksyon sa palengke, mga alok sa kooperatiba, at iba pang aksyong nangangailangan ng agarang pag-apruba.';
+
+  @override
+  String get termsS9B4 =>
+      'Maaaring hindi makita ng iba ang mga offline na tala hangga\'t hindi pa nagsi-sync.';
+
+  @override
+  String get termsS10Title => 'Mga presyo, analytics, at forecast';
+
+  @override
+  String get termsS10Body =>
+      'Mga gabay na hango sa mga naitalang datos ang mga presyo, kasaysayan ng presyo, analytics, at forecast sa pagtatanim. Hindi ito garantiya ng anumang presyo, benta, o ani.';
+
+  @override
+  String get termsS11Title =>
+      'Pagkakaroon ng serbisyo at mga patakaran ng kooperatiba';
+
+  @override
+  String get termsS11Body =>
+      'Ang SAGANA ay ibinibigay ayon sa kakayahan para sa gamit ng kooperatiba, at hindi garantisado ang tuloy-tuloy na serbisyo. Nananatiling pinamamahalaan ng by-laws ng kooperatiba at ng mga desisyon ng Lupon nito ang mga usapin ng pagiging miyembro. Hindi pinapalitan ng mga tala ng SAGANA ang mga ito.';
+
+  @override
+  String get termsS12Title => 'Mga pagbabago sa mga tuntuning ito';
+
+  @override
+  String get termsS12Body =>
+      'Maaaring magbago ang mga tuntuning ito habang nagbabago ang SAGANA. Ang patuloy na paggamit ng SAGANA matapos ang update ay nangangahulugang tinatanggap mo ang binagong tuntunin.';
+
+  @override
+  String get guestCoopProductTitle => 'Gusto mo bang umorder sa kooperatiba?';
+
+  @override
+  String get guestCoopProductMessage =>
+      'Maaaring i-order ng mga Magsasaka ng SAGANA ang mga produkto ng kooperatiba. Mag-login o magparehistro bilang Magsasaka para umorder.';
+
+  @override
+  String get guestSampleProgramName => 'Sample na Programa';
+
+  @override
+  String patContributionsInYear(int year) {
+    return 'Mga kontribusyon noong $year';
+  }
+
+  @override
+  String patCapitalAtStartLine(int year) {
+    return 'Sa simula ng $year';
+  }
+
+  @override
+  String patAddedInYearLine(int year) {
+    return 'Naidagdag noong $year';
+  }
+
+  @override
+  String get patPurchasesMadeLabel => 'Mga biniling produkto';
+
+  @override
+  String get patOffersCompletedLabel => 'Mga natapos na alok';
+
+  @override
+  String get guestSampleActHarvest => 'Naitala ang ani';
+
+  @override
+  String get guestSampleActListing => 'Naaprubahan ang listing';
+
+  @override
+  String get guestSampleActProgram => 'Sumali sa isang programa';
+
+  @override
+  String get guestSampleActLoan => 'Humiling ng utang';
+
+  @override
+  String patCreditedLine(String amount, String rate, String base) {
+    return 'Naidagdag $amount ($rate% ng $base)';
+  }
+
+  @override
+  String get patNothingCredited => 'Wala pang naidagdag.';
+
+  @override
+  String get patBeforeRateNote =>
+      'Ang mga transaksyong natapos bago itakda ang porsyento ay hindi isinasama.';
+
+  @override
+  String patSharesSummary(int shares, String remaining, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      shares,
+      locale: localeName,
+      other: '$shares buong share',
+      one: '1 buong share',
+    );
+    return '$_temp0 · $remaining pa para sa susunod na buong share ($value bawat share)';
+  }
+
+  @override
+  String get capSettingsTitle => 'Mga Setting ng Capital Share';
+
+  @override
+  String get capSettingsPurchaseLabel => 'Pagbili sa Kooperatiba';
+
+  @override
+  String get capSettingsPurchaseHint =>
+      'Ang porsyento ng natapos na order ng Cooperative Product na idinadagdag sa Capital Share ng miyembrong naka-enroll sa Product Sales program. Walang naidaragdag ang hindi naka-enroll.';
+
+  @override
+  String get capSettingsOfferLabel => 'Alok sa Kooperatiba';
+
+  @override
+  String get capSettingsOfferHint =>
+      'Ang porsyento ng halaga ng benta ng matagumpay at natapos na alok na idinadagdag sa Capital Share ng magsasaka. Walang naidaragdag ang nakabinbin, tinanggihan at kinanselang alok.';
+
+  @override
+  String get capSettingsMonthlyLabel => 'Buwanang Kontribusyon';
+
+  @override
+  String get capSettingsMonthlyHint =>
+      'Walang porsyento. Buo ang idinadagdag na buwanang bayad, ayon sa umiiral na tuntunin ng kontribusyon.';
+
+  @override
+  String get capSettingsPercentField => 'Porsyento (%)';
+
+  @override
+  String get capSettingsRangeError =>
+      'Maglagay ng porsyento mula 0 hanggang 100 na hanggang 2 decimal.';
+
+  @override
+  String get capSettingsApplyNote =>
+      'Ang bagong porsyento ay para sa mga transaksyong matatapos pagkatapos mong i-save. Ang mga naidagdag na ay nananatili sa porsyentong ginamit noon, kaya hindi nagbabago ang mga naunang tala ng Capital Share.';
+
+  @override
+  String get capSettingsSave => 'I-save ang Settings';
+
+  @override
+  String get capSettingsSaved => 'Na-save ang mga setting ng Capital Share.';
+
+  @override
+  String get capSettingsSaveError =>
+      'Hindi ma-save ang mga setting. Pakisubukan muli.';
+
+  @override
+  String get capSettingsLoadError => 'Hindi ma-load ang mga setting.';
+
+  @override
+  String get capSettingsSummaryTitle => 'Paano binubuo ang Capital Share';
+
+  @override
+  String get capSettingsSummaryBody =>
+      'Kabuuang Capital Share = Buwanang Kontribusyon + Pagbili sa Kooperatiba + Alok sa Kooperatiba.';
+
+  @override
+  String get staffThingCapitalShareRates => 'Mga setting ng Capital Share';
+
+  @override
+  String get patDiscountEarned => 'Diskwentong natanggap';
+
+  @override
+  String get patRecordRegular => 'Regular na buwanang kontribusyon';
+
+  @override
+  String get patStatusCancelled => 'Kinansela';
+
+  @override
+  String get patNewPurchasesMade => 'Mga bagong pagbili';
+
+  @override
+  String get patNewDiscountEarned => 'Bagong diskwentong natanggap';
+
+  @override
+  String get patNewlyCredited => 'Bagong naidagdag';
+
+  @override
+  String patNewlyCreditedRate(String rate) {
+    return 'Bagong naidagdag ($rate%)';
+  }
+
+  @override
+  String get patPrevPurchasesMade => 'Mga naunang pagbili';
+
+  @override
+  String get patPrevDiscountEarned => 'Naunang diskwentong natanggap';
+
+  @override
+  String get patPrevCredited => 'Naunang naidagdag';
+
+  @override
+  String get patNewOffers => 'Mga bagong natapos na alok';
+
+  @override
+  String get patPrevOffers => 'Mga naunang natapos na alok';
+
+  @override
+  String get patSeeHistory => 'Tingnan ang Kasaysayan';
+
+  @override
+  String get patHistoryTitlePurchase => 'Pagbili sa Kooperatiba – Kasaysayan';
+
+  @override
+  String get patHistoryTitleOffer => 'Alok sa Kooperatiba – Kasaysayan';
+
+  @override
+  String patHistoryRate(String rate, String from) {
+    return 'Porsyentong $rate% · mula $from';
+  }
+
+  @override
+  String patHistoryRateUntil(String rate, String from, String to) {
+    return 'Porsyentong $rate% · $from – $to';
+  }
+
+  @override
+  String patHistoryCreditedTotal(String amount) {
+    return 'Naidagdag $amount';
+  }
+
+  @override
+  String get patHistoryNone => 'Walang naidagdag sa porsyentong ito.';
+
+  @override
+  String get patHistoryPurchaseMade => 'Binili';
+
+  @override
+  String get patHistoryOfferMade => 'Mga Natapos na Alok';
+
+  @override
+  String get patHistoryDiscountEarned => 'Diskwentong Natanggap';
+
+  @override
+  String get patHistoryCredited => 'Naidagdag';
+
+  @override
+  String get patHistoryLoadError => 'Hindi ma-load ang kasaysayan.';
+
+  @override
+  String get farmerDetailsFixWithCorrection =>
+      'Para itama ang maling halaga, magtala ng Pagwawasto (⋮ menu → Adjust Capital).';
+
+  @override
+  String get contribSourcePurchaseShare =>
+      'Naidagdag mula sa Pagbili sa Kooperatiba';
+
+  @override
+  String get contribSourceOfferShare => 'Naidagdag mula sa Alok sa Kooperatiba';
+
+  @override
+  String monthlyOfDue(String amount) {
+    return 'sa $amount na dapat bayaran';
+  }
+
+  @override
+  String monthlyMonthsPaidOf(int paid, int total) {
+    return '$paid sa $total buwan ang bayad na';
+  }
+
+  @override
+  String get patMonthlyHistory => 'Kasaysayan';
+
+  @override
+  String get patGroupNewlyCredited => 'Bagong Naidagdag';
+
+  @override
+  String get patGroupPreviousPurchases => 'Mga Naunang Pagbili';
+
+  @override
+  String get patGroupPreviousOffers => 'Mga Naunang Natapos na Alok';
+
+  @override
+  String get patCreditedToCapital => 'Naidagdag sa Capital Share';
+
+  @override
+  String patProductsPurchased(int count) {
+    return 'Mga biniling produkto ($count)';
+  }
+
+  @override
+  String patOffersMade(int count) {
+    return 'Mga alok na ginawa ($count)';
+  }
+
+  @override
+  String get dlBodToday => 'BOD Meeting — NGAYON';
+
+  @override
+  String dlBodInDays(int count) {
+    return 'BOD Meeting sa loob ng $count araw';
+  }
+
+  @override
+  String dlFarmersWithLoans(int count) {
+    return '$count magsasaka ang may pautang pa';
+  }
+
+  @override
+  String dlOverdueLoans(int count) {
+    return '$count Pautang na Lampas sa Takda';
+  }
+
+  @override
+  String get dlImmediateAttention => 'Kailangang asikasuhin agad';
+
+  @override
+  String dlListingsAwaiting(int count) {
+    return '$count Listing ang Naghihintay ng Pag-apruba';
+  }
+
+  @override
+  String get dlFarmersWaitingReview => 'Naghihintay ang mga magsasaka';
+
+  @override
+  String dlItemsLowStock(int count) {
+    return '$count Item ang Paubos Na';
+  }
+
+  @override
+  String dlCropRequestsPending(int count) {
+    return '$count Hiling na Pananim ang Nakabinbin';
+  }
+
+  @override
+  String get dlFarmersWaitingCatalog =>
+      'Naghihintay ang mga magsasaka ng pagsusuri';
+
+  @override
+  String dlMembersPending(int count) {
+    return '$count Miyembro ang Susuriin Pa';
+  }
+
+  @override
+  String get dlNewRegistrations => 'Mga bagong rehistro na susuriin';
+
+  @override
+  String get dlBadgeNoCrops => 'Walang pananim';
+
+  @override
+  String dlBadgeCrops(int count) {
+    return '$count pananim';
+  }
+
+  @override
+  String get dlBadgeNoItems => 'Walang item';
+
+  @override
+  String dlBadgeItems(int count) {
+    return '$count item';
+  }
+
+  @override
+  String dlBadgeSupplies(int count) {
+    return '$count supply';
+  }
+
+  @override
+  String get dlBadgeNoEntries => 'Walang tala';
+
+  @override
+  String get dlBadgeNoPrograms => 'Walang programa';
+
+  @override
+  String dlBadgeActive(int count) {
+    return '$count aktibo';
+  }
+
+  @override
+  String get dlHarvestedToday => 'Inani ngayong araw';
+
+  @override
+  String get dlHarvestedYesterday => 'Inani kahapon';
+
+  @override
+  String dlHarvestedDaysAgo(int days) {
+    return 'Inani $days araw na ang nakalipas';
+  }
+
+  @override
+  String get dlOfferedToday => 'Inalok ngayong araw';
+
+  @override
+  String get dlOfferedYesterday => 'Inalok kahapon';
+
+  @override
+  String dlOfferedDaysAgo(int days) {
+    return 'Inalok $days araw na ang nakalipas';
+  }
+
+  @override
+  String get dlNotPinned => 'Wala pang pin';
+
+  @override
+  String get dlBatchWhenSynced => 'Ibibigay kapag na-sync';
+
+  @override
+  String get dlUnknownFarmer => 'Hindi Kilalang Magsasaka';
+
+  @override
+  String get dlUnknownCrop => 'Hindi kilalang pananim';
+
+  @override
+  String dlRecipientCropFarmers(String crop) {
+    return 'Mga Magsasaka ng $crop';
+  }
+
+  @override
+  String dlFieldRequired(String label) {
+    return 'Kailangan ang $label';
+  }
+
+  @override
+  String get dlValidNumber =>
+      'Maglagay ng wastong numero, tulad ng 0.45 o 12.5';
+
+  @override
+  String dlMustBePositive(String label) {
+    return 'Dapat higit sa 0 ang $label';
+  }
+
+  @override
+  String dlMaxDecimals(int count) {
+    return 'Hanggang $count decimal lang';
+  }
+
+  @override
+  String dlTooLarge(String label) {
+    return 'Masyadong malaki ang $label';
+  }
+
+  @override
+  String dlOnlyAvailable(String amount) {
+    return '$amount lang ang natitira';
+  }
+
+  @override
+  String get dlValidAmount => 'Maglagay ng wastong halaga, tulad ng 12.50';
+
+  @override
+  String get dlQuantity => 'Dami';
+
+  @override
+  String get dlPrice => 'Presyo';
+
+  @override
+  String get dlLoginIdRequired => 'Kailangan ang username o email';
+
+  @override
+  String get dlAuthIncorrect => 'Mali ang username o password. Subukan muli.';
+
+  @override
+  String get dlAuthTooMany =>
+      'Masyadong maraming subok. Maghintay sandali at subukan muli.';
+
+  @override
+  String get dlAuthUnexpected => 'May hindi inaasahang error. Subukan muli.';
+
+  @override
+  String get dlAuthLoginFailed =>
+      'Hindi nakapag-login. Suriin ang username at password.';
+
+  @override
+  String get dlAuthRoleMissing =>
+      'Walang nakitang role ng account. Makipag-ugnayan sa SP3 Cooperative.';
+
+  @override
+  String get dlAuthAge18 =>
+      'Dapat 18 taong gulang pataas para magparehistro bilang miyembro.';
+
+  @override
+  String get dlCreateAccountFailed => 'Hindi nagawa ang account. Subukan muli.';
+
+  @override
+  String get dlServerUnexpected =>
+      'Hindi inaasahang sagot mula sa server. Subukan muli.';
+
+  @override
+  String get dlUsernameRule =>
+      'Dapat 3 hanggang 30 character ang username: letra, numero, tuldok, underscore o gitling.';
+
+  @override
+  String get dlStockBelowZero =>
+      'Kulang ang stock para dito. Hindi puwedeng bumaba sa zero ang stock.';
+
+  @override
+  String get dlItemAlreadyTaken =>
+      'Nakuha na sa stock ang item na ito para sa pautang na ito.';
+
+  @override
+  String get dlPresetCda => 'Para sa CDA';
+
+  @override
+  String get dlPresetDa => 'Para sa DA';
+
+  @override
+  String get dlPresetCdaDesc =>
+      'Mga ulat ng Benta, Pautang, at Kontribusyon ng Miyembro';
+
+  @override
+  String get dlPresetDaDesc => 'Ulat ng ani (kasama ang mga batch at stock)';
+
+  @override
+  String get dlInformalSaleF2f => 'Impormal na Benta (Harapan)';
+
+  @override
+  String get dlMarketplace => 'Marketplace';
+
+  @override
+  String get dlDaAmadLinking => 'DA-AMAD Market Linking';
+
+  @override
+  String get snAssistanceRequest => 'Hiling na Tulong';
+
+  @override
+  String get snAssistanceRequestCancelled => 'Kinansela ang Hiling na Tulong';
+
+  @override
+  String get snBuyerDetailsUpdated => 'Na-update ang Detalye ng Mamimili';
+
+  @override
+  String get snCoopDeliveryToConfirm =>
+      'May Delivery sa Kooperatiba na Kukumpirmahin';
+
+  @override
+  String get snCoopOfferCancelled => 'Kinansela ang Alok sa Kooperatiba';
+
+  @override
+  String get snEditRequestPriceUpdated =>
+      'Na-update ang Presyo sa Hiling na Pagbabago';
+
+  @override
+  String get snEditedListingForApproval =>
+      'May In-edit na Listing na Aaprubahan';
+
+  @override
+  String get snFarmerAcceptedPrice => 'Tinanggap ng Magsasaka ang Presyo';
+
+  @override
+  String get snFarmerCounteroffer => 'Kontra-alok ng Magsasaka';
+
+  @override
+  String get snFeatureRestricted => 'May Limitasyon sa Feature';
+
+  @override
+  String get snRestrictionLifted => 'Inalis ang Limitasyon';
+
+  @override
+  String get snGingerSaleRecorded => 'Naitala ang Benta ng Luya';
+
+  @override
+  String get snGingerSubmitted => 'Naipasa ang Luya para Ibenta';
+
+  @override
+  String get snHarvestLossReported => 'May Iniulat na Lugi sa Ani';
+
+  @override
+  String get snHarvestQuantityReduced => 'Binawasan ang Dami ng Ani';
+
+  @override
+  String get snHarvestReturnClosed => 'Isinara ang Harvest Return';
+
+  @override
+  String get snListingDisapproved => 'Hindi Inaprubahan ang Listing';
+
+  @override
+  String get snListingEditRequest => 'Hiling na Baguhin ang Listing';
+
+  @override
+  String get snListingPriceUpdated => 'Na-update ang Presyo ng Listing';
+
+  @override
+  String get snListingUpdated => 'Na-update ang Listing';
+
+  @override
+  String get snListingWithdrawn => 'Binawi ang Listing';
+
+  @override
+  String get snLoanFullyPaid => 'Bayad na ang Pautang';
+
+  @override
+  String get snLoanRequestCancelled => 'Kinansela ang Hiling na Pautang';
+
+  @override
+  String get snMlEnrollmentApproved =>
+      'Naaprubahan ang Hiling na Sumali sa DA-AMAD';
+
+  @override
+  String get snMlEnrollmentDeclined =>
+      'Hindi Naaprubahan ang Hiling na Sumali sa DA-AMAD';
+
+  @override
+  String get snMlRequestApproved => 'Naaprubahan ang Hiling sa DA-AMAD';
+
+  @override
+  String get snMlRequestCancelled => 'Kinansela ang Hiling sa DA-AMAD';
+
+  @override
+  String get snMlRequestClosed => 'Isinara ang Hiling sa DA-AMAD';
+
+  @override
+  String get snMlRequestCompleted => 'Tapos na ang Hiling sa DA-AMAD';
+
+  @override
+  String get snMlRequestDeclined => 'Hindi Naaprubahan ang Hiling sa DA-AMAD';
+
+  @override
+  String get snMonthlyWaived => 'Hindi na Sisingilin ang Buwanang Kontribusyon';
+
+  @override
+  String get snMonthlyWaiverRemoved =>
+      'Sisingilin na Muli ang Buwanang Kontribusyon';
+
+  @override
+  String get snNewCoopOrder => 'Bagong Order sa Kooperatiba';
+
+  @override
+  String get snNewLoanRequest => 'Bagong Hiling na Pautang';
+
+  @override
+  String get snNewMlEnrollment => 'Bagong Hiling na Sumali sa DA-AMAD';
+
+  @override
+  String get snOrderCancelledByBuyer => 'Kinansela ng Mamimili ang Order';
+
+  @override
+  String snOrderCancelledBy(String who) {
+    return 'Kinansela ang Order ng $who';
+  }
+
+  @override
+  String get snOrderDisapproved => 'Hindi Inaprubahan ang Order';
+
+  @override
+  String get snOverdueLoan => 'Pautang na Lampas sa Takda';
+
+  @override
+  String get snPaymentRecorded => 'Naitala ang Bayad';
+
+  @override
+  String get snPendingOrder => 'Nakabinbing Order';
+
+  @override
+  String get snPriceUpdateRequired => 'Kailangang I-update ang Presyo';
+
+  @override
+  String get snProgramEnrollmentApproved =>
+      'Naaprubahan ang Pagsali sa Programa';
+
+  @override
+  String get snProgramOutcomeReport => 'Ulat ng Resulta ng Programa';
+
+  @override
+  String get snProgramOutcomeSuccessful => 'Resulta ng Programa: Matagumpay';
+
+  @override
+  String get snRequestAnotherDistribution => 'Hiling na Isa pang Pamamahagi';
+
+  @override
+  String get snReturnQuantityChanged => 'Binago ang Dami ng Ibabalik';
+
+  @override
+  String get snShelfLifeReview => 'May Shelf Life na Aaprubahan';
+
+  @override
+  String get snAccountSuspended => 'Sinuspinde ang Iyong SP3 Account';
+
+  @override
+  String snLowStock(String item) {
+    return 'Paubos na: $item';
+  }
+
+  @override
+  String snOutOfStock(String item) {
+    return 'Ubos na: $item';
+  }
+
+  @override
+  String snPriceUpdate(String crop) {
+    return 'Bagong Presyo: $crop';
+  }
+
+  @override
+  String snInspect(String item) {
+    return 'Suriin ang $item';
+  }
+
+  @override
+  String get offlineNeedsInternet =>
+      'Para magamit ang feature na ito at makuha ang pinakabagong datos, pakisuri ang iyong internet.';
+
+  @override
+  String get offlineNotSavedBody =>
+      'May impormasyon sa screen na ito na hindi naka-save sa device. Para makita ito at makuha ang pinakabagong datos, pakisuri ang iyong internet.';
+
+  @override
+  String get offlineNeedsInternetTitle => 'Kailangan ng Internet';
+
+  @override
+  String get syncActionCrop => 'Talaan ng Pananim';
+
+  @override
+  String get passwordErrSame =>
+      'Dapat iba ang bagong password sa kasalukuyan mong password.';
+
+  @override
+  String get passwordErrWeak =>
+      'Hindi sapat ang lakas ng password na iyon. Gumamit ng mas mahaba na may letra, numero at simbolo.';
+
+  @override
+  String get passwordErrBreached =>
+      'Lumabas na ang password na iyon sa isang kilalang data breach. Pumili ng iba.';
+
+  @override
+  String get passwordErrExpired =>
+      'Nag-expire na ang reset session mo. Bumalik at humiling ng bagong code.';
+
+  @override
+  String get assistCapZeroTitle => 'Hindi ka pa makakahiling ng tulong';
+
+  @override
+  String get assistCapZero =>
+      '₱0.00 ang iyong Capital Share. Limitado ng iyong Capital Share ang mga item ng tulong, at lumalaki ito sa pamamagitan ng iyong mga kontribusyon at pagbili sa presyong miyembro.';
+
+  @override
+  String assistCapBody(String amount) {
+    return 'Ang bawat item ng tulong ay maaaring nagkakahalaga hanggang $amount (dami × presyo). Ibinibigay ang tulong bilang mga item, hindi pera, at hindi binabayaran.';
+  }
+
+  @override
+  String assistCapStaffBlocked(String amount) {
+    return 'Ang Capital Share ng magsasakang ito ay ₱$amount. May kahit isang item na mas mahal dito, o ₱0.00 ang Capital Share, kaya hindi maaaprubahan ang kahilingan. Maaari mo itong hindi aprubahan na may dahilan.';
+  }
+
+  @override
+  String get passwordErrPrevious =>
+      'Dapat iba ang bagong password sa dati mong password.';
 }

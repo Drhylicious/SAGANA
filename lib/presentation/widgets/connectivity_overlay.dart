@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../data/services/connectivity_service.dart';
 import '../../data/services/guest_mode_service.dart';
 import '../../data/services/hive_service.dart';
+import '../../data/services/offline_cache.dart';
 
 /// The only connectivity notice, above all Navigators, pages and dialogs.
 /// The page keeps its original constraints; the notice can be dismissed.
@@ -28,6 +30,11 @@ class _ConnectivityOverlayState extends State<ConnectivityOverlay> {
   late bool _online;
   late bool _visible;
 
+  // True while the current screen asked for something that is not saved on
+  // this device. The offline notice then says a connection is needed for it,
+  // so an empty screen is never read as "there is no data".
+  bool _missingData = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +49,7 @@ class _ConnectivityOverlayState extends State<ConnectivityOverlay> {
       setState(() {
         _online = online;
         _visible = true;
+        _missingData = false;
       });
       if (online) {
         _dismiss = Timer(const Duration(seconds: 12), () {
@@ -49,10 +57,45 @@ class _ConnectivityOverlayState extends State<ConnectivityOverlay> {
         });
       }
     });
+    OfflineCache.offlineMisses.addListener(_onOfflineMiss);
+    widget.router.routerDelegate.addListener(_onRouteChanged);
+  }
+
+  // Once per screen: a dismissed notice stays dismissed until the next screen.
+  void _onOfflineMiss() {
+    if (!mounted || _missingData || ConnectivityService.instance.isOnline) {
+      return;
+    }
+    _afterBuild(() {
+      _online = false;
+      _missingData = true;
+      _visible = true;
+    });
+  }
+
+  // Both signals can arrive while a frame is being built.
+  void _afterBuild(VoidCallback change) {
+    void apply() {
+      if (mounted) setState(change);
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => apply());
+    } else {
+      apply();
+    }
+  }
+
+  void _onRouteChanged() {
+    if (!mounted || !_missingData) return;
+    _afterBuild(() => _missingData = false);
   }
 
   @override
   void dispose() {
+    OfflineCache.offlineMisses.removeListener(_onOfflineMiss);
+    widget.router.routerDelegate.removeListener(_onRouteChanged);
     _subscription?.cancel();
     _dismiss?.cancel();
     super.dispose();
@@ -97,6 +140,8 @@ class _ConnectivityOverlayState extends State<ConnectivityOverlay> {
                       ? supportsRecords
                             ? l10n.connectivityOnlineRecords
                             : l10n.connectivityOnlineBuyer
+                      : supportsRecords && _missingData
+                      ? l10n.offlineNotSavedBody
                       : supportsRecords
                       ? l10n.connectivityOfflineRecords
                       : l10n.connectivityOfflineBuyer;

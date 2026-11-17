@@ -56,8 +56,17 @@ void main() {
       expect(en.addMemberAdminNoticeTitle, 'Manager Notice');
       expect(en.pendingStepReviewSub, contains('Manager'));
       expect(en.createOfficerNotice, isNot(contains('Admin')));
-      expect(en.termsOfUseBody, isNot(contains('Admin')));
-      expect(en.privacyPolicyBody, isNot(contains('Admin')));
+      // Terms of Use and Privacy Policy are now built from many strings.
+      for (final text in [
+        en.termsS2Manager,
+        en.termsS8B2,
+        en.privS6Manager,
+        en.privS9B4,
+        en.coopSaganaBody,
+      ]) {
+        expect(text, isNot(contains('Admin')));
+      }
+      expect(en.termsS2Manager, contains('Manager'));
     });
   });
 

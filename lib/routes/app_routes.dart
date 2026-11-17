@@ -47,8 +47,11 @@ class AppRoutes {
   static const String requestLoan = '/farmer/profile/loans/request';
   static const String myLoanRequests = '/farmer/profile/loans/requests';
   static const String myLoanHistory = '/farmer/profile/loans/history';
+  static const String myRestrictions = '/farmer/profile/restrictions';
   static const String myPaymentHistory = '/farmer/profile/loans/payments';
-  static const String myContribution = '/farmer/profile/contribution';
+  // Benefits Tracking. The path keeps its old value on purpose: capital notices
+  // already stored in the database carry it as their action route.
+  static const String benefitsTracking = '/farmer/profile/contribution';
   static const String myExpenses = '/farmer/profile/expenses';
   // Primary Programs entry point — a search+filter browse screen (mirrors
   // the Marketplace tab). The farmer's own enrolled programs live at
@@ -80,6 +83,10 @@ class AppRoutes {
   static const String farmerManagement = '/admin/farmers';
   static const String farmerDetails = '/admin/farmers/details';
   static const String farmerHarvestHistory = '/admin/farmers/harvest-history';
+  // A Farmer's full Loan History / Payment History as the Manager / Officer sees it
+  // (the Farmer's own screens, read-only; the Farmer's id travels as the extra).
+  static const String farmerLoanHistory = '/admin/farmers/loan-history';
+  static const String farmerPaymentHistory = '/admin/farmers/payment-history';
   static const String addNewMember = '/admin/farmers/add';
   static const String marketLinking = '/admin/farmers/market-linking';
   static const String daAmadEnrollment =
@@ -105,8 +112,8 @@ class AppRoutes {
   static const String memberContributionReport = '/admin/reports/contributions';
   static const String operationalReports = '/admin/reports';
   static const String adminAnalytics = '/admin/analytics';
-  static const String balikTangkilikManagement = '/admin/balik-tangkilik';
   static const String exportCenter = '/admin/export';
+  static const String capitalShareSettings = '/admin/reports/contributions/settings';
   static const String adminProfile = '/admin/profile';
   static const String adminSettings = '/admin/profile/settings';
   static const String adminEditProfile = '/admin/profile/edit';

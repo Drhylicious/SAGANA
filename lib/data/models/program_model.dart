@@ -10,6 +10,12 @@ class ProgramCompletionStatus {
   /// Failed outcomes whose latest cooperative decision is still "Pending Cooperative Decision".
   final int pendingDecisions;
 
+  /// Failed outcomes marked "Eligible for Reassessment" whose second distribution has not started.
+  final int openReassessments;
+
+  /// Assistance requests from a Referred case that nobody has decided yet.
+  final int pendingAssistanceRequests;
+
   /// Product Sales: orders still open (Pending, Approved, Ready for Pickup, Out for Delivery,
   /// or handed over and waiting for the member's confirmation).
   final int openOrders;
@@ -22,6 +28,8 @@ class ProgramCompletionStatus {
     this.awaitingOutcome = 0,
     this.openReturns = 0,
     this.pendingDecisions = 0,
+    this.openReassessments = 0,
+    this.pendingAssistanceRequests = 0,
     this.openOrders = 0,
     this.allocatedStock = 0,
   });
@@ -30,6 +38,8 @@ class ProgramCompletionStatus {
       awaitingOutcome == 0 &&
       openReturns == 0 &&
       pendingDecisions == 0 &&
+      openReassessments == 0 &&
+      pendingAssistanceRequests == 0 &&
       openOrders == 0 &&
       allocatedStock == 0;
 
@@ -41,6 +51,8 @@ class ProgramCompletionStatus {
       awaitingOutcome: n('awaiting_outcome'),
       openReturns: n('open_returns'),
       pendingDecisions: n('pending_decisions'),
+      openReassessments: n('open_reassessments'),
+      pendingAssistanceRequests: n('pending_assistance_requests'),
       openOrders: n('open_orders'),
       allocatedStock: n('allocated_stock'),
     );
@@ -595,6 +607,20 @@ class RedistributionRequest {
   });
 }
 
+/// An earlier, failed distribution of a Farmer who was then given another one (kept as history).
+class EarlierRound {
+  final String? itemName;
+  final String? unit;
+  final double? quantity;
+  final DateTime? distributedAt;
+  const EarlierRound({
+    this.itemName,
+    this.unit,
+    this.quantity,
+    this.distributedAt,
+  });
+}
+
 class ProgramMember {
   final String id;
   final String programId;
@@ -620,6 +646,8 @@ class ProgramMember {
   final String? convertedLoanId;
   // 1 for the first distribution; 2, 3... when the cooperative gave another item after a failed outcome.
   final int roundNo;
+  // For a second (or later) round: the item the Farmer asked for again (the failed round's item).
+  final String? requestedItemId;
 
   const ProgramMember({
     required this.id,
@@ -641,6 +669,7 @@ class ProgramMember {
     this.outcomeRecordedAt,
     this.convertedLoanId,
     this.roundNo = 1,
+    this.requestedItemId,
   });
 
   bool get isDistributed => distributedAt != null;
@@ -650,28 +679,37 @@ class ProgramMember {
   bool get isFailed => distributionOutcome == 'failed';
 
   factory ProgramMember.fromMap(Map<String, dynamic> m) => ProgramMember(
-        id: m['id'] as String,
-        programId: m['program_id'] as String,
-        farmerId: m['farmer_id'] as String,
-        farmerName: m['user_information']?['full_name'] as String? ?? 'Unknown',
-        status: m['status'] as String? ?? 'active',
-        enrolledAt: DateTime.parse(m['enrolled_at'] as String),
-        inventoryItemId: m['inventory_item_id'] as String?,
-        quantityGiven: m['quantity_given'] != null ? (m['quantity_given'] as num).toDouble() : null,
-        distributedAt: m['distributed_at'] != null ? DateTime.parse(m['distributed_at'] as String) : null,
-        distributedItemName: m['distributed_item_name'] as String?,
-        distributedUnit: m['distributed_unit'] as String?,
-        returnItemId: m['return_item_id'] as String?,
-        returnQuantity: (m['return_quantity'] as num?)?.toDouble(),
-        amountReturned: m['amount_returned'] != null ? (m['amount_returned'] as num).toDouble() : null,
-        settledAt: m['settled_at'] != null ? DateTime.parse(m['settled_at'] as String) : null,
-        distributionOutcome: m['distribution_outcome'] as String?,
-        outcomeRecordedAt: m['outcome_recorded_at'] != null
-            ? DateTime.parse(m['outcome_recorded_at'] as String)
-            : null,
-        convertedLoanId: m['converted_loan_id'] as String?,
-        roundNo: (m['round_no'] as num?)?.toInt() ?? 1,
-      );
+    id: m['id'] as String,
+    programId: m['program_id'] as String,
+    farmerId: m['farmer_id'] as String,
+    farmerName: m['user_information']?['full_name'] as String? ?? 'Unknown',
+    status: m['status'] as String? ?? 'active',
+    enrolledAt: DateTime.parse(m['enrolled_at'] as String),
+    inventoryItemId: m['inventory_item_id'] as String?,
+    quantityGiven: m['quantity_given'] != null
+        ? (m['quantity_given'] as num).toDouble()
+        : null,
+    distributedAt: m['distributed_at'] != null
+        ? DateTime.parse(m['distributed_at'] as String)
+        : null,
+    distributedItemName: m['distributed_item_name'] as String?,
+    distributedUnit: m['distributed_unit'] as String?,
+    returnItemId: m['return_item_id'] as String?,
+    returnQuantity: (m['return_quantity'] as num?)?.toDouble(),
+    amountReturned: m['amount_returned'] != null
+        ? (m['amount_returned'] as num).toDouble()
+        : null,
+    settledAt: m['settled_at'] != null
+        ? DateTime.parse(m['settled_at'] as String)
+        : null,
+    distributionOutcome: m['distribution_outcome'] as String?,
+    outcomeRecordedAt: m['outcome_recorded_at'] != null
+        ? DateTime.parse(m['outcome_recorded_at'] as String)
+        : null,
+    convertedLoanId: m['converted_loan_id'] as String?,
+    roundNo: (m['round_no'] as num?)?.toInt() ?? 1,
+    requestedItemId: m['requested_item_id'] as String?,
+  );
 }
 
 class DistributionItem {

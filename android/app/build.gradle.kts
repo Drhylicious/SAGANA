@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Release signing details (git-ignored). See the signing config below.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
 // Phone notifications need the Firebase config file from the Firebase console
@@ -32,12 +41,41 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // The permanent SAGANA release key. Phones only accept an APK as an update
+        // when it is signed with the same key as the installed app, so this key
+        // must never change and must be backed up (see android/key.properties).
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release builds are signed with the permanent key only. Without
+            // android/key.properties the build stops (see below) instead of
+            // quietly producing an APK signed with a throwaway debug key.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val buildsRelease = allTasks.any {
+        it.name.contains("Release") && (it.name.startsWith("assemble") || it.name.startsWith("bundle") || it.name.startsWith("package"))
+    }
+    if (buildsRelease && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "android/key.properties was not found. Release APKs must be signed with the " +
+                "permanent SAGANA key. Restore key.properties and the .jks file from your backup."
+        )
     }
 }
 

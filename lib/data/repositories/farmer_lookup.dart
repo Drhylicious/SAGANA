@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Denormalized farmer identity used across admin repositories wherever a
@@ -28,12 +29,15 @@ Future<Map<String, FarmerLookupInfo>> fetchFarmerInfoMap(
 
     final names = {
       for (final r in rows)
-        r['user_id'] as String: r['full_name'] as String? ?? 'Unknown Farmer',
+        r['user_id'] as String:
+            r['full_name'] as String? ?? currentL10n().dlUnknownFarmer,
     };
 
     return {
       for (final id in farmerIds)
-        id: FarmerLookupInfo(fullName: names[id] ?? 'Unknown Farmer'),
+        id: FarmerLookupInfo(
+          fullName: names[id] ?? currentL10n().dlUnknownFarmer,
+        ),
     };
   } catch (_) {
     return {};

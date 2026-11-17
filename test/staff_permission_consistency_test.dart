@@ -91,7 +91,7 @@ void main() {
     'rpc:create_listing_with_reservation', 'rpc:update_my_listing', 'rpc:request_listing_edit',
     'rpc:cancel_listing_edit_request', 'rpc:get_my_listing_edit_requests',
     'rpc:get_my_listing_history', 'rpc:withdraw_listing', 'rpc:delete_listing',
-    // Farmer: own loan requests, offers, market linking, programs, payout request
+    // Farmer: own loan requests, offers, market linking, programs
     'rpc:list_loanable_items', 'rpc:get_my_loan_requests', 'rpc:submit_loan_request',
     'rpc:cancel_loan_request', 'rpc:offer_batch_to_cooperative', 'rpc:deliver_cooperative_offer',
     'rpc:request_market_linking_cancellation', 'rpc:submit_ginger_for_sale',
@@ -102,8 +102,6 @@ void main() {
     'rpc:create_checkout_group', 'rpc:get_delivery_quote',
     // reads for every signed-in role: the cooperative's own details and whether Delivery is on
     'rpc:get_cooperative_details', 'rpc:get_delivery_status',
-    'rpc:request_payout_decision',
-    'rpc:get_my_activity_share', // read: only the caller's own two percentages
     'rpc:get_my_outcome_reports', // read: the Farmer's own outcome reports; no staff identity
     'rpc:submit_program_outcome_report', // a Farmer files their own outcome report
     'rpc:request_program_redistribution', // a Farmer asks for another item after their own failed outcome
@@ -146,8 +144,6 @@ void main() {
   /// Staff screens that only the Manager can use, refused by the database itself
   /// (the function checks the role, or the table policy excludes Officers).
   const managerOnlyInDatabase = <String>{
-    'rpc:confirm_payout_decision', 'rpc:reject_payout_decision', // Balik-Tangkilik
-    'table:cooperative_annual_totals', 'table:member_contributions', // Balik-Tangkilik
     // Cooperative Details and Delivery Settings: the functions check is_manager(); an Officer only reads.
     'rpc:save_cooperative_details', 'rpc:verify_cooperative_contact',
     'rpc:save_delivery_fee_bands', 'rpc:set_delivery_enabled',
@@ -190,7 +186,7 @@ void main() {
       }
     });
 
-    test('the Manager-only Balik targets are not given to any Officer module', () {
+    test('the Manager-only targets are not given to any Officer module', () {
       for (final t in managerOnlyInDatabase) {
         expect(mapped.containsKey(t), isFalse, reason: t);
       }

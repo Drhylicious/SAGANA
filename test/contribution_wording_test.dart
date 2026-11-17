@@ -9,7 +9,7 @@ import 'package:sagana/core/l10n/app_localizations_tl.dart';
 // value, so no calculation or report is affected.
 //
 //   member_payment     Capital Share Payment   money paid toward the member's capital share
-//   patronage_capital  Payout to Capital       Balik-Tangkilik payout the member added to capital
+//   patronage_capital  (history only)          an older payout the member added to capital; no longer offered
 //   manual_adjustment  Correction (+ or −)     fixes a past mistake; the only type that may be negative
 //   opening_balance    Starting Capital        capital the member already had before SAGANA
 void main() {
@@ -18,7 +18,6 @@ void main() {
 
   test('English labels in the Type list', () {
     expect(en.farmerDetailsSourcePaymentFull, 'Capital Share Payment');
-    expect(en.farmerDetailsSourcePatronageFull, 'Payout to Capital');
     expect(en.farmerDetailsSourceAdjustmentFull, 'Correction (+ or −)');
     expect(en.farmerDetailsSourceOpeningBalance, 'Starting Capital');
   });
@@ -32,7 +31,6 @@ void main() {
 
   test('Tagalog labels are real Tagalog, not left in English jargon', () {
     expect(tl.farmerDetailsSourcePaymentFull, 'Bayad sa Capital Share');
-    expect(tl.farmerDetailsSourcePatronageFull, 'Payout para sa Capital');
     expect(tl.farmerDetailsSourceAdjustmentFull, 'Pagwawasto (+ o −)');
     expect(tl.farmerDetailsSourceOpeningBalance, 'Panimulang Capital');
     expect(tl.farmerDetailsSourcePayment, 'Bayad');
@@ -43,7 +41,6 @@ void main() {
   test('the old jargon is gone', () {
     final all = [
       en.farmerDetailsSourcePaymentFull,
-      en.farmerDetailsSourcePatronageFull,
       en.farmerDetailsSourceAdjustmentFull,
       en.farmerDetailsSourceOpeningBalance,
       en.farmerDetailsSourcePayment,
@@ -65,11 +62,9 @@ void main() {
     // ("Payment toward capital share") was the original clipping bug.
     for (final text in [
       en.farmerDetailsSourcePaymentFull,
-      en.farmerDetailsSourcePatronageFull,
       en.farmerDetailsSourceAdjustmentFull,
       en.farmerDetailsSourceOpeningBalance,
       tl.farmerDetailsSourcePaymentFull,
-      tl.farmerDetailsSourcePatronageFull,
       tl.farmerDetailsSourceAdjustmentFull,
       tl.farmerDetailsSourceOpeningBalance,
     ]) {
@@ -96,7 +91,6 @@ void main() {
         .readAsStringSync();
     for (final pair in const {
       'member_payment': 'farmerDetailsSourcePaymentFull',
-      'patronage_capital': 'farmerDetailsSourcePatronageFull',
       'manual_adjustment': 'farmerDetailsSourceAdjustmentFull',
       'opening_balance': 'farmerDetailsSourceOpeningBalance',
     }.entries) {

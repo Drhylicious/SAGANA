@@ -219,14 +219,14 @@ class OrderReferenceCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                Flexible(child: Text(
                   l10n.buyerOrdersTotalLabel,
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ),
+                )),
                 Text(
                   '₱${totalPrice.toStringAsFixed(2)}',
                   style: GoogleFonts.poppins(

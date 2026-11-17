@@ -7,9 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/admin_reports_model.dart';
-import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
-import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/report_ui_widgets.dart';
@@ -259,18 +257,6 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           SubPageTopBar(
             title: l10n.reportsHarvestManagement,
             onBack: () => context.pop(),
-            // The export covers both tabs (Activity + Batches & Stock).
-            trailing: IconButton(
-              icon: Icon(Icons.file_download_outlined, color: cs.primary),
-              onPressed: () => context.push(
-                AppRoutes.exportCenter,
-                extra: ExportCenterArgs(
-                  preselectedModule: ReportModuleType.harvest,
-                  period: _period,
-                ),
-              ),
-              tooltip: l10n.reportsExportCenter,
-            ),
           ),
           CachedDataNotice(
             screen: AdminReportsRepository.harvestCacheScreen(_period),
@@ -279,9 +265,9 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           ),
           TabBar(
             controller: _tabController,
-            labelColor: AppConstants.primaryGreen,
+            labelColor: Theme.of(context).colorScheme.primary,
             unselectedLabelColor: cs.onSurfaceVariant,
-            indicatorColor: AppConstants.primaryGreen,
+            indicatorColor: Theme.of(context).colorScheme.primary,
             labelStyle: GoogleFonts.poppins(
               fontWeight: FontWeight.w600,
               fontSize: 13,
@@ -592,7 +578,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                   ),
                 ),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -966,7 +952,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                 ),
               ),
               style: TextButton.styleFrom(
-                foregroundColor: AppConstants.primaryGreen,
+                foregroundColor: Theme.of(context).colorScheme.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,

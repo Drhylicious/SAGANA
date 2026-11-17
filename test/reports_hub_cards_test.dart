@@ -66,13 +66,6 @@ List<DashboardModuleItem> _tools(AppLocalizations l) => [
     onTap: () {},
   ),
   DashboardModuleItem(
-    icon: Icons.volunteer_activism_rounded,
-    title: l.reportsBalikTangkilikManagement,
-    subtitle: l.rptHubBalikSub,
-    badge: '2026',
-    onTap: () {},
-  ),
-  DashboardModuleItem(
     icon: Icons.file_download_rounded,
     title: l.reportsExportCenter,
     subtitle: l.rptHubExportSub,
@@ -217,22 +210,15 @@ void main() {
         'AppRoutes.expenseReport',
         'AppRoutes.memberContributionReport',
         'AppRoutes.adminAnalytics',
-        'AppRoutes.balikTangkilikManagement',
         'AppRoutes.exportCenter',
       ]) {
         expect(src, contains('context.push($route)'), reason: route);
       }
     });
 
-    test('the yearly payout stays hidden from Officers', () {
-      expect(
-        src,
-        contains(
-          'if (!HiveService.isOfficer)\n'
-          '          DashboardModuleItem(\n'
-          '            icon: Icons.volunteer_activism_rounded',
-        ),
-      );
+    test('Balik-Tangkilik Management is gone from the hub', () {
+      expect(src, isNot(contains('balikTangkilik')));
+      expect(src, isNot(contains('volunteer_activism_rounded')));
     });
 
     test('the Snapshot is followed by one gap, not two, when there are no '

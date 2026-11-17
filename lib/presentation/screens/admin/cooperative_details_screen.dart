@@ -12,7 +12,6 @@ import '../../../data/models/cooperative_delivery_model.dart';
 import '../../../data/repositories/cooperative_delivery_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/cooperative_address_service.dart';
-import '../../../data/services/hive_service.dart';
 import '../../../data/services/staff_permission_service.dart';
 import '../../widgets/address_map_widgets.dart';
 import '../../widgets/app_toast.dart';
@@ -22,15 +21,9 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/view_only_banner.dart';
 
-/// True only for the Manager. The cooperative's own details are changed by the Manager alone;
-/// an Officer can read them.
-bool signedInIsManager() {
-  try {
-    return HiveService.getUserRole() == 'admin';
-  } catch (_) {
-    return false;
-  }
-}
+/// Who may change the cooperative's own details and the Pickup / Delivery settings: the Manager only.
+/// Every Officer, whatever their Marketplace level, reads them. (The database enforces it too.)
+bool signedInIsManager() => StaffPermissions.instance.isManager;
 
 /// The ONE shared record of the cooperative: its name, where customers collect their orders, its
 /// location on the map and its contact number. Never a Manager's or an Officer's own details.

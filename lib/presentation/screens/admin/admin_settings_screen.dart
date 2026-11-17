@@ -173,7 +173,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   children: [
                     SettingsRow(
                       icon: Icons.person_outline_rounded,
-                      iconColor: AppConstants.primaryGreen,
+                      iconColor: Theme.of(context).colorScheme.primary,
                       title: l10n.editProfile,
                       subtitle: l10n.editProfileSubtitle,
                       onTap: () => context.push(AppRoutes.adminEditProfile),
@@ -235,7 +235,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   children: [
                     SettingsRow(
                       icon: Icons.info_outline_rounded,
-                      iconColor: AppConstants.primaryGreen,
+                      iconColor: Theme.of(context).colorScheme.primary,
                       title: l10n.aboutSagana,
                       onTap: () => context.push(AppRoutes.aboutSagana),
                     ),

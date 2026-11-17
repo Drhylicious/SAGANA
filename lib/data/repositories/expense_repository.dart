@@ -1,3 +1,4 @@
+import '../services/server_only.dart';
 import '../services/offline_actions.dart'
     show isOfflineConnectionFailure, OfflineActionBlocked;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -88,38 +89,8 @@ class ExpenseRepository {
   /// different enough in scope that forcing them into one shared function
   /// would need extra parameterization for a low-drift-risk formula. If
   /// this algorithm ever changes, check the admin copy too.
-  List<CategoryBreakdown> buildBreakdown(List<ExpenseModel> expenses) {
-    final Map<String, double> totals = {};
-    final Map<String, bool> hasSubsidy = {};
-
-    for (final e in expenses) {
-      if (!e.isSubsidy) {
-        totals[e.category] = (totals[e.category] ?? 0) + e.amount;
-      } else {
-        hasSubsidy[e.category] = true;
-      }
-    }
-
-    // Include subsidy-only categories at 0
-    for (final cat in hasSubsidy.keys) {
-      totals.putIfAbsent(cat, () => 0);
-    }
-
-    if (totals.isEmpty) return [];
-
-    final maxVal = totals.values.reduce((a, b) => a > b ? a : b);
-    return totals.entries
-        .map(
-          (e) => CategoryBreakdown(
-            category: e.key,
-            total: e.value,
-            percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
-            hasSubsidy: hasSubsidy.containsKey(e.key),
-          ),
-        )
-        .toList()
-      ..sort((a, b) => b.total.compareTo(a.total));
-  }
+  List<CategoryBreakdown> buildBreakdown(List<ExpenseModel> expenses) =>
+      buildExpenseBreakdown(expenses);
 
   // ─── Add expense ──────────────────────────────────────────────────────────
 
@@ -253,6 +224,7 @@ class ExpenseRepository {
   // ─── Delete expense ───────────────────────────────────────────────────────
 
   Future<void> deleteExpense(String id) async {
+    await ServerOnly.ensureOnline();
     await _client
         .from('farmer_expenses')
         .delete()

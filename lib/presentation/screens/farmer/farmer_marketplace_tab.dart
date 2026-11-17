@@ -13,6 +13,7 @@ import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/guest/guest_farmer_sample_data.dart';
 import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/listing_filter_modal.dart'
     show ListingStatusFilterChip, MarketplaceFilterBar, MarketplaceFilterOption;
@@ -83,9 +84,11 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final listings = await _repository.fetchApprovedListings();
-    // A guest has no account and the database shows Cooperative Products to Farmers only.
+    if (!mounted) return;
+    // The database shows Cooperative Products to signed-in Farmers only, so a guest
+    // sees labelled samples (they open a sign-in prompt, never an order).
     final products = GuestModeService.active
-        ? <CooperativeProduct>[]
+        ? GuestFarmerSampleData.cooperativeProducts(AppLocalizations.of(context))
         : await _programRepo.fetchCooperativeProducts();
     if (!mounted) return;
     setState(() {
@@ -468,6 +471,14 @@ class _CooperativeProductCard extends StatelessWidget {
   const _CooperativeProductCard({required this.product, this.onReturn});
 
   Future<void> _open(BuildContext context) async {
+    if (GuestModeService.active) {
+      context.promptFarmer(
+        (l) => l.guestCoopProductTitle,
+        (l) => l.guestCoopProductMessage,
+        icon: Icons.inventory_2_outlined,
+      );
+      return;
+    }
     await context.push(AppRoutes.farmerCooperativeProduct, extra: product);
     onReturn?.call();
   }
@@ -489,7 +500,7 @@ class _CooperativeProductCard extends StatelessWidget {
       priceText: formatPricePerUnit(p.payPrice, p.unit),
       priceColor: p.memberPriceApplies
           ? AppConstants.successGreen
-          : AppConstants.primaryGreen,
+          : Theme.of(context).colorScheme.primary,
       hintText: hint,
       hintColor: p.memberPriceApplies ? null : AppConstants.programPurple,
       buyersText: l10n.catBuyers(p.buyers),

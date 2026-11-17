@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/notification_model.dart';
@@ -129,7 +128,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                       child: SkeletonList(),
                     )
                   : RefreshIndicator(
-                      color: AppConstants.primaryGreen,
+                      color: Theme.of(context).colorScheme.primary,
                       onRefresh: _load,
                       child: _all.isEmpty
                           ? ListView(

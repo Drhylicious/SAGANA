@@ -1,3 +1,4 @@
+import '../l10n/localized_labels.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -67,42 +68,46 @@ String? quantityErrorText(
   String? raw, {
   double max = kMaxQuantity,
   String? unit,
-  String label = 'Quantity',
+  String? label,
 }) {
+  final l = currentL10n();
+  label ??= l.dlQuantity;
   switch (checkDecimal(raw, max: max)) {
     case null:
       return null;
     case DecimalIssue.empty:
-      return '$label is required';
+      return l.dlFieldRequired(label);
     case DecimalIssue.notANumber:
-      return 'Enter a valid number, like 0.45 or 12.5';
+      return l.dlValidNumber;
     case DecimalIssue.notPositive:
-      return '$label must be greater than 0';
+      return l.dlMustBePositive(label);
     case DecimalIssue.tooManyDecimals:
-      return 'Use at most $kQuantityDecimals decimal places';
+      return l.dlMaxDecimals(kQuantityDecimals);
     case DecimalIssue.tooLarge:
-      return '$label is too large';
+      return l.dlTooLarge(label);
     case DecimalIssue.overMax:
-      return 'Only ${formatQuantityUnit(max, unit)} available';
+      return l.dlOnlyAvailable(formatQuantityUnit(max, unit));
   }
 }
 
 /// The message for a price field.
-String? priceErrorText(String? raw, {String label = 'Price'}) {
+String? priceErrorText(String? raw, {String? label}) {
+  final l = currentL10n();
+  label ??= l.dlPrice;
   switch (checkDecimal(raw)) {
     case null:
       return null;
     case DecimalIssue.empty:
-      return '$label is required';
+      return l.dlFieldRequired(label);
     case DecimalIssue.notANumber:
-      return 'Enter a valid amount, like 12.50';
+      return l.dlValidAmount;
     case DecimalIssue.notPositive:
-      return '$label must be greater than 0';
+      return l.dlMustBePositive(label);
     case DecimalIssue.tooManyDecimals:
-      return 'Use at most $kQuantityDecimals decimal places';
+      return l.dlMaxDecimals(kQuantityDecimals);
     case DecimalIssue.tooLarge:
     case DecimalIssue.overMax:
-      return '$label is too large';
+      return l.dlTooLarge(label);
   }
 }
 

@@ -270,16 +270,56 @@ class BuyerOrderRepository {
           .from('orders')
           .select(
             'id, total_price, status, created_at, updated_at, fulfillment_method, '
+            'cancelled_by, received_at, received_by, '
             'marketplace_listings(crop_name, photo_url)',
           )
           .eq('buyer_id', _userId)
           .order('created_at', ascending: false)
           .limit(limit);
 
-      // Recent Activity records only what the Buyer did: placing the order.
-      // Later status changes (approved, completed, cancelled) are Admin's
-      // actions and belong to Notifications, so they are not shown here.
-      return rows.map((r) {
+      // Recent Activity records only what the Buyer did: placing the order,
+      // cancelling it while pending, and confirming they received it. Approval,
+      // ready, delivery and payment are the cooperative's actions and belong to
+      // Notifications, so they are not shown here.
+      final mine = _userId;
+      final extras = <BuyerActivityItem>[];
+      for (final r in rows) {
+        final listing = r['marketplace_listings'] as Map?;
+        final cropName = listing?['crop_name'] as String? ?? 'Produce';
+        final photoUrl = listing?['photo_url'] as String?;
+        final total = '₱${(r['total_price'] as num).toStringAsFixed(2)}';
+        if (r['status'] == 'cancelled' && r['cancelled_by'] == 'buyer') {
+          extras.add(
+            BuyerActivityItem(
+              id: r['id'] as String,
+              type: BuyerActivityType.order,
+              title: _l.buyerActivityOrderCancelled,
+              subtitle: cropName,
+              valueLabel: total,
+              statusLabel: _l.buyerActivityStatusCancelled,
+              timestamp: DateTime.parse(r['updated_at'] as String),
+              orderStatus: 'cancelled',
+              imageUrl: photoUrl,
+            ),
+          );
+        }
+        if (r['received_at'] != null && r['received_by'] == mine) {
+          extras.add(
+            BuyerActivityItem(
+              id: r['id'] as String,
+              type: BuyerActivityType.order,
+              title: _l.buyerActivityOrderCompleted,
+              subtitle: cropName,
+              valueLabel: total,
+              statusLabel: _l.buyerOrderDetailStepCompleted,
+              timestamp: DateTime.parse(r['received_at'] as String),
+              orderStatus: 'completed',
+              imageUrl: photoUrl,
+            ),
+          );
+        }
+      }
+      final placed = rows.map((r) {
         final listing = r['marketplace_listings'] as Map?;
         final cropName = listing?['crop_name'] as String? ?? 'Produce';
         final photoUrl = listing?['photo_url'] as String?;
@@ -308,6 +348,9 @@ class BuyerOrderRepository {
           imageUrl: photoUrl,
         );
       }).toList();
+      final all = [...placed, ...extras]
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return all;
     } catch (e) {
       debugPrint('BuyerOrderRepository.fetchOrderActivity failed: $e');
       return [];

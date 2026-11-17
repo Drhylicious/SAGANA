@@ -176,7 +176,9 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                             children: [
                               SettingsRow(
                                 icon: Icons.person_outline_rounded,
-                                iconColor: AppConstants.primaryGreen,
+                                iconColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
                                 title: l10n.editProfile,
                                 subtitle: l10n.editProfileSubtitle,
                                 onTap: () => context.pushRoute(
@@ -202,7 +204,9 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                             children: [
                               SettingsRow(
                                 icon: Icons.dark_mode_outlined,
-                                iconColor: AppConstants.primaryGreen,
+                                iconColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
                                 title: l10n.appearance,
                                 subtitle: _themeLabel(l10n),
                                 showChevron: false,
@@ -238,7 +242,9 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                             children: [
                               SettingsRow(
                                 icon: Icons.info_outline_rounded,
-                                iconColor: AppConstants.primaryGreen,
+                                iconColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
                                 title: l10n.aboutSagana,
                                 onTap: () =>
                                     context.push(AppRoutes.aboutSagana),

@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'dart:async' show unawaited;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -14,7 +15,10 @@ import 'hive_service.dart';
 import 'market_types_service.dart';
 import 'push_notification_service.dart';
 import 'staff_permission_service.dart';
+import 'offline_preload.dart';
 import 'sync_service.dart';
+import 'feature_restriction_service.dart';
+import 'connectivity_service.dart';
 
 /// Thrown when a failed self-registration could not be rolled back. The
 /// account may still exist, so the user is asked to contact the cooperative.
@@ -183,6 +187,14 @@ class AuthService {
       profilePhotoUrl: infoResponse?['profile_photo_url'] as String?,
     );
 
+    // Another account's saved identity and snapshots never carry over to this one.
+    final previousUser = HiveService.getUserId();
+    if (previousUser != null && previousUser != userModel.id) {
+      StaffPermissions.instance.clear();
+      FeatureRestrictionService.instance.clear();
+      await HiveService.clearUserSession();
+    }
+
     await HiveService.saveUserSession(
       userId: userModel.id,
       email: authEmail,
@@ -215,6 +227,9 @@ class AuthService {
     GuestModeService.instance.exit();
 
     unawaited(SyncService.syncPending());
+    // Saved data was cleared at the last logout: save this user's pages again
+    // so they are there when the connection is not.
+    unawaited(OfflinePreload.run());
     return userModel;
   }
 
@@ -411,16 +426,89 @@ class AuthService {
 
   // ── Logout ────────────────────────────────────────────────────────────────────
 
+  /// True while this class is ending a session itself, so the sign-out listener in
+  /// main.dart does not treat it as the session being lost.
+  static bool endingSession = false;
+
   static Future<void> logout() async {
+    endingSession = true;
+    try {
+      await _logout();
+    } finally {
+      endingSession = false;
+    }
+  }
+
+  static Future<void> _logout() async {
     AccountStatusWatcher.instance.stop();
     MarketTypes.instance.stop();
     StaffPermissions.instance.clear();
+    FeatureRestrictionService.instance.clear();
     GuestModeService.instance.exit();
     // Stop pushing this user's notifications to this phone while the session
     // can still authorise it.
     await PushNotificationService.instance.unregister();
     await _client.auth.signOut();
     await HiveService.clearUserSession();
+  }
+
+  // ── One account, one identity ────────────────────────────────────────────────
+  //
+  // The role, name and Officer levels saved on the device are written at sign-in for
+  // one account, while the session itself belongs to Supabase. They can come apart (a
+  // password-reset session, a session that was ended or restored by the SDK, local
+  // data left by someone who used the device before). The saved identity must never
+  // decide what the signed-in account may see or do, so it is checked against the
+  // session at start-up and the mismatch is ended, not repaired by guessing.
+
+  /// Ends the session and every trace of its identity on this device, without
+  /// touching other devices (local scope).
+  static Future<void> _discardLocalSession() async {
+    endingSession = true;
+    try {
+      AccountStatusWatcher.instance.stop();
+      StaffPermissions.instance.clear();
+      FeatureRestrictionService.instance.clear();
+      if (_client.auth.currentSession != null) {
+        try {
+          await PushNotificationService.instance.unregister();
+        } catch (_) {}
+        try {
+          await _client.auth.signOut(scope: SignOutScope.local);
+        } catch (_) {}
+      }
+      await HiveService.clearUserSession();
+    } finally {
+      endingSession = false;
+    }
+  }
+
+  /// Run once at start-up, before any screen reads the saved identity.
+  ///  * A password-reset session found still open is ended: it was never a sign-in.
+  ///  * A session whose account is not the one saved on the device (or that has no saved
+  ///    identity at all) is ended, so it cannot inherit another account's role.
+  ///  * A saved sign-in with no session left, while online, is cleared: the account was
+  ///    signed out by the server, and requests would otherwise go out unauthenticated.
+  static Future<void> reconcileLocalSession() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        if (HiveService.isLoggedIn() &&
+            await ConnectivityService.instance.checkConnectivity()) {
+          await _discardLocalSession();
+        }
+        return;
+      }
+      final saved = HiveService.getUserId();
+      if (HiveService.isPasswordResetPending ||
+          !HiveService.isLoggedIn() ||
+          saved == null ||
+          saved != user.id) {
+        await _discardLocalSession();
+      }
+    } catch (e) {
+      debugPrint('reconcileLocalSession failed: $e');
+    }
   }
 
   // ── Password Change ───────────────────────────────────────────────────────────
@@ -433,6 +521,21 @@ class AuthService {
   // different class for a deliberately different flow, not a duplicate.
   static Future<void> changePassword(String newPassword) async {
     await _client.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  /// True when [password] is the one the Manager's reset replaced (kept by the database
+  /// until the new password is set). Fails safe: if the check cannot run, the server
+  /// still refuses the temporary password itself.
+  static Future<bool> newPasswordMatchesPrevious(String password) async {
+    try {
+      final result = await _client.rpc(
+        'new_password_matches_previous',
+        params: {'p_password': password},
+      );
+      return result as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Clears the forced-password-change flag after a successful update via
@@ -476,15 +579,38 @@ class AuthService {
     }
   }
 
+  /// Checks the emailed code. The account being recovered is signed in by Supabase
+  /// only so that the new password can be set, so first of all whatever was signed in
+  /// on this device (and its saved role and permissions) is ended: two accounts never
+  /// share the device's saved identity. Afterwards the session is marked as a
+  /// password reset, not a sign-in, until [finishPasswordReset] or [abandonPasswordReset].
   static Future<void> verifyPasswordResetOtp({
     required String email,
     required String token,
   }) async {
+    await _discardLocalSession();
     await _client.auth.verifyOTP(
       email: email.trim(),
       token: token.trim(),
       type: OtpType.recovery,
     );
+    await HiveService.setPasswordResetPending(true);
+  }
+
+  /// Sets the new password for the account that passed the code check, then ends that
+  /// session so the person signs in normally with the new password. Throws the
+  /// server's own error (same password, weak password, expired session) so the screen
+  /// can say exactly what to fix; the session stays open so they can try again.
+  static Future<void> finishPasswordReset(String newPassword) async {
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
+    await _discardLocalSession();
+  }
+
+  /// The reset was left unfinished (back, close, new code): end its session.
+  static Future<void> abandonPasswordReset() async {
+    if (HiveService.isPasswordResetPending) {
+      await _discardLocalSession();
+    }
   }
 
   // ── Request Password Assistance (Farmer/Officer/Buyer, pre-authentication) ─────
@@ -617,25 +743,40 @@ class AuthService {
   }
 
   static String parseAuthError(Object error) {
+    final l = currentL10n();
     if (error is AuthException) {
       final msg = error.message.toLowerCase();
       if (msg.contains('invalid login credentials') ||
           msg.contains('invalid credentials')) {
-        return 'Incorrect username or password. Please try again.';
+        return l.dlAuthIncorrect;
       }
       if (msg.contains('already registered') ||
           msg.contains('already been registered')) {
-        return 'This username is already taken.';
+        return l.registerUsernameTaken;
       }
       if (msg.contains('password should be at least')) {
-        return 'Password must be at least 8 characters.';
+        return l.passwordMinLength;
       }
       if (msg.contains('rate limit')) {
-        return 'Too many attempts. Please wait a moment and try again.';
+        return l.dlAuthTooMany;
+      }
+      // Refusals this app raises itself, shown in the chosen language.
+      if (msg.contains('login failed')) return l.dlAuthLoginFailed;
+      if (msg.contains('account role not found')) return l.dlAuthRoleMissing;
+      if (msg.contains('at least 18 years old')) return l.dlAuthAge18;
+      if (msg.contains('valid philippine mobile')) {
+        return l.registerInvalidPhone;
+      }
+      if (msg.contains('valid email address')) return l.registerInvalidEmail;
+      if (msg.contains('username is already taken')) {
+        return l.registerUsernameTaken;
+      }
+      if (msg.contains('email address is already used')) {
+        return l.registerEmailTaken;
       }
       return error.message;
     }
-    return 'An unexpected error occurred. Please try again.';
+    return l.dlAuthUnexpected;
   }
 
   // ── Membership Guard ─────────────────────────────────────────────────────

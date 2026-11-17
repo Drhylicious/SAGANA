@@ -423,7 +423,10 @@ class _CropCard extends StatelessWidget {
           // equivalent state to mark).
           decoration: flatCardDecoration(context).copyWith(
             border: isExpanded
-                ? Border.all(color: AppConstants.primaryGreen, width: 1.5)
+                ? Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 1.5,
+                  )
                 : null,
           ),
           child: Column(

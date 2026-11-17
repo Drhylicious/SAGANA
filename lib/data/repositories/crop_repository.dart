@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_crop_model.dart';
 import '../services/app_event_service.dart';
+import '../services/hive_service.dart';
+import '../../core/utils/client_id.dart';
 import '../services/offline_actions.dart';
 import '../services/offline_cache.dart';
 import 'harvest_repository.dart';
@@ -31,20 +33,21 @@ class CropRepository {
       // a database that does not have that column yet (the shelf-life SQL is
       // run by hand) is read again without it, so the list still loads.
       Future<List<Map<String, dynamic>>> read(String master) {
-        var query = _client
+        return _client
             .from('farmer_crops')
             .select(
               '*, harvest_records(count), crop_requests(status, admin_notes), crop_master($master)',
             )
-            .eq('farmer_id', _userId);
-        if (approvedOnly) {
-          query = query.not('crop_master_id', 'is', null);
-        }
-        return query.order('created_at', ascending: false);
+            .eq('farmer_id', _userId)
+            .order('created_at', ascending: false);
       }
 
-      final response = await OfflineCache.load(
-        screen: approvedOnly ? 'farmer_crops_approved' : 'farmer_crops',
+      // One saved copy for both the Crop Roster and the harvest screens. The
+      // approved-only list used to be saved separately, and only when a harvest
+      // screen was opened online; offline it came back empty, so an approved
+      // crop looked "still awaiting approval" and no harvest could be recorded.
+      final all = await OfflineCache.load(
+        screen: 'farmer_crops',
         fetch: () async {
           try {
             return await read('crop_type, exclusive_channel, shelf_life_days');
@@ -53,6 +56,19 @@ class CropRepository {
           }
         },
       );
+
+      // Approved = linked to the cooperative catalog (the same rule the server
+      // filter applied).
+      // Crops added or requested offline show at once, ahead of their sync.
+      final known = {for (final row in all) row['id']};
+      final withQueued = [
+        for (final row in _queuedCropRows())
+          if (!known.contains(row['id'])) row,
+        ...all,
+      ];
+      final response = approvedOnly
+          ? withQueued.where((row) => row['crop_master_id'] != null).toList()
+          : withQueued;
 
       return response.map((row) {
         final harvestList = row['harvest_records'] as List?;
@@ -126,24 +142,127 @@ class CropRepository {
   }
 
   // ─── Add crop from catalog (instant — already Admin-approved) ─────────────
+  //
+  // Works offline: the crop is kept on this device with its final id and sent
+  // on the next sync, so a harvest recorded for it offline points at the same
+  // crop once both have synced.
 
   Future<FarmerCropModel> addCrop({
     required String cropName,
     required String category,
     required String cropMasterId,
   }) async {
-    final response = await _client
-        .from('farmer_crops')
-        .insert({
-          'farmer_id': _userId,
-          'crop_name': cropName.trim(),
-          'category': category,
-          'crop_master_id': cropMasterId,
-        })
-        .select()
-        .single();
+    final id = newClientId();
+    final createdAt = DateTime.now().toIso8601String();
+    FarmerCropModel? saved;
+    await OfflineActions.run(
+      kind: 'crop_add',
+      payload: {
+        'id': id,
+        'cropName': cropName.trim(),
+        'category': category,
+        'cropMasterId': cropMasterId,
+        'createdAt': createdAt,
+      },
+      online: () async {
+        saved = await addCropOnline(
+          id: id,
+          cropName: cropName,
+          category: category,
+          cropMasterId: cropMasterId,
+        );
+      },
+    );
+    return saved ??
+        FarmerCropModel.fromMap(
+          _queuedCropRow(
+            id: id,
+            cropName: cropName.trim(),
+            category: category,
+            cropMasterId: cropMasterId,
+            createdAt: createdAt,
+          ),
+        );
+  }
 
-    return FarmerCropModel.fromMap({...response, 'harvest_count': 0});
+  Future<FarmerCropModel> addCropOnline({
+    required String id,
+    required String cropName,
+    required String category,
+    required String cropMasterId,
+  }) async {
+    try {
+      final response = await _client
+          .from('farmer_crops')
+          .insert({
+            'id': id,
+            'farmer_id': _userId,
+            'crop_name': cropName.trim(),
+            'category': category,
+            'crop_master_id': cropMasterId,
+          })
+          .select()
+          .single();
+      return FarmerCropModel.fromMap({...response, 'harvest_count': 0});
+    } on PostgrestException catch (e) {
+      // A replay of a crop that already reached the server is not an error.
+      if (e.code == '23505') {
+        final existing = await _client
+            .from('farmer_crops')
+            .select()
+            .eq('id', id)
+            .maybeSingle();
+        if (existing != null) {
+          return FarmerCropModel.fromMap({...existing, 'harvest_count': 0});
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// The row shape [fetchCrops] reads, for a crop still waiting to sync.
+  Map<String, dynamic> _queuedCropRow({
+    required String id,
+    required String cropName,
+    required String category,
+    required String? cropMasterId,
+    required String createdAt,
+  }) => {
+    'id': id,
+    'farmer_id': _userId,
+    'crop_name': cropName,
+    'category': category,
+    'crop_master_id': cropMasterId,
+    'created_at': createdAt,
+    'harvest_records': const [],
+    'crop_requests': cropMasterId == null
+        ? const [
+            {'status': 'pending', 'admin_notes': null},
+          ]
+        : const [],
+    'crop_master': null,
+  };
+
+  /// Crops added or requested offline that have not synced yet.
+  List<Map<String, dynamic>> _queuedCropRows() {
+    try {
+      return [
+        for (final entry in HiveService.getOfflineActions())
+          if (entry.value['kind'] == 'crop_add' ||
+              entry.value['kind'] == 'crop_request')
+            _queuedCropRow(
+              id: (entry.value['payload'] as Map)['id'] as String,
+              cropName: (entry.value['payload'] as Map)['cropName'] as String,
+              category: (entry.value['payload'] as Map)['category'] as String,
+              cropMasterId:
+                  (entry.value['payload'] as Map)['cropMasterId'] as String?,
+              createdAt:
+                  (entry.value['payload'] as Map)['createdAt'] as String,
+            ),
+      ];
+    } catch (_) {
+      return const [];
+    }
   }
 
   // ─── Request a new crop (not yet in the catalog) ───────────────────────────
@@ -157,6 +276,9 @@ class CropRepository {
   // select_crop_screen.dart, crop_details_screen.dart, and
   // harvest_entry_form_screen.dart. Admin approval later backfills
   // crop_master_id via the Crop Request Approval workflow.
+  //
+  // Works offline: the request is kept on this device and sent on the next
+  // sync, where the same name checks run on the server.
 
   Future<FarmerCropModel> requestNewCrop({
     required String cropName,
@@ -165,78 +287,140 @@ class CropRepository {
     int? shelfLifeDays,
   }) async {
     final trimmedName = cropName.trim();
+    final id = newClientId();
+    final createdAt = DateTime.now().toIso8601String();
+    FarmerCropModel? saved;
+    final outcome = await OfflineActions.run(
+      kind: 'crop_request',
+      payload: {
+        'id': id,
+        'cropName': trimmedName,
+        'category': category,
+        'cropMasterId': null,
+        'cropType': cropType,
+        'shelfLifeDays': shelfLifeDays,
+        'createdAt': createdAt,
+      },
+      online: () async {
+        saved = await requestNewCropOnline(
+          id: id,
+          cropName: trimmedName,
+          category: category,
+          cropType: cropType,
+          shelfLifeDays: shelfLifeDays,
+        );
+      },
+    );
+    if (outcome == SaveOutcome.saved) {
+      AppEventService.instance.notifyCropRequestSubmitted();
+    }
+    return saved ??
+        FarmerCropModel.fromMap(
+          _queuedCropRow(
+            id: id,
+            cropName: trimmedName,
+            category: category,
+            cropMasterId: null,
+            createdAt: createdAt,
+          ),
+        );
+  }
 
-    final existingCatalog = await _client
-        .from('crop_master')
-        .select('id')
-        .ilike('crop_name', trimmedName)
-        .limit(1);
-    if (existingCatalog.isNotEmpty) {
-      throw CropAlreadyExistsException(trimmedName);
+  Future<FarmerCropModel> requestNewCropOnline({
+    required String id,
+    required String cropName,
+    required String category,
+    String? cropType,
+    int? shelfLifeDays,
+  }) async {
+    final trimmedName = cropName.trim();
+
+    // A replay that already created the crop row continues from there.
+    var cropResponse = await _client
+        .from('farmer_crops')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+
+    if (cropResponse == null) {
+      final existingCatalog = await _client
+          .from('crop_master')
+          .select('id')
+          .ilike('crop_name', trimmedName)
+          .limit(1);
+      if (existingCatalog.isNotEmpty) {
+        throw CropAlreadyExistsException(trimmedName);
+      }
+
+      final existingPending = await _client
+          .from('crop_requests')
+          .select('id')
+          .ilike('requested_name', trimmedName)
+          .eq('status', 'pending')
+          .limit(1);
+      if (existingPending.isNotEmpty) {
+        throw CropRequestAlreadyPendingException(trimmedName);
+      }
+
+      // farmer_crops has UNIQUE(farmer_id, crop_name) — without this check,
+      // a duplicate name against the farmer's own existing list falls
+      // through to a raw Postgres unique-violation instead of the named
+      // exception the UI expects to catch.
+      final existingOwnCrop = await _client
+          .from('farmer_crops')
+          .select('id')
+          .eq('farmer_id', _userId)
+          .ilike('crop_name', trimmedName)
+          .limit(1);
+      if (existingOwnCrop.isNotEmpty) {
+        throw CropAlreadyExistsException(trimmedName);
+      }
+
+      cropResponse = await _client
+          .from('farmer_crops')
+          .insert({
+            'id': id,
+            'farmer_id': _userId,
+            'crop_name': trimmedName,
+            'category': category,
+            'crop_master_id': null,
+          })
+          .select()
+          .single();
     }
 
-    final existingPending = await _client
+    final alreadyRequested = await _client
         .from('crop_requests')
         .select('id')
-        .ilike('requested_name', trimmedName)
-        .eq('status', 'pending')
+        .eq('farmer_crop_id', id)
         .limit(1);
-    if (existingPending.isNotEmpty) {
-      throw CropRequestAlreadyPendingException(trimmedName);
+    if (alreadyRequested.isEmpty) {
+      final request = {
+        'farmer_id': _userId,
+        'farmer_crop_id': id,
+        'requested_name': trimmedName,
+        'category': category,
+        'crop_type': cropType,
+        'status': 'pending',
+      };
+      // The Farmer's own shelf-life figure travels with the request and
+      // becomes the crop's shelf life when it is approved. A database that
+      // does not have the column yet still takes the request, without it.
+      try {
+        await _client.from('crop_requests').insert({
+          ...request,
+          if (shelfLifeDays != null) 'shelf_life_days': shelfLifeDays,
+        });
+      } on PostgrestException catch (e) {
+        final missingColumn =
+            shelfLifeDays != null &&
+            (e.code == 'PGRST204' ||
+                e.code == '42703' ||
+                e.message.contains('shelf_life_days'));
+        if (!missingColumn) rethrow;
+        await _client.from('crop_requests').insert(request);
+      }
     }
-
-    // farmer_crops has UNIQUE(farmer_id, crop_name) — without this check,
-    // a duplicate name against the farmer's own existing list falls
-    // through to a raw Postgres unique-violation instead of the named
-    // exception the UI expects to catch.
-    final existingOwnCrop = await _client
-        .from('farmer_crops')
-        .select('id')
-        .eq('farmer_id', _userId)
-        .ilike('crop_name', trimmedName)
-        .limit(1);
-    if (existingOwnCrop.isNotEmpty) {
-      throw CropAlreadyExistsException(trimmedName);
-    }
-
-    final cropResponse = await _client
-        .from('farmer_crops')
-        .insert({
-          'farmer_id': _userId,
-          'crop_name': trimmedName,
-          'category': category,
-          'crop_master_id': null,
-        })
-        .select()
-        .single();
-
-    final request = {
-      'farmer_id': _userId,
-      'farmer_crop_id': cropResponse['id'],
-      'requested_name': trimmedName,
-      'category': category,
-      'crop_type': cropType,
-      'status': 'pending',
-    };
-    // The Farmer's own shelf-life figure travels with the request and becomes
-    // the crop's shelf life when it is approved. A database that does not have
-    // the column yet still takes the request, without the figure.
-    try {
-      await _client.from('crop_requests').insert({
-        ...request,
-        if (shelfLifeDays != null) 'shelf_life_days': shelfLifeDays,
-      });
-    } on PostgrestException catch (e) {
-      final missingColumn =
-          shelfLifeDays != null &&
-          (e.code == 'PGRST204' ||
-              e.code == '42703' ||
-              e.message.contains('shelf_life_days'));
-      if (!missingColumn) rethrow;
-      await _client.from('crop_requests').insert(request);
-    }
-
-    AppEventService.instance.notifyCropRequestSubmitted();
 
     return FarmerCropModel.fromMap({...cropResponse, 'harvest_count': 0});
   }

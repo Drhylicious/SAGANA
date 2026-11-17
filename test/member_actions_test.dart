@@ -13,6 +13,8 @@ void main() {
     MemberListAction.resetPassword,
     MemberListAction.issueLoan,
     MemberListAction.recordLoanPayment,
+    MemberListAction.restrictFeatures,
+    MemberListAction.manageRestrictions,
     MemberListAction.toggleSuspend,
   ];
 
@@ -51,6 +53,8 @@ void main() {
           MemberListAction.resetPassword,
           MemberListAction.issueLoan,
           MemberListAction.recordLoanPayment,
+          MemberListAction.restrictFeatures,
+          MemberListAction.manageRestrictions,
           MemberListAction.toggleSuspend,
         ]);
         expect(actions, isNot(contains(MemberListAction.approve)));

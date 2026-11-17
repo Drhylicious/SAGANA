@@ -55,9 +55,16 @@ String localizedNotificationTitle(AppLocalizations l10n, String raw) {
     "listing sold out" => l10n.systemNoticeListingSoldOut37,
     "listing status updated" => l10n.systemNoticeListingStatusUpdated38,
     "loan assessment referral" => l10n.systemNoticeLoanAssessmentReferral39,
+    "assistance referral" => l10n.systemNoticeAssistanceReferral,
     "loan issued" => l10n.systemNoticeLoanIssued40,
     "loan payment due soon" => l10n.systemNoticeLoanPaymentDueSoon41,
     "loan request disapproved" => l10n.systemNoticeLoanRequestDisapproved42,
+    "monthly contribution reminder" =>
+      l10n.systemNoticeMonthlyContributionReminder,
+    "monthly contribution announcement" =>
+      l10n.systemNoticeMonthlyContributionAnnouncement,
+    "monthly contribution overdue" =>
+      l10n.systemNoticeMonthlyContributionOverdue,
     "market linking cancellation requested" =>
       l10n.systemNoticeMarketLinkingCancellationRequested43,
     "market linking join request approved" =>
@@ -97,11 +104,86 @@ String localizedNotificationTitle(AppLocalizations l10n, String raw) {
     "purchase confirmed" => l10n.systemNoticePurchaseConfirmed72,
     "received from program" => l10n.systemNoticeReceivedFromProgram73,
     "return due" => l10n.systemNoticeReturnDue74,
-    _ => raw,
+    "assistance request" => l10n.snAssistanceRequest,
+    "assistance request cancelled" => l10n.snAssistanceRequestCancelled,
+    "buyer details updated" => l10n.snBuyerDetailsUpdated,
+    "cooperative delivery to confirm" => l10n.snCoopDeliveryToConfirm,
+    "cooperative offer cancelled" => l10n.snCoopOfferCancelled,
+    "edit request price updated" => l10n.snEditRequestPriceUpdated,
+    "edited listing for approval" => l10n.snEditedListingForApproval,
+    "farmer accepted the price" => l10n.snFarmerAcceptedPrice,
+    "farmer counteroffer" => l10n.snFarmerCounteroffer,
+    "feature restricted" => l10n.snFeatureRestricted,
+    "restriction lifted" => l10n.snRestrictionLifted,
+    "ginger sale recorded" => l10n.snGingerSaleRecorded,
+    "ginger submitted for sale" => l10n.snGingerSubmitted,
+    "harvest loss reported" => l10n.snHarvestLossReported,
+    "harvest quantity reduced" => l10n.snHarvestQuantityReduced,
+    "harvest return closed" => l10n.snHarvestReturnClosed,
+    "listing disapproved" => l10n.snListingDisapproved,
+    "listing edit request" => l10n.snListingEditRequest,
+    "listing price updated" => l10n.snListingPriceUpdated,
+    "listing updated" => l10n.snListingUpdated,
+    "listing withdrawn" => l10n.snListingWithdrawn,
+    "loan fully paid" => l10n.snLoanFullyPaid,
+    "loan request cancelled" => l10n.snLoanRequestCancelled,
+    "market linking enrollment approved" => l10n.snMlEnrollmentApproved,
+    "market linking enrollment declined" => l10n.snMlEnrollmentDeclined,
+    "market linking request approved" => l10n.snMlRequestApproved,
+    "market linking request cancelled" => l10n.snMlRequestCancelled,
+    "market linking request closed" => l10n.snMlRequestClosed,
+    "market linking request completed" => l10n.snMlRequestCompleted,
+    "market linking request declined" => l10n.snMlRequestDeclined,
+    "monthly contribution waived" => l10n.snMonthlyWaived,
+    "monthly contribution waiver removed" => l10n.snMonthlyWaiverRemoved,
+    "new cooperative order" => l10n.snNewCoopOrder,
+    "new loan request" => l10n.snNewLoanRequest,
+    "new market linking enrollment" => l10n.snNewMlEnrollment,
+    "order cancelled by buyer" => l10n.snOrderCancelledByBuyer,
+    "order disapproved" => l10n.snOrderDisapproved,
+    "overdue loan" => l10n.snOverdueLoan,
+    "payment recorded" => l10n.snPaymentRecorded,
+    "pending order" => l10n.snPendingOrder,
+    "price update required" => l10n.snPriceUpdateRequired,
+    "program enrollment approved" => l10n.snProgramEnrollmentApproved,
+    "program outcome report" => l10n.snProgramOutcomeReport,
+    "program outcome: successful" => l10n.snProgramOutcomeSuccessful,
+    "request for another distribution" => l10n.snRequestAnotherDistribution,
+    "return quantity changed" => l10n.snReturnQuantityChanged,
+    "shelf-life review for approval" => l10n.snShelfLifeReview,
+    "your sp3 account was suspended" => l10n.snAccountSuspended,
+    _ => _prefixedTitle(l10n, raw),
   };
 }
 
+/// Titles that end with a name the database adds (an item, a crop, a person).
+String _prefixedTitle(AppLocalizations l10n, String raw) {
+  const prefixes = <String, String Function(AppLocalizations, String)>{
+    'Low Stock: ': _lowStock,
+    'Out of Stock: ': _outOfStock,
+    'Price Update: ': _priceUpdate,
+    'Inspect ': _inspect,
+    'Order Cancelled by ': _cancelledBy,
+  };
+  for (final e in prefixes.entries) {
+    if (raw.startsWith(e.key)) {
+      return e.value(l10n, raw.substring(e.key.length));
+    }
+  }
+  return raw;
+}
+
+String _lowStock(AppLocalizations l, String v) => l.snLowStock(v);
+String _outOfStock(AppLocalizations l, String v) => l.snOutOfStock(v);
+String _priceUpdate(AppLocalizations l, String v) => l.snPriceUpdate(v);
+String _inspect(AppLocalizations l, String v) => l.snInspect(v);
+String _cancelledBy(AppLocalizations l, String v) =>
+    l.snOrderCancelledBy(localizeBuiltinLabel(l, v));
+
 const _knownTitles = {
+  "monthly contribution reminder",
+  "monthly contribution announcement",
+  "monthly contribution overdue",
   "account created",
   "account reactivated",
   "account suspended",
@@ -142,6 +224,7 @@ const _knownTitles = {
   "listing sold out",
   "listing status updated",
   "loan assessment referral",
+  "assistance referral",
   "loan issued",
   "loan payment due soon",
   "loan request disapproved",
@@ -201,6 +284,36 @@ String _parameter(AppLocalizations l10n, String value) =>
         .replaceFirst(RegExp(r'^\s*Note:\s*'), ' Paalala: ');
 
 final _bodyTemplates = <(RegExp, String Function(AppLocalizations, RegExpMatch))>[
+  (
+    RegExp(
+      "^The BOD meeting is tomorrow\\. The monthly contribution of ₱([\\s\\S]*?) for ([\\s\\S]*?) will be announced there\\. Remaining balance: ₱([\\s\\S]*?)\\.\$",
+    ),
+    (l, m) => l.systemNoticeBodyMonthlyEve(
+      _parameter(l, m.group(1) ?? ''),
+      _parameter(l, m.group(2) ?? ''),
+      _parameter(l, m.group(3) ?? ''),
+    ),
+  ),
+  (
+    RegExp(
+      "^Today is the BOD meeting\\. The monthly contribution of ₱([\\s\\S]*?) for ([\\s\\S]*?) is part of the meeting announcement\\. Remaining balance: ₱([\\s\\S]*?)\\.\$",
+    ),
+    (l, m) => l.systemNoticeBodyMonthlyMeeting(
+      _parameter(l, m.group(1) ?? ''),
+      _parameter(l, m.group(2) ?? ''),
+      _parameter(l, m.group(3) ?? ''),
+    ),
+  ),
+  (
+    RegExp(
+      "^Your ([\\s\\S]*?) monthly contribution was due on ([\\s\\S]*?)\\. Remaining balance: ₱([\\s\\S]*?)\\.\$",
+    ),
+    (l, m) => l.systemNoticeBodyMonthlyOverdue(
+      _parameter(l, m.group(1) ?? ''),
+      _parameter(l, m.group(2) ?? ''),
+      _parameter(l, m.group(3) ?? ''),
+    ),
+  ),
   (
     RegExp(
       "^A buyer has been found for your Ginger harvest through Market Linking\\.\$",
@@ -364,6 +477,12 @@ final _bodyTemplates = <(RegExp, String Function(AppLocalizations, RegExpMatch))
       _parameter(l, m.group(3) ?? ''),
       _parameter(l, m.group(4) ?? ''),
     ),
+  ),
+  (
+    RegExp(
+      "^The cooperative referred you for an assistance assessment\\. You may request assistance items from the cooperative\\. This is not a loan: there is nothing to repay\\.\$",
+    ),
+    (l, m) => l.systemNoticeBodyTheCooperativeReferredYouForAssistance,
   ),
   (
     RegExp(

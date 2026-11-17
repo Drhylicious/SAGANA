@@ -443,7 +443,7 @@ class _SplashScreenState extends State<SplashScreen>
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(
+                                      Flexible(child: Text(
                                         AppLocalizations.of(
                                           context,
                                         ).enhSecureGatewayActive,
@@ -452,7 +452,7 @@ class _SplashScreenState extends State<SplashScreen>
                                           color: AppConstants.onPrimaryContainer
                                               .withValues(alpha: 0.4),
                                         ),
-                                      ),
+                                      )),
                                     ],
                                   ),
                                 ],

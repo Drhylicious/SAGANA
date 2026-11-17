@@ -1,3 +1,4 @@
+import 'admin_activity_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// One stock-in of a tracked cooperative inventory item (cooperative_stock_lots):
@@ -159,6 +160,7 @@ class CoopShelfLifeRepository {
       'confirm_coop_lot_still_good',
       params: {'p_lot_id': lotId, 'p_days': days},
     );
+    logStaffAction('inventory', 'stock_checked', 'adminLogCoopLotStillGood');
   }
 
   /// Rotten/Lost: [quantity] leaves the stock. Throws when refused.
@@ -175,5 +177,6 @@ class CoopShelfLifeRepository {
         'p_note': (note ?? '').trim().isEmpty ? null : note!.trim(),
       },
     );
+    logStaffAction('inventory', 'stock_lost', 'adminLogCoopLotRotten');
   }
 }

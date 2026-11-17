@@ -135,6 +135,13 @@ enum ActivityType {
   programEnrollment,
   programPurchase,
   capitalReinvestment,
+  loanRequested,
+  outcomeReported,
+  assistanceRequested,
+  shelfLifeChecked,
+  produceRotten,
+  listingEditRequested,
+  quantityAdjusted,
   syncCompleted,
 }
 
@@ -199,7 +206,10 @@ extension ActivityFilterExt on ActivityFilter {
       case ActivityFilter.home:
         return item.type == ActivityType.syncCompleted;
       case ActivityFilter.harvest:
-        return item.type == ActivityType.harvest ||
+        return item.type == ActivityType.quantityAdjusted ||
+            item.type == ActivityType.shelfLifeChecked ||
+            item.type == ActivityType.produceRotten ||
+            item.type == ActivityType.harvest ||
             item.type == ActivityType.cropRequest ||
             item.type == ActivityType.cropAdded ||
             item.type == ActivityType.cropPhotoUpdated ||
@@ -208,7 +218,8 @@ extension ActivityFilterExt on ActivityFilter {
             item.type == ActivityType.gingerBatchSubmission ||
             item.type == ActivityType.informalSale;
       case ActivityFilter.listing:
-        return item.type == ActivityType.listing ||
+        return item.type == ActivityType.listingEditRequested ||
+            item.type == ActivityType.listing ||
             item.type == ActivityType.orderPlaced;
       case ActivityFilter.profile:
         return item.type == ActivityType.profile ||
@@ -216,7 +227,10 @@ extension ActivityFilterExt on ActivityFilter {
             item.type == ActivityType.expenseAdded ||
             item.type == ActivityType.programEnrollment ||
             item.type == ActivityType.programPurchase ||
-            item.type == ActivityType.capitalReinvestment;
+            item.type == ActivityType.capitalReinvestment ||
+            item.type == ActivityType.loanRequested ||
+            item.type == ActivityType.outcomeReported ||
+            item.type == ActivityType.assistanceRequested;
     }
   }
 }

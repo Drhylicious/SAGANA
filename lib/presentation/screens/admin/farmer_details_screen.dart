@@ -1,9 +1,7 @@
-import '../../../core/l10n/localized_labels.dart';
 import '../../widgets/view_only_banner.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
 import '../../../core/utils/db_error_utils.dart';
-import '../../../data/services/hive_service.dart';
 import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
@@ -29,14 +27,23 @@ import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/member_patronage_card.dart';
+import '../../widgets/member_contribution_card.dart';
 import '../../widgets/member_profile_cards.dart';
+import '../../widgets/member_discipline_card.dart';
+import '../../widgets/expenses_view.dart';
+import '../../widgets/loans_view.dart';
+import '../../widgets/monthly_contribution_widgets.dart';
+import '../../../data/models/monthly_contribution_model.dart';
+import '../../../data/repositories/monthly_contribution_repository.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/program_origin_chip.dart';
+import '../../../data/models/program_assistance_model.dart';
+import '../../../data/repositories/program_assistance_repository.dart';
+import '../farmer/my_programs_screen.dart' show MyProgramCard, MyProgramRound, groupProgramRounds;
 
 class FarmerDetailsScreen extends StatefulWidget {
   final String farmerId;
@@ -62,9 +69,10 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   FarmPerformanceSummary _harvestSummary = FarmPerformanceSummary.empty;
   Map<String, dynamic> _harvestStats = {};
   List<LoanModel> _loans = [];
-  MemberContribution? _contribution;
+  // This Farmer's approved assistance (not a loan), shown first in the Loans tab. Read-only.
+  List<AssistanceRequest> _assistance = [];
   // Carries the exact same figures shown for this farmer on Member
-  // Patronage Report (Palay/Peanut/Other Crops/Cooperative Purchases/
+  // Contribution Report (Palay/Peanut/Other Crops/Cooperative Purchases/
   // Total/Share%) — sourced by reusing fetchMemberContributionReport()
   // wholesale (share % is only computable against the coop-wide total for
   // the year, so there's no cheaper single-farmer equivalent) and picking
@@ -75,9 +83,12 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   CapitalSharesModel? _capitalShares;
   MemberCapitalSummary? _capitalSummary;
   List<CapitalContributionEvent> _capitalLedger = [];
+  // The Farmer's PHP 100 months (Contribution section), newest first.
+  List<MonthlyContribution> _monthly = [];
+  final _monthlyRepo = MonthlyContributionRepository();
   List<MemberStatusEvent> _statusHistory = [];
   List<Map<String, dynamic>> _expenses = [];
-  List<Map<String, dynamic>> _programs = [];
+  FarmerProgramCards _programCards = const FarmerProgramCards();
   // Every address the farmer saved (the registration address for an outsider
   // applicant), default first. Empty when none is saved.
   List<BuyerAddressModel> _addresses = [];
@@ -115,31 +126,38 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       _repo.fetchHarvestSummary(widget.farmerId),
       _repo.fetchHarvestStats(widget.farmerId),
       _repo.fetchFarmerLoans(widget.farmerId),
-      _repo.fetchCurrentYearContribution(widget.farmerId),
       _repo.fetchCapitalShares(widget.farmerId),
       _repo.fetchFarmerExpenses(widget.farmerId),
-      _repo.fetchAssignedPrograms(widget.farmerId),
+      _repo.fetchProgramCards(widget.farmerId),
       _capitalRepo.fetchCapitalSummary(widget.farmerId),
       _capitalRepo.fetchLedger(widget.farmerId),
       _repo.fetchStatusHistory(widget.farmerId),
       _reportsRepo.fetchMemberContributionReport(_patronageYear),
       _repo.fetchAddresses(widget.farmerId),
+      // Makes any month that is missing, then reads them all.
+      () async {
+        await _monthlyRepo.sync();
+        return _monthlyRepo.fetchForFarmer(widget.farmerId);
+      }(),
     ]);
     if (!mounted) return;
-    final patronageReport = results[11] as MemberContributionReportData;
+    final assistance = await ProgramAssistanceRepository().fetchApprovedFor(widget.farmerId);
+    if (!mounted) return;
+    final patronageReport = results[10] as MemberContributionReportData;
     setState(() {
       _profile = results[0] as FarmerProfileModel?;
-      _addresses = results[12] as List<BuyerAddressModel>;
+      _addresses = results[11] as List<BuyerAddressModel>;
       _harvestSummary = results[1] as FarmPerformanceSummary;
       _harvestStats = results[2] as Map<String, dynamic>;
       _loans = results[3] as List<LoanModel>;
-      _contribution = results[4] as MemberContribution?;
-      _capitalShares = results[5] as CapitalSharesModel?;
-      _expenses = results[6] as List<Map<String, dynamic>>;
-      _programs = results[7] as List<Map<String, dynamic>>;
-      _capitalSummary = results[8] as MemberCapitalSummary?;
-      _capitalLedger = results[9] as List<CapitalContributionEvent>;
-      _statusHistory = results[10] as List<MemberStatusEvent>;
+      _assistance = assistance;
+      _capitalShares = results[4] as CapitalSharesModel?;
+      _expenses = results[5] as List<Map<String, dynamic>>;
+      _programCards = results[6] as FarmerProgramCards;
+      _capitalSummary = results[7] as MemberCapitalSummary?;
+      _capitalLedger = results[8] as List<CapitalContributionEvent>;
+      _monthly = results[12] as List<MonthlyContribution>;
+      _statusHistory = results[9] as List<MemberStatusEvent>;
       _patronageRow = patronageReport.rows
           .cast<MemberContributionRow?>()
           .firstWhere(
@@ -168,7 +186,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   }
 
   Future<void> _openEntry(CapitalContributionEvent e) async {
-    final wantsReverse = await showManagementModal<bool>(
+    await showManagementModal<void>(
       context: context,
       builder: (_) => _ContributionEntrySheet(
         entry: e,
@@ -177,7 +195,6 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
         stamp: _stamp,
       ),
     );
-    if (wantsReverse == true && mounted) await _reverseEntry(e);
   }
 
   Future<void> _openHistory() async {
@@ -200,7 +217,12 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                 _LedgerRow(
                   entry: x,
                   reversed: reversedIds.contains(x.id),
-                  sourceLabel: _ContributionCard._sourceLabel(l10n, x.source),
+                  sourceLabel: _ContributionCard._sourceLabel(
+                    l10n,
+                    x.source,
+                    month: x.contributionMonth,
+                    asOf: x.effectiveDate,
+                  ),
                   cs: cs,
                   onTap: () => Navigator.of(ctx).pop(x),
                 ),
@@ -212,49 +234,59 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     if (picked != null && mounted) await _openEntry(picked);
   }
 
-  bool _isReversing = false;
-
-  /// Asks for the reason, then reverses. Needs a connection (unlike recording,
-  /// it is not kept for later), and one reversal at a time.
-  Future<void> _reverseEntry(CapitalContributionEvent e) async {
+  Future<void> _recordMonthlyPayment(MonthlyContribution month) async {
     if (!requireManage(context, StaffModule.members)) return;
-    if (_isReversing) return;
     final l10n = AppLocalizations.of(context);
-    if (!ConnectivityService.instance.isOnline) {
-      AppToast.show(
-        context,
-        l10n.farmerDetailsReverseNeedsInternet,
-        isError: true,
-      );
-      return;
-    }
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => _ReverseContributionDialog(amount: e.amount),
-    );
-    if (reason == null || !mounted) return;
-    setState(() => _isReversing = true);
+    final input = await showRecordMonthlyPaymentDialog(context, month);
+    if (input == null || !mounted) return;
     try {
-      await _capitalRepo.reverseContribution(
-        eventId: e.id,
-        reason: reason,
-        amount: e.amount,
+      await _monthlyRepo.recordPayment(
+        farmerId: widget.farmerId,
+        month: month.month,
+        amount: input.amount,
+        paidOn: input.paidOn,
+        reference: input.reference,
       );
       if (!mounted) return;
-      AppToast.show(context, l10n.farmerDetailsContributionReversed);
+      AppToast.show(context, l10n.monthlyPaymentRecorded);
       await _loadAll();
     } catch (err) {
       if (!mounted) return;
       AppToast.show(context, friendlyErrorMessage(err), isError: true);
-    } finally {
-      if (mounted) setState(() => _isReversing = false);
+    }
+  }
+
+  Future<void> _setMonthWaiver(MonthlyContribution month, bool waive) async {
+    if (!requireManage(context, StaffModule.members)) return;
+    final l10n = AppLocalizations.of(context);
+    String? reason;
+    if (waive) {
+      reason = await showWaiveMonthDialog(context, month);
+      if (reason == null || !mounted) return;
+    }
+    try {
+      await _monthlyRepo.setWaiver(
+        farmerId: widget.farmerId,
+        month: month.month,
+        waive: waive,
+        reason: reason,
+      );
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        waive ? l10n.monthlyWaiveDone : l10n.monthlyReinstateDone,
+      );
+      await _loadAll();
+    } catch (err) {
+      if (!mounted) return;
+      AppToast.show(context, friendlyErrorMessage(err), isError: true);
     }
   }
 
   Future<void> _recordContribution() async {
     if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
-    final result = await showDialog<_RecordContributionInput>(
+    final result = await showManagementModal<_RecordContributionInput>(
       context: context,
       builder: (_) => const _RecordContributionDialog(),
     );
@@ -265,6 +297,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
         amount: result.amount,
         source: result.source,
         note: result.note,
+        effectiveDate: result.effectiveDate,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -292,9 +325,6 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     }
   }
 
-  double get _totalOutstanding => _loans
-      .where((l) => !l.isPaid)
-      .fold(0.0, (sum, l) => sum + l.remainingBalance);
 
   @override
   Widget build(BuildContext context) {
@@ -421,13 +451,17 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   MemberFarmSection(profile: profile),
+                                  // Restrictions and suspensions on record (read-only; staff
+                                  // act from the ⋯ menu on the Members list).
+                                  if (!profile.memberStatus.isApplicant) ...[
+                                    const SizedBox(height: 16),
+                                    MemberDisciplineCard(memberId: profile.userId),
+                                  ],
                                   // Status History: every approval, disapproval,
                                   // suspension and reactivation, with the staff member
-                                  // who made it and when. MANAGER ONLY: it is the
-                                  // accountability record, and the database does not
-                                  // let an Officer read it either.
-                                  if (_statusHistory.isNotEmpty &&
-                                      !HiveService.isOfficer) ...[
+                                  // who made it and when. Every staff member reads it
+                                  // (script 24); only the Manager sees Staff Accountability.
+                                  if (_statusHistory.isNotEmpty) ...[
                                     const SizedBox(height: 16),
                                     _StatusHistoryCard(
                                       events: _statusHistory,
@@ -465,11 +499,22 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   24,
                                 ),
                                 children: [
-                                  _LoanSummaryCard(
+                                  ...loansViewChildren(
+                                    context,
                                     loans: _loans,
-                                    totalOutstanding: _totalOutstanding,
-                                    cs: cs,
-                                    sagana: sagana,
+                                    assistance: _assistance,
+                                    isLoading: false,
+                                    // The latest 5 loans and payments, folded away on
+                                    // request; the full lists open read-only below.
+                                    collapsible: true,
+                                    onViewAllLoans: () => context.push(
+                                      AppRoutes.farmerLoanHistory,
+                                      extra: widget.farmerId,
+                                    ),
+                                    onViewAllPayments: () => context.push(
+                                      AppRoutes.farmerPaymentHistory,
+                                      extra: widget.farmerId,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -483,8 +528,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                 children: [
                                   _TabSectionHeader(
                                     icon: Icons.savings_rounded,
-                                    title:
-                                        l10n.memberContributionCapitalSection,
+                                    title: l10n.contribSectionTitle,
                                     cs: cs,
                                   ),
                                   const SizedBox(height: 10),
@@ -499,6 +543,31 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                     onRecordContribution: _recordContribution,
                                     onOpenEntry: _openEntry,
                                     onViewAll: _openHistory,
+                                    memberName: (profile.firstName?.trim().isNotEmpty ?? false)
+                                        ? profile.firstName!.trim()
+                                        : profile.fullName.split(' ').first,
+                                    monthly: MonthlyContributionsCard(
+                                      embedded: true,
+                                      months: _monthly,
+                                      isLoading: _isLoading,
+                                      unassigned: _capitalLedger
+                                          .where(
+                                            (e) =>
+                                                e.source == 'member_payment' &&
+                                                e.contributionMonth == null,
+                                          )
+                                          .fold<double>(
+                                            0,
+                                            (t, e) => t + e.amount,
+                                          ),
+                                      onRecordPayment:
+                                          profile.memberStatus.isApplicant
+                                          ? null
+                                          : _recordMonthlyPayment,
+                                      onWaiver: profile.memberStatus.isApplicant
+                                          ? null
+                                          : _setMonthWaiver,
+                                    ),
                                   ),
                                   const SizedBox(height: 20),
                                   _TabSectionHeader(
@@ -508,9 +577,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                     cs: cs,
                                   ),
                                   const SizedBox(height: 10),
-                                  MemberPatronageCard(
+                                  MemberContributionCard(
                                     row: _patronageRow,
-                                    contribution: _contribution,
                                     year: _patronageYear,
                                     onViewFull: () => context.push(
                                       AppRoutes.memberContributionReport,
@@ -524,7 +592,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                 sagana: sagana,
                               ),
                               _ProgramsTab(
-                                programs: _programs,
+                                cards: _programCards,
                                 cs: cs,
                                 sagana: sagana,
                               ),
@@ -594,14 +662,14 @@ class _RejectedApplicationBanner extends StatelessWidget {
                 color: AppConstants.errorRed,
               ),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 l10n.farmerDetailsApplicationRejected,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppConstants.errorRed,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 6),
@@ -626,49 +694,6 @@ class _RejectedApplicationBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _StatLabel extends StatelessWidget {
-  final String label;
-  final String value;
-  final ColorScheme cs;
-
-  const _StatLabel({
-    required this.label,
-    required this.value,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Fixed height reserved for up to 2 lines — a longer label
-        // wrapping to a second line (e.g. "Volume to Cooperative
-        // (2026)") would otherwise push its own value down while a
-        // shorter one-line label next to it (e.g. "Completed Shares")
-        // doesn't, misaligning the two values that follow.
-        SizedBox(
-          height: 30,
-          child: Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -792,13 +817,13 @@ class _HarvestActivityCard extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
+                            Flexible(child: Text(
                               c.cropName,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: cs.onSurface,
                               ),
-                            ),
+                            )),
                             Text(
                               '${formatQuantity(c.quantityKg)}kg',
                               style: GoogleFonts.inter(
@@ -833,7 +858,7 @@ class _HarvestActivityCard extends StatelessWidget {
                 children: [
                   // Flexible + ellipsis: this "View X" + chevron pattern is
                   // reused across several summary-card footers in this file
-                  // (see farmerDetailsViewFullContribution below) and none
+                  // (see farmerDetailsViewPatronageReport below) and none
                   // of them had a width guard on the label.
                   Flexible(
                     child: Text(
@@ -866,195 +891,6 @@ class _HarvestActivityCard extends StatelessWidget {
 // Loan Summary Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LoanSummaryCard extends StatelessWidget {
-  final List<LoanModel> loans;
-  final double totalOutstanding;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _LoanSummaryCard({
-    required this.loans,
-    required this.totalOutstanding,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final activeLoans = loans.where((l) => !l.isPaid).toList();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [sagana.cardBackground, cs.surfaceContainerHighest],
-        ),
-        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.farmerDetailsTotalOutstanding,
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
-                  ),
-                  Text(
-                    '₱${totalOutstanding.toStringAsFixed(2)}',
-                    style: GoogleFonts.poppins(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: totalOutstanding > 0
-                          ? AppConstants.warningAmber
-                          : AppConstants.successGreen,
-                    ),
-                  ),
-                ],
-              ),
-              Icon(
-                Icons.account_balance_wallet_rounded,
-                size: 30,
-                color: totalOutstanding > 0
-                    ? AppConstants.warningAmber
-                    : AppConstants.successGreen,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          if (activeLoans.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppConstants.successGreen.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: AppConstants.successGreen,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.farmerDetailsNoActiveLoans,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: AppConstants.successGreen,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...activeLoans
-                .take(2)
-                .map(
-                  (loan) => Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: sagana.cardBackground.withValues(alpha: 0.70),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                      border: Border.all(
-                        color: cs.outline.withValues(alpha: 0.08),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                loan.referenceNo,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onSurface,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text(
-                              l10n.farmerDetailsPercentPaid(
-                                (loan.repaidPercent * 100).toStringAsFixed(0),
-                              ),
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: loan.repaidPercent,
-                            minHeight: 5,
-                            backgroundColor: cs.surfaceContainerHighest,
-                            valueColor: AlwaysStoppedAnimation(
-                              loan.isOverdue
-                                  ? cs.error
-                                  : AppConstants.successGreen,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              l10n.farmerDetailsRemainingBalance(
-                                loan.remainingBalance.toStringAsFixed(2),
-                              ),
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: cs.outline,
-                              ),
-                            ),
-                            if (loan.isOverdue)
-                              Text(
-                                l10n.farmerMgmtOverdueBadge,
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: cs.error,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The heading above each group of cards on the Contribution tab, so Capital
-/// and Patronage read as two separate things.
 class _TabSectionHeader extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -1103,6 +939,12 @@ class _ContributionCard extends StatelessWidget {
   final void Function(CapitalContributionEvent) onOpenEntry;
   final VoidCallback onViewAll;
 
+  /// The member's first name, for the Capital Share Progress message.
+  final String memberName;
+
+  /// The Monthly Contributions card, shown inside this one.
+  final Widget monthly;
+
   const _ContributionCard({
     required this.capitalShares,
     required this.capitalSummary,
@@ -1113,18 +955,37 @@ class _ContributionCard extends StatelessWidget {
     required this.onRecordContribution,
     required this.onOpenEntry,
     required this.onViewAll,
+    required this.memberName,
+    required this.monthly,
   });
 
-  static String _sourceLabel(AppLocalizations l10n, String source) {
+  static String _sourceLabel(
+    AppLocalizations l10n,
+    String source, {
+    DateTime? month,
+    DateTime? asOf,
+  }) {
     switch (source) {
       case 'member_payment':
-        return l10n.farmerDetailsSourcePayment;
+        // A monthly payment says which month it was for.
+        return month == null
+            ? l10n.farmerDetailsSourcePayment
+            : '${l10n.contribSourceMonthly} (${DateFormat('MMM yyyy').format(month)})';
+      case 'purchase_discount':
+        return l10n.contribSourceDiscount;
+      case 'purchase_share':
+        return l10n.contribSourcePurchaseShare;
+      case 'offer_share':
+        return l10n.contribSourceOfferShare;
       case 'patronage_capital':
         return l10n.farmerDetailsSourcePatronage;
       case 'manual_adjustment':
         return l10n.farmerDetailsSourceAdjustment;
       case 'opening_balance':
-        return l10n.farmerDetailsSourceOpeningBalance;
+        // Starting Capital says the date the member held it, when it has one.
+        return asOf == null
+            ? l10n.farmerDetailsSourceOpeningBalance
+            : l10n.contribStartingAsOf(DateFormat('MMM d, y').format(asOf));
       default:
         return source;
     }
@@ -1140,6 +1001,17 @@ class _ContributionCard extends StatelessWidget {
         0;
     final completedShares =
         summary?.shares.totalShares ?? capitalShares?.totalShares ?? 0;
+    // The next full share: (completed + 1) whole shares. The bar fills toward it.
+    final shareValue =
+        summary?.shares.shareValuePerUnit ?? capitalShares?.shareValuePerUnit ?? 2000;
+    final requiredAmount = (completedShares + 1) * shareValue;
+    final remaining = (requiredAmount - contributionTotal).clamp(0.0, double.infinity).toDouble();
+    final progress = requiredAmount > 0
+        ? (contributionTotal / requiredAmount).clamp(0.0, 1.0).toDouble()
+        : 0.0;
+    String peso(double v) => v == v.roundToDouble()
+        ? '₱${NumberFormat('#,##0').format(v)}'
+        : '₱${NumberFormat('#,##0.00').format(v)}';
     final reversedIds = {
       for (final e in capitalLedger)
         if (e.reversesEventId != null) e.reversesEventId!,
@@ -1161,125 +1033,195 @@ class _ContributionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _StatLabel(
-            label: l10n.farmerDetailsCompletedShares,
-            value:
-                '$completedShares (₱${(completedShares * 2000).toStringAsFixed(0)})',
-            cs: cs,
-          ),
-          const SizedBox(height: 14),
-
-          // ── Capital contribution (Issue 4d) ─────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      l10n.farmerDetailsCapitalContribution,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      '₱${contributionTotal.toStringAsFixed(2)}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: cs.onSurface,
-                      ),
+          // ── Capital Share Progress: how close the member is to the next full share ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.capShareProgressTitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              // Opening balance and corrections only: payments are recorded per month.
+              if (canRecordContribution)
+                PopupMenuButton<String>(
+                  tooltip: l10n.contribAdjustCapital,
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.more_vert_rounded, size: 20, color: cs.outline),
+                  onSelected: (_) => onRecordContribution(),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'adjust',
+                      child: Text(l10n.contribAdjustCapital),
                     ),
                   ],
                 ),
-                if (summary != null) ...[
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: summary.shareProgress,
-                      minHeight: 6,
-                      backgroundColor: cs.outline.withValues(alpha: 0.15),
-                      color: AppConstants.primaryGreen,
-                    ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  peso(contributionTotal),
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    summary.meetsLoanEligibility
-                        ? l10n.farmerDetailsMeetsMinimum(
-                            summary.minimumForLoan.toStringAsFixed(0),
-                          )
-                        : l10n.farmerDetailsNeedsMore(
-                            summary.loanShortfall.toStringAsFixed(0),
-                            summary.minimumForLoan.toStringAsFixed(0),
-                          ),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: summary.meetsLoanEligibility
-                          ? AppConstants.successGreen
-                          : AppConstants.warningAmber,
-                    ),
-                  ),
-                ],
-                if (canRecordContribution) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: onRecordContribution,
-                      icon: const Icon(Icons.add_rounded, size: 16),
-                      label: Text(
-                        l10n.farmerDetailsRecordContribution,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                if (capitalLedger.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  ...capitalLedger
-                      .take(4)
-                      .map(
-                        (e) => _LedgerRow(
-                          entry: e,
-                          reversed: reversedIds.contains(e.id),
-                          sourceLabel: _sourceLabel(l10n, e.source),
-                          cs: cs,
-                          onTap: () => onOpenEntry(e),
-                        ),
-                      ),
-                  if (capitalLedger.length > 4)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: onViewAll,
-                        child: Text(
-                          l10n.farmerDetailsViewAllEntries(
-                            capitalLedger.length,
-                          ),
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  l10n.capShareRequired(peso(requiredAmount)),
+                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: cs.outline.withValues(alpha: 0.15),
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.capSharePercentDone((progress * 100).floor()),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              Text(
+                l10n.capShareRemaining(peso(remaining)),
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            completedShares == 0
+                ? l10n.capShareMsgNone(
+                    memberName,
+                    peso(contributionTotal),
+                    peso(shareValue),
+                  )
+                : l10n.capShareMsgSome(
+                    memberName,
+                    completedShares,
+                    peso(contributionTotal),
+                  ),
+            style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: cs.onSurface),
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: cs.outline.withValues(alpha: 0.12)),
+          const SizedBox(height: 12),
+          Text(
+            l10n.capShareResult(completedShares),
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          // Loan eligibility stays: it is checked against the Capital Share.
+          if (summary != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              summary.meetsLoanEligibility
+                  ? l10n.farmerDetailsMeetsMinimum(
+                      summary.minimumForLoan.toStringAsFixed(0),
+                    )
+                  : l10n.farmerDetailsNeedsMore(
+                      summary.loanShortfall.toStringAsFixed(0),
+                      summary.minimumForLoan.toStringAsFixed(0),
+                    ),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: summary.meetsLoanEligibility
+                    ? AppConstants.successGreen
+                    : AppConstants.warningAmber,
+              ),
+            ),
+          ],
+
+          // ── Monthly Contributions: what is due each month ───────────────────
+          const SizedBox(height: 14),
+          Divider(height: 1, color: cs.outline.withValues(alpha: 0.12)),
+          const SizedBox(height: 14),
+          Text(
+            l10n.monthlyContribTitle,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 10),
+          monthly,
+
+          // ── History: every entry, whatever its source ───────────────────────
+          if (capitalLedger.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: cs.outline.withValues(alpha: 0.12)),
+            const SizedBox(height: 14),
+            Text(
+              l10n.contribHistoryTitle,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...capitalLedger
+                .take(4)
+                .map(
+                  (e) => _LedgerRow(
+                    entry: e,
+                    reversed: reversedIds.contains(e.id),
+                    sourceLabel: _sourceLabel(
+                      l10n,
+                      e.source,
+                      month: e.contributionMonth,
+                      asOf: e.effectiveDate,
+                    ),
+                    cs: cs,
+                    onTap: () => onOpenEntry(e),
+                  ),
+                ),
+            if (capitalLedger.length > 4)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: onViewAll,
+                  child: Text(
+                    l10n.farmerDetailsViewAllEntries(capitalLedger.length),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -1311,60 +1253,43 @@ class _LedgerRow extends StatelessWidget {
         ? l10n.farmerDetailsReversalTag
         : (reversed ? l10n.farmerDetailsReversedTag : null);
     final muted = reversed;
+    final day = DateFormat('MMM d, y').format(e.createdAt.toLocal());
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppConstants.radiusSm),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
         child: Row(
           children: [
             Expanded(
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 6,
+              // What it is, then when (and a tag for an old cancellation).
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '$sourceLabel · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
+                    sourceLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: muted ? cs.onSurfaceVariant : cs.onSurface,
                     ),
                   ),
-                  if (tag != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            (e.isReversal
-                                    ? AppConstants.warningAmber
-                                    : cs.outline)
-                                .withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.radiusFull,
-                        ),
-                      ),
-                      child: Text(
-                        tag,
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: e.isReversal
-                              ? AppConstants.warningAmber
-                              : cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    tag == null ? day : '$day · $tag',
+                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  ),
                 ],
               ),
             ),
+            const SizedBox(width: 10),
             Text(
-              '${e.amount < 0 ? '−' : '+'}₱${e.amount.abs().toStringAsFixed(2)}',
+              '${e.amount < 0 ? '−' : '+'}₱${NumberFormat('#,##0.00').format(e.amount.abs())}',
               style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
                 decoration: muted ? TextDecoration.lineThrough : null,
                 color: muted
                     ? cs.onSurfaceVariant
@@ -1380,7 +1305,8 @@ class _LedgerRow extends StatelessWidget {
 }
 
 /// Everything about one ledger entry: who recorded it and when, and, if it was
-/// reversed, who reversed it, when and why. Closes with true to ask for a reversal.
+/// reversed earlier, who reversed it, when and why. Read only: a wrong amount is
+/// fixed with a Correction.
 class _ContributionEntrySheet extends StatelessWidget {
   final CapitalContributionEvent entry;
   final CapitalContributionEvent? reversal; // the entry that cancels this one
@@ -1424,7 +1350,6 @@ class _ContributionEntrySheet extends StatelessWidget {
     );
 
     final reversed = reversal != null;
-    final canReverse = e.canBeReversed && !reversed;
 
     return ManagementModalShell(
       title: l10n.farmerDetailsContributionDetails,
@@ -1436,7 +1361,12 @@ class _ContributionEntrySheet extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  _ContributionCard._sourceLabel(l10n, e.source),
+                  _ContributionCard._sourceLabel(
+                    l10n,
+                    e.source,
+                    month: e.contributionMonth,
+                    asOf: e.effectiveDate,
+                  ),
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1509,112 +1439,21 @@ class _ContributionEntrySheet extends StatelessWidget {
                 l10n.farmerDetailsReverseElsewhere,
               ),
           ],
-          if (canReverse) ...[
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).pop(true),
-                icon: const Icon(Icons.undo_rounded, size: 16),
-                label: Text(
-                  l10n.farmerDetailsReverseContribution,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppConstants.errorRed,
-                  side: const BorderSide(color: AppConstants.errorRed),
-                ),
+          // A wrong amount is fixed with a Correction, never by cancelling the record.
+          if (!reversed && !e.isReversal) ...[
+            const SizedBox(height: 14),
+            Text(
+              l10n.farmerDetailsFixWithCorrection,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                fontStyle: FontStyle.italic,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-/// Asks why an entry is being reversed. Returns the trimmed reason, or null.
-class _ReverseContributionDialog extends StatefulWidget {
-  final double amount;
-  const _ReverseContributionDialog({required this.amount});
-
-  @override
-  State<_ReverseContributionDialog> createState() =>
-      _ReverseContributionDialogState();
-}
-
-class _ReverseContributionDialogState
-    extends State<_ReverseContributionDialog> {
-  final _reasonCtrl = TextEditingController();
-  String? _error;
-
-  @override
-  void dispose() {
-    _reasonCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final amount = '₱${NumberFormat('#,##0.00').format(widget.amount.abs())}';
-    return AlertDialog(
-      title: Text(
-        l10n.farmerDetailsReverseContribution,
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.farmerDetailsReverseExplain(amount),
-              style: GoogleFonts.inter(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _reasonCtrl,
-              autofocus: true,
-              maxLines: 3,
-              minLines: 2,
-              maxLength: 500,
-              decoration: InputDecoration(
-                labelText: l10n.farmerDetailsReversalReasonLabel,
-                hintText: l10n.farmerDetailsReversalReasonHint,
-                errorText: _error,
-              ),
-              onChanged: (_) {
-                if (_error != null) setState(() => _error = null);
-              },
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.farmerDetailsKeepContribution),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final reason = _reasonCtrl.text.trim();
-            if (reason.length < 3) {
-              setState(() => _error = l10n.farmerDetailsReversalReasonRequired);
-              return;
-            }
-            Navigator.pop(context, reason);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppConstants.errorRed,
-            foregroundColor: Colors.white,
-          ),
-          child: Text(l10n.farmerDetailsReverseAction),
-        ),
-      ],
     );
   }
 }
@@ -1627,431 +1466,10 @@ class _ReverseContributionDialogState
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// One expense row, read from the map fetchFarmerExpenses returns.
-class _ExpenseRecord {
-  final String category;
-  final String description;
-  final double amount;
-  final DateTime date;
-  final bool isSubsidy;
-
-  const _ExpenseRecord({
-    required this.category,
-    required this.description,
-    required this.amount,
-    required this.date,
-    required this.isSubsidy,
-  });
-
-  static _ExpenseRecord? fromMap(Map<String, dynamic> map) {
-    final date = DateTime.tryParse(map['expense_date'] as String? ?? '');
-    if (date == null) return null;
-    return _ExpenseRecord(
-      category: map['category'] as String? ?? 'Other',
-      description: map['description'] as String? ?? '',
-      amount: (map['amount'] as num? ?? 0).toDouble(),
-      date: date,
-      isSubsidy: map['is_subsidy'] as bool? ?? false,
-    );
-  }
-}
-
-/// Keeps the rows in the selected period, using the same start dates as
-/// ExpensePeriod.startDate and comparing calendar days.
-bool _inPeriod(_ExpenseRecord e, ExpensePeriod period) {
-  final start = period.startDate;
-  if (start == null) return true;
-  final day = DateTime(e.date.year, e.date.month, e.date.day);
-  return !day.isBefore(DateTime(start.year, start.month, start.day));
-}
-
-/// Same rules as ExpenseRepository.buildBreakdown: subsidised entries count
-/// as zero, subsidy-only categories still appear, and the result is sorted
-/// by total.
-List<CategoryBreakdown> _breakdownFor(List<_ExpenseRecord> rows) {
-  final totals = <String, double>{};
-  final hasSubsidy = <String, bool>{};
-  for (final e in rows) {
-    if (e.isSubsidy) {
-      hasSubsidy[e.category] = true;
-    } else {
-      totals[e.category] = (totals[e.category] ?? 0) + e.amount;
-    }
-  }
-  for (final cat in hasSubsidy.keys) {
-    totals.putIfAbsent(cat, () => 0);
-  }
-  if (totals.isEmpty) return [];
-  final maxVal = totals.values.reduce((a, b) => a > b ? a : b);
-  return totals.entries
-      .map(
-        (e) => CategoryBreakdown(
-          category: e.key,
-          total: e.value,
-          percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
-          hasSubsidy: hasSubsidy.containsKey(e.key),
-        ),
-      )
-      .toList()
-    ..sort((a, b) => b.total.compareTo(a.total));
-}
-
-String _periodLabel(AppLocalizations l10n, ExpensePeriod p) {
-  switch (p) {
-    case ExpensePeriod.allTime:
-      return l10n.farmerAnalyticsPeriodAllTime;
-    case ExpensePeriod.thisMonth:
-      return l10n.farmerAnalyticsPeriodThisMonth;
-    case ExpensePeriod.thisQuarter:
-      return l10n.farmerAnalyticsPeriodThisQuarter;
-    case ExpensePeriod.thisYear:
-      return l10n.farmerAnalyticsPeriodThisYear;
-  }
-}
-
-/// Pill filter chip, same look as the farmer's period filter.
-class _FilterPill extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _FilterPill({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-          decoration: BoxDecoration(
-            color: active
-                ? AppConstants.primaryContainer
-                : const Color(0xFFD5ECF8),
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: active
-                  ? AppConstants.onPrimaryContainer
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricTile extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  const _MetricTile({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 112,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-            ),
-            child: Icon(icon, size: 14, color: color),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              height: 1.2,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BreakdownCard extends StatelessWidget {
-  final List<CategoryBreakdown> breakdown;
-  final String title;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _BreakdownCard({
-    required this.breakdown,
-    required this.title,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final money = NumberFormat('#,##0');
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 14),
-          for (final b in breakdown)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        localizeBuiltinLabel(
-                          AppLocalizations.of(context),
-                          b.category,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                      Text(
-                        b.total > 0 ? '₱${money.format(b.total)}' : '₱0.00',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: b.hasSubsidy && b.total == 0
-                          ? 1.0
-                          : b.percentOfMax,
-                      minHeight: 6,
-                      backgroundColor: context.adaptiveSurface(
-                        const Color(0xFFCFE6F2),
-                      ),
-                      valueColor: AlwaysStoppedAnimation(
-                        b.hasSubsidy && b.total == 0
-                            ? AppConstants.successGreen
-                            : categoryColor(b.category),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TransactionCard extends StatelessWidget {
-  final _ExpenseRecord record;
-  final String subsidyTag;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _TransactionCard({
-    required this.record,
-    required this.subsidyTag,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final card = Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: record.isSubsidy
-            ? const BorderRadius.horizontal(
-                right: Radius.circular(AppConstants.radiusLg),
-              )
-            : BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: categoryBgColor(record.category).withValues(alpha: 0.40),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              categoryIcon(record.category),
-              color: categoryColor(record.category),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        localizeBuiltinLabel(
-                          AppLocalizations.of(context),
-                          record.category,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                    if (record.isSubsidy) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppConstants.successGreen,
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                        ),
-                        child: Text(
-                          subsidyTag,
-                          style: GoogleFonts.inter(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                Text(
-                  record.description.isEmpty ? '—' : record.description,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  DateFormat('MMM d, yyyy').format(record.date),
-                  style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '₱${NumberFormat('#,##0.00').format(record.amount)}',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: record.isSubsidy
-                  ? AppConstants.successGreen
-                  : cs.onSurface,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded, size: 18, color: cs.outline),
-        ],
-      ),
-    );
-
-    if (!record.isSubsidy) {
-      return SizedBox(width: double.infinity, child: card);
-    }
-    // A subsidy row gets its own accent stripe. A single BoxDecoration can't
-    // combine a border radius with a one-sided colour, so the stripe is a
-    // separate widget beside the card.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 4,
-            decoration: const BoxDecoration(
-              color: AppConstants.successGreen,
-              borderRadius: BorderRadius.horizontal(
-                left: Radius.circular(AppConstants.radiusLg),
-              ),
-            ),
-          ),
-          Expanded(child: card),
-        ],
-      ),
-    );
-  }
-}
-
+/// The Farmer's expenses, exactly as their own My Expenses screen shows them (period
+/// total and chips, category breakdown, subsidy note, every entry with its detail
+/// sheet), but strictly read-only: the display widgets are the Farmer screen's own
+/// (expensesViewChildren), and nothing here can add, edit or delete a record.
 class _ExpensesTab extends StatefulWidget {
   final List<Map<String, dynamic>> expenses;
   final ColorScheme cs;
@@ -2068,289 +1486,58 @@ class _ExpensesTab extends StatefulWidget {
 }
 
 class _ExpensesTabState extends State<_ExpensesTab> {
-  // Same default period as the farmer's My Expenses screen.
+  // Same default period as the Farmer's My Expenses screen.
   ExpensePeriod _period = ExpensePeriod.thisMonth;
 
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cs = widget.cs;
-    final sagana = widget.sagana;
-    final all = widget.expenses
-        .map(_ExpenseRecord.fromMap)
-        .whereType<_ExpenseRecord>()
-        .toList();
-
-    if (all.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            l10n.farmerDetailsNoExpenseHistory,
-            style: GoogleFonts.inter(color: cs.onSurfaceVariant),
-          ),
-        ),
-      );
-    }
-
-    final rows = all.where((e) => _inPeriod(e, _period)).toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
-    final breakdown = _breakdownFor(rows);
-    // The period total leaves out subsidised entries, as on the farmer's
-    // screen: it is the sum of the breakdown bars.
-    final periodTotal = breakdown.fold(0.0, (sum, b) => sum + b.total);
-    CategoryBreakdown? top;
-    for (final b in breakdown) {
-      if (b.total > 0) {
-        top = b;
-        break;
+  /// The entries of the chosen period, newest first (the Farmer's query keeps
+  /// rows from the period's start date on, ordered by expense date).
+  List<ExpenseModel> get _inPeriod {
+    final start = _period.startDate;
+    final rows = <ExpenseModel>[];
+    for (final map in widget.expenses) {
+      try {
+        final e = ExpenseModel.fromMap(map);
+        final day = DateTime(e.expenseDate.year, e.expenseDate.month, e.expenseDate.day);
+        if (start == null || !day.isBefore(DateTime(start.year, start.month, start.day))) {
+          rows.add(e);
+        }
+      } catch (_) {
+        // A row that cannot be read is left out rather than breaking the tab.
       }
     }
-    final money = NumberFormat('#,##0');
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      children: [
-        SizedBox(
-          height: 98,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _MetricTile(
-                label: l10n.farmerDetailsExpPeriodTotal,
-                value: '₱${money.format(periodTotal)}',
-                color: AppConstants.primaryGreen,
-                icon: Icons.payments_rounded,
-              ),
-              const SizedBox(width: 10),
-              _MetricTile(
-                label: l10n.farmerDetailsExpTopCategory,
-                value: top?.category ?? l10n.farmerDetailsExpNoneYet,
-                color: top != null
-                    ? categoryColor(top.category)
-                    : Theme.of(context).colorScheme.outline,
-                icon: top != null
-                    ? categoryIcon(top.category)
-                    : Icons.category_outlined,
-              ),
-              const SizedBox(width: 10),
-              _MetricTile(
-                label: l10n.farmerDetailsExpEntries,
-                value: '${rows.length}',
-                color: AppConstants.buyerBlue,
-                icon: Icons.receipt_long_rounded,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final p in ExpensePeriod.values)
-                _FilterPill(
-                  label: _periodLabel(l10n, p),
-                  active: p == _period,
-                  onTap: () => setState(() => _period = p),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        if (breakdown.isNotEmpty) ...[
-          _BreakdownCard(
-            breakdown: breakdown,
-            title: l10n.farmerDetailsExpCategoryBreakdown,
-            cs: cs,
-            sagana: sagana,
-          ),
-          const SizedBox(height: 18),
-        ],
-        Text(
-          l10n.farmerAnalyticsRecentTransactionsTitle,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface,
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (rows.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              l10n.farmerDetailsExpNoTransactions,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          )
-        else
-          for (final e in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _TransactionCard(
-                record: e,
-                subsidyTag: l10n.farmerDetailsExpSubsidyTag,
-                cs: cs,
-                sagana: sagana,
-              ),
-            ),
-      ],
-    );
+    rows.sort((a, b) {
+      final byDate = b.expenseDate.compareTo(a.expenseDate);
+      return byDate != 0 ? byDate : b.createdAt.compareTo(a.createdAt);
+    });
+    return rows;
   }
-}
-
-class _ProgramCard extends StatelessWidget {
-  final Map<String, dynamic> program;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _ProgramCard({
-    required this.program,
-    required this.cs,
-    required this.sagana,
-  });
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final isSales = program['program_purpose'] == 'sales';
-    final accent = isSales
-        ? AppConstants.successGreen
-        : AppConstants.programPurple;
-    final description = program['description'] as String? ?? '';
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 4,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(AppConstants.radiusLg),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: sagana.cardBackground,
-                borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(AppConstants.radiusLg),
-                ),
-                border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusMd,
-                          ),
-                        ),
-                        child: Icon(
-                          isSales
-                              ? Icons.storefront_rounded
-                              : Icons.volunteer_activism_rounded,
-                          color: accent,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              program["name"] as String? ??
-                                  l10n.farmerDetailsProgramFallback,
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              isSales
-                                  ? l10n.farmerDetailsProgSalesPurpose
-                                  : l10n.farmerDetailsProgDistributionPurpose,
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                        ),
-                        child: Text(
-                          l10n.farmerDetailsProgStatusActive,
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: accent,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Divider(
-                      height: 1,
-                      color: cs.outline.withValues(alpha: 0.10),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      description,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
+    final items = _inPeriod;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      children: expensesViewChildren(
+        context,
+        period: _period,
+        onPeriodChanged: (p) => setState(() => _period = p),
+        expenses: items,
+        breakdown: buildExpenseBreakdown(items),
+        isLoading: false,
       ),
     );
   }
 }
 
+/// The Farmer's programs, exactly as their own My Programs screen shows them (every round, the outcome, the
+/// decision, the harvest return, the loan request), but strictly read-only: no buttons, nothing to open.
 class _ProgramsTab extends StatefulWidget {
-  final List<Map<String, dynamic>> programs;
+  final FarmerProgramCards cards;
   final ColorScheme cs;
   final SaganaColors sagana;
 
   const _ProgramsTab({
-    required this.programs,
+    required this.cards,
     required this.cs,
     required this.sagana,
   });
@@ -2376,7 +1563,10 @@ class _ProgramsTabState extends State<_ProgramsTab> {
     final l10n = AppLocalizations.of(context);
     final cs = widget.cs;
 
-    if (widget.programs.isEmpty) {
+    // One card per program: the latest round. Earlier rounds sit under History on that card.
+    final groups = groupProgramRounds(widget.cards.entries);
+    final entries = groups.current;
+    if (entries.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -2388,12 +1578,11 @@ class _ProgramsTabState extends State<_ProgramsTab> {
       );
     }
 
-    final visible = widget.programs.where((p) {
-      final isSales = p['program_purpose'] == 'sales';
-      if (_purpose == 'sales' && !isSales) return false;
-      if (_purpose == 'distribution' && isSales) return false;
+    final visible = entries.where((p) {
+      if (_purpose == 'sales' && !p.isSalesProgram) return false;
+      if (_purpose == 'distribution' && p.isSalesProgram) return false;
       if (_query.isEmpty) return true;
-      return (p['name'] as String? ?? '').toLowerCase().contains(_query);
+      return p.programName.toLowerCase().contains(_query);
     }).toList();
 
     return ListView(
@@ -2408,26 +1597,58 @@ class _ProgramsTabState extends State<_ProgramsTab> {
           ),
         ),
         const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _FilterPill(
-                label: l10n.farmerMgmtAllFilter,
-                active: _purpose == 'all',
-                onTap: () => setState(() => _purpose = 'all'),
-              ),
-              _FilterPill(
-                label: l10n.programMgmtFilterDistribution,
-                active: _purpose == 'distribution',
-                onTap: () => setState(() => _purpose = 'distribution'),
-              ),
-              _FilterPill(
-                label: l10n.programMgmtFilterSales,
-                active: _purpose == 'sales',
-                onTap: () => setState(() => _purpose = 'sales'),
-              ),
-            ],
+        // The same chips as the Farmer's Programs screen, each with its count.
+        SizedBox(
+          height: 34,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.zero,
+            itemCount: 3,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final (value, label) = [
+                ('all', l10n.farmerMgmtAllFilter),
+                ('distribution', l10n.programMgmtFilterDistribution),
+                ('sales', l10n.programMgmtFilterSales),
+              ][i];
+              final count = value == 'all'
+                  ? entries.length
+                  : entries
+                        .where((p) => p.isSalesProgram == (value == 'sales'))
+                        .length;
+              final isSelected = _purpose == value;
+              return GestureDetector(
+                onTap: () => setState(() => _purpose = value),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppConstants.primaryGreen
+                        : context.saganaColors.cardBackground,
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppConstants.primaryGreen
+                          : cs.outline.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$label ($count)',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 14),
@@ -2446,7 +1667,30 @@ class _ProgramsTabState extends State<_ProgramsTab> {
           for (final p in visible)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _ProgramCard(program: p, cs: cs, sagana: widget.sagana),
+              child: MyProgramCard(
+                readOnly: true,
+                entry: p,
+                report: widget.cards.reportByMember[p.id],
+                harvestReturn: widget.cards.returns.byMember[p.id],
+                resolution: widget.cards.returns.resolutionByMember[p.id],
+                redistStatus: widget.cards.redistByMember[p.id],
+                assistRequest: widget.cards.assistByMember[p.id],
+                history: [
+                  for (final e in groups.earlier[p.id] ?? const [])
+                    MyProgramRound(
+                      entry: e,
+                      report: widget.cards.reportByMember[e.id],
+                      resolution: widget.cards.returns.resolutionByMember[e.id],
+                      assistRequest: widget.cards.assistByMember[e.id],
+                    ),
+                ],
+                formatDate: (d) => DateFormat('MMM d, y').format(d),
+                statusLabel: (s) => switch (s) {
+                  'withdrawn' => l10n.farmerProgStatusWithdrawn,
+                  'completed' => l10n.farmerProgStatusCompleted,
+                  _ => l10n.farmerProgStatusActive,
+                },
+              ),
             ),
       ],
     );
@@ -2457,14 +1701,39 @@ class _ProgramsTabState extends State<_ProgramsTab> {
 // Record Contribution dialog (Issue 4d)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The small caption above a form field, the same style the dropdown uses, so every
+/// field in a form is labelled the same way.
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+}
+
 class _RecordContributionInput {
   final double amount;
   final String source;
   final String? note;
+
+  /// Starting Capital only: the date the member actually held the capital.
+  final DateTime? effectiveDate;
   const _RecordContributionInput({
     required this.amount,
     required this.source,
     this.note,
+    this.effectiveDate,
   });
 }
 
@@ -2479,12 +1748,41 @@ class _RecordContributionDialog extends StatefulWidget {
 class _RecordContributionDialogState extends State<_RecordContributionDialog> {
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
-  String _source = 'member_payment';
+  String _source = 'manual_adjustment';
   String? _error;
+  DateTime? _startingDate;
+  String? _dateError;
+
+  bool get _isStarting => _source == 'opening_balance';
+
+  Future<void> _pickStartingDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startingDate ?? DateTime(now.year, now.month, now.day),
+      firstDate: DateTime(now.year - 100),
+      lastDate: DateTime(now.year, now.month, now.day),
+      helpText: AppLocalizations.of(context).startingCapitalDateLabel,
+    );
+    if (picked != null) {
+      setState(() {
+        _startingDate = picked;
+        _dateError = null;
+      });
+    }
+  }
+
+  // Only a correction can take money out, so only it may carry a minus sign.
+  bool get _allowsNegative => _source == 'manual_adjustment';
+
+  /// What the chosen type means, shown under the Type field.
+  String _typeHint(AppLocalizations l10n) => switch (_source) {
+    'opening_balance' => l10n.contribTypeHintStarting,
+    _ => l10n.contribTypeHintCorrection,
+  };
 
   Map<String, String> _sources(AppLocalizations l10n) => {
-    'member_payment': l10n.farmerDetailsSourcePaymentFull,
-    'patronage_capital': l10n.farmerDetailsSourcePatronageFull,
+    // A monthly payment is recorded against its month in Monthly Contributions.
     'manual_adjustment': l10n.farmerDetailsSourceAdjustmentFull,
     'opening_balance': l10n.farmerDetailsSourceOpeningBalance,
   };
@@ -2503,8 +1801,13 @@ class _RecordContributionDialogState extends State<_RecordContributionDialog> {
       setState(() => _error = l10n.farmerDetailsEnterNonZero);
       return;
     }
-    if (amount < 0 && _source != 'manual_adjustment') {
+    if (amount < 0 && !_allowsNegative) {
       setState(() => _error = l10n.farmerDetailsOnlyAdjustmentNegative);
+      return;
+    }
+    // Starting Capital must say when the member actually held it (day, month, year).
+    if (_isStarting && _startingDate == null) {
+      setState(() => _dateError = l10n.startingCapitalDateRequired);
       return;
     }
     Navigator.pop(
@@ -2513,6 +1816,7 @@ class _RecordContributionDialogState extends State<_RecordContributionDialog> {
         amount: amount,
         source: _source,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        effectiveDate: _isStarting ? _startingDate : null,
       ),
     );
   }
@@ -2521,71 +1825,120 @@ class _RecordContributionDialogState extends State<_RecordContributionDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sources = _sources(l10n);
-    return AlertDialog(
-      title: Text(
-        l10n.farmerDetailsRecordContribution,
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-                signed: true,
-              ),
-              inputFormatters: [
-                // Digits only, an optional single leading minus, one dot.
-                FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-              ],
-              decoration: InputDecoration(
-                labelText: l10n.farmerDetailsAmountLabel,
-                hintText: l10n.farmerDetailsAmountHint,
-                prefixText: '₱ ',
-              ),
-            ),
-            const SizedBox(height: 12),
-            AppDropdownField<String>(
-              value: _source,
-              hintText: l10n.farmerDetailsSelectType,
-              labelText: l10n.farmerDetailsTypeLabel,
-              items: sources.keys.toList(),
-              itemLabel: (key) => sources[key]!,
-              onChanged: (v) => setState(() => _source = v ?? _source),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteCtrl,
-              decoration: InputDecoration(
-                labelText: l10n.farmerDetailsNoteOptional,
-              ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _error!,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppConstants.errorRed,
+    return ManagementModalShell(
+      title: l10n.contribAdjustTitle,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // What kind of entry first, then how much: the type decides whether a
+          // minus sign is allowed. Every field has its caption above it, and the
+          // Type field explains the chosen type right under itself.
+          AppDropdownField<String>(
+            value: _source,
+            hintText: l10n.farmerDetailsSelectType,
+            labelText: l10n.farmerDetailsTypeLabel,
+            helperText: _typeHint(l10n),
+            items: sources.keys.toList(),
+            itemLabel: (key) => sources[key]!,
+            onChanged: (v) => setState(() {
+              _source = v ?? _source;
+              _error = null;
+              _dateError = null;
+            }),
+          ),
+          // Starting Capital needs the date the member actually held the capital,
+          // so a past year lands in that year's Member Contribution Report.
+          if (_isStarting) ...[
+            const SizedBox(height: 16),
+            _FieldLabel(l10n.startingCapitalDateLabel),
+            InkWell(
+              onTap: _pickStartingDate,
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  hintText: l10n.startingCapitalDateHint,
+                  suffixIcon: const Icon(Icons.calendar_month_rounded),
+                ),
+                isEmpty: _startingDate == null,
+                child: Text(
+                  _startingDate == null
+                      ? ''
+                      : DateFormat('MMMM d, y').format(_startingDate!),
+                  style: GoogleFonts.inter(fontSize: 14),
                 ),
               ),
-            ],
+            ),
+            // Under the field, flush left like the Type field's note (not inset
+            // by the input decoration), and red when the date is missing.
+            const SizedBox(height: 4),
+            Text(
+              _dateError ?? l10n.startingCapitalDateHelp,
+              textAlign: TextAlign.start,
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                color: _dateError != null
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
-        ),
+          const SizedBox(height: 16),
+          _FieldLabel(l10n.contribAmountLabel),
+          TextField(
+            controller: _amountCtrl,
+            keyboardType: TextInputType.numberWithOptions(
+              decimal: true,
+              signed: _allowsNegative,
+            ),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(
+                _allowsNegative
+                    ? RegExp(r'^-?\d*\.?\d{0,2}')
+                    : RegExp(r'^\d*\.?\d{0,2}'),
+              ),
+            ],
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            decoration: InputDecoration(
+              hintText: l10n.farmerDetailsAmountHint,
+              prefixText: '₱ ',
+            ),
+          ),
+          // Notes sit flush left under the field, like the Type field's note.
+          if (_error != null || _allowsNegative) ...[
+            const SizedBox(height: 4),
+            Text(
+              _error ?? l10n.contribAdjustSignHint,
+              textAlign: TextAlign.start,
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                color: _error != null
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _FieldLabel(l10n.contribNoteLabel),
+          TextField(
+            controller: _noteCtrl,
+            maxLength: 200,
+            minLines: 2,
+            maxLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              hintText: l10n.contribNoteHint,
+              counterText: '',
+            ),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.farmerMgmtCancel),
-        ),
-        ElevatedButton(
-          onPressed: () => _submit(l10n),
-          child: Text(l10n.farmerDetailsRecordAction),
-        ),
-      ],
+      footer: ManagementModalActions(
+        primaryLabel: l10n.farmerDetailsRecordAction,
+        onPrimary: () => _submit(l10n),
+      ),
     );
   }
 }
@@ -2641,14 +1994,14 @@ class _StatusHistoryCard extends StatelessWidget {
             children: [
               Icon(Icons.history_rounded, size: 18, color: cs.primary),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 l10n.farmerDetailsStatusHistoryTitle,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 12),

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/constants/farmer_registration_address.dart';
 import '../../core/utils/person_name.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
@@ -86,8 +87,7 @@ class AccountManagementRepository {
 
   /// Saves an Officer's access. The database refuses it unless the caller is the
   /// Manager (script 20); the change is recorded in the accountability log by the
-  /// database. No screen offers this for now (it belongs to the planned
-  /// Cooperative ID Card).
+  /// database. It is offered on an Officer's Cooperative ID Card (Manager only).
   Future<Map<StaffModule, StaffAccess>> saveOfficerAccess(
     String userId,
     Map<StaffModule, StaffAccess> access,
@@ -176,6 +176,155 @@ class AccountManagementRepository {
     } catch (_) {
       return const {};
     }
+  }
+
+  /// What the Cooperative ID Card shows beyond the account row: personal details,
+  /// address and, for a Farmer, the farm and capital shares. Each part is read on its
+  /// own, so one that cannot be read (a row the signed-in person has no access to)
+  /// is simply left out; [failedParts] says how many.
+  Future<AccountCardDetails> fetchCardDetails(AccountEntry account) async {
+    var failed = 0;
+    Future<T?> part<T>(Future<T?> Function() read) async {
+      try {
+        return await read();
+      } catch (_) {
+        failed++;
+        return null;
+      }
+    }
+
+    final id = account.userId;
+    Map<String, dynamic>? profile;
+    if (account.role == 'farmer') {
+      profile = await part(
+        () => _client
+            .from('farmer_profiles')
+            .select(
+              'date_of_birth, gender, farm_name, land_area_hectares, years_farming, '
+              'farm_address, farm_house_no, farm_building, farm_street, member_since',
+            )
+            .eq('user_id', id)
+            .maybeSingle(),
+      );
+    } else if (account.role == 'officer') {
+      profile = await part(
+        () => _client
+            .from('officer_profiles')
+            .select('position, date_of_birth, gender')
+            .eq('user_id', id)
+            .maybeSingle(),
+      );
+    } else {
+      profile = await part(
+        () => _client
+            .from('admin_profiles')
+            .select('position, date_of_birth, gender, created_at')
+            .eq('user_id', id)
+            .maybeSingle(),
+      );
+    }
+
+    List<String> crops = const [];
+    if (account.role == 'farmer') {
+      final cropRows = await part(
+        () => _client
+            .from('farmer_crops')
+            .select('crop_name')
+            .eq('farmer_id', id),
+      );
+      crops = [
+        for (final r in cropRows ?? const [])
+          if ((r['crop_name'] as String?)?.trim().isNotEmpty ?? false)
+            (r['crop_name'] as String).trim(),
+      ];
+    }
+
+    final addressRows = await part(
+      () => _client
+          .from('buyer_addresses')
+          .select('address_line, barangay_name, city_municipality_name')
+          .eq('user_id', id)
+          .order('is_default', ascending: false)
+          .order('created_at', ascending: false)
+          .limit(1),
+    );
+    String? address;
+    if (addressRows != null && addressRows.isNotEmpty) {
+      final a = addressRows.first;
+      final parts =
+          [
+                a['barangay_name'] as String?,
+                a['city_municipality_name'] as String?,
+              ]
+              .where((p) => (p ?? '').trim().isNotEmpty)
+              .map((p) => p!.trim())
+              .toList();
+      // A Farmer's card shows the complete address; staff cards keep the short form.
+      address = account.role == 'farmer'
+          ? (_clean(a['address_line'] as String?) ??
+                (parts.isNotEmpty ? parts.join(', ') : null))
+          : (parts.isNotEmpty
+                ? parts.join(', ')
+                : _clean(a['address_line'] as String?));
+    }
+
+    // The farm's address as one line: the one saved with the farm, else built from its parts.
+    String? farmAddress;
+    if (account.role == 'farmer') {
+      farmAddress = _clean(profile?['farm_address'] as String?);
+      if (farmAddress == null) {
+        final houseNo = (profile?['farm_house_no'] as String?) ?? '';
+        final street = (profile?['farm_street'] as String?) ?? '';
+        if (houseNo.trim().isNotEmpty || street.trim().isNotEmpty) {
+          farmAddress = FarmerRegistrationAddress.composeLine(
+            houseNo: houseNo,
+            building: profile?['farm_building'] as String?,
+            street: street,
+          );
+        }
+      }
+    }
+
+    // Date Joined: when a Farmer became a member, else when the account was created.
+    final roleRow = await part(
+      () => _client
+          .from('user_roles')
+          .select('created_at')
+          .eq('user_id', id)
+          .eq('role', account.role)
+          .maybeSingle(),
+    );
+
+    final info = await part(
+      () => _client
+          .from('user_information')
+          .select('verified_contact_email')
+          .eq('user_id', id)
+          .maybeSingle(),
+    );
+    final verified = _clean(
+      info?['verified_contact_email'] as String?,
+    )?.toLowerCase();
+    final email = account.email?.toLowerCase();
+
+    DateTime? date(Object? v) => v is String ? DateTime.tryParse(v) : null;
+    return AccountCardDetails(
+      dateOfBirth: date(profile?['date_of_birth']),
+      gender: _clean(profile?['gender'] as String?),
+      position: _clean(profile?['position'] as String?),
+      memberSince:
+          date(profile?['member_since']) ??
+          date(roleRow?['created_at']) ??
+          date(profile?['created_at']),
+      farmName: _clean(profile?['farm_name'] as String?),
+      farmHectares: (profile?['land_area_hectares'] as num?)?.toDouble(),
+      crops: crops,
+      yearsFarming: (profile?['years_farming'] as num?)?.toInt(),
+      farmAddress: farmAddress,
+      address: address,
+      emailVerified: email != null && verified != null && verified == email,
+      failedParts: failed,
+    );
   }
 
   /// Returns the generated temporary password exactly once. Nothing in
@@ -300,6 +449,41 @@ class AccountEntry {
   /// rule the Members list uses, so both screens always agree.
   MemberStatus get effectiveStatus =>
       MemberStatusExt.derive(status, lastActiveAt);
+}
+
+/// The extra details on a Cooperative ID Card (see
+/// AccountManagementRepository.fetchCardDetails). Every field is optional: what a
+/// person has not filled in, or the signed-in person cannot read, is null.
+class AccountCardDetails {
+  final DateTime? dateOfBirth;
+  final String? gender;
+  final String? position;
+  final DateTime? memberSince;
+  final String? farmName;
+  final double? farmHectares;
+  final List<String> crops;
+  final int? yearsFarming;
+  final String? farmAddress;
+  final String? address;
+  final bool emailVerified;
+
+  /// How many of the separate reads could not be completed.
+  final int failedParts;
+
+  const AccountCardDetails({
+    this.dateOfBirth,
+    this.gender,
+    this.position,
+    this.memberSince,
+    this.farmName,
+    this.farmHectares,
+    this.crops = const [],
+    this.yearsFarming,
+    this.farmAddress,
+    this.address,
+    this.emailVerified = false,
+    this.failedParts = 0,
+  });
 }
 
 class PasswordResetRequest {

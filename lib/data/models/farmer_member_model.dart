@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/person_name.dart';
 
 // ─── Member Status (Issue 5 — 5-status model) ─────────────────────────────────
@@ -133,6 +135,8 @@ enum MemberListAction {
   resetPassword,
   issueLoan,
   recordLoanPayment,
+  restrictFeatures, // stop new activity in chosen features (account stays active)
+  manageRestrictions, // lift one; only offered when the member has some
   toggleSuspend, // Set Suspended / Set Active
   deleteApplicant,
 }
@@ -150,7 +154,7 @@ extension MemberStatusActions on MemberStatus {
   ///
   ///  * An Officer never approves or disapproves an applicant another Officer
   ///    created: that is the Manager's decision ([officerCreated]).
-  ///  * Permanently deleting a disapproved account is the Manager's alone.
+  ///  * Deleting a disapproved account is any staff member's with Manage on Members.
   /// The database enforces both; this keeps the menu honest.
   List<MemberListAction> listActionsFor({
     required bool isOfficer,
@@ -161,8 +165,6 @@ extension MemberStatusActions on MemberStatus {
         case MemberListAction.approve:
         case MemberListAction.disapprove:
           return !(isOfficer && officerCreated);
-        case MemberListAction.deleteApplicant:
-          return !isOfficer;
         default:
           return true;
       }
@@ -196,6 +198,8 @@ extension MemberStatusActions on MemberStatus {
           MemberListAction.resetPassword,
           MemberListAction.issueLoan,
           MemberListAction.recordLoanPayment,
+          MemberListAction.restrictFeatures,
+          MemberListAction.manageRestrictions,
           MemberListAction.toggleSuspend,
         ];
       case MemberStatus.suspended:
@@ -296,23 +300,8 @@ class FarmerMemberModel {
   String get initials => PersonName.initials(fullName);
 
   String get lastHarvestLabel {
-    if (lastHarvestDate == null) return 'No records';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final d = lastHarvestDate!;
-    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+    if (lastHarvestDate == null) return currentL10n().farmerDetailsNoRecords;
+    return DateFormat('MMM d, y').format(lastHarvestDate!);
   }
 
   factory FarmerMemberModel.fromMap(Map<String, dynamic> map) {

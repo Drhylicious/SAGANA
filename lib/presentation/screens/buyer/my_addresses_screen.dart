@@ -98,7 +98,7 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
       backgroundColor: sagana.scaffoldBackground,
 
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addOrEdit(),
+        heroTag: null, onPressed: () => _addOrEdit(),
         backgroundColor: AppConstants.primaryGreen,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: Text(
@@ -261,14 +261,14 @@ class _AddressTile extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Text(
+                    Flexible(child: Text(
                       address.label,
                       style: GoogleFonts.inter(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    ),
+                    )),
                     if (address.isDefault) ...[
                       Text(
                         '  •  ',

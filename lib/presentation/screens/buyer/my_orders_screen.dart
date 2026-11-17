@@ -510,7 +510,7 @@ class _OrderCard extends StatelessWidget {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(width: 5),
-                    Text(
+                    Flexible(child: Text(
                       order.isPickupChoice
                           ? l10n.checkoutFulfillmentPickup
                           : l10n.checkoutFulfillmentDelivery,
@@ -519,7 +519,7 @@ class _OrderCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: Theme.of(context).colorScheme.primary,
                       ),
-                    ),
+                    )),
                   ],
                 ),
                 const SizedBox(height: 8),

@@ -1,4 +1,5 @@
 import '../../../core/l10n/localized_labels.dart';
+import '../../../core/utils/life_duration.dart';
 import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -57,6 +58,14 @@ class CropDetailsScreen extends StatelessWidget {
                             AppLocalizations.of(context),
                             crop.category,
                           ),
+                        ),
+                        _InfoRow(
+                          label: AppLocalizations.of(context).shelfLifeLabel,
+                          value: crop.cropMasterId == null
+                              ? AppLocalizations.of(context).enhPendingApproval
+                              : (crop.shelfLifeDays != null
+                                    ? lifeDurationText(AppLocalizations.of(context), crop.shelfLifeDays!)
+                                    : AppLocalizations.of(context).shelfNotSetByCoop),
                         ),
                         _InfoRow(
                           label: AppLocalizations.of(context).enhAddedOn,
@@ -354,13 +363,13 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
+          Flexible(child: Text(
             label,
             style: GoogleFonts.inter(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-          ),
+          )),
           Text(
             value,
             style: GoogleFonts.poppins(

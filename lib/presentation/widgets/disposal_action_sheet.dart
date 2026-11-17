@@ -114,7 +114,7 @@ class _DisposalActionSheet extends StatelessWidget {
           if (isCoopEligible)
             _DisposalOptionTile(
               icon: Icons.groups_outlined,
-              iconColor: AppConstants.primaryGreen,
+              iconColor: Theme.of(context).colorScheme.primary,
               title: AppLocalizations.of(context).sellingTypeOfferToCooperative,
               subtitle: AppLocalizations.of(
                 context,

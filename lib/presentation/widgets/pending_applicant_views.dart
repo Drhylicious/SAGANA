@@ -825,7 +825,7 @@ class _PendingNotificationsViewState extends State<PendingNotificationsView> {
                   child: SkeletonList(),
                 )
               : RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: onRefresh,
                   child: notifications.isEmpty
                       ? ListView(

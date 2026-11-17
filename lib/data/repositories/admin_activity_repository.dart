@@ -127,7 +127,7 @@ class AdminActivityRepository {
       var query = _client
           .from('admin_activity_log')
           .select(
-            'id, admin_id, module, description, reference_id, created_at',
+            'id, admin_id, module, action_type, description, reference_id, created_at',
           )
           .eq('admin_id', uid)
           // The feed shows the readable messages the app writes. The
@@ -160,6 +160,7 @@ class AdminActivityRepository {
           isPrimary: false,
           sourceModule: r['module'] as String,
           referenceId: r['reference_id'] as String?,
+          actionType: r['action_type'] as String?,
         );
       }).toList();
     } catch (e) {
@@ -167,4 +168,21 @@ class AdminActivityRepository {
       return [];
     }
   }
+}
+
+/// Records a Manager/Officer action in Recent Activity right after it succeeded.
+/// One line per call site; [key] is an AdminLogMessage key (see
+/// admin_log_message.dart). Never throws, like [AdminActivityRepository.log].
+void logStaffAction(
+  String module,
+  String actionType,
+  String key, {
+  String? referenceId,
+}) {
+  AdminActivityRepository().log(
+    module: module,
+    actionType: actionType,
+    message: AdminLogMessage(key),
+    referenceId: referenceId,
+  );
 }

@@ -1,7 +1,5 @@
-import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
@@ -11,8 +9,8 @@ import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_repository.dart';
 import '../../widgets/crop_category_chips.dart';
+import '../../widgets/harvest_details_sheet.dart';
 import '../../widgets/harvest_log_widgets.dart';
-import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -113,7 +111,7 @@ class _AdminFarmerHarvestHistoryScreenState
   double get _thisYearYieldKg {
     final year = DateTime.now().year;
     return _allHarvests
-        .where((h) => h.harvestDate.year == year)
+        .where((h) => h.harvestDate.year == year && isKg(h.unit))
         .fold(0.0, (sum, h) => sum + h.quantityKg);
   }
 
@@ -210,10 +208,10 @@ class _AdminFarmerHarvestHistoryScreenState
                               (h) => Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: GestureDetector(
-                                  onTap: () => _showAdminHarvestDetails(
+                                  onTap: () => showHarvestDetailsSheet(
                                     context,
-                                    h,
-                                    _cropsById[h.cropId],
+                                    harvest: h,
+                                    crop: _cropsById[h.cropId],
                                   ),
                                   child: HarvestLogEntry(
                                     harvest: h,
@@ -299,151 +297,6 @@ class _AdminHistoryStatsRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Harvest Details — read-only, same fields as the farmer-facing sheet
-// (minus "Submitted to Cooperative", removed everywhere — see
-// harvest_history_screen.dart's own note on why). No actions: this is
-// Admin viewing, not managing, a farmer's record.
-// ─────────────────────────────────────────────────────────────────────────────
-
-void _showAdminHarvestDetails(
-  BuildContext context,
-  HarvestModel harvest,
-  FarmerCropModel? crop,
-) {
-  showManagementModal<void>(
-    context: context,
-    builder: (_) => _AdminHarvestDetailsSheet(harvest: harvest, crop: crop),
-  );
-}
-
-class _AdminHarvestDetailsSheet extends StatelessWidget {
-  final HarvestModel harvest;
-  final FarmerCropModel? crop;
-  const _AdminHarvestDetailsSheet({required this.harvest, this.crop});
-
-  // Same fix as the farmer-facing sheet (harvest_history_screen.dart) —
-  // was omitted entirely when no crop photo existed instead of falling
-  // back to the default crop icon.
-  Widget _imagePlaceholder(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 140,
-      color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-      child: Icon(
-        Icons.eco_rounded,
-        color: Theme.of(context).colorScheme.primary,
-        size: 40,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ManagementModalShell(
-      title: harvest.cropName,
-      subtitle: harvest.variety != null && harvest.variety!.isNotEmpty
-          ? harvest.variety
-          : null,
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: crop?.hasDisplayImage == true
-                ? Image.network(
-                    crop!.displayImageUrl!,
-                    width: double.infinity,
-                    height: 140,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imagePlaceholder(context),
-                  )
-                : _imagePlaceholder(context),
-          ),
-          const SizedBox(height: 14),
-          _AdminDetailRow(
-            label: AppLocalizations.of(context).issueLoanQuantity,
-            value: formatQuantityUnit(harvest.quantityKg, harvest.unit),
-          ),
-          _AdminDetailRow(
-            label: AppLocalizations.of(context).buyerListingCategory,
-            value: localizeBuiltinLabel(
-              AppLocalizations.of(context),
-              harvest.cropCategory,
-            ),
-          ),
-          _AdminDetailRow(
-            label: AppLocalizations.of(context).enhBatchNumber,
-            value: harvest.displayBatch,
-          ),
-          _AdminDetailRow(
-            label: AppLocalizations.of(context).enhStorageLocation,
-            value: harvest.storageLocation ?? '—',
-          ),
-          _AdminDetailRow(
-            label: AppLocalizations.of(context).enhHarvestDate,
-            value: DateFormat(
-              'MMM d, yyyy · h:mm a',
-            ).format(harvest.harvestDate),
-          ),
-          _AdminDetailRow(
-            label: AppLocalizations.of(context).enhSyncStatus,
-            value: harvest.isSynced
-                ? AppLocalizations.of(context).reportsSynced
-                : AppLocalizations.of(context).reportsPendingSync,
-            isLast: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminDetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isLast;
-  const _AdminDetailRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

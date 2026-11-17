@@ -8,8 +8,10 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/client_id.dart';
 import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/loan_capital_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
+import '../../../data/models/loan_capital_standing.dart';
 import '../../../data/models/loan_request_model.dart';
 import '../../../data/repositories/loan_repository.dart';
 import '../../../data/services/server_only.dart';
@@ -19,6 +21,7 @@ import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/top_bar_spacer.dart';
+import '../../../data/services/feature_restriction_service.dart';
 
 /// Request a Loan — the Farmer picks inputs from the cooperative's loan item
 /// catalog and sends a request. The catalog, its prices and the stock shown come
@@ -41,6 +44,11 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
   final _searchCtrl = TextEditingController();
 
   List<LoanableItem> _items = [];
+
+  /// The Farmer's Capital Share and the most one loan item may be worth (the
+  /// Capital Share loan rule). Null when it could not be read: no limit is shown
+  /// and the database still decides.
+  LoanCapitalStanding? _capital;
   bool _loading = true;
   bool _offline = false;
   bool _failed = false;
@@ -81,19 +89,22 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
     });
     try {
       final items = await _repo.fetchLoanableItems();
+      final capital = await _repo.fetchMyCapitalStanding();
       if (!mounted) return;
       setState(() {
         _items = items;
-        // Drop anything that is no longer in stock or no longer offered, and cap
-        // the rest at the stock now on hand.
+        _capital = capital;
+        // Drop anything that is no longer in stock, no longer offered or no longer
+        // within the Capital Share, and cap the rest at the most that is allowed
+        // now (stock on hand, and the Capital Share).
         final byId = {for (final i in items) i.inventoryItemId: i};
         _quantities.removeWhere((id, qty) {
           final item = byId[id];
-          return item == null || !item.inStock;
+          return item == null || !item.inStock || _maxQuantityFor(item) <= 0;
         });
         for (final id in _quantities.keys.toList()) {
-          final stock = byId[id]!.quantityOnHand;
-          if (_quantities[id]! > stock) _quantities[id] = stock;
+          final most = _maxQuantityFor(byId[id]!);
+          if (_quantities[id]! > most) _quantities[id] = most;
         }
         _loading = false;
       });
@@ -135,6 +146,21 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
     return null;
   }
 
+  /// The most of [item] that can be requested: the stock on hand, and no more
+  /// than fits within the Capital Share (a loan item cannot be worth more than
+  /// it). The stock alone when the Capital Share is not known.
+  double _maxQuantityFor(LoanableItem item) {
+    final capital = _capital;
+    if (capital == null) return item.quantityOnHand;
+    // An overdue loan that is not paid in full allows no request at all.
+    if (capital.hasOverdue) return 0;
+    final fits = maxQuantityWithinCapital(
+      capitalShare: capital.maxItemValue,
+      unitPrice: item.unitPrice,
+    );
+    return fits < item.quantityOnHand ? fits : item.quantityOnHand;
+  }
+
   double get _total => _quantities.entries.fold<double>(0, (sum, e) {
     final item = _item(e.key);
     return item == null ? sum : sum + moneyOf(e.value, item.unitPrice);
@@ -145,6 +171,7 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
       context: context,
       builder: (_) => _QuantitySheet(
         item: item,
+        capital: _capital,
         initial: _quantities[item.inventoryItemId],
       ),
     );
@@ -165,6 +192,7 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
         repo: _repo,
         submitKey: _submitKey,
         items: _items,
+        capital: _capital,
         quantities: Map.of(_quantities),
         onQuantitiesChanged: (updated) {
           if (!mounted) return;
@@ -204,7 +232,7 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
               const TopBarSpacer(height: 64),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -212,7 +240,7 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                       20,
                       16,
                       20,
-                      _quantities.isEmpty ? 32 : 110,
+                      _quantities.isEmpty ? 32 : 120,
                     ),
                     children: [
                       if (_loading)
@@ -240,6 +268,10 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                           body: l10n.loanReqNoItemsBody,
                         )
                       else ...[
+                        if (_capital != null) ...[
+                          _CapitalBanner(capital: _capital!),
+                          const SizedBox(height: 12),
+                        ],
                         TextField(
                           controller: _searchCtrl,
                           style: GoogleFonts.inter(fontSize: 14),
@@ -298,7 +330,12 @@ class _RequestLoanScreenState extends State<RequestLoanScreen> {
                               child: _LoanableItemCard(
                                 item: item,
                                 quantity: _quantities[item.inventoryItemId],
-                                onTap: item.inStock
+                                overdueLocked: _capital?.hasOverdue ?? false,
+                                aboveCapital:
+                                    item.inStock &&
+                                    !(_capital?.hasOverdue ?? false) &&
+                                    _maxQuantityFor(item) <= 0,
+                                onTap: item.inStock && _maxQuantityFor(item) > 0
                                     ? () => _editQuantity(item)
                                     : null,
                               ),
@@ -379,8 +416,8 @@ class _Notice extends StatelessWidget {
           Container(
             width: 72,
             height: 72,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDBF1FE),
+            decoration: BoxDecoration(
+              color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -480,17 +517,122 @@ class _CategoryChips extends StatelessWidget {
   }
 }
 
+/// The Farmer's Capital Share and what it allows: each loan item can be worth up
+/// to it. Red when it is zero, since nothing can be requested then.
+class _CapitalBanner extends StatelessWidget {
+  final LoanCapitalStanding capital;
+  const _CapitalBanner({required this.capital});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final money = NumberFormat('#,##0.00');
+    final zero = capital.isZero;
+    final blocked = capital.isBlocked;
+    final color = blocked
+        ? AppConstants.errorRed
+        : Theme.of(context).colorScheme.primary;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            blocked
+                ? Icons.block_rounded
+                : Icons.account_balance_wallet_outlined,
+            color: color,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Not eligible: say so, and what has to happen first. The items
+                // below are switched off, and the database refuses a request.
+                Text(
+                  blocked
+                      ? l10n.loanBlockedTitle
+                      : l10n.loanCapTitle(
+                          '₱${money.format(capital.capitalShare)}',
+                        ),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: blocked ? AppConstants.errorRed : cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (!blocked)
+                  Text(
+                    l10n.loanCapBody('₱${money.format(capital.maxItemValue)}'),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                if (zero)
+                  Text(
+                    l10n.loanBlockedZeroCapital,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
+                if (capital.hasOverdue)
+                  Padding(
+                    padding: EdgeInsets.only(top: zero ? 4 : 0),
+                    child: Text(
+                      l10n.loanBlockedOverdue(
+                        '₱${money.format(capital.overdueBalance)}',
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: AppConstants.errorRed,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One catalog item: photo, name, price, the stock on hand, and the quantity
-/// chosen so far. An item with no stock is greyed out and cannot be chosen.
+/// chosen so far. Three clear states: available (Add), in the request (green
+/// border, quantity, line total and Edit), and out of stock (greyed, no action).
 class _LoanableItemCard extends StatelessWidget {
   final LoanableItem item;
   final double? quantity;
   final VoidCallback? onTap;
 
+  /// In stock, but not even the smallest quantity fits within the Capital Share.
+  final bool aboveCapital;
+
+  /// The Farmer has an overdue loan that is not paid in full: nothing can be
+  /// requested.
+  final bool overdueLocked;
+
   const _LoanableItemCard({
     required this.item,
     required this.quantity,
     required this.onTap,
+    this.aboveCapital = false,
+    this.overdueLocked = false,
   });
 
   @override
@@ -498,26 +640,33 @@ class _LoanableItemCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final selected = quantity != null && quantity! > 0;
-    final enabled = item.inStock;
+    final enabled = item.inStock && !aboveCapital && !overdueLocked;
     final stockColor = enabled
         ? AppConstants.successGreen
         : AppConstants.errorRed;
+    final radius = BorderRadius.circular(AppConstants.radiusLg);
 
     return Opacity(
       opacity: enabled ? 1 : 0.6,
       child: Material(
-        color: context.saganaColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        color: selected
+            ? Color.alphaBlend(
+                AppConstants.primaryGreen.withValues(alpha: 0.05),
+                context.saganaColors.cardBackground,
+              )
+            : context.saganaColors.cardBackground,
+        borderRadius: radius,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          borderRadius: radius,
           onTap: onTap,
           child: Container(
+            constraints: const BoxConstraints(minHeight: 92),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              borderRadius: radius,
               border: Border.all(
                 color: selected
-                    ? AppConstants.primaryGreen.withValues(alpha: 0.55)
+                    ? AppConstants.primaryGreen.withValues(alpha: 0.6)
                     : cs.outline.withValues(alpha: 0.12),
                 width: selected ? 1.5 : 1,
               ),
@@ -525,20 +674,49 @@ class _LoanableItemCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  child: SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                        ? Image.network(
-                            item.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const _ItemPlaceholder(),
-                          )
-                        : const _ItemPlaceholder(),
-                  ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
+                      child: SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                            ? Image.network(
+                                item.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    const _ItemPlaceholder(),
+                              )
+                            : const _ItemPlaceholder(),
+                      ),
+                    ),
+                    if (selected)
+                      Positioned(
+                        top: -6,
+                        left: -6,
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: AppConstants.primaryGreen,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: context.saganaColors.cardBackground,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            size: 13,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -563,7 +741,7 @@ class _LoanableItemCard extends StatelessWidget {
                           color: cs.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       Row(
                         children: [
                           Icon(
@@ -583,6 +761,10 @@ class _LoanableItemCard extends StatelessWidget {
                                         item.unit,
                                       ),
                                     )
+                                  : overdueLocked
+                                  ? l10n.loanBlockedItem
+                                  : aboveCapital
+                                  ? l10n.loanCapAbove
                                   : l10n.loanReqOutOfStock,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -595,59 +777,73 @@ class _LoanableItemCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (selected) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${formatQuantityUnit(quantity!, item.unit)} · ₱${NumberFormat('#,##0.00').format(moneyOf(quantity!, item.unitPrice))}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                if (!enabled)
-                  const SizedBox.shrink()
-                else if (selected)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        formatQuantityUnit(quantity!, item.unit),
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      Text(
-                        l10n.loanReqEdit,
-                        style: GoogleFonts.inter(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      l10n.loanReqAdd,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
+                if (enabled) _ActionPill(selected: selected),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The trailing Add / Edit pill of an item card. Same size in both states so
+/// every card keeps the same layout.
+class _ActionPill extends StatelessWidget {
+  final bool selected;
+  const _ActionPill({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: selected
+            ? Colors.transparent
+            : AppConstants.primaryGreen.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+        border: Border.all(
+          color: AppConstants.primaryGreen.withValues(alpha: selected ? 0.6 : 0),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            selected ? Icons.edit_outlined : Icons.add_rounded,
+            size: 16,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            selected ? l10n.loanReqEdit : l10n.loanReqAdd,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -662,7 +858,7 @@ class _ItemPlaceholder extends StatelessWidget {
     child: Icon(
       Icons.grass_rounded,
       color: Theme.of(context).colorScheme.primary,
-      size: 26,
+      size: 28,
     ),
   );
 }
@@ -685,25 +881,66 @@ class _SummaryBar extends StatelessWidget {
     return Container(
       padding: EdgeInsets.fromLTRB(
         20,
-        12,
+        14,
         20,
-        12 + MediaQuery.of(context).padding.bottom,
+        14 + MediaQuery.of(context).padding.bottom,
       ),
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         border: Border(
           top: BorderSide(color: cs.outline.withValues(alpha: 0.12)),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 18,
             offset: const Offset(0, -4),
           ),
         ],
       ),
       child: Row(
         children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                Icon(Icons.shopping_basket_outlined, color: cs.primary),
+                Positioned(
+                  top: -5,
+                  right: -5,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppConstants.primaryGreen,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,12 +953,16 @@ class _SummaryBar extends StatelessWidget {
                     color: cs.onSurfaceVariant,
                   ),
                 ),
-                Text(
-                  '₱${NumberFormat('#,##0.00').format(total)}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '₱${NumberFormat('#,##0.00').format(total)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ),
               ],
@@ -731,7 +972,7 @@ class _SummaryBar extends StatelessWidget {
           ElevatedButton(
             onPressed: onReview,
             style: ElevatedButton.styleFrom(
-              minimumSize: const Size(0, 46),
+              minimumSize: const Size(0, 48),
               padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
             child: Text(l10n.loanReqReview),
@@ -746,8 +987,13 @@ class _SummaryBar extends StatelessWidget {
 
 class _QuantitySheet extends StatefulWidget {
   final LoanableItem item;
+  final LoanCapitalStanding? capital;
   final double? initial;
-  const _QuantitySheet({required this.item, required this.initial});
+  const _QuantitySheet({
+    required this.item,
+    required this.capital,
+    required this.initial,
+  });
 
   @override
   State<_QuantitySheet> createState() => _QuantitySheetState();
@@ -767,6 +1013,33 @@ class _QuantitySheetState extends State<_QuantitySheet> {
 
   double? get _value => double.tryParse(_ctrl.text.trim());
 
+  /// The most that can be requested of this item: the stock on hand, and no more
+  /// than fits within the Capital Share (a loan item cannot be worth more).
+  double get _maxQty {
+    final stock = widget.item.quantityOnHand;
+    final capital = widget.capital;
+    if (capital == null) return stock;
+    final fits = maxQuantityWithinCapital(
+      capitalShare: capital.maxItemValue,
+      unitPrice: widget.item.unitPrice,
+    );
+    return fits < stock ? fits : stock;
+  }
+
+  /// Sets the field to [v] (clamped to 0..the most allowed) and moves the cursor
+  /// to the end.
+  void _set(double v) {
+    final c = v.clamp(0.0, _maxQty).toDouble();
+    final text = c <= 0 ? '' : formatQuantity(roundQuantity(c));
+    setState(() {
+      _error = null;
+      _ctrl.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+  }
+
   void _save() {
     final l10n = AppLocalizations.of(context);
     final v = _value;
@@ -782,7 +1055,37 @@ class _QuantitySheetState extends State<_QuantitySheet> {
       );
       return;
     }
+    final capital = widget.capital;
+    if (capital != null && v > _maxQty + 1e-9) {
+      final money = NumberFormat('#,##0.00');
+      setState(
+        () => _error = l10n.loanCapQtyTooMuch(
+          '₱${money.format(moneyOf(v, widget.item.unitPrice))}',
+          '₱${money.format(capital.maxItemValue)}',
+          formatQuantityUnit(_maxQty, widget.item.unit),
+        ),
+      );
+      return;
+    }
     Navigator.pop(context, roundQuantity(v));
+  }
+
+  Widget _stepButton(IconData icon, VoidCallback? onTap) {
+    return SizedBox(
+      width: 48,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(48, 52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          ),
+        ),
+        child: Icon(icon, size: 22),
+      ),
+    );
   }
 
   @override
@@ -792,6 +1095,7 @@ class _QuantitySheetState extends State<_QuantitySheet> {
     final item = widget.item;
     final value = _value ?? 0;
     final lineTotal = moneyOf(value, item.unitPrice);
+    final atMax = value >= _maxQty - 1e-9;
 
     return ManagementModalShell(
       title: item.itemName,
@@ -808,52 +1112,147 @@ class _QuantitySheetState extends State<_QuantitySheet> {
                 color: AppConstants.successGreen,
               ),
               const SizedBox(width: 6),
-              Text(
-                l10n.loanReqQtyAvailable(
-                  formatQuantityUnit(item.quantityOnHand, item.unit),
+              Expanded(
+                child: Text(
+                  l10n.loanReqQtyAvailable(
+                    formatQuantityUnit(item.quantityOnHand, item.unit),
+                  ),
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.successGreen,
+                  ),
                 ),
-                style: GoogleFonts.inter(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.successGreen,
+              ),
+              TextButton(
+                onPressed: atMax ? null : () => _set(_maxQty),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(0, 30),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  visualDensity: VisualDensity.compact,
                 ),
+                child: Text(l10n.loanReqMax),
+              ),
+            ],
+          ),
+          if (widget.capital != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 16,
+                  color: _maxQty < item.quantityOnHand
+                      ? AppConstants.warningAmber
+                      : cs.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    l10n.loanCapQtyNote(
+                      formatQuantityUnit(_maxQty, item.unit),
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _stepButton(
+                Icons.remove_rounded,
+                value > 0 ? () => _set(value - 1) : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  autofocus: true,
+                  textAlign: TextAlign.center,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    DecimalInputFormatter(max: item.quantityOnHand),
+                  ],
+                  onChanged: (_) => setState(() => _error = null),
+                  onSubmitted: (_) => _save(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: l10n.loanReqQtyLabel(item.unit),
+                    hintText: '0',
+                    errorText: _error,
+                    errorMaxLines: 2,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _stepButton(
+                Icons.add_rounded,
+                atMax ? null : () => _set(value + 1),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          TextField(
-            controller: _ctrl,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [DecimalInputFormatter(max: item.quantityOnHand)],
-            onChanged: (_) => setState(() => _error = null),
-            onSubmitted: (_) => _save(),
-            style: GoogleFonts.inter(fontSize: 15),
-            decoration: InputDecoration(
-              labelText: l10n.loanReqQtyLabel(item.unit),
-              errorText: _error,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.loanReqLineTotal(NumberFormat('#,##0.00').format(lineTotal)),
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.loanReqTotal,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Text(
+                  '₱${NumberFormat('#,##0.00').format(lineTotal)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: cs.primary,
+                  ),
+                ),
+              ],
             ),
           ),
           if (widget.initial != null) ...[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context, 0.0),
-              icon: const Icon(Icons.delete_outline_rounded, size: 18),
-              label: Text(l10n.loanReqRemove),
-              style: TextButton.styleFrom(
-                foregroundColor: AppConstants.errorRed,
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => Navigator.pop(context, 0.0),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: Text(l10n.loanReqRemove),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppConstants.errorRed,
+                ),
               ),
             ),
           ],
@@ -869,6 +1268,7 @@ class _QuantitySheetState extends State<_QuantitySheet> {
 class _ReviewSheet extends StatefulWidget {
   final LoanRepository repo;
   final String submitKey;
+  final LoanCapitalStanding? capital;
   final List<LoanableItem> items;
   final Map<String, double> quantities;
   final ValueChanged<Map<String, double>> onQuantitiesChanged;
@@ -877,6 +1277,7 @@ class _ReviewSheet extends StatefulWidget {
   const _ReviewSheet({
     required this.repo,
     required this.submitKey,
+    required this.capital,
     required this.items,
     required this.quantities,
     required this.onQuantitiesChanged,
@@ -917,6 +1318,32 @@ class _ReviewSheetState extends State<_ReviewSheet> {
       Navigator.pop(context);
       return;
     }
+    // A line worth more than the Capital Share is not sent: say which one. The
+    // database checks it again with the Capital Share at the moment of sending.
+    final capital = widget.capital;
+    if (capital != null) {
+      for (final e in _qty.entries) {
+        final item = _item(e.key);
+        if (item != null &&
+            !lineWithinCapital(moneyOf(e.value, item.unitPrice), capital.maxItemValue)) {
+          final money = NumberFormat('#,##0.00');
+          setState(
+            () => _error = l10n.loanCapQtyTooMuch(
+              '₱${money.format(moneyOf(e.value, item.unitPrice))}',
+              '₱${money.format(capital.maxItemValue)}',
+              formatQuantityUnit(
+                maxQuantityWithinCapital(
+                  capitalShare: capital.maxItemValue,
+                  unitPrice: item.unitPrice,
+                ),
+                item.unit,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    }
     setState(() {
       _sending = true;
       _error = null;
@@ -935,9 +1362,14 @@ class _ReviewSheetState extends State<_ReviewSheet> {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _error =
-            readableDatabaseMessage(e) ??
-            (e is ServerOnlyException ? e.toString() : l10n.loanReqFailed);
+        final raw = e.toString();
+        _error = restrictionMessageOf(e) ??
+            (raw.contains('LOAN_REFERRAL_ALREADY_REQUESTED')
+            ? l10n.errLoanReferralAlreadyRequested
+            : raw.contains('LOAN_REFERRAL_INVALID')
+            ? l10n.errLoanReferralInvalid
+            : readableDatabaseMessage(e) ??
+            (e is ServerOnlyException ? e.toString() : l10n.loanReqFailed));
       });
       // The stock may have changed: show the catalog as it is now.
       unawaited(widget.onStockChanged());

@@ -109,6 +109,9 @@ Future<_StepOne?> _stepOne(
                 value: selected,
                 hintText: l10n.suspendFlowSelectReason,
                 labelText: l10n.suspendFlowReasonLabel,
+                // The whole reason is shown, over as many lines as it needs.
+                wrapText: true,
+                menuMaxHeight: 380,
                 items: [for (var i = 0; i <= otherIndex; i++) i],
                 itemLabel: (i) => i == otherIndex
                     ? l10n.suspendReasonOther
@@ -130,6 +133,8 @@ Future<_StepOne?> _stepOne(
                 value: length,
                 hintText: l10n.addMemberSelectHint,
                 labelText: l10n.suspendFlowDurationLabel,
+                // Tall enough for all seven options (up to "Until a chosen date").
+                menuMaxHeight: 380,
                 items: _Length.values,
                 itemLabel: (l) => lengthLabel(l, null),
                 onChanged: (v) => setSheet(() {

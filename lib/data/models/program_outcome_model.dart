@@ -96,6 +96,7 @@ class OutcomeReport {
   final String? verificationFinding; // 'confirms' | 'disputes'
   final String? verifiedBy;
   final String? verifiedByName;
+  final String? verifiedByRole;
   final DateTime? verifiedAt;
   final DateTime? fieldVisitDate;
   final double? verifiedQuantity;
@@ -145,6 +146,7 @@ class OutcomeReport {
     this.verificationFinding,
     this.verifiedBy,
     this.verifiedByName,
+    this.verifiedByRole,
     this.verifiedAt,
     this.fieldVisitDate,
     this.verifiedQuantity,
@@ -220,6 +222,7 @@ class OutcomeReport {
     verificationFinding: m['verification_finding'] as String?,
     verifiedBy: m['verified_by'] as String?,
     verifiedByName: m['verified_by_name'] as String?,
+    verifiedByRole: m['verified_by_role'] as String?,
     verifiedAt: _d(m['verified_at'])?.toLocal(),
     fieldVisitDate: _d(m['field_visit_date']),
     verifiedQuantity: _n(m['verified_quantity']),

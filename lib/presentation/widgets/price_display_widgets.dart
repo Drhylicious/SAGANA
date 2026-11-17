@@ -385,14 +385,14 @@ class PriceTrendPanel extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Flexible(child: Text(
                 AppUtils.formatDate(trend.first.recordedAt, l10n.localeName),
                 style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
-              ),
-              Text(
+              )),
+              Flexible(child: Text(
                 AppUtils.formatDate(trend.last.recordedAt, l10n.localeName),
                 style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
-              ),
+              )),
             ],
           ),
         ],

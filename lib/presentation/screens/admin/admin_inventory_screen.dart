@@ -283,6 +283,7 @@ class _CoopInventoryRepository {
         .from('cooperative_inventory')
         .update({'return_item_id': returnItemId})
         .eq('id', id);
+    logStaffAction('inventory', 'return_item_set', 'adminLogInventoryReturnItemSet', referenceId: id);
   }
 
   /// Undoes an archive. Throws when the database refuses (for example the same item is active already).
@@ -1142,6 +1143,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   }
 
   Future<void> _showLoanCatalogSheet(InventoryItem item) async {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final repo = InventoryRepository();
     final existing = await repo.fetchLoanCatalogLink(item.id);
@@ -1623,7 +1625,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
       children: [
         Icon(icon, size: 18, color: color),
         const SizedBox(width: 10),
-        Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+        Flexible(child: Text(label, style: GoogleFonts.inter(fontSize: 13, color: color))),
       ],
     );
   }
@@ -2341,7 +2343,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: _isOnline
           ? FloatingActionButton(
-              onPressed: _showAddSheet,
+              heroTag: null, onPressed: _showAddSheet,
               backgroundColor: AppConstants.primaryGreen,
               child: const Icon(Icons.add_rounded, color: Colors.white),
             )
@@ -2378,7 +2380,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     child: SkeletonList(),
                   )
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     // Single outer scrollable so the KPI cards and category
                     // chips scroll away with the list below them, instead

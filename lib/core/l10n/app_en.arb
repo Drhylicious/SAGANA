@@ -48,7 +48,6 @@
   "listingFilterNoCropsInCategory": "No crops in this category",
   "noOptionsYet": "No options yet",
   "genericAdd": "Add",
-  "aboutSaganaDeveloperRole": "SAGANA Development Team",
   "dateOfBirthLabel": "Date of Birth",
   "appSubtitle": "Streamlined Agricultural Gateway",
   "cooperativeName": "SP3 Agriculture Cooperative",
@@ -206,7 +205,6 @@
   "reportsTransactionDetails": "Transaction Details",
   "reportsSearchTransactions": "Search farmer, crop, or reference",
   "reportsNoSalesRecorded": "No cooperative sales recorded for this period.",
-  "reportsNoSearchResults": "No transactions match your search.",
   "reportsCoopStockReport": "Cooperative Stock Report",
   "reportsCoopStockByCategory": "Stock by Category",
   "reportsCoopStockItems": "Stock Items",
@@ -238,7 +236,7 @@
   "reportsCollectionTrend": "Collection Trend",
   "reportsNoSearchResultsOrLoans": "No loans match these filters.",
   "reportsLoanReport": "Loan Report",
-  "reportsMemberContributionReport": "Member Patronage Report",
+  "reportsMemberContributionReport": "Member Contribution Report",
   "reportsTotalCoopSalesLabel": "Total Cooperative Sales ({year})",
   "@reportsTotalCoopSalesLabel": {
     "placeholders": {
@@ -275,7 +273,6 @@
     }
   },
   "reportsYearSettingsFootnote": "Entered by the Manager in Balik-Tangkilik Management.",
-  "reportsContributingMembers": "Contributing Members",
   "reportsParticipationRate": "Participation Rate",
   "reportsMemberBreakdown": "Member Breakdown",
   "reportsSearchMembers": "Search member name or ID",
@@ -283,151 +280,10 @@
   "reportsPeanut": "Peanut",
   "reportsNoContributionYet": "No sales recorded to the cooperative this year.",
   "reportsAnalyticsDashboard": "Analytics Dashboard",
-  "reportsBalikTangkilikManagement": "Balik-Tangkilik Management",
-  "balikTangkilikSettingsTab": "Settings",
   "balikTangkilikDistributionTab": "Distribution",
-  "balikTangkilikHistoryTab": "History",
-  "balikTangkilikHistoryTitle": "Distribution History",
-  "balikTangkilikNoHistoryYet": "No distributions have been recorded yet.",
-  "balikTangkilikYearLogTitle": "{year} Distribution",
-  "@balikTangkilikYearLogTitle": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikYearLogSubtitle": "{count} members paid",
-  "@balikTangkilikYearLogSubtitle": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikTotalCoopSales": "Total Cooperative Sales",
-  "balikTangkilikPoolAmount": "Distributable Pool Amount",
-  "balikTangkilikInterestRate": "Interest Rate (%)",
-  "balikTangkilikLiveTotalHint": "Live total from recorded sales: {amount}",
-  "@balikTangkilikLiveTotalHint": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "balikTangkilikReconciliationHint": "The entered amount ({entered}) differs from the live total ({liveTotal}). Please reconcile before saving.",
-  "@balikTangkilikReconciliationHint": {
-    "placeholders": {
-      "entered": {
-        "type": "String"
-      },
-      "liveTotal": {
-        "type": "String"
-      }
-    }
-  },
-  "balikTangkilikUseThisValue": "Use this live total",
-  "balikTangkilikPoolHint": "Enter the amount available for distribution to members.",
-  "balikTangkilikSalesSectionTitle": "Cooperative Sales Patronage",
-  "balikTangkilikSalesSectionHint": "The pool for farmers who sold harvested crops to the cooperative through Offer to Cooperative — never combined with the Product Sales Program pool below.",
-  "balikTangkilikProgramSectionTitle": "Product Sales Program Patronage",
-  "balikTangkilikProgramSectionHint": "A separate pool for farmers who purchased products through a Product Sales Program — never combined with the Cooperative Sales pool above.",
-  "balikTangkilikTotalProgramSales": "Total Program Sales",
-  "balikTangkilikProgramPoolAmount": "Distributable Program Pool Amount",
-  "balikTangkilikProgramPoolHint": "Enter the amount available for distribution to members from Product Sales Program purchases.",
-  "balikTangkilikLiveProgramTotalHint": "Live total from confirmed program purchases: {amount}",
-  "@balikTangkilikLiveProgramTotalHint": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "balikTangkilikInterestHint": "Enter the annual interest rate for the pool.",
-  "balikTangkilikAfsFinalized": "AFS Finalized",
-  "balikTangkilikAfsFinalizedHint": "Mark this as finalized after the annual financial statement is approved.",
-  "balikTangkilikSaveSettings": "Save Settings",
-  "balikTangkilikInvalidValues": "Please enter valid non-negative values for all fields.",
-  "balikTangkilikZeroPoolWarningTitle": "Zero pool amount?",
-  "balikTangkilikZeroPoolWarningMessage": "Saving a zero distributable pool while the AFS is finalized may block future distribution. Continue anyway?",
-  "balikTangkilikContinueAnyway": "Continue Anyway",
-  "balikTangkilikSettingsSaved": "Settings saved for {year}.",
-  "@balikTangkilikSettingsSaved": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikSaveError": "Could not save the Balik-Tangkilik settings. Please try again.",
-  "balikTangkilikMemberBreakdown": "Member Breakdown",
-  "balikTangkilikRefreshEstimates": "Refresh Estimates",
-  "balikTangkilikEstimatesRefreshed": "Estimates refreshed.",
-  "balikTangkilikRefreshError": "Could not refresh estimates. Please try again.",
-  "balikTangkilikAfsNotFinalizedWarning": "AFS is not finalized for this year. Go to the Settings tab to finalize it before distribution can be recorded.",
-  "balikTangkilikAlreadyDistributedBanner": "Balik-Tangkilik for {year} has already been distributed.",
-  "@balikTangkilikAlreadyDistributedBanner": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikTotalEstimated": "Total Estimated Payout ({year})",
-  "@balikTangkilikTotalEstimated": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikTotalDistributed": "Total Distributed ({year})",
-  "@balikTangkilikTotalDistributed": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikRecordDistribution": "Record Distribution",
-  "balikTangkilikAlreadyDistributed": "Already Distributed for {year}",
-  "@balikTangkilikAlreadyDistributed": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      }
-    }
-  },
-  "balikTangkilikConfirmTitle": "Confirm Distribution",
-  "balikTangkilikConfirmMessage": "You are about to finalize Balik-Tangkilik for {year} for {count} contributing members, totaling {amount}.",
-  "@balikTangkilikConfirmMessage": {
-    "placeholders": {
-      "year": {
-        "type": "int"
-      },
-      "count": {
-        "type": "int"
-      },
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "balikTangkilikIrreversibleWarning": "This action is permanent and cannot be undone.",
-  "balikTangkilikConfirmDistribute": "Distribute Now",
-  "balikTangkilikDistributionSuccess": "Distribution recorded. Total paid out: {amount}.",
-  "@balikTangkilikDistributionSuccess": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "balikTangkilikDistributionError": "Could not record distribution. Please try again.",
   "exportSelectReports": "Select Reports",
   "exportPeriod": "Period",
-  "exportYearForContributionReport": "Member Patronage Report uses a specific year, not a period:",
+  "exportYearForContributionReport": "Member Contribution Report uses a specific year, not a period:",
   "exportSelectAtLeastOne": "Select at least one report to export.",
   "exportGenerateButton": "Generate Export",
   "exportGenerateDownloadButton": "Generate & Download",
@@ -584,6 +440,14 @@
   "loanHistoryNeedsAttention": "Needs Attention",
   "loanHistoryNoActivity": "No Activity",
   "loanHistoryFilterAll": "All",
+  "assistRecordItems": "Items",
+  "assistRecordApproved": "Approved",
+  "assistRecordRepayment": "Repayment",
+  "assistRecordNone": "None",
+  "assistRecordApprovedOn": "Approved {date}",
+  "@assistRecordApprovedOn": {"placeholders": {"date": {"type": "String"}}},
+  "loanHistoryFilterAssistance": "Assistance",
+  "loanHistoryNoAssistance": "No approved assistance yet.",
   "loanHistoryFilterPaid": "Paid",
   "loanHistoryThisMonth": "This Month",
   "loanHistoryThisQuarter": "This Quarter",
@@ -1082,6 +946,42 @@
   "suspendNoticeSignedOut": "Your account was suspended while you were signed in, so you have been signed out.",
   "suspendNoticeContact": "Please contact the SP3 Cooperative for assistance.",
   "suspendNoticeOk": "OK",
+  "appUpdateTitle": "Update available",
+  "appUpdateRequiredTitle": "Update required",
+  "appUpdateBody": "SAGANA {newVersion} is ready. You are using {currentVersion}.",
+  "@appUpdateBody": {
+    "placeholders": {
+      "newVersion": {
+        "type": "String"
+      },
+      "currentVersion": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateRequiredBody": "This version of SAGANA is no longer supported. Install SAGANA {newVersion} to keep using the app.",
+  "@appUpdateRequiredBody": {
+    "placeholders": {
+      "newVersion": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateNotesTitle": "What's new",
+  "appUpdateNow": "Update now",
+  "appUpdateLater": "Later",
+  "appUpdateOpenFailed": "Couldn't open the download page. Check your connection and try again.",
+  "aboutVersion": "Version {version} (build {build})",
+  "@aboutVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
   "@buyerOrdersCancelledOn": {
     "placeholders": {
       "date": {
@@ -1271,18 +1171,12 @@
   "personalInformation": "Personal Information",
   "updatePasswordSubtitle": "Update your account password",
   "aboutSagana": "About SAGANA",
-  "aboutSaganaBody": "SAGANA helps buyers connect with trusted SP3 farmers and manage purchases in one place.",
-  "adminAboutSaganaBody": "SAGANA helps cooperative Managers manage members, marketplace listings, loans, inventory, and reports in one place.",
-  "farmerAboutSaganaBody": "SAGANA helps you record harvests, list produce, track loans and expenses, and manage your cooperative contributions in one place.",
-  "aboutSaganaFullDescription": "SAGANA (Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics) was built as a capstone project for the SP3 Agriculture Cooperative in Barangay Payanas, Torrijos, Marinduque. It replaces what was previously tracked by hand in a paper logbook, bringing cooperative membership, harvests, marketplace listings, loans, prices, and reports into one system — built to keep working offline, since the barangay has no reliable mobile signal, and to sync automatically once a connection is available.",
-  "aboutSaganaBuiltBy": "Built By",
-  "aboutSaganaDeveloperLabel": "Developer",
+  "aboutSaganaBody": "SAGANA lets you browse the Public Market, compare prices, order for pickup or delivery, and follow each order in one place.",
+  "adminAboutSaganaBody": "SAGANA helps cooperative Managers and Officers handle members, the marketplace, loans, inventory, programs, and reports in one place.",
+  "farmerAboutSaganaBody": "SAGANA helps you keep your crop and harvest records, sell through the marketplace or to the cooperative, request loans, join programs, and follow your own records in one place.",
   "aboutCooperative": "About the Cooperative",
-  "aboutCooperativeBody": "SP3 Agriculture Cooperative (Samahan ng Pagkakaisa sa Pag-unlad ng Payanas) serves farmer-members in Barangay Payanas, Torrijos, Marinduque. It was officially registered with the Cooperative Development Authority (CDA) on February 1, 2017 (Registration No. 9520-1040000000036899), and is classified as a Micro cooperative.\n\nMembers share in the cooperative's income through two mechanisms recognized in its by-laws: Balik-Tangkilik (a patronage refund based on how much of their produce a member sells to the cooperative) and Interest on Share Capital (based on each member's accumulated capital-share contributions). The cooperative's main lines of business include Copra Buy and Sell, Peanut Cookies Production, and Rice and Feeds Retailing, and its members primarily grow peanut, ginger, banana, and palay (rice).\n\nTo become a member, a resident of Barangay Payanas must be at least 18 years old and contribute a minimum of ₱100 a month toward capital build-up, along with an annual capital share of ₱2,000.\n\nEmail Address\n(placeholder — to be provided)\n\nContact Number\n(placeholder — to be provided)",
   "privacyPolicy": "Privacy Policy",
-  "privacyPolicyBody": "This Privacy Policy explains what personal information SAGANA collects, why, and how it is used, based on how the system is actually built today.\n\nWhat we collect: your full name, phone number, and profile photo, common to all accounts. Farmer accounts also collect date of birth, gender, farm details, and crop information. Buyer accounts may additionally collect date of birth, gender, and a real contact email. Manager and Officer accounts collect position and department information.\n\nHow you sign in: Farmer, Officer, and Manager accounts sign in with a cooperative-assigned username rather than a public email address — SAGANA uses this internally to create your account, but it is never shown to other users. Buyer accounts may register with a real email address.\n\nWhy we collect it: to operate your cooperative membership (including capital-share and Balik-Tangkilik records), to issue and track agricultural loans, to run the marketplace (listings, orders, and Ginger market-linking with DA-AMAD), and to contact you about cooperative matters such as BOD meetings and loan reminders.\n\nHow it's stored and protected: your information is stored in a managed Supabase database with row-level security rules that restrict each account to its own records. Manager and Officer accounts have broader access strictly for the cooperative operations described above — for example, to review a loan application or approve a marketplace listing — not for unrelated purposes.\n\nWho can see your information: other Farmers and Buyers do not see your personal contact details directly; they only see what's needed for a specific transaction, such as a marketplace listing's crop and price. Manager and Officer accounts can see Farmer and Buyer information needed for cooperative operations, including your farm location and crops, which are used for the Supply Chain map.\n\nUpdating your information: you can update your own name, phone number, photo, gender, and date of birth (where applicable) at any time from Edit Profile. Your username and login email cannot be changed after registration.\n\nAccount suspension: an Manager may suspend an account for cause, with a reason recorded. Suspension blocks login but does not automatically delete your records — SAGANA does not currently have a self-service account or data deletion feature; if you need your data removed, please contact the cooperative directly using the information in About the Cooperative.\n\nSecurity: passwords are managed through Supabase's authentication service and are never visible to cooperative staff. An Manager can issue you a one-time temporary password if you lose access to your account.\n\nQuestions: for privacy concerns, please reach out to the cooperative using the contact information in About the Cooperative.",
   "termsOfUse": "Terms of Use",
-  "termsOfUseBody": "By using SAGANA, you agree to the following terms, based on how the system actually works today.\n\nAccounts and roles: SAGANA has four roles — Manager, Officer, Farmer, and Buyer. Manager and Officer accounts are created by the cooperative; Officers can use every Manager feature except managing cooperative membership. Farmer accounts may be created by the Manager or through self-registration followed by Manager review and approval. Buyer accounts may self-register.\n\nAccurate information: you agree to provide accurate, truthful information — including harvest records, crop listings, and personal details — and to keep it up to date through Edit Profile.\n\nMarketplace: Farmer listings require Manager or Officer approval before they appear to Buyers. Ginger harvests may also be sold through DA-AMAD Market Linking or offered directly to the cooperative (Offer to Cooperative) as alternatives to a public listing. Buyers and Farmers are both responsible for honoring the terms of any order they place or accept.\n\nLoans: loans issued through SAGANA are agricultural input loans (such as fertilizer, feeds, or seeds), not cash, and are only available to members meeting the cooperative's capital-share eligibility requirement. Repayment schedules follow the terms shown at the time the loan is issued.\n\nBalik-Tangkilik and capital share: any Balik-Tangkilik or Interest on Share Capital figures shown in SAGANA are estimates based on recorded activity during the year; actual distributions are determined and approved at the cooperative's Annual General Assembly, not by the app.\n\nAccount security: you are responsible for keeping your login credentials confidential and must not share your account with another person. If you suspect unauthorized access, contact the cooperative immediately.\n\nSuspension: the Manager may suspend an account for cause — such as fraudulent information, misuse of the marketplace, or violation of these terms — with a reason recorded. A suspended account cannot log in until reactivated.\n\nOffline use: some features work offline and sync automatically once a connection is available. Actions recorded offline (such as a harvest entry) may not be visible to others until that sync completes.\n\nSystem availability: SAGANA is a cooperative-internal system built as a capstone project, not a commercial platform, and availability is not guaranteed at all times.\n\nChanges to these terms: these terms may be updated as SAGANA's features change. Continued use of SAGANA after an update constitutes acceptance of the revised terms.",
   "logOut": "Log Out",
   "buyerListingAddedToCart": "Added to cart — {name}",
   "buyerListingViewCart": "View Cart",
@@ -1980,7 +1874,6 @@
     }
   },
   "farmerDetailsNoRecords": "No records",
-  "farmerDetailsCompletedShares": "Completed Shares",
   "farmerDetailsCapitalContribution": "Capital Contribution",
   "farmerDetailsMeetsMinimum": "Meets the ₱{amount} minimum for a loan.",
   "@farmerDetailsMeetsMinimum": {
@@ -2006,8 +1899,8 @@
   "farmerDetailsSourcePatronage": "Payout to capital",
   "farmerDetailsSourceAdjustment": "Correction",
   "farmerDetailsSourceOpeningBalance": "Starting Capital",
-  "farmerDetailsEstBalikTangkilik": "Est. Total Patronage",
-  "farmerDetailsViewFullContribution": "View Full Contribution",
+  "farmerDetailsViewPatronageReport": "View Member Contribution Report",
+  "patViewFarmerProfile": "View Farmer Profile",
   "farmerDetailsNoExpenseHistory": "No expense history yet.",
   "farmerDetailsNoAssignedPrograms": "No assigned programs yet.",
   "farmerDetailsProgramFallback": "Program",
@@ -2017,7 +1910,6 @@
   "farmerDetailsMemberActionsTitle": "Member Actions",
   "farmerDetailsRejectedNoToggleNote": "Disapproved — only the applicant can resubmit; nothing to activate or suspend here.",
   "farmerDetailsSourcePaymentFull": "Capital Share Payment",
-  "farmerDetailsSourcePatronageFull": "Payout to Capital",
   "farmerDetailsSourceAdjustmentFull": "Correction (+ or −)",
   "farmerDetailsEnterNonZero": "Enter a non-zero amount.",
   "farmerDetailsOnlyAdjustmentNegative": "Only a correction can be negative.",
@@ -2027,7 +1919,6 @@
   "farmerDetailsTypeLabel": "Type",
   "farmerDetailsNoteOptional": "Note (optional)",
   "farmerDetailsRecordAction": "Record",
-  "farmerDetailsReverseContribution": "Cancel Contribution",
   "farmerDetailsContributionDetails": "Contribution Details",
   "farmerDetailsContributionHistory": "Contribution History",
   "farmerDetailsViewAllEntries": "View all entries ({count})",
@@ -2096,19 +1987,8 @@
   "farmerDetailsReversalReasonLabel": "Reason for cancellation",
   "farmerDetailsReversalReasonHint": "Why is this being cancelled?",
   "farmerDetailsReversalReasonRequired": "Enter a reason (at least 3 characters).",
-  "farmerDetailsReverseExplain": "This cancels the {amount} entry by adding an opposite entry for this member. The original entry stays in the history.",
-  "@farmerDetailsReverseExplain": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "farmerDetailsReverseAction": "Cancel Contribution",
   "farmerDetailsKeepContribution": "Keep Contribution",
-  "farmerDetailsContributionReversed": "Contribution cancelled.",
-  "farmerDetailsReverseNeedsInternet": "Cancelling a contribution needs an internet connection.",
-  "farmerDetailsReverseElsewhere": "A payout added to capital is cancelled through Balik-Tangkilik, not here.",
+  "farmerDetailsReverseElsewhere": "An earlier payout added to capital is permanent and cannot be cancelled here.",
   "staffActContributionReversed": "Cancelled a contribution of {amount} for {name}",
   "@staffActContributionReversed": {
     "placeholders": {
@@ -3021,7 +2901,7 @@
   "programMgmtBudgetLabel": "Budget (₱) *",
   "programMgmtDescOptionalLabel": "Description (optional)",
   "programMgmtDescHint": "Goals, target crops, or beneficiaries",
-  "programMgmtCreateAction": "Create Program",
+  "programMgmtCreateAction": "Add New Program",
   "programMgmtNoProgramsYet": "No programs yet",
   "programMgmtSearchHint": "Search programs...",
   "programMgmtNoProgramsMatchFilter": "No programs match your search or filter",
@@ -4312,7 +4192,12 @@
     }
   },
   "assistTitle": "Request assistance",
-  "assistInfo": "Your program outcome did not succeed. You may ask the cooperative for items from the loan catalog. This is not a loan: it adds no debt and no repayment. Staff will review your request.",
+  "assistInfo": "The cooperative referred you for assistance after your program outcome. You may ask the cooperative for items from the catalog. This is not a loan: there is nothing to repay. Staff will review your request.",
+  "assistSearchHint": "Search items...",
+  "assistNoMatch": "No items match your search.",
+  "assistQtyLabel": "Quantity",
+  "assistSelectedCount": "{count, plural, =0{No items selected} =1{1 item selected} other{{count} items selected}}",
+  "@assistSelectedCount": {"placeholders": {"count": {"type": "int"}}},
   "assistChooseItems": "Choose items",
   "assistNoItems": "No items are available for assistance right now.",
   "assistInStock": "{qty} {unit} in stock",
@@ -4366,7 +4251,7 @@
     }
   },
   "assistStaffEmpty": "No assistance requests here.",
-  "assistBadge": "Failed-program assistance · not a loan",
+  "assistBadge": "Assistance · not a loan",
   "assistAfterProgram": "After: {program}",
   "@assistAfterProgram": {
     "placeholders": {
@@ -4408,7 +4293,7 @@
     }
   },
   "assistApprove": "Approve",
-  "assistReject": "Reject",
+  "assistReject": "Disapprove",
   "assistApproveTitle": "Approve this request?",
   "assistApproveBody": "The stock for these items will be deducted now: {items}. This is not a loan.",
   "@assistApproveBody": {
@@ -4426,9 +4311,9 @@
       }
     }
   },
-  "assistRejectTitle": "Reject this request?",
+  "assistRejectTitle": "Disapprove this request?",
   "assistRejectReason": "Reason (the Farmer will see this)",
-  "assistRejected": "Request rejected.",
+  "assistRejected": "Request disapproved.",
   "retStatusPending": "Harvest return pending",
   "retStatusPartial": "Partially received",
   "retStatusReceived": "Received in full",
@@ -4451,6 +4336,8 @@
     }
   },
   "retManage": "Manage return",
+  "farmerProgHistory": "History ({count})",
+  "@farmerProgHistory": {"placeholders": {"count": {"type": "int"}}},
   "farmerProgRoundSecond": "Second distribution",
   "farmerProgRound": "Distribution no. {n}",
   "@farmerProgRound": {
@@ -4461,14 +4348,14 @@
     }
   },
   "farmerRedistEligibleTitle": "You are eligible for another distribution",
-  "farmerRedistEligibleBody": "The cooperative reviewed your earlier outcome in this program. You can ask for another distribution; you do not need to join again.",
-  "farmerRedistRequestButton": "Request another distribution",
+  "farmerRedistEligibleBody": "The cooperative reviewed your earlier outcome in this program. You can ask for the same item again; you do not need to join again.",
+  "farmerRedistRequestButton": "Request this item again",
   "farmerRedistPending": "Request sent. Waiting for the cooperative.",
   "farmerRedistApproved": "Approved. Your new distribution is listed as its own card.",
   "farmerRedistSheetTitle": "Request another distribution",
-  "farmerRedistSheetInfo": "Check what you reported, then tell the cooperative why you would like to take part again. It goes to the cooperative, which will approve it.",
+  "farmerRedistSheetInfo": "You are asking for the same item you received before. Check what you reported, then tell the cooperative why you would like to take part again. The cooperative will approve it.",
   "farmerRedistReported": "What you reported",
-  "farmerRedistItemGiven": "Item you received",
+  "farmerRedistItemGiven": "Item you are asking for again",
   "farmerRedistReportedOutcome": "Your report",
   "farmerRedistReportedOn": "Reported on",
   "farmerRedistConfirmedOn": "Outcome confirmed on",
@@ -4476,6 +4363,9 @@
   "farmerRedistNoteRequired": "Write a note for your request.",
   "farmerRedistSubmit": "Send request",
   "farmerRedistSent": "Request sent. The cooperative will respond.",
+  "memRedistLoadFailed": "Could not load the Farmers' requests for another distribution. Pull down to try again.",
+  "memRedistWaitingNotice": "{count, plural, =1{1 Farmer is waiting for approval to receive another distribution. Open the Failed tab.} other{{count} Farmers are waiting for approval to receive another distribution. Open the Failed tab.}}",
+  "@memRedistWaitingNotice": {"placeholders": {"count": {"type": "int"}}},
   "memRedistRequestTitle": "{name} asked for another distribution",
   "@memRedistRequestTitle": {
     "placeholders": {
@@ -4484,6 +4374,8 @@
       }
     }
   },
+  "memRedistRequestedItem": "Item requested again: {what}",
+  "@memRedistRequestedItem": {"placeholders": {"what": {"type": "String"}}},
   "memRedistApprove": "Approve",
   "staffActRedistApproved": "Approved the request for another distribution of {name}",
   "@staffActRedistApproved": {
@@ -4508,6 +4400,9 @@
       }
     }
   },
+  "memWaitingToReceiveAgain": "Waiting to receive another item",
+  "memEarlierRound": "Earlier distribution (failed): {what} · {date}",
+  "@memEarlierRound": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
   "memRoundNote": "Distribution no. {n}, after an earlier failed outcome",
   "@memRoundNote": {
     "placeholders": {
@@ -4551,6 +4446,20 @@
   "invReturnItemLabel": "When returned, it comes back as",
   "invReturnItemSame": "The same item",
   "invReturnItemHelp": "What the cooperative receives back when a Farmer returns this item in a Harvest Return program. Seeds usually come back as the harvested produce; livestock as the same animal.",
+  "programMgmtBlockedReassess": "{count} Farmer(s) marked Eligible for Reassessment have not had a second distribution yet. Approve their request or give another item",
+  "@programMgmtBlockedReassess": {"placeholders": {"count": {"type": "int"}}},
+  "programMgmtCompleteWaiting": "{count, plural, =1{1 member is still waiting for their item and will not receive it once the program is completed.} other{{count} members are still waiting for their items and will not receive them once the program is completed.}}",
+  "@programMgmtCompleteWaiting": {"placeholders": {"count": {"type": "int"}}},
+  "programMgmtCompleteAreYouSure": "Are you sure you want to complete this program?",
+  "adminLogProgramCompletedWarned": "Marked the program as Completed after confirming warnings: {referred} referred Farmer(s) without an approved assistance request, {waiting} member(s) still waiting for an item.",
+  "@adminLogProgramCompletedWarned": {"placeholders": {"referred": {"type": "String"}, "waiting": {"type": "String"}}},
+  "programMgmtCompleteUnapproved": "{count, plural, =1{1 Farmer was referred for assistance but has no approved assistance request.} other{{count} Farmers were referred for assistance but have no approved assistance request.}}",
+  "@programMgmtCompleteUnapproved": {"placeholders": {"count": {"type": "int"}}},
+  "errShelfLifeRequired": "This crop is not available yet. The cooperative still has to set its shelf life in Crop Management.",
+  "errCoopShelfHold": "This item has reached its end date and must be inspected first. Use Check Produce in Inventory Management.",
+  "errCompletionConfirm": "Some Farmers are still waiting for items or have no approved assistance request. Confirm to complete the program.",
+  "programMgmtBlockedAssistance": "{count} assistance request(s) from referred Farmers still need a decision",
+  "@programMgmtBlockedAssistance": {"placeholders": {"count": {"type": "int"}}},
   "programMgmtBlockedDecisions": "{count} failed outcome(s) still have a pending cooperative decision",
   "@programMgmtBlockedDecisions": {
     "placeholders": {
@@ -4559,7 +4468,13 @@
       }
     }
   },
-  "resFarmerReferredNote": "This is not a loan yet. You may request items on loan from the Loan Item Catalog, and your request will be assessed as usual. An assistance request is different: it carries no repayment.",
+  "resFarmerReferredNote": "The cooperative referred you for assistance. You may request assistance items from the cooperative. This is not a loan: there is nothing to repay. Staff will review your request.",
+  "resFarmerLoanSubmitted": "Loan request submitted",
+  "resFarmerLoanApproved": "Loan request approved",
+  "resFarmerLoanDisapproved": "Loan request disapproved",
+  "resFarmerViewLoanRequest": "View request",
+  "errLoanReferralInvalid": "You can no longer send a loan request from this program.",
+  "errLoanReferralAlreadyRequested": "You already have a loan request for this program.",
   "resFarmerRequestLoan": "Request a loan",
   "staffActDecisionRecorded": "Recorded the decision for {name}: {decision}",
   "@staffActDecisionRecorded": {
@@ -4718,7 +4633,7 @@
   "resPending": "Pending Cooperative Decision",
   "resClosed": "Closed: No Further Obligation",
   "resReassess": "Eligible for Reassessment",
-  "resReferred": "Referred for Loan Assessment",
+  "resReferred": "Referred for Assistance Assessment",
   "resSet": "Set resolution",
   "resChange": "Change",
   "resNoteLabel": "Note (required)",
@@ -4818,7 +4733,7 @@
     }
   },
   "errGeneric": "Something went wrong. Please try again.",
-  "errOffline": "You are offline. This action needs an internet connection.",
+  "errOffline": "This action needs an internet connection. Please check your internet connection and try again.",
   "errNetwork": "Cannot reach the server. Check your connection and try again.",
   "errNotAllowed": "You do not have permission to do this.",
   "errViewOnly": "Your access to this module is View Only.",
@@ -5299,6 +5214,8 @@
   "outcSaveVerification": "Save Field Verification",
   "outcVerified": "Field verification saved.",
   "outcFinalOutcome": "Final outcome",
+  "outcVerifyAfterReview": "Complete and submit the evidence review first. The field verification opens once the evidence is validated.",
+  "outcPendingChoose": "The cooperative has not decided yet. When it is ready, choose one of the other three decisions.",
   "outcFinalWaiting": "Available once the evidence is validated and the field verification is done.",
   "outcReturnedInfo": "This report was returned. The Farmer must submit a new one.",
   "outcDisputedInfo": "The field verification disputed the Farmer's report. Explain your decision.",
@@ -5584,6 +5501,7 @@
   "farmerProgSalesProgram": "Sales Program",
   "farmerProgDistributionProgram": "Distribution Program",
   "farmerProgNoMatch": "No programs match your search.",
+  "errResolutionFinal": "This decision is final and can no longer be changed.",
   "errResolutionLocked": "This case is closed. No further decision, assistance, loan or reassessment can follow.",
   "farmerProgEmptyTitle": "No programs yet",
   "farmerProgEmptyBody": "Browse the programs and request to join one. The programs you join appear here.",
@@ -6049,6 +5967,41 @@
     }
   },
   "adminLogListingApproved": "Approved a marketplace listing.",
+  "adminLogExpiryDiscountSaved": "Updated the expiry discount percentage.",
+  "adminLogInventoryReturnItemSet": "Set what comes back when a Farmer returns an inventory item.",
+  "adminLogMemberRestricted": "Restricted a member from a feature.",
+  "adminLogMemberRestrictionLifted": "Lifted a member's feature restriction.",
+  "adminLogContributionWaived": "Waived a member's monthly contribution.",
+  "adminLogContributionWaiverRemoved": "Removed a member's monthly contribution waiver.",
+  "adminLogApplicantDeleted": "Deleted a disapproved applicant account.",
+  "adminLogListingEditApproved": "Approved an edited listing.",
+  "adminLogListingEditRejected": "Disapproved an edited listing.",
+  "adminLogOrderPaymentRecorded": "Recorded the payment for an order.",
+  "adminLogOrderCompletedForCustomer": "Completed an order for the customer.",
+  "adminLogCoopOrderApproved": "Approved a cooperative product order.",
+  "adminLogCoopOrderReady": "Marked a cooperative product order ready for pickup.",
+  "adminLogCoopOrderOutForDelivery": "Marked a cooperative product order out for delivery.",
+  "adminLogCoopOrderHandover": "Recorded the handover of a cooperative product order.",
+  "adminLogCoopOrderCompleted": "Completed a cooperative product order for the member.",
+  "adminLogProgramReturnAdjusted": "Adjusted a program return quantity.",
+  "adminLogProgramReturnReceived": "Recorded a program return received.",
+  "adminLogProgramReturnClosed": "Closed a program return.",
+  "adminLogProgramFailedResolution": "Recorded a decision on a failed program outcome.",
+  "adminLogProgramReturnArrangement": "Set what a program member returns.",
+  "adminLogProgramReportReminder": "Reminded a member to report a program outcome.",
+  "adminLogProgramOutcomeReviewed": "Reviewed a program outcome report.",
+  "adminLogProgramOutcomeVerified": "Recorded a program field verification.",
+  "adminLogProgramOutcomeFinalized": "Confirmed a program outcome.",
+  "adminLogProgramAssistanceReviewed": "Reviewed a program assistance request.",
+  "adminLogCoopLotStillGood": "Confirmed stored cooperative stock is still good.",
+  "adminLogCoopLotRotten": "Reported stored cooperative stock as lost.",
+  "adminLogCoopDetailsSaved": "Updated the cooperative location and contact.",
+  "adminLogCoopContactVerified": "Verified the cooperative contact number.",
+  "adminLogDeliveryFeesSaved": "Updated the delivery fee bands.",
+  "adminLogPickupEnabled": "Turned pickup on.",
+  "adminLogPickupDisabled": "Turned pickup off.",
+  "adminLogDeliveryEnabled": "Turned delivery on.",
+  "adminLogDeliveryDisabled": "Turned delivery off.",
   "adminLogListingRejected": "Rejected a marketplace listing.",
   "adminLogLoanItemUpdated": "Updated a loan catalog item (₱{price}).",
   "@adminLogLoanItemUpdated": {
@@ -6432,6 +6385,13 @@
   "activityAddress": "Address",
   "activityExpenseAdded": "Expense Added",
   "activityProgramEnrollmentRequested": "Requested to Join a Program",
+  "activityLoanRequested": "Requested a Loan",
+  "activityQuantityAdjusted": "Reduced Available Harvest Quantity",
+  "activityShelfLifeChecked": "Checked Produce: Still Good",
+  "activityProduceRotten": "Reported Rotten Produce",
+  "activityOutcomeReported": "Reported a Program Outcome",
+  "activityAssistanceRequested": "Requested Program Assistance",
+  "activityListingEditRequested": "Edited a Listing for Approval",
   "activityProgramPurchaseRequested": "Requested Program Purchase",
   "activityMyContribution": "My Contribution",
   "activityCapitalAdded": "Added to Capital Share",
@@ -6785,9 +6745,8 @@
   "rptHubStockSub": "Cooperative stock levels",
   "rptHubLoanSub": "Loans issued & balances",
   "rptHubExpenseSub": "Farmer expenses by category",
-  "rptHubPatronageSub": "Member sales & patronage",
+  "rptHubPatronageSub": "Capital Share and contributions",
   "rptHubAnalyticsSub": "Participation, prices & forecast",
-  "rptHubBalikSub": "Yearly patronage payout",
   "rptHubExportSub": "Download or share reports",
   "rptHubBadgeLowStock": "{count} low stock",
   "@rptHubBadgeLowStock": {
@@ -6830,6 +6789,26 @@
       }
     }
   },
+  "patFilterOverdue": "Overdue",
+  "patFilterWithShares": "With shares",
+  "patTitleContributions": "Capital Share in {year}",
+  "@patTitleContributions": { "placeholders": { "year": {"type": "int"} } },
+  "patTotalContributions": "Total Capital Share",
+  "patSourceMonthly": "Monthly Contribution",
+  "patSourcePurchases": "Cooperative Purchase",
+  "patSourceOffers": "Offer to Cooperative",
+  "patShortMonthly": "Monthly",
+  "patShortPurchases": "Purchases",
+  "patShortOffers": "Offers",
+  "patMembersLine": "{count} of {total} members contributed",
+  "@patMembersLine": { "placeholders": { "count": {"type": "int"}, "total": {"type": "int"} } },
+  "patTotalCapital": "Total Capital",
+  "patDiscountCredited": "Credited to Capital Share",
+  "patDiscountLine": "Discount {amount}",
+  "@patDiscountLine": { "placeholders": { "amount": {"type": "String"} } },
+  "patFilterContributed": "Contributed",
+  "patFilterNone": "No contribution",
+  "patNoContributionYear": "No contribution recorded this year.",
   "rptAllDates": "All dates",
   "rptNoActivity": "No Activity",
   "rptNoMatches": "Nothing matches your search or filter.",
@@ -6947,11 +6926,12 @@
   "rptExportSelectAll": "Select all",
   "rptExportClear": "Clear",
   "rptExportQuickSelect": "Quick Select",
-  "rptExportDescSales": "Completed sales from every selling channel",
+  "rptExportDescSales": "Sales by selling channel, plus Cooperative Product sales",
   "rptExportDescHarvest": "Harvest records, plus batches and stock",
   "rptExportDescExpense": "Farmer expenses by category",
   "rptExportDescLoan": "Loans issued, payments and balances",
-  "rptExportDescPatronage": "Member sales and patronage shares",
+  "rptExportDescPatronage": "Capital Share and contributions of each member",
+  "rptExportDescAnalytics": "Participation, top crops, prices & forecast",
   "rptExportDescCoopStock": "Cooperative stock levels right now",
   "rptExportScopePeriod": "Uses period",
   "rptExportScopeYear": "Uses year",
@@ -7025,7 +7005,7 @@
   "memberProfileNoFarmAddress": "No farm address saved yet.",
   "memberProfileNoFarmPin": "The farmer has not pinned the farm on the map yet.",
   "memberProfileCoordinates": "Coordinates",
-  "memberContributionPatronageSection": "Patronage",
+  "memberContributionPatronageSection": "Member Contribution Report",
   "memberContributionCapitalSection": "Capital",
   "nameLegacyNotice": "Your name is saved as one line: \"{name}\". Enter it in the fields above to complete your profile, or leave them empty to keep it as it is.",
   "@nameLegacyNotice": {
@@ -7767,14 +7747,14 @@
   "guestPriorityMessage": "Log in to see the loan, listing and sync reminders that apply to your own account.",
   "guestRecordHarvestTitle": "Ready to record your harvest?",
   "guestRecordHarvestMessage": "Log in or register as a Farmer to record your harvests and keep your crop records.",
-  "guestMyCropsTitle": "Ready to manage your crops?",
-  "guestMyCropsMessage": "Log in or register as a Farmer to see and manage the crops you grow.",
-  "guestInventoryTitle": "Ready to manage your stock?",
+  "guestMyCropsTitle": "Ready to build your Crop Roster?",
+  "guestMyCropsMessage": "Log in or register as a Farmer to add the crops you grow to your Crop Roster.",
+  "guestInventoryTitle": "Ready to manage your inventory?",
   "guestInventoryMessage": "Log in or register as a Farmer to track the stock from your harvests.",
   "guestHarvestHistoryTitle": "Want to see your harvest history?",
-  "guestHarvestHistoryMessage": "Log in or register as a Farmer to view and edit your own harvest records.",
+  "guestHarvestHistoryMessage": "Log in or register as a Farmer to view your own harvest records.",
   "guestCreateListingTitle": "Ready to sell your harvest?",
-  "guestCreateListingMessage": "Log in or register as a Farmer to create a listing for your harvest.",
+  "guestCreateListingMessage": "Log in or register as a Farmer to create a listing from your harvest. The cooperative reviews it before Buyers see it.",
   "guestManageListingTitle": "Ready to manage your listings?",
   "guestManageListingMessage": "Log in or register as a Farmer to view, edit or withdraw your own listings.",
   "guestTransactionsTitle": "Want to see your transactions?",
@@ -8066,6 +8046,7 @@
     }
   },
   "loanReqOutOfStock": "Out of stock",
+  "loanReqMax": "Max",
   "loanReqAdd": "Add",
   "loanReqEdit": "Edit",
   "loanReqRemove": "Remove",
@@ -8573,6 +8554,25 @@
       }
     }
   },
+  "staffLogChangedFields": "Changed: {changes}",
+  "@staffLogChangedFields": {
+    "placeholders": {
+      "changes": {
+        "type": "String"
+      }
+    }
+  },
+  "staffLogChangedMore": "{changes} (+{count} more)",
+  "@staffLogChangedMore": {
+    "placeholders": {
+      "changes": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "staffActGenericAdded": "Added {thing}: {ref}",
   "@staffActGenericAdded": {
     "placeholders": {
@@ -8689,6 +8689,45 @@
   "staffThingProgramFailureResolutions": "failed-program decision",
   "staffThingProgramReportReminders": "report reminder",
   "staffThingProgramAssistanceRequests": "assistance request",
+  "staffLogFeatureMonthlyContributions": "Monthly contributions",
+  "staffLogFeatureRestrictions": "Restrictions",
+  "staffThingMemberMonthlyContributions": "monthly contribution",
+  "staffThingMemberRestrictions": "restriction",
+  "staffThingProgramTypes": "program type",
+  "staffThingShelfLifeSettings": "shelf-life setting",
+  "staffThingProgramRedistributionRequests": "redistribution request",
+  "staffLogFeatureBodReminders": "BOD reminders",
+  "staffThingBodMeetingNotices": "BOD meeting reminder",
+  "idCardSubtitle": "Cooperative ID",
+  "idCardRoleFarmer": "Farmer",
+  "idCardTapToFlip": "Tap the card to flip",
+  "idCardTapToFlipBack": "Tap the card to flip back",
+  "idCardContact": "Contact",
+  "idCardPhone": "Phone number",
+  "idCardEmail": "Email",
+  "idCardVerified": "Verified",
+  "idCardNotVerified": "Not verified",
+  "idCardPersonal": "Personal",
+  "idCardBirthDate": "Date of birth",
+  "idCardGender": "Gender",
+  "idCardAddress": "Address",
+  "idCardFarm": "Farm Details",
+  "idCardFarmName": "Farm name",
+  "idCardFarmSize": "Farm area",
+  "idCardFarmSizeValue": "{size} hectares",
+  "@idCardFarmSizeValue": {"placeholders": {"size": {"type": "String"}}},
+  "idCardCrops": "Primary crops",
+  "idCardAccount": "Account",
+  "idCardLastActive": "Last active",
+  "idCardNotSet": "Not set",
+  "idCardLoadError": "Some details could not be loaded.",
+  "idCardDateJoined": "Date Joined",
+  "idCardContactInfo": "Contact Information",
+  "idCardPersonalInfo": "Personal Information",
+  "idCardAccountInfo": "Account Information",
+  "idCardFullAddress": "Full address",
+  "idCardFarmAddress": "Farm address",
+  "idCardYearsFarming": "Years farming",
   "staffAccountabilityTitle": "Staff Accountability",
   "staffAccountabilitySubtitle": "Who did what, and when",
   "staffAccountabilityEmpty": "No staff actions recorded yet.",
@@ -9086,113 +9125,6 @@
       }
     }
   },
-  "enhInterest": "Interest",
-  "enhPurchasePatronage": "Purchase Patronage",
-  "enhShare": "{p0}% share",
-  "@enhShare": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhTotalDistributed": "Total Distributed",
-  "enhMemberRecords": "Member Records",
-  "enhPayoutBreakdown": "Payout Breakdown",
-  "enhPurchasesRegularMemberDiscountNetPaid": "Purchases: regular {p0} − member discount {p1} = net paid {p2}",
-  "@enhPurchasesRegularMemberDiscountNetPaid": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      },
-      "p1": {
-        "type": "String"
-      },
-      "p2": {
-        "type": "String"
-      }
-    }
-  },
-  "enhConfirmThatHasReceivedInCash": "Confirm that {p0} has received {p1} in cash?",
-  "@enhConfirmThatHasReceivedInCash": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      },
-      "p1": {
-        "type": "String"
-      }
-    }
-  },
-  "enhConfirmAddingToSCapitalShareThisCannot": "Confirm adding {p0} to {p1}'s capital share? This cannot be undone.",
-  "@enhConfirmAddingToSCapitalShareThisCannot": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      },
-      "p1": {
-        "type": "String"
-      }
-    }
-  },
-  "enhConfirmPayoutDecision": "Confirm Payout Decision",
-  "enhPayoutDecisionConfirmedFor": "Payout decision confirmed for {p0}.",
-  "@enhPayoutDecisionConfirmedFor": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhCouldNotConfirm": "Could not confirm: {p0}",
-  "@enhCouldNotConfirm": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhRejectPayoutDecision": "Reject Payout Decision",
-  "enhThisSendsTheDecisionBackSoCanSubmit": "This sends the decision back so {p0} can submit a corrected choice. Continue?",
-  "@enhThisSendsTheDecisionBackSoCanSubmit": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhPayoutDecisionRejectedCanResubmit": "Payout decision rejected — {p0} can resubmit.",
-  "@enhPayoutDecisionRejectedCanResubmit": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhCouldNotReject": "Could not reject: {p0}",
-  "@enhCouldNotReject": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhKeepAsCash": "Keep as Cash — {p0}",
-  "@enhKeepAsCash": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhAddToCapital": "Add to Capital — {p0}",
-  "@enhAddToCapital": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
   "enhEGBananaTomato": "e.g. Banana, Tomato",
   "enhEGHerb": "e.g. Herb",
   "enhCropRequestAwaitingReview": "{p0} crop request{p1} awaiting review",
@@ -9270,7 +9202,7 @@
       }
     }
   },
-  "enhTotalPatronage": "Total Patronage",
+  "enhTotalPatronage": "Total Capital Share",
   "enhSoldToCoOp": "Sold to Co-op",
   "enhBoughtFromCoOp": "Bought from Co-op",
   "enhSellingToCooperative": "Selling to Cooperative",
@@ -9464,6 +9396,9 @@
   "enhSubmitForReview": "Submit for Review",
   "enhViewListing": "View Listing",
   "enhAddedOn": "Added on",
+  "harvestEntriesCountLabel": "{count} Harvest Entries",
+  "@harvestEntriesCountLabel": {"placeholders": {"count": {"type": "int"}}},
+  "harvestNoEntriesLabel": "No Harvest Entries",
   "enhHarvestEntries": "Harvest entries",
   "enhCatalogStatus": "Catalog status",
   "enhPendingManagerApproval": "Pending Manager approval",
@@ -9571,8 +9506,7 @@
       }
     }
   },
-  "enhBalikTangkilikCapitalShare": "Balik-Tangkilik & Capital Share",
-  "enhCapitalShares": "Capital Shares: ₱{p0}",
+  "enhCapitalShares": "Capital Share: ₱{p0}",
   "@enhCapitalShares": {
     "placeholders": {
       "p0": {
@@ -9820,146 +9754,6 @@
   "enhBuyerName": "Buyer name",
   "enhWhoBoughtIt": "Who bought it?",
   "enhAmountReceived355": "Amount received (₱)",
-  "enhEnterAValidAmount": "Enter a valid amount.",
-  "enhCannotExceed": "Cannot exceed ₱{p0}.",
-  "@enhCannotExceed": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhAddToCapitalShare": "Add to Capital Share",
-  "enhRequestToMovePartOrAllOfYour": "Request to move part or all of your {p0} payout into your capital share instead of receiving it as cash. This will be submitted for Manager confirmation before it takes effect, and locks out choosing \"Keep as Cash\" for this year.",
-  "@enhRequestToMovePartOrAllOfYour": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhAvailable360": "Available: ₱{p0}",
-  "@enhAvailable360": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhRequestToAddToYourCapitalShareWas": "Request to add ₱{p0} to your capital share was submitted for Manager confirmation.",
-  "@enhRequestToAddToYourCapitalShareWas": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhCouldNotSubmitRequest": "Could not submit request: {p0}",
-  "@enhCouldNotSubmitRequest": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhKeepAsCash363": "Keep as Cash",
-  "enhRequestToReceiveYourPayoutOfAsCash": "Request to receive your {p0} payout of ₱{p1} as cash. This will be submitted for Manager confirmation and locks out \"Add to Capital\" for this year.",
-  "@enhRequestToReceiveYourPayoutOfAsCash": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      },
-      "p1": {
-        "type": "String"
-      }
-    }
-  },
-  "enhYourRequestToReceiveThisPayoutAsCash": "Your request to receive this payout as cash was submitted for Manager confirmation.",
-  "enhRecentSales": "Recent Sales",
-  "enhRecentPurchases": "Recent Purchases",
-  "enhMyActivityThisYear": "My Activity This Year ({p0})",
-  "@enhMyActivityThisYear": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhGingerSalesThroughDAAMADMarketLinkingAre": "Ginger sales through DA-AMAD market linking are not included.",
-  "enhRegularPriceMemberDiscountNetPaid": "Regular price ₱{p0} − member discount ₱{p1} = net paid ₱{p2}",
-  "@enhRegularPriceMemberDiscountNetPaid": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      },
-      "p1": {
-        "type": "String"
-      },
-      "p2": {
-        "type": "String"
-      }
-    }
-  },
-  "enhMyShare": "My Share",
-  "enhMyTotal": "My Total",
-  "enhFINALIZED": "✓  FINALIZED",
-  "enhESTIMATEONLY": "⚠️  ESTIMATE ONLY",
-  "enhBalikTangkilikPayout": "{p0} Balik-Tangkilik Payout",
-  "@enhBalikTangkilikPayout": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhEstimatedDistribution": "{p0} Estimated Distribution",
-  "@enhEstimatedDistribution": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhMoneyBackFromCropsYouSoldToThe": "Money back from crops you sold to the cooperative.",
-  "enhInterestOnCapitalShare": "Interest on Capital Share",
-  "enhMoneyBackFromProductsYouBoughtFromThe": "Money back from products you bought from the cooperative.",
-  "enhTotalPayout": "Total Payout",
-  "enhTotalDistribution": "Total Distribution",
-  "enhWhatWouldYouLikeToDoWithThis": "What would you like to do with this payout?",
-  "enhAddToCapital385": "Add to Capital",
-  "enhYouAddedTheFullToYourCapitalShare": "You added the full ₱{p0} to your capital share.",
-  "@enhYouAddedTheFullToYourCapitalShare": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhThisIsAnEstimateOnlyActualDistributionAmounts": "This is an estimate only. Actual distribution amounts are determined by the cooperative's Audited Financial Statement and announced at the Annual General Assembly within the first 90 days of next year.",
-  "enhHowDoesThisWork": "How does this work?",
-  "enhAuditedFinancialStatement": "Audited Financial Statement",
-  "enhJanuaryMarch": "January – March",
-  "enhAnnualGeneralAssembly": "Annual General Assembly",
-  "enhWithinFirstDaysOfTheYear": "Within first 90 days of the year",
-  "enhBalikTangkilikReleased": "Balik-Tangkilik Released",
-  "enhPostAssemblyDistribution": "Post-Assembly Distribution",
-  "enhNoSalesTransactionsRecordedYet": "No sales transactions recorded yet.",
-  "enhQty396": "Qty",
-  "enhRegular": "Regular",
-  "enhDiscount": "Discount",
-  "enhCapitalShares400": "Capital Shares",
-  "enhTotalShares": "Total Shares",
-  "enhInvestmentValue": "Investment Value",
-  "enhShareValue": "Share Value",
-  "enhShare404": "₱{p0} / share",
-  "@enhShare404": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhInterestRatesAreDeterminedAnnuallyByTheBoard": "Interest rates are determined annually by the Board of Directors based on cooperative performance.",
   "enhMeetsTheMinimumForALoan": "Meets the ₱{p0} minimum for a loan.",
   "@enhMeetsTheMinimumForALoan": {
     "placeholders": {
@@ -9975,31 +9769,6 @@
         "type": "String"
       },
       "p1": {
-        "type": "String"
-      }
-    }
-  },
-  "enhActualPayout": "{p0} Actual Payout",
-  "@enhActualPayout": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhNoPayoutDataFor": "No payout data for {p0}.",
-  "@enhNoPayoutDataFor": {
-    "placeholders": {
-      "p0": {
-        "type": "String"
-      }
-    }
-  },
-  "enhTotalReceived": "Total Received",
-  "enhAlreadyAddedToYourCapitalShare": "₱{p0} already added to your capital share",
-  "@enhAlreadyAddedToYourCapitalShare": {
-    "placeholders": {
-      "p0": {
         "type": "String"
       }
     }
@@ -10164,7 +9933,7 @@
   "enhSPConfirmsTheExactQuantityAndPriceAt": "SP3 confirms the exact quantity and price at pickup",
   "enhForCashSalesOrOffAppBuyers": "For cash sales or off-app buyers",
   "enhCouldNotSavePhotoPleaseTryAgain": "Could not save photo. Please try again.",
-  "enhNameCategoryAndMarketTypeAreSetBy": "Name, category, and market type are set by SP3 and can't be changed here.",
+  "enhNameCategoryAndMarketTypeAreSetBy": "Name, category, market type and shelf life are set by SP3 and can't be changed here.",
   "enhMarketType": "Market type",
   "enhPendingApproval": "Pending approval",
   "enhPhotoOfYourCrop": "Photo of your crop",
@@ -10172,7 +9941,7 @@
   "enhTakenWithYourCameraTapThePhotoTo": "Taken with your camera. Tap the photo to retake it.",
   "enhTakeAPhotoOfYourActualCropWith": "Take a photo of your actual crop with your camera. It is needed to sell on the Marketplace, to the Cooperative, or through Market Linking. You can record harvests and Informal Sales without it.",
   "enhSavePhoto": "Save Photo",
-  "enhMemberPatronage": "Member Patronage ({p0})",
+  "enhMemberPatronage": "Contributions in {p0}",
   "@enhMemberPatronage": {
     "placeholders": {
       "p0": {
@@ -10180,7 +9949,7 @@
       }
     }
   },
-  "enhNoPatronageActivityRecordedFor": "No patronage activity recorded for {p0}.",
+  "enhNoPatronageActivityRecordedFor": "No contribution recorded for {p0}.",
   "@enhNoPatronageActivityRecordedFor": {
     "placeholders": {
       "p0": {
@@ -10289,6 +10058,8 @@
   "systemNoticeListingRejected36": "Listing Rejected",
   "systemNoticeListingSoldOut37": "Listing Sold Out",
   "systemNoticeListingStatusUpdated38": "Listing Status Updated",
+  "systemNoticeAssistanceReferral": "Assistance Referral",
+  "systemNoticeBodyTheCooperativeReferredYouForAssistance": "The cooperative referred you for an assistance assessment. You may request assistance items from the cooperative. This is not a loan: there is nothing to repay.",
   "systemNoticeLoanAssessmentReferral39": "Loan Assessment Referral",
   "systemNoticeLoanIssued40": "Loan Issued",
   "systemNoticeLoanPaymentDueSoon41": "Loan Payment Due Soon",
@@ -11245,38 +11016,6 @@
   "enhFruit": "Fruit",
   "enhVegetable": "Vegetable",
   "enhNotAssigned": "Not yet assigned",
-  "enhPayoutCashAction": "keep ₱{amount} as cash",
-  "@enhPayoutCashAction": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "enhPayoutCapitalAction": "add ₱{amount} to your capital share",
-  "@enhPayoutCapitalAction": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "enhPayoutDecisionPending": "Your request to {action} is awaiting Manager confirmation.",
-  "@enhPayoutDecisionPending": {
-    "placeholders": {
-      "action": {
-        "type": "String"
-      }
-    }
-  },
-  "enhPayoutDecisionConfirmed": "Confirmed: you chose to {action}.",
-  "@enhPayoutDecisionConfirmed": {
-    "placeholders": {
-      "action": {
-        "type": "String"
-      }
-    }
-  },
   "enhFilter": "Filter",
   "enhLabor": "Labor",
   "enhTools": "Tools",
@@ -11379,7 +11118,6 @@
   "connectivityScreenContributionReport": "Review members' capital contributions and totals.",
   "connectivityScreenReports": "Open cooperative reports and financial summaries.",
   "connectivityScreenStaffAnalytics": "Explore cooperative harvest, sales, and member activity trends.",
-  "connectivityScreenPatronage": "Review annual surplus allocations and member payouts.",
   "connectivityScreenExports": "Choose a report and prepare a downloadable file.",
   "connectivityScreenStaffProfile": "Review your staff profile and cooperative activity.",
   "connectivityScreenCreateOfficer": "Enter an Officer's details and prepare their account.",
@@ -11549,7 +11287,6 @@
   "rptOutcomeNoLoss": "No Loss",
   "rptOutcomeRotten": "Rotten",
   "rptOutcomeLost": "Lost",
-  "assistSearchHint": "Search farmer, program, or request no.",
   "loanReqMineSearchHint": "Search request no. or item",
   "assistFromProgram": "From Program Management · failed program outcome",
   "assistFromProgramNamed": "From Program Management · failed outcome in {program}",
@@ -11660,5 +11397,699 @@
   "lifeDaysCount": "{count, plural, =1{1 day} other{{count} days}}",
   "@lifeDaysCount": {"placeholders": {"count": {"type": "int"}}},
   "coopLifeLeft": "{label}: {duration} left · until {date}",
-  "@coopLifeLeft": {"placeholders": {"label": {"type": "String"}, "duration": {"type": "String"}, "date": {"type": "String"}}}
+  "@coopLifeLeft": {"placeholders": {"label": {"type": "String"}, "duration": {"type": "String"}, "date": {"type": "String"}}},
+  "restrictFeatureMarketplaceListing": "New Marketplace listing",
+  "restrictFeatureCoopOffer": "Offer to Cooperative",
+  "restrictFeatureInformalSale": "Informal Sale",
+  "restrictFeatureGinger": "Ginger DA-AMAD sale",
+  "restrictFeatureCheckout": "Checkout and Buy Now",
+  "restrictFeatureLoan": "Request a Loan",
+  "restrictFeatureProgram": "Join a Program",
+  "restrictChipMarketplaceListing": "Listings",
+  "restrictChipCoopOffer": "Offers",
+  "restrictChipInformalSale": "Informal",
+  "restrictChipGinger": "Ginger",
+  "restrictChipCheckout": "Checkout",
+  "restrictChipLoan": "Loans",
+  "restrictChipProgram": "Programs",
+  "restrictMenuAction": "Restrict features",
+  "restrictMenuManage": "Manage restrictions",
+  "restrictFlowTitle": "Restrict {name}",
+  "@restrictFlowTitle": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "restrictFlowFeaturesLabel": "Features to restrict",
+  "restrictFlowDurationLabel": "Restriction length",
+  "restrictSummaryTitle": "Restrict these features?",
+  "restrictSummaryAction": "Restrict",
+  "restrictSummaryMember": "Member",
+  "restrictSummaryFeatures": "Features",
+  "restrictSummaryUntil": "Ends on",
+  "restrictSummaryNote": "Existing listings, offers, orders, loans and programs are not affected.",
+  "restrictDurationNoEnd": "No end date (until lifted)",
+  "restrictUntilLifted": "Until lifted by the cooperative",
+  "restrictedToast": "{name} was restricted.",
+  "@restrictedToast": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "restrictLiftedToast": "Restriction lifted.",
+  "restrictActionError": "Could not update the restrictions. Please try again.",
+  "restrictManageTitle": "Restrictions",
+  "restrictManageEmpty": "No active restrictions.",
+  "restrictLift": "Lift",
+  "restrictLiftConfirmTitle": "Lift this restriction?",
+  "restrictLiftConfirmBody": "{feature} will be available to the member again.",
+  "@restrictLiftConfirmBody": {
+    "placeholders": {
+      "feature": {"type": "String"}
+    }
+  },
+  "restrictCurrentTitle": "Active restrictions",
+  "restrictHistoryTitle": "Restrictions and suspensions",
+  "restrictHistoryEmpty": "No restrictions or suspensions on record.",
+  "restrictStatusActive": "Active",
+  "restrictStatusLifted": "Lifted",
+  "restrictStatusEnded": "Ended",
+  "restrictStatusClosed": "Closed on reactivation",
+  "restrictHistorySuspended": "Suspended",
+  "restrictHistoryReactivated": "Reactivated",
+  "restrictHistoryBy": "By {name}",
+  "@restrictHistoryBy": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "restrictHistoryStarted": "Started {date}",
+  "@restrictHistoryStarted": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "restrictHistoryEnds": "Ends {date}",
+  "@restrictHistoryEnds": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "restrictHistoryEnded": "Ended {date}",
+  "@restrictHistoryEnded": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "restrictChipRestricted": "Restricted",
+  "farmerMgmtStatusRestrictedLabel": "Restricted",
+  "myRestrictionsTitle": "My Restrictions",
+  "myRestrictionsEmpty": "You have no restrictions. Everything is available to you.",
+  "myRestrictionsIntro": "These features are limited for now. Anything you already started carries on as normal.",
+  "restrictedNoticeTitle": "{feature} is restricted",
+  "@restrictedNoticeTitle": {
+    "placeholders": {
+      "feature": {"type": "String"}
+    }
+  },
+  "restrictedNoticeUntil": "Until {date}",
+  "@restrictedNoticeUntil": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "restrictedNoticeView": "View details",
+  "restrictedNoticeOk": "OK",
+  "harvDetSectionHarvest": "Harvest",
+  "harvDetSectionRoster": "Crop Roster",
+  "harvDetSectionStock": "Stock (Inventory)",
+  "harvDetSectionShelf": "Shelf Life",
+  "harvDetSource": "Source",
+  "harvDetSourceOwn": "Own harvest",
+  "harvDetSourceProgram": "Received from a program",
+  "harvDetProgram": "Program",
+  "harvDetMarketType": "Market Type",
+  "harvDetRosterStatus": "How it got in",
+  "harvDetRosterFromProgram": "Added by a program",
+  "harvDetRosterRequestPending": "Requested, awaiting approval",
+  "harvDetRosterRequestRejected": "Request declined",
+  "harvDetRosterRequestApproved": "Requested, then approved",
+  "harvDetRosterFromCatalog": "Added from the crop catalog",
+  "harvDetRosterAddedOn": "Added on",
+  "harvDetStockLost": "Lost (rotten)",
+  "harvDetStockHistoryButton": "View Stock History",
+  "harvDetShelfDuration": "Shelf life",
+  "harvDetShelfNotSet": "Not set",
+  "harvDetShelfDefault": "Crop default",
+  "harvDetShelfStarts": "Counted from",
+  "harvDetShelfExpires": "Expires on",
+  "harvDetShelfStatus": "Status",
+  "harvDetShelfConfirmed": "Last confirmed",
+  "harvDetShelfLossOn": "Loss reported on",
+  "harvDetShelfHistory": "Shelf life history",
+  "harvDetEventHeld": "Recorded past its shelf life: on hold",
+  "harvDetEventReminder": "Check-produce reminder sent",
+  "harvDetEventConfirmed": "Confirmed still good: {days} more days",
+  "@harvDetEventConfirmed": {"placeholders": {"days": {"type": "int"}}},
+  "harvDetEventRotten": "Reported rotten: {qty}",
+  "@harvDetEventRotten": {"placeholders": {"qty": {"type": "String"}}},
+  "harvDetEventDiscount": "Listing discounted automatically",
+  "harvDetEventUnavailable": "Listing made unavailable",
+  "harvDetEventReviewRequested": "Change sent for approval",
+  "harvDetEventReviewApproved": "Change approved",
+  "monthlyContribTitle": "Monthly Contributions",
+  "monthlyTotalDue": "Total Due",
+  "monthlyRemaining": "Remaining Balance",
+  "monthlyStatusUnpaid": "Unpaid",
+  "monthlyStatusPartial": "Partial",
+  "monthlyStatusPaid": "Paid",
+  "monthlyStatusOverdue": "Overdue",
+  "monthlyStatusWaived": "Waived",
+  "monthlyDueOn": "Due {date}",
+  "@monthlyDueOn": {"placeholders": {"date": {"type": "String"}}},
+  "monthlyPaidOfDue": "{paid} of {due} paid",
+  "@monthlyPaidOfDue": {"placeholders": {"paid": {"type": "String"}, "due": {"type": "String"}}},
+  "monthlyEmpty": "No monthly contributions yet.",
+  "monthlyViewAll": "View all months",
+  "monthlyRecordPayment": "Record Payment",
+  "monthlyPaymentAmount": "Amount paid",
+  "monthlyPaymentDate": "Payment date",
+  "monthlyPaymentReference": "Payment reference or remarks (optional)",
+  "monthlyPaymentRemainingHint": "Remaining balance: {amount}",
+  "@monthlyPaymentRemainingHint": {"placeholders": {"amount": {"type": "String"}}},
+  "monthlyPaymentTooMuch": "The amount is more than the remaining balance.",
+  "monthlyPaymentRecorded": "Payment recorded.",
+  "monthlyWaiveAction": "Waive this month",
+  "monthlyWaiveReason": "Reason for the waiver",
+  "monthlyWaiveDone": "Month waived.",
+  "monthlyReinstateAction": "Reinstate this month",
+  "monthlyReinstateDone": "Month reinstated.",
+  "monthlyWaivedReason": "Waived: {reason}",
+  "@monthlyWaivedReason": {"placeholders": {"reason": {"type": "String"}}},
+  "monthlyPaymentsTitle": "Payments",
+  "monthlyNoPayments": "No payment recorded for this month.",
+  "monthlyRecordedBy": "Recorded by {name}",
+  "@monthlyRecordedBy": {"placeholders": {"name": {"type": "String"}}},
+  "monthlyCancelledPayment": "Cancelled payment",
+  "monthlyUnassignedNote": "Earlier payments not tied to a month: {amount}",
+  "@monthlyUnassignedNote": {"placeholders": {"amount": {"type": "String"}}},
+  "monthlyBalanceOf": "Balance {amount}",
+  "@monthlyBalanceOf": {"placeholders": {"amount": {"type": "String"}}},
+  "systemNoticeMonthlyContributionReminder": "Monthly Contribution Reminder",
+  "systemNoticeMonthlyContributionAnnouncement": "Monthly Contribution Announcement",
+  "systemNoticeMonthlyContributionOverdue": "Monthly Contribution Overdue",
+  "systemNoticeBodyMonthlyEve": "The BOD meeting is tomorrow. The monthly contribution of ₱{amount} for {month} will be announced there. Remaining balance: ₱{balance}.",
+  "@systemNoticeBodyMonthlyEve": {"placeholders": {"amount": {"type": "String"}, "month": {"type": "String"}, "balance": {"type": "String"}}},
+  "systemNoticeBodyMonthlyMeeting": "Today is the BOD meeting. The monthly contribution of ₱{amount} for {month} is part of the meeting announcement. Remaining balance: ₱{balance}.",
+  "@systemNoticeBodyMonthlyMeeting": {"placeholders": {"amount": {"type": "String"}, "month": {"type": "String"}, "balance": {"type": "String"}}},
+  "systemNoticeBodyMonthlyOverdue": "Your {month} monthly contribution was due on {date}. Remaining balance: ₱{balance}.",
+  "@systemNoticeBodyMonthlyOverdue": {"placeholders": {"month": {"type": "String"}, "date": {"type": "String"}, "balance": {"type": "String"}}},
+  "monthlyDueDateLabel": "Due date",
+  "contribSectionTitle": "Contributions",
+  "contribHistoryTitle": "Contribution History",
+  "contribAdjustCapital": "Adjust capital",
+  "contribSourceMonthly": "Monthly payment",
+  "contribSourceDiscount": "Purchase discount",
+  "contribAdjustTitle": "Adjust Capital",
+  "contribAdjustSignHint": "Use a minus sign to deduct, e.g. -100.00",
+  "contribAmountLabel": "Amount",
+  "contribNoteLabel": "Note (optional)",
+  "contribNoteHint": "Reason or reference",
+  "contribTypeHintCorrection": "Fixes a mistake in the capital total. Can add or deduct.",
+  "contribTypeHintStarting": "The capital the member already had before using SAGANA.",
+  "benefitsTrackingTitle": "My Capital Share",
+  "benefitsNoPurchases": "No Cooperative Product purchases at the member price in {year}.",
+  "@benefitsNoPurchases": { "placeholders": { "year": {"type": "int"} } },
+  "benefitsNoOffers": "No successful offers to the Cooperative in {year}.",
+  "@benefitsNoOffers": { "placeholders": { "year": {"type": "int"} } },
+  "benefitsViewAll": "View all ({count})",
+  "@benefitsViewAll": { "placeholders": { "count": {"type": "int"} } },
+  "startingCapitalDateLabel": "Date of Starting Capital",
+  "startingCapitalDateHint": "Choose day, month and year",
+  "startingCapitalDateHelp": "The date the member actually had this capital. A past date appears in that year's Member Contribution Report.",
+  "startingCapitalDateRequired": "Choose the date of the Starting Capital.",
+  "contribStartingAsOf": "Starting Capital (as of {date})",
+  "@contribStartingAsOf": { "placeholders": { "date": {"type": "String"} } },
+  "patMembersTitle": "Contributions by Member",
+  "patSummaryMonthlyDue": "Monthly due",
+  "patSummaryNotYetPaid": "Not yet paid",
+  "patSummaryOverdueMonths": "Overdue months",
+  "capShareProgressTitle": "Capital Share Progress",
+  "capShareRequired": "{amount} required",
+  "@capShareRequired": { "placeholders": { "amount": {"type": "String"} } },
+  "capSharePercentDone": "{percent}% completed",
+  "@capSharePercentDone": { "placeholders": { "percent": {"type": "int"} } },
+  "capShareRemaining": "{amount} remaining",
+  "@capShareRemaining": { "placeholders": { "amount": {"type": "String"} } },
+  "capShareMsgNone": "{name} has {amount}, but has not reached the {required} required for one full share.",
+  "@capShareMsgNone": { "placeholders": { "name": {"type": "String"}, "amount": {"type": "String"}, "required": {"type": "String"} } },
+  "capShareMsgSome": "{name} has completed {shares, plural, =1{1 full share} other{{shares} full shares}} and has {amount} in total.",
+  "@capShareMsgSome": { "placeholders": { "name": {"type": "String"}, "shares": {"type": "int"}, "amount": {"type": "String"} } },
+  "capShareResult": "Result: {shares, plural, =1{1 full share} other{{shares} full shares}}",
+  "@capShareResult": { "placeholders": { "shares": {"type": "int"} } },
+  "patObligationHeader": "Monthly obligation (not counted)",
+  "monthlyTotalPaid": "Total Paid",
+  "benefitsViewOrders": "View Orders",
+  "benefitsViewAllCoopOffers": "View All Cooperative Offers",
+  "loanViewHistoryAction": "View Loan History",
+  "loanViewPaymentsAction": "View Payment History",
+  "loanCapTitle": "Your Capital Share: {amount}",
+  "@loanCapTitle": {"placeholders": {"amount": {"type": "String"}}},
+  "loanCapBody": "Each loan item you request can be worth up to {amount} (quantity × price).",
+  "@loanCapBody": {"placeholders": {"amount": {"type": "String"}}},
+  "loanCapZero": "No loan item can be requested yet. Your Capital Share grows through your contributions and member-price purchases.",
+  "loanCapAbove": "Above your Capital Share",
+  "loanCapQtyNote": "Your Capital Share allows up to {qty} of this item.",
+  "@loanCapQtyNote": {"placeholders": {"qty": {"type": "String"}}},
+  "loanCapQtyTooMuch": "This is worth {value}, more than your Capital Share of {capital}. The most you can request is {qty}.",
+  "@loanCapQtyTooMuch": {"placeholders": {"value": {"type": "String"}, "capital": {"type": "String"}, "qty": {"type": "String"}}},
+  "loanCapLineAbove": "Above Capital Share",
+  "loanCapFarmerShare": "Capital Share: ₱{amount}",
+  "@loanCapFarmerShare": {"placeholders": {"amount": {"type": "String"}}},
+  "loanCapStaffWarning": "This farmer's Capital Share is ₱{amount}. At least one item is worth more than that, so this request cannot be approved. You can disapprove it with a reason.",
+  "@loanCapStaffWarning": {"placeholders": {"amount": {"type": "String"}}},
+  "issueLoanItemOverCapital": "{item} ({value}) is worth more than the Capital Share of {capital}. Reduce its quantity or remove it.",
+  "@issueLoanItemOverCapital": {"placeholders": {"item": {"type": "String"}, "value": {"type": "String"}, "capital": {"type": "String"}}},
+  "issueLoanItemOverCapitalMax": "This is worth {value}, more than the Capital Share of {capital}. The most that fits is {qty}.",
+  "@issueLoanItemOverCapitalMax": {"placeholders": {"value": {"type": "String"}, "capital": {"type": "String"}, "qty": {"type": "String"}}},
+  "issueLoanItemOverCapitalNone": "This is worth {value}, more than the Capital Share of {capital}. Not even a small quantity fits; choose another item.",
+  "@issueLoanItemOverCapitalNone": {"placeholders": {"value": {"type": "String"}, "capital": {"type": "String"}}},
+  "issueLoanCapitalInfo": "Capital Share {capital}: each loan item can be worth up to this amount.",
+  "@issueLoanCapitalInfo": {"placeholders": {"capital": {"type": "String"}}},
+  "issueLoanCapitalZeroNow": "The Capital Share is ₱0.00. No loan item can be issued to this farmer yet.",
+  "issueLoanCapitalLimitsQuantity": "Capital Share {capital}: up to {qty} of this item fits.",
+  "@issueLoanCapitalLimitsQuantity": {"placeholders": {"capital": {"type": "String"}, "qty": {"type": "String"}}},
+  "issueLoanBlockedTitle": "Not eligible for a loan",
+  "issueLoanBlockedZeroCapital": "No Capital Share (₱0.00). A loan item cannot be issued until the farmer has a Capital Share.",
+  "issueLoanBlockedOverdue": "Overdue loan: {amount} unpaid. It must be paid in full before another loan can be issued. A partial payment does not restore eligibility.",
+  "@issueLoanBlockedOverdue": {"placeholders": {"amount": {"type": "String"}}},
+  "loanBlockedTitle": "You can't request a loan right now",
+  "loanBlockedZeroCapital": "No Capital Share (₱0.00). Your Capital Share grows through your contributions and member-price purchases.",
+  "loanBlockedOverdue": "Overdue loan: {amount} unpaid. Pay it in full to request again. A partial payment does not restore eligibility.",
+  "@loanBlockedOverdue": {"placeholders": {"amount": {"type": "String"}}},
+  "loanBlockedItem": "Unavailable: overdue loan",
+  "loanReqOverdueWarning": "This farmer has an overdue loan (₱{amount} unpaid). The request cannot be approved until it is paid in full. You can disapprove it with a reason.",
+  "@loanReqOverdueWarning": {"placeholders": {"amount": {"type": "String"}}},
+
+  "supportLastUpdated": "Last updated: November 2026",
+  "supportInShort": "In short",
+  "supportInThisDocument": "In this document",
+  "supportLblAllAccounts": "All accounts",
+  "supportLblBuyers": "Buyers",
+  "supportLblFarmers": "Farmers",
+  "supportLblStaff": "Officers and Manager",
+  "supportLblYou": "You",
+  "supportLblManager": "Manager",
+  "supportLblOfficers": "Officers",
+  "supportLblOthers": "Other Buyers and Farmers",
+  "supportLblGuests": "Guests",
+  "supportLblBuyer": "Buyer",
+  "supportLblFarmer": "Farmer",
+  "supportLblOfficer": "Officer",
+
+  "aboutSaganaTagline": "Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics",
+  "aboutSaganaHeroSubtitle": "A mobile system for the SP3 Agriculture Cooperative of Barangay Payanas, Torrijos, Marinduque.",
+  "aboutSaganaForYou": "What SAGANA does for you",
+  "aboutSaganaWhatsInside": "What's inside",
+  "aboutFeat1Title": "Farm records",
+  "aboutFeat1Desc": "Crop roster, harvests, inventory batches, and expenses in one place.",
+  "aboutFeat2Title": "Digital marketplace",
+  "aboutFeat2Desc": "Approved listings, a cart, pickup or delivery orders, and order tracking.",
+  "aboutFeat3Title": "Cooperative services",
+  "aboutFeat3Desc": "Loans, programs, and capital records handled together with the cooperative.",
+  "aboutFeat4Title": "Prices and insights",
+  "aboutFeat4Desc": "Reference prices, price history, harvest analytics, and planting forecasts.",
+  "aboutFeat5Title": "Works offline",
+  "aboutFeat5Desc": "Some records can be saved on your phone and sent later with Sync.",
+  "aboutFeat6Title": "English and Filipino",
+  "aboutFeat6Desc": "Use SAGANA in either language, in light or dark mode.",
+  "aboutSaganaBuiltForTitle": "Built for SP3",
+  "aboutSaganaBuiltForBody": "SAGANA was developed as a capstone project for the SP3 Agriculture Cooperative. It replaces paper logbooks and scattered records with one system for membership, harvests, marketplace sales, loans, programs, prices, and reports, and it is designed to keep working when the signal is weak or missing.",
+  "aboutTeamTitle": "The team",
+  "aboutTeamSubtitle": "The people behind SAGANA",
+  "aboutTeamNamePlaceholder": "Name to be added",
+  "aboutRoleLeadDeveloper": "Lead Developer",
+  "aboutRoleLeadDeveloperDesc": "Leads the technical build of SAGANA: the Flutter mobile app, the Supabase database and its security rules, offline sync, and the overall system architecture.",
+  "aboutRoleUiUxDesigner": "UI/UX Designer",
+  "aboutRoleUiUxDesignerDesc": "Designs how SAGANA looks and feels: screens, navigation, and visual style, with simple, bilingual layouts that work for members with different levels of digital experience.",
+  "aboutRoleSystemAnalyst": "System Analyst",
+  "aboutRoleSystemAnalystDesc": "Gathers and documents what the cooperative needs: interviews with the Board and members, workflows, business rules, and the requirements the system is built against.",
+  "aboutRoleQaTester": "QA Tester",
+  "aboutRoleQaTesterDesc": "Checks that SAGANA works as specified: tests features for each role, verifies business rules and edge cases, reports defects, and confirms fixes before release.",
+
+  "coopHeroFilipino": "Samahan ng Pagkakaisa sa Pag-unlad ng Payanas",
+  "coopHeroPlace": "Barangay Payanas, Torrijos, Marinduque",
+  "coopAtAGlance": "At a glance",
+  "coopFactRegisteredLabel": "Registered with the CDA",
+  "coopFactRegisteredValue": "February 1, 2017",
+  "coopFactRegNoLabel": "Registration number",
+  "coopFactTypeLabel": "Classification",
+  "coopFactTypeValue": "Micro cooperative",
+  "coopPurposeTitle": "Our purpose",
+  "coopPurposeBody": "SP3 is a community-based cooperative of farmers in Barangay Payanas. Its main purpose is to provide services and additional income to its farmer-members. Income is shared among members through balik-tangkilik (a patronage refund) and interest.",
+  "coopWorkTitle": "What the cooperative does",
+  "coopWorkBody": "The cooperative runs three businesses. Members mainly grow peanut, ginger, banana, palay (rice), and copra, and the cooperative also runs programs for members, such as distributing peanut seeds for the next planting.",
+  "coopWorkBiz1": "Copra Buy and Sell",
+  "coopWorkBiz2": "Peanut Cookies Production",
+  "coopWorkBiz3": "Rice and Feeds Retailing",
+  "coopMembershipTitle": "Membership",
+  "coopMem1": "A resident of Barangay Payanas",
+  "coopMem2": "At least 18 years old",
+  "coopMem3": "Willing to carry out a member's responsibilities",
+  "coopMem4": "₱100 a month toward capital build-up",
+  "coopMem5": "₱2,000 a year as capital share",
+  "coopMemNote": "These are the requirements stated by the cooperative's Board of Directors. In SAGANA, a Farmer's application is reviewed and approved by the cooperative before member features open.",
+  "coopGovTitle": "How it is run",
+  "coopGovBody": "A Board of Directors leads the cooperative and holds monthly meetings on policies and operations reports. A general manager runs its projects and businesses. The cooperative also undergoes an annual compliance audit by the Cooperative Development Authority (CDA).",
+  "coopSaganaTitle": "The cooperative and SAGANA",
+  "coopSaganaBody": "SAGANA is the cooperative's digital system. The Manager and Officers use it to run daily operations, Farmers use it for their harvests, sales, loans, and programs, and Buyers use it to order from the Public Market. It keeps the cooperative's records in one place, but it does not replace the cooperative's by-laws or the decisions of its Board and members.",
+  "coopSaganaMarket1": "Public Market: open to Buyers and Farmers.",
+  "coopSaganaMarket2": "Cooperative Market and cooperative program products: for Farmers only.",
+
+  "privHeroSubtitle": "How SAGANA handles your information.",
+  "privInShort1": "SAGANA collects what the cooperative needs to run accounts, the marketplace, and its services.",
+  "privInShort2": "Your password is handled by the sign-in service and is never shown to cooperative staff.",
+  "privInShort3": "Staff see member and Buyer records only as their role allows.",
+  "privInShort4": "Exploring as a guest creates no account and saves no personal information.",
+  "privS1Title": "Who this applies to",
+  "privS1Body": "This policy covers everyone who uses SAGANA: Buyers, Farmers, Officers, the Manager, and guests exploring without an account. SAGANA is run by the SP3 Agriculture Cooperative for its operations and was built as a capstone project.",
+  "privS2Title": "Information we collect",
+  "privS2All": "Name, username, password (kept by the sign-in service), an optional email address and mobile number, an optional profile photo, and your language and appearance choices.",
+  "privS2Buyers": "Saved delivery addresses (recipient, mobile number, address, and an optional map pin), your cart, and your orders.",
+  "privS2Farmers": "Date of birth, gender, your address in Barangay Payanas, farm details and farm location pin, crop roster, harvests, inventory, expenses, listings, sales, offers, program activity, loans and payments, and capital contributions.",
+  "privS2Staff": "Name and contact details, and a record of the management actions taken.",
+  "privS2Note": "Staff also record information on your behalf, such as loan payments, capital contributions, and order handovers.",
+  "privS3Title": "Photos, camera, and location",
+  "privS3B1": "Farmers take crop photos with the camera. Photos are also used as evidence for program outcomes, cooperative deliveries, and order handovers, and are stored with your records.",
+  "privS3B2": "Location is requested only when you ask SAGANA to use your current location while adding an address or farm pin. You can always place the pin by hand, and you can turn the permission off in your phone settings.",
+  "privS4Title": "Activity and device information",
+  "privS4B1": "Orders, notifications, and activity records are kept so you and the cooperative can follow what happened.",
+  "privS4B2": "SAGANA records when you were last active. The cooperative uses it to show whether a member is active or inactive.",
+  "privS4B3": "If you allow notifications, your phone's notification token is saved so SAGANA can send phone notifications for the same events shown in the app.",
+  "privS4B4": "Management actions by staff are logged so the Manager can review who did what.",
+  "privS5Title": "How we use your information",
+  "privS5B1": "Run your account, sign-in, and account recovery.",
+  "privS5B2": "Review and manage Farmer applications and memberships.",
+  "privS5B3": "Run the marketplace: listings, orders, pickup and delivery, and notifications.",
+  "privS5B4": "Provide cooperative services such as loans, programs, and capital records.",
+  "privS5B5": "Show prices, reports, and cooperative-wide analytics such as harvest rankings and planting forecasts.",
+  "privS5B6": "Send announcements and notices from the cooperative.",
+  "privS6Title": "Who can see it",
+  "privS6Body": "Access is limited by role, and the database enforces it with row-level security rules as well as the app's screens.",
+  "privS6You": "Your own profile, records, orders, and notifications.",
+  "privS6Manager": "Member and Buyer records and every management module.",
+  "privS6Officers": "The same modules, limited by the View Only or Manage access the Manager gave them.",
+  "privS6Others": "Marketplace listings (crop, quantity, price, photo, and description) without the seller's name or contact details, and public prices.",
+  "privS6Guests": "Public marketplace listings and prices only.",
+  "privS7Title": "Services that help SAGANA work",
+  "privS7B1": "Supabase stores the data, signs you in, and stores photos.",
+  "privS7B2": "Firebase Cloud Messaging delivers phone notifications.",
+  "privS7B3": "OpenStreetMap provides map images. LocationIQ, reached through a SAGANA service, turns a pinned location into a place name.",
+  "privS7B4": "An email service sends the verification code when you add or change an email address.",
+  "privS7Note": "These services are used only for the purposes described here.",
+  "privS8Title": "On your device",
+  "privS8B1": "Records saved offline wait on your phone until you tap Sync. Copies of records you viewed, your cart, and your preferences are also kept on your phone.",
+  "privS8B2": "Records that fail to sync are kept so you can retry them.",
+  "privS9Title": "Account security",
+  "privS9B1": "Passwords are managed by the sign-in service. Staff cannot see your password.",
+  "privS9B2": "If you lose access, the cooperative can issue a temporary password. You must set your own new password the next time you sign in.",
+  "privS9B3": "An email address can be used to sign in only after you verify it with a code.",
+  "privS9B4": "The Manager can suspend an account or restrict specific features for cause, with a recorded reason.",
+  "privS10Title": "Your choices",
+  "privS10B1": "Update your name, phone number, photo, email, and farm details from Edit Profile.",
+  "privS10B2": "Choose your language and appearance in Settings.",
+  "privS10B3": "Allow or block notifications, location, and camera in your phone's settings.",
+  "privS10B4": "SAGANA has no self-service option to delete an account or its records. Ask the cooperative's Manager if you need information corrected or removed.",
+  "privS11Title": "Guests",
+  "privS11Body": "Exploring as a Buyer or Farmer needs no account. Guest screens read only public listings and prices, the Farmer preview uses sample data, and nothing you do as a guest is saved to a member record.",
+  "privS12Title": "Changes to this policy",
+  "privS12Body": "This policy may be updated as SAGANA changes. The latest version is always available under Privacy Policy in the navigation menu.",
+
+  "termsHeroSubtitle": "The rules for using SAGANA.",
+  "termsInShort1": "SAGANA is run by the SP3 Agriculture Cooperative for its members and Buyers.",
+  "termsInShort2": "Give accurate information and keep your sign-in private.",
+  "termsInShort3": "Listings are reviewed before Buyers see them, and orders follow the cooperative's pickup or delivery steps.",
+  "termsInShort4": "The cooperative can suspend an account or restrict features for cause.",
+  "termsS1Title": "Using SAGANA",
+  "termsS1Body": "By creating an account or using SAGANA you agree to these terms. Guests may explore without an account but cannot place orders or change any records. SAGANA is a cooperative-run system developed as a capstone project, not a commercial platform, and it may be unavailable at times.",
+  "termsS2Title": "Accounts and roles",
+  "termsS2Buyer": "Registers on their own and may order from the Public Market.",
+  "termsS2Farmer": "Registers on their own and waits for the cooperative's decision, or is created by the Manager or an Officer. Farmers must be at least 18 years old. Until approved, only application status, notifications, and profile are available.",
+  "termsS2Officer": "Created by the Manager, with View Only or Manage access for each module.",
+  "termsS2Manager": "Runs the cooperative's operations in SAGANA. Only the Manager creates Officers, decides Farmer accounts created by Officers, and manages delivery settings.",
+  "termsS2Guest": "Can explore read-only previews. Nothing a guest does creates a record.",
+  "termsS3Title": "Your account",
+  "termsS3B1": "Give true and complete information and keep it up to date.",
+  "termsS3B2": "One person per account. Keep your username and password private and do not share them.",
+  "termsS3B3": "Tell the cooperative at once if you think someone else used your account.",
+  "termsS3B4": "A temporary password issued by the cooperative must be replaced with your own when you sign in.",
+  "termsS4Title": "Farmer records and listings",
+  "termsS4B1": "Harvests, expenses, and sales you record must be true. Crop photos must show your own produce.",
+  "termsS4B2": "A listing is made from an eligible harvest batch at a price you propose. The cooperative reviews it and may approve it, or disapprove it with a reason. Changes to a published listing also need approval, and the current listing stays available meanwhile.",
+  "termsS4B3": "The quantity in a listing is reserved. It is released if a pending listing is withdrawn or a listing is disapproved.",
+  "termsS4B4": "You may offer crops to the cooperative and negotiate the price, join Ginger Market Linking, and record face-to-face sales, following the steps in each screen.",
+  "termsS5Title": "Markets and prices",
+  "termsS5B1": "Public Market listings can be ordered by Buyers and Farmers. Cooperative Market listings and cooperative program products are for Farmers only.",
+  "termsS5B2": "Reference prices are set by the cooperative for each crop, market, and unit. They are a guide. The price on a listing is the price you pay.",
+  "termsS5B3": "A Farmer cannot order their own listing.",
+  "termsS6Title": "Orders",
+  "termsS6B1": "Orders go to the cooperative for approval. Pickup or delivery is offered only where the cooperative has enabled it. Delivery needs an eligible address and may carry a delivery fee.",
+  "termsS6B2": "Payment is in cash. The cooperative records payment separately from the order status, and delivery handovers need photo evidence.",
+  "termsS6B3": "After payment is recorded and the order is handed over, confirm receipt in the app. Staff can complete a paid, handed-over order for you, with a reason and photo evidence.",
+  "termsS6B4": "You can cancel your own order only while it is pending. The reserved quantity is then released.",
+  "termsS7Title": "Loans, programs, and capital",
+  "termsS7B1": "Loans are item-based (such as fertilizer, feeds, or seeds), not cash. You may request a loan from the catalog. The cooperative approves it with repayment terms, or disapproves it with a reason.",
+  "termsS7B2": "Loan limits may depend on your capital share, as set by the cooperative's rules. Payments are recorded by staff, and a loan is marked overdue automatically when a payment is late.",
+  "termsS7B3": "Programs (Free Distribution, Harvest Return, and Product Sales) need approval to join. Report outcomes honestly with notes and photos. Return obligations and decisions on failed outcomes follow the program's records.",
+  "termsS7B4": "Capital contributions are recorded by staff. A mistaken entry is reversed with a reason, and the original record stays.",
+  "termsS7Note": "Figures in SAGANA are records. Decisions about distributions belong to the cooperative and follow its by-laws.",
+  "termsS8Title": "Acceptable use and suspension",
+  "termsS8B1": "Do not enter false records, misuse the marketplace, or try to reach data or features outside your role.",
+  "termsS8B2": "The Manager, or an Officer with Members Manage access, may suspend an account or restrict specific features for cause. A reason is recorded and shown to you, and a suspension can have an end date.",
+  "termsS8B3": "A suspended account cannot sign in until it is reactivated.",
+  "termsS9Title": "Offline use and Sync",
+  "termsS9B1": "Some records, such as harvests, expenses, and supported profile changes, can be saved offline and are sent when you tap Sync.",
+  "termsS9B2": "Records that fail to sync are kept, with the reason shown, so you can retry them.",
+  "termsS9B3": "Loan issuance, marketplace transactions, cooperative offers, and other actions that need immediate approval need an internet connection.",
+  "termsS9B4": "Offline records may not be visible to others until they sync.",
+  "termsS10Title": "Prices, analytics, and forecasts",
+  "termsS10Body": "Prices, price history, analytics, and planting forecasts are guides drawn from recorded data. They are not a guarantee of any price, sale, or harvest.",
+  "termsS11Title": "Availability and the cooperative's rules",
+  "termsS11Body": "SAGANA is provided as available for the cooperative's use, and uninterrupted service is not guaranteed. Membership matters remain governed by the cooperative's by-laws and the decisions of its Board. SAGANA's records do not replace them.",
+  "termsS12Title": "Changes to these terms",
+  "termsS12Body": "These terms may change as SAGANA changes. Using SAGANA after an update means you accept the updated terms.",
+
+  "guestCoopProductTitle": "Want to order from the cooperative?",
+  "guestCoopProductMessage": "Cooperative products can be ordered by SAGANA Farmers. Log in or register as a Farmer to order them.",
+  "guestSampleProgramName": "Sample Program",
+  "patContributionsInYear": "Contributions in {year}",
+  "@patContributionsInYear": { "placeholders": { "year": {"type": "int"} } },
+  "patCapitalAtStartLine": "At the start of {year}",
+  "@patCapitalAtStartLine": { "placeholders": { "year": {"type": "int"} } },
+  "patAddedInYearLine": "Added in {year}",
+  "@patAddedInYearLine": { "placeholders": { "year": {"type": "int"} } },
+  "patPurchasesMadeLabel": "Purchases made",
+  "patOffersCompletedLabel": "Completed offers",
+  "guestSampleActHarvest": "Harvest recorded",
+  "guestSampleActListing": "Listing approved",
+  "guestSampleActProgram": "Joined a program",
+  "guestSampleActLoan": "Loan requested",
+  "patCreditedLine": "Credited {amount} ({rate}% of {base})",
+  "@patCreditedLine": { "placeholders": { "amount": {"type": "String"}, "rate": {"type": "String"}, "base": {"type": "String"} } },
+  "patNothingCredited": "Nothing credited yet.",
+  "patBeforeRateNote": "Transactions completed before the percentage was set are not credited.",
+  "patSharesSummary": "{shares, plural, =1{1 full share} other{{shares} full shares}} · {remaining} more for the next full share ({value} per share)",
+  "@patSharesSummary": { "placeholders": { "shares": {"type": "int"}, "remaining": {"type": "String"}, "value": {"type": "String"} } },
+  "capSettingsTitle": "Capital Share Settings",
+  "capSettingsPurchaseLabel": "Cooperative Purchase",
+  "capSettingsPurchaseHint": "The percentage of a completed Cooperative Product order that is added to the Capital Share of a member enrolled in the Product Sales program. Members who are not enrolled add nothing.",
+  "capSettingsOfferLabel": "Offer to Cooperative",
+  "capSettingsOfferHint": "The percentage of the sale value of a successful, completed offer that is added to the farmer's Capital Share. Pending, rejected and cancelled offers add nothing.",
+  "capSettingsMonthlyLabel": "Monthly Contribution",
+  "capSettingsMonthlyHint": "No percentage. Monthly payments are added in full, following the existing contribution rules.",
+  "capSettingsPercentField": "Percentage (%)",
+  "capSettingsRangeError": "Enter a percentage from 0 to 100 with up to 2 decimals.",
+  "capSettingsApplyNote": "A new percentage applies to transactions completed after you save. Credits already made keep the percentage used at the time, so earlier Capital Share records never change.",
+  "capSettingsSave": "Save Settings",
+  "capSettingsSaved": "Capital Share settings saved.",
+  "capSettingsSaveError": "Could not save the settings. Please try again.",
+  "capSettingsLoadError": "Could not load the settings.",
+  "capSettingsSummaryTitle": "How Capital Share is built",
+  "capSettingsSummaryBody": "Total Capital Share = Monthly Contribution + Cooperative Purchase + Offer to Cooperative.",
+  "staffThingCapitalShareRates": "Capital Share settings",
+  "patDiscountEarned": "Discount earned",
+  "patRecordRegular": "Regular monthly contribution",
+  "patStatusCancelled": "Cancelled",
+  "patNewPurchasesMade": "New purchases made",
+  "patNewDiscountEarned": "New discount earned",
+  "patNewlyCredited": "Newly credited",
+  "patNewlyCreditedRate": "Newly credited ({rate}%)",
+  "@patNewlyCreditedRate": { "placeholders": { "rate": {"type": "String"} } },
+  "patPrevPurchasesMade": "Previous purchases made",
+  "patPrevDiscountEarned": "Previous discount earned",
+  "patPrevCredited": "Previously credited",
+  "patNewOffers": "New completed offers",
+  "patPrevOffers": "Previous completed offers",
+  "patSeeHistory": "See History",
+  "patHistoryTitlePurchase": "Cooperative Purchase – History",
+  "patHistoryTitleOffer": "Offer to Cooperative – History",
+  "patHistoryRate": "Rate {rate}% · from {from}",
+  "@patHistoryRate": { "placeholders": { "rate": {"type": "String"}, "from": {"type": "String"} } },
+  "patHistoryRateUntil": "Rate {rate}% · {from} – {to}",
+  "@patHistoryRateUntil": { "placeholders": { "rate": {"type": "String"}, "from": {"type": "String"}, "to": {"type": "String"} } },
+  "patHistoryCreditedTotal": "Credited {amount}",
+  "@patHistoryCreditedTotal": { "placeholders": { "amount": {"type": "String"} } },
+  "patHistoryNone": "No credits under this rate.",
+  "patHistoryPurchaseMade": "Purchase Made",
+  "patHistoryOfferMade": "Completed Offers",
+  "patHistoryDiscountEarned": "Discount Earned",
+  "patHistoryCredited": "Credited",
+  "patHistoryLoadError": "Could not load the history.",
+  "farmerDetailsFixWithCorrection": "To fix a wrong amount, record a Correction (⋮ menu → Adjust Capital).",
+  "contribSourcePurchaseShare": "Cooperative Purchase credit",
+  "contribSourceOfferShare": "Offer to Cooperative credit",
+  "monthlyOfDue": "of {amount} due",
+  "@monthlyOfDue": { "placeholders": { "amount": {"type": "String"} } },
+  "monthlyMonthsPaidOf": "{paid} of {total} months fully paid",
+  "@monthlyMonthsPaidOf": { "placeholders": { "paid": {"type": "int"}, "total": {"type": "int"} } },
+  "patMonthlyHistory": "History",
+  "patGroupNewlyCredited": "Newly Credited",
+  "patGroupPreviousPurchases": "Previous Purchases",
+  "patGroupPreviousOffers": "Previous Completed Offers",
+  "patCreditedToCapital": "Credited to Capital Share",
+  "patProductsPurchased": "Products purchased ({count})",
+  "@patProductsPurchased": { "placeholders": { "count": {"type": "int"} } },
+  "patOffersMade": "Offers made ({count})",
+  "@patOffersMade": { "placeholders": { "count": {"type": "int"} } },
+  "dlBodToday": "BOD Meeting — TODAY",
+  "dlBodInDays": "{count, plural, =1{BOD Meeting in 1 day} other{BOD Meeting in {count} days}}",
+  "@dlBodInDays": {"placeholders": {"count": {"type": "int"}}},
+  "dlFarmersWithLoans": "{count} farmers with outstanding loans",
+  "@dlFarmersWithLoans": {"placeholders": {"count": {"type": "int"}}},
+  "dlOverdueLoans": "{count, plural, =1{1 Overdue Loan} other{{count} Overdue Loans}}",
+  "@dlOverdueLoans": {"placeholders": {"count": {"type": "int"}}},
+  "dlImmediateAttention": "Immediate attention required",
+  "dlListingsAwaiting": "{count, plural, =1{1 Listing Awaiting Approval} other{{count} Listings Awaiting Approval}}",
+  "@dlListingsAwaiting": {"placeholders": {"count": {"type": "int"}}},
+  "dlFarmersWaitingReview": "Farmers waiting for review",
+  "dlItemsLowStock": "{count, plural, =1{1 Item Low on Stock} other{{count} Items Low on Stock}}",
+  "@dlItemsLowStock": {"placeholders": {"count": {"type": "int"}}},
+  "dlCropRequestsPending": "{count, plural, =1{1 Crop Request Pending} other{{count} Crop Requests Pending}}",
+  "@dlCropRequestsPending": {"placeholders": {"count": {"type": "int"}}},
+  "dlFarmersWaitingCatalog": "Farmers waiting for catalog review",
+  "dlMembersPending": "{count, plural, =1{1 Member Pending Verification} other{{count} Members Pending Verification}}",
+  "@dlMembersPending": {"placeholders": {"count": {"type": "int"}}},
+  "dlNewRegistrations": "New registrations to review",
+  "dlBadgeNoCrops": "No crops",
+  "dlBadgeCrops": "{count} crops",
+  "@dlBadgeCrops": {"placeholders": {"count": {"type": "int"}}},
+  "dlBadgeNoItems": "No items",
+  "dlBadgeItems": "{count, plural, =1{1 item} other{{count} items}}",
+  "@dlBadgeItems": {"placeholders": {"count": {"type": "int"}}},
+  "dlBadgeSupplies": "{count} supplies",
+  "@dlBadgeSupplies": {"placeholders": {"count": {"type": "int"}}},
+  "dlBadgeNoEntries": "No entries",
+  "dlBadgeNoPrograms": "No programs",
+  "dlBadgeActive": "{count} active",
+  "@dlBadgeActive": {"placeholders": {"count": {"type": "int"}}},
+  "dlHarvestedToday": "Harvested today",
+  "dlHarvestedYesterday": "Harvested yesterday",
+  "dlHarvestedDaysAgo": "Harvested {days} days ago",
+  "@dlHarvestedDaysAgo": {"placeholders": {"days": {"type": "int"}}},
+  "dlOfferedToday": "Offered today",
+  "dlOfferedYesterday": "Offered yesterday",
+  "dlOfferedDaysAgo": "Offered {days} days ago",
+  "@dlOfferedDaysAgo": {"placeholders": {"days": {"type": "int"}}},
+  "dlNotPinned": "Not pinned yet",
+  "dlBatchWhenSynced": "Assigned when synced",
+  "dlUnknownFarmer": "Unknown Farmer",
+  "dlUnknownCrop": "Unknown crop",
+  "dlRecipientCropFarmers": "{crop} Farmers",
+  "@dlRecipientCropFarmers": {"placeholders": {"crop": {"type": "String"}}},
+  "dlFieldRequired": "{label} is required",
+  "@dlFieldRequired": {"placeholders": {"label": {"type": "String"}}},
+  "dlValidNumber": "Enter a valid number, like 0.45 or 12.5",
+  "dlMustBePositive": "{label} must be greater than 0",
+  "@dlMustBePositive": {"placeholders": {"label": {"type": "String"}}},
+  "dlMaxDecimals": "Use at most {count} decimal places",
+  "@dlMaxDecimals": {"placeholders": {"count": {"type": "int"}}},
+  "dlTooLarge": "{label} is too large",
+  "@dlTooLarge": {"placeholders": {"label": {"type": "String"}}},
+  "dlOnlyAvailable": "Only {amount} available",
+  "@dlOnlyAvailable": {"placeholders": {"amount": {"type": "String"}}},
+  "dlValidAmount": "Enter a valid amount, like 12.50",
+  "dlQuantity": "Quantity",
+  "dlPrice": "Price",
+  "dlLoginIdRequired": "Username or email is required",
+  "dlAuthIncorrect": "Incorrect username or password. Please try again.",
+  "dlAuthTooMany": "Too many attempts. Please wait a moment and try again.",
+  "dlAuthUnexpected": "An unexpected error occurred. Please try again.",
+  "dlAuthLoginFailed": "Login failed. Please check your credentials.",
+  "dlAuthRoleMissing": "Account role not found. Contact SP3 Cooperative.",
+  "dlAuthAge18": "You must be at least 18 years old to register as a cooperative member.",
+  "dlCreateAccountFailed": "Failed to create account. Please try again.",
+  "dlServerUnexpected": "Unexpected response from server. Please try again.",
+  "dlUsernameRule": "Username must be 3 to 30 characters: letters, numbers, dots, underscores or hyphens.",
+  "dlStockBelowZero": "There is not enough stock for this. Stock on hand cannot go below zero.",
+  "dlItemAlreadyTaken": "This item was already taken from stock for this loan.",
+  "dlPresetCda": "CDA Submission",
+  "dlPresetDa": "DA Submission",
+  "dlPresetCdaDesc": "Sales, Loan, and Member Contribution reports",
+  "dlPresetDaDesc": "Harvest report (includes batches & stock)",
+  "dlInformalSaleF2f": "Informal Sale (F2F)",
+  "dlMarketplace": "Marketplace",
+  "dlDaAmadLinking": "DA-AMAD Market Linking",
+  "snAssistanceRequest": "Assistance Request",
+  "snAssistanceRequestCancelled": "Assistance Request Cancelled",
+  "snBuyerDetailsUpdated": "Buyer Details Updated",
+  "snCoopDeliveryToConfirm": "Cooperative Delivery to Confirm",
+  "snCoopOfferCancelled": "Cooperative Offer Cancelled",
+  "snEditRequestPriceUpdated": "Edit Request Price Updated",
+  "snEditedListingForApproval": "Edited Listing for Approval",
+  "snFarmerAcceptedPrice": "Farmer Accepted the Price",
+  "snFarmerCounteroffer": "Farmer Counteroffer",
+  "snFeatureRestricted": "Feature Restricted",
+  "snRestrictionLifted": "Restriction Lifted",
+  "snGingerSaleRecorded": "Ginger Sale Recorded",
+  "snGingerSubmitted": "Ginger Submitted for Sale",
+  "snHarvestLossReported": "Harvest Loss Reported",
+  "snHarvestQuantityReduced": "Harvest Quantity Reduced",
+  "snHarvestReturnClosed": "Harvest Return Closed",
+  "snListingDisapproved": "Listing Disapproved",
+  "snListingEditRequest": "Listing Edit Request",
+  "snListingPriceUpdated": "Listing Price Updated",
+  "snListingUpdated": "Listing Updated",
+  "snListingWithdrawn": "Listing Withdrawn",
+  "snLoanFullyPaid": "Loan Fully Paid",
+  "snLoanRequestCancelled": "Loan Request Cancelled",
+  "snMlEnrollmentApproved": "Market Linking Enrollment Approved",
+  "snMlEnrollmentDeclined": "Market Linking Enrollment Declined",
+  "snMlRequestApproved": "Market Linking Request Approved",
+  "snMlRequestCancelled": "Market Linking Request Cancelled",
+  "snMlRequestClosed": "Market Linking Request Closed",
+  "snMlRequestCompleted": "Market Linking Request Completed",
+  "snMlRequestDeclined": "Market Linking Request Declined",
+  "snMonthlyWaived": "Monthly Contribution Waived",
+  "snMonthlyWaiverRemoved": "Monthly Contribution Waiver Removed",
+  "snNewCoopOrder": "New Cooperative Order",
+  "snNewLoanRequest": "New Loan Request",
+  "snNewMlEnrollment": "New Market Linking Enrollment",
+  "snOrderCancelledByBuyer": "Order Cancelled by Buyer",
+  "snOrderCancelledBy": "Order Cancelled by {who}",
+  "@snOrderCancelledBy": {"placeholders": {"who": {"type": "String"}}},
+  "snOrderDisapproved": "Order Disapproved",
+  "snOverdueLoan": "Overdue Loan",
+  "snPaymentRecorded": "Payment Recorded",
+  "snPendingOrder": "Pending Order",
+  "snPriceUpdateRequired": "Price Update Required",
+  "snProgramEnrollmentApproved": "Program Enrollment Approved",
+  "snProgramOutcomeReport": "Program Outcome Report",
+  "snProgramOutcomeSuccessful": "Program Outcome: Successful",
+  "snRequestAnotherDistribution": "Request for Another Distribution",
+  "snReturnQuantityChanged": "Return Quantity Changed",
+  "snShelfLifeReview": "Shelf-Life Review for Approval",
+  "snAccountSuspended": "Your SP3 Account Was Suspended",
+  "snLowStock": "Low Stock: {item}",
+  "@snLowStock": {"placeholders": {"item": {"type": "String"}}},
+  "snOutOfStock": "Out of Stock: {item}",
+  "@snOutOfStock": {"placeholders": {"item": {"type": "String"}}},
+  "snPriceUpdate": "Price Update: {crop}",
+  "@snPriceUpdate": {"placeholders": {"crop": {"type": "String"}}},
+  "snInspect": "Inspect {item}",
+  "@snInspect": {"placeholders": {"item": {"type": "String"}}},
+  "offlineNeedsInternet": "To access this feature and retrieve the latest data, please check your internet connection.",
+  "offlineNotSavedBody": "Some information on this screen is not saved on this device. To see it and retrieve the latest data, please check your internet connection.",
+  "offlineNeedsInternetTitle": "Internet Connection Required",
+  "syncActionCrop": "Crop Roster",
+  "passwordErrSame": "Your new password must be different from your current password.",
+  "passwordErrWeak": "That password is not strong enough. Use a longer one with letters, numbers and symbols.",
+  "passwordErrBreached": "That password has appeared in a known data breach. Choose a different one.",
+  "passwordErrExpired": "Your reset session has expired. Go back and request a new code.",
+  "assistCapZeroTitle": "You can't request assistance yet",
+  "assistCapZero": "Your Capital Share is ₱0.00. Assistance items are limited by your Capital Share, which grows through your contributions and member-price purchases.",
+  "assistCapBody": "Each assistance item can be worth up to {amount} (quantity × price). Assistance is given as items, not cash, and is not repaid.",
+  "@assistCapBody": {"placeholders": {"amount": {"type": "String"}}},
+  "assistCapStaffBlocked": "This farmer's Capital Share is ₱{amount}. At least one item is worth more than that, or the Capital Share is ₱0.00, so this request cannot be approved. You can disapprove it with a reason.",
+  "@assistCapStaffBlocked": {"placeholders": {"amount": {"type": "String"}}},
+  "passwordErrPrevious": "Your new password must be different from your previous password."
 }

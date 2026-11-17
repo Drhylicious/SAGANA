@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show AuthException, AuthWeakPasswordException;
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 
@@ -8,6 +10,35 @@ import '../../core/l10n/app_localizations.dart';
 /// etc.) — that was tried and explicitly rejected as unnecessarily
 /// restrictive for this project.
 bool isPasswordValid(String value) => value.length >= 8;
+
+/// What to tell the person when the server refused a new password (HTTP 422 from
+/// Supabase Auth: the same password again, or one its own policy calls weak), or
+/// when the reset session is no longer valid. Null for any other failure, so the
+/// caller keeps its generic message.
+String? passwordUpdateErrorMessage(Object error, AppLocalizations l10n) {
+  if (error is AuthWeakPasswordException) {
+    return error.reasons.contains('pwned')
+        ? l10n.passwordErrBreached
+        : l10n.passwordErrWeak;
+  }
+  if (error is AuthException) {
+    switch (error.code) {
+      case 'same_password':
+        return l10n.passwordErrSame;
+      case 'weak_password':
+        return l10n.passwordErrWeak;
+      case 'session_not_found':
+      case 'session_expired':
+      case 'reauthentication_needed':
+      case 'refresh_token_not_found':
+        return l10n.passwordErrExpired;
+    }
+    if (error.statusCode == '401' || error.statusCode == '403') {
+      return l10n.passwordErrExpired;
+    }
+  }
+  return null;
+}
 
 /// Form-field validator for the minimum-length rule. Shared by every
 /// screen where a user chooses their own new password — Register

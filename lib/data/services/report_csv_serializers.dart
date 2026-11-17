@@ -1,6 +1,7 @@
 import '../../core/utils/item_type_utils.dart';
 import 'package:intl/intl.dart';
 import '../../core/utils/quantity_utils.dart';
+import '../models/admin_analytics_model.dart';
 import '../models/admin_loan_model.dart';
 import '../models/admin_reports_model.dart';
 import '../models/export_model.dart';
@@ -14,8 +15,17 @@ import '../models/export_model.dart';
 /// No `csv` package dependency — this is deliberately just comma-joining
 /// with quote-escaping, per the "no additional dependencies" scope call.
 
+/// A text that starts with = + @ (or a minus that is not a number) would be read as a
+/// formula when the file is opened in a spreadsheet. A leading apostrophe keeps it text.
+String _neutralize(Object? value, String str) {
+  if (value is! String || str.isEmpty) return str;
+  final c = str[0];
+  final isMinusText = c == '-' && double.tryParse(str) == null;
+  return (c == '=' || c == '+' || c == '@' || isMinusText) ? "'$str" : str;
+}
+
 String _escape(Object? value) {
-  final str = value?.toString() ?? '';
+  final str = _neutralize(value, value?.toString() ?? '');
   if (str.contains(',') || str.contains('"') || str.contains('\n')) {
     return '"${str.replaceAll('"', '""')}"';
   }
@@ -27,7 +37,7 @@ String _row(List<Object?> values) => values.map(_escape).join(',');
 final _dateFmt = DateFormat('yyyy-MM-dd');
 
 /// A short block placed above the table of every exported file (except the
-/// Member Patronage Report, whose export is left as it was): the report name,
+/// Member Contribution Report, whose export is left as it was): the report name,
 /// what it covers, when it was generated, and its headline totals. Without it a
 /// shared file does not say which period it describes.
 String csvExportHeader({
@@ -65,6 +75,8 @@ String serializeSalesReportCsv(SalesReportData data, [ProductSalesReportData? pr
       'Amount (PHP)',
       'Sale Date',
       'Reference No',
+      'Buyer',
+      'Order Status',
     ]),
   );
   for (final t in data.transactions) {
@@ -79,6 +91,8 @@ String serializeSalesReportCsv(SalesReportData data, [ProductSalesReportData? pr
         t.amount.toStringAsFixed(2),
         _dateFmt.format(t.saleDate),
         t.referenceNo ?? '',
+        t.buyerName ?? '',
+        t.orderStatus ?? '',
       ]),
     );
   }
@@ -190,6 +204,7 @@ String serializeExpenseReportCsv(ExpenseReportData data) {
     _row([
       'Date',
       'Farmer Name',
+      'Expense Name',
       'Category',
       'Description',
       'Amount (PHP)',
@@ -201,6 +216,7 @@ String serializeExpenseReportCsv(ExpenseReportData data) {
       _row([
         _dateFmt.format(e.expenseDate),
         e.farmerName,
+        e.name,
         e.category,
         e.description,
         e.isSubsidy ? '0.00' : e.amount.toStringAsFixed(2),
@@ -223,6 +239,10 @@ String serializeLoanReportCsv(List<AdminLoanSummary> loans) {
       'Amount Paid (PHP)',
       'Remaining Balance (PHP)',
       'Status',
+      'Monthly Payment (PHP)',
+      'Next Payment Date',
+      'From Program',
+      'Notes',
     ]),
   );
   for (final l in loans) {
@@ -236,6 +256,10 @@ String serializeLoanReportCsv(List<AdminLoanSummary> loans) {
         l.amountPaid.toStringAsFixed(2),
         l.remainingBalance.toStringAsFixed(2),
         loanStatusExportLabel(l.status),
+        l.monthlyPayment.toStringAsFixed(2),
+        l.nextPaymentDate == null ? '' : _dateFmt.format(l.nextPaymentDate!),
+        l.sourceProgramName ?? '',
+        l.notes ?? '',
       ]),
     );
   }
@@ -247,38 +271,71 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
   buffer.writeln(
     _row([
       'Farmer Name',
-      'Palay Qty (kg)',
-      'Palay Amount (PHP)',
-      'Peanut Qty (kg)',
-      'Peanut Amount (PHP)',
-      'Other Crops Qty (kg)',
-      'Other Crops Amount (PHP)',
-      'Total Amount (PHP)',
-      'Share (%)',
-      // Product Sales purchases at the member price: regular price, discount
-      // and what was actually paid, so they reconcile (regular - discount = net).
-      'Purchases - Regular Price (PHP)',
-      'Purchases - Discount Rate (%)',
-      'Purchases - Discount Amount (PHP)',
-      'Purchases - Net Amount Paid (PHP)',
+      // Total Capital Share = Monthly Contribution + Cooperative Purchase + Offer
+      // to Cooperative. The balance, where it started the year, and what was added.
+      'Total Capital Share (PHP)',
+      'Capital Share at Start of Year (PHP)',
+      'Added in Year (PHP)',
+      'Monthly Contribution Added (PHP)',
+      'Cooperative Purchase Added (PHP)',
+      'Offer to Cooperative Added (PHP)',
+      // What the Monthly Contribution is made of.
+      'Monthly Payments Received (PHP)',
+      'Paid Toward Months (PHP)',
+      'Earlier Payments Not Assigned to a Month (PHP)',
+      'Starting Capital Dated in the Year (PHP)',
+      'Corrections and Other Entries (PHP)',
+      'Full Shares',
+      'Remaining for Next Share (PHP)',
+      // The monthly obligation: shown, never added to the Capital Share.
+      'Monthly Obligation Due (PHP)',
+      'Monthly Obligation Unpaid (PHP)',
+      'Months Paid',
+      'Months Partial',
+      'Months Unpaid',
+      'Months Overdue',
+      'Months Waived',
+      // The completed transactions the two percentage credits come from.
+      'Cooperative Purchases Made (PHP)',
+      'Purchases Credited From (PHP)',
+      'Cooperative Purchase Rate Used (%)',
+      'Completed Offers - Sale Value (PHP)',
+      'Offers Credited From (PHP)',
+      'Offer to Cooperative Rate Used (%)',
     ]),
   );
+  String rate(double credited, double base) =>
+      base > 0 ? (credited / base * 100).toStringAsFixed(2) : '';
   for (final r in data.rows) {
     buffer.writeln(
       _row([
         r.farmerName,
-        r.palayQtyKg.toStringAsFixed(2),
-        r.palayAmount.toStringAsFixed(2),
-        r.peanutQtyKg.toStringAsFixed(2),
-        r.peanutAmount.toStringAsFixed(2),
-        r.otherCropsQtyKg.toStringAsFixed(2),
-        r.otherCropsAmount.toStringAsFixed(2),
-        r.totalAmount.toStringAsFixed(2),
-        r.sharePercent.toStringAsFixed(2),
-        r.programRegularAmount.toStringAsFixed(2),
-        r.programDiscountRatePercent.toStringAsFixed(2),
-        r.programDiscountAmount.toStringAsFixed(2),
+        r.capitalBalance.toStringAsFixed(2),
+        r.capitalAtYearStart.toStringAsFixed(2),
+        r.capitalAddedInYear.toStringAsFixed(2),
+        r.memberPaidInYear.toStringAsFixed(2),
+        r.purchaseCredited.toStringAsFixed(2),
+        r.offersCredited.toStringAsFixed(2),
+        r.monthlyContributions.toStringAsFixed(2),
+        (r.monthlyContributions - r.monthlyUnassigned).toStringAsFixed(2),
+        r.monthlyUnassigned.toStringAsFixed(2),
+        r.startingCapital.toStringAsFixed(2),
+        r.otherCapitalAdded.toStringAsFixed(2),
+        r.capitalShares,
+        r.remainingForNextShare.toStringAsFixed(2),
+        r.monthlyDue.toStringAsFixed(2),
+        r.monthlyBalance.toStringAsFixed(2),
+        r.monthsPaid,
+        r.monthsPartial,
+        r.monthsUnpaid,
+        r.monthsOverdue,
+        r.monthsWaived,
         r.programPurchasesAmount.toStringAsFixed(2),
+        r.purchaseShareBase.toStringAsFixed(2),
+        rate(r.purchaseShareCredited, r.purchaseShareBase),
+        r.totalAmount.toStringAsFixed(2),
+        r.offerShareBase.toStringAsFixed(2),
+        rate(r.offerShareCredited, r.offerShareBase),
       ]),
     );
   }
@@ -288,7 +345,17 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
 String serializeCoopStockReportCsv(CoopStockReportData data) {
   final buffer = StringBuffer();
   buffer.writeln(
-    _row(['Item Name', 'Category', 'Item Type', 'On Hand', 'Unit', 'Low Stock']),
+    _row([
+      'Item Name',
+      'Category',
+      'Item Type',
+      'On Hand',
+      'Unit',
+      'Reorder Level',
+      'Unit Cost (PHP)',
+      'Last Restocked',
+      'Low Stock',
+    ]),
   );
   for (final item in data.items) {
     buffer.writeln(
@@ -298,9 +365,111 @@ String serializeCoopStockReportCsv(CoopStockReportData data) {
         itemTypeExportLabel(item.itemType),
         item.quantityOnHand.toStringAsFixed(2),
         item.unit,
+        item.reorderLevel.toStringAsFixed(2),
+        item.unitCost?.toStringAsFixed(2) ?? '',
+        item.lastRestockedAt == null
+            ? ''
+            : _dateFmt.format(item.lastRestockedAt!),
         item.isLowStock ? 'Yes' : 'No',
       ]),
     );
   }
   return buffer.toString();
+}
+
+/// Analytics Dashboard export: its four sections one after another, each with
+/// its own heading and column titles.
+String serializeAnalyticsCsv(AnalyticsExportData data) {
+  final b = StringBuffer();
+  final p = data.participation;
+  b.writeln(_row(['Member Participation']));
+  b.writeln(_row(['Group', 'Members']));
+  b.writeln(_row(['Harvested', p.activeHarvestedCount]));
+  b.writeln(_row(['Listed Only', p.activeListedCount]));
+  b.writeln(_row(['No Activity', p.inactiveCount]));
+  b.writeln(_row(['Active Members', p.totalMembers]));
+  b.writeln(
+    _row([
+      'Participation Rate (%)',
+      data.participationRatePercent.toStringAsFixed(1),
+    ]),
+  );
+  b.writeln();
+  b.writeln(_row(['Members With No Activity']));
+  for (final f in p.inactiveFarmers) {
+    b.writeln(_row([f.fullName]));
+  }
+  b.writeln();
+  b.writeln(_row(['Top Harvested Crops']));
+  b.writeln(_row(['Crop', 'Volume (kg)']));
+  for (final c in data.topCrops) {
+    b.writeln(_row([c.cropName, c.volumeKg.toStringAsFixed(2)]));
+  }
+  b.writeln();
+  b.writeln(_row(['Price Snapshot']));
+  b.writeln(
+    _row([
+      'Crop',
+      'Market Type',
+      'Current Price (PHP/kg)',
+      'Previous Price (PHP/kg)',
+      'Change (%)',
+      'Last Updated',
+    ]),
+  );
+  for (final c in data.priceCards) {
+    final prev = c.previousPrice;
+    final change = prev != null && prev != 0
+        ? ((c.currentPrice - prev) / prev * 100).toStringAsFixed(1)
+        : '';
+    b.writeln(
+      _row([
+        c.cropName,
+        data.marketTypeName(c.priceType),
+        c.currentPrice.toStringAsFixed(2),
+        prev?.toStringAsFixed(2) ?? '',
+        change,
+        c.recordedAt == null ? '' : _dateFmt.format(c.recordedAt!),
+      ]),
+    );
+  }
+  b.writeln();
+  b.writeln(_row(['Planting Forecast']));
+  b.writeln(
+    _row([
+      'Crop',
+      'Category',
+      'Most Recent Cycle (kg)',
+      'Forecast Next Cycle (kg)',
+      'Trend',
+      'Cycles Recorded',
+    ]),
+  );
+  for (final f in data.forecasts) {
+    b.writeln(
+      _row([
+        f.cropName,
+        f.category,
+        f.mostRecentCycleKg.toStringAsFixed(2),
+        f.hasForecast ? f.forecastNextCycleKg!.toStringAsFixed(2) : '',
+        analyticsTrendLabel(f.trend),
+        f.cyclesAvailable,
+      ]),
+    );
+  }
+  return b.toString();
+}
+
+/// English trend wording for exports.
+String analyticsTrendLabel(String trend) {
+  switch (trend) {
+    case 'trending_up':
+      return 'Rising';
+    case 'trending_down':
+      return 'Falling';
+    case 'stable':
+      return 'Steady';
+    default:
+      return 'Not enough history';
+  }
 }

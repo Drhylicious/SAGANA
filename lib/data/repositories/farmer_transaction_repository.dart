@@ -210,7 +210,7 @@ class FarmerTransactionRepository {
             unit: unitOrDefault(r['unit'] as String?),
             amount: (r['amount'] as num).toDouble(),
             // The sale's own date — the one the Sales Report, the Annual
-            // Earnings and Balik-Tangkilik all use for an Offer to Cooperative.
+            // Earnings and Benefits Tracking all use for an Offer to Cooperative.
             transactionDate: DateTime.parse(r['sale_date'] as String),
             referenceNo: r['reference_no'] as String?,
             pricePerKg: (offer?['agreed_price_per_kg'] as num?)?.toDouble(),

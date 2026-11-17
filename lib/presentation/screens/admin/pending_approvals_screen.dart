@@ -443,7 +443,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
           ),
           Expanded(
             child: RefreshIndicator(
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
               onRefresh: _load,
               child: _isLoading
                   ? const Padding(
@@ -795,7 +795,7 @@ class _PendingListingCard extends StatelessWidget {
                             color: cs.primary,
                           ),
                           const SizedBox(width: 6),
-                          Text(
+                          Flexible(child: Text(
                             listing.isPending
                                 ? l10n.pendingApprovalsReviewAction
                                 : l10n.listingApprovalsViewDetails,
@@ -804,7 +804,7 @@ class _PendingListingCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: cs.primary,
                             ),
-                          ),
+                          )),
                         ],
                       ),
                     ),
@@ -886,14 +886,14 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: cs.onSurfaceVariant),
           const SizedBox(width: 4),
-          Text(
+          Flexible(child: Text(
             label,
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: cs.onSurface,
             ),
-          ),
+          )),
         ],
       ),
     );
@@ -921,7 +921,7 @@ class _PriceIndicator extends StatelessWidget {
           size: 14,
           color: color,
         ),
-        Text(
+        Flexible(child: Text(
           AppLocalizations.of(
             context,
           ).enhVsMarket((pct.abs().toStringAsFixed(1)).toString()),
@@ -930,7 +930,7 @@ class _PriceIndicator extends StatelessWidget {
             fontWeight: FontWeight.w700,
             color: color,
           ),
-        ),
+        )),
       ],
     );
   }

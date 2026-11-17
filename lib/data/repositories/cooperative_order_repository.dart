@@ -1,3 +1,4 @@
+import 'admin_activity_repository.dart';
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/program_model.dart';
@@ -185,23 +186,41 @@ class CooperativeOrderRepository {
 
   // ─── Manager / Officer with Marketplace = Manage ───────────────────────
 
-  Future<void> approve(String orderId) => _write(
-    () => _client.rpc('approve_program_order', params: {'p_order_id': orderId}),
-  );
+  Future<void> approve(String orderId) => _write(() async {
+    await _client.rpc('approve_program_order', params: {'p_order_id': orderId});
+    logStaffAction(
+      'orders',
+      'coop_order_approved',
+      'adminLogCoopOrderApproved',
+      referenceId: orderId,
+    );
+  });
 
-  Future<void> markReady(String orderId) => _write(
-    () => _client.rpc(
+  Future<void> markReady(String orderId) => _write(() async {
+    await _client.rpc(
       'mark_program_order_ready',
       params: {'p_order_id': orderId},
-    ),
-  );
+    );
+    logStaffAction(
+      'orders',
+      'coop_order_ready',
+      'adminLogCoopOrderReady',
+      referenceId: orderId,
+    );
+  });
 
-  Future<void> markOutForDelivery(String orderId) => _write(
-    () => _client.rpc(
+  Future<void> markOutForDelivery(String orderId) => _write(() async {
+    await _client.rpc(
       'mark_program_order_out_for_delivery',
       params: {'p_order_id': orderId},
-    ),
-  );
+    );
+    logStaffAction(
+      'orders',
+      'coop_order_out_for_delivery',
+      'adminLogCoopOrderOutForDelivery',
+      referenceId: orderId,
+    );
+  });
 
   /// Pickup: the cash received at the counter. Delivery: handed over (photo required) with the cash.
   Future<void> recordHandover({
@@ -230,6 +249,12 @@ class CooperativeOrderRepository {
         'p_note': note,
       },
     );
+    logStaffAction(
+      'orders',
+      'coop_order_handover',
+      'adminLogCoopOrderHandover',
+      referenceId: orderId,
+    );
   });
 
   Future<void> completeForMember({
@@ -248,6 +273,12 @@ class CooperativeOrderRepository {
     await _client.rpc(
       'staff_complete_program_order',
       params: {'p_order_id': orderId, 'p_reason': reason, 'p_photo_url': url},
+    );
+    logStaffAction(
+      'orders',
+      'coop_order_completed',
+      'adminLogCoopOrderCompleted',
+      referenceId: orderId,
     );
   });
 }

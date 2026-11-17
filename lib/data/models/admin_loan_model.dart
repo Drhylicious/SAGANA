@@ -276,12 +276,23 @@ class FarmerLoanStanding {
   /// farmer's amount. Null when the amount is known (Admin).
   final bool? capitalEligibleOverride;
 
+  /// The farmer's Capital Share now, for the loan item rule (a loan item can be
+  /// worth no more than this; the database refuses a loan that goes over).
+  /// Null when it could not be read: the screen then shows no limit.
+  final double? capitalShare;
+
+  /// What is still unpaid on the farmer's overdue loans: a partly paid overdue loan
+  /// still counts until it is paid in full. Null when it could not be read.
+  final double? overdueBalance;
+
   const FarmerLoanStanding({
     required this.outstandingBalance,
     required this.hasOverdueLoan,
     this.capitalContribution = 0,
     this.minimumCapitalRequired = 0,
     this.capitalEligibleOverride,
+    this.capitalShare,
+    this.overdueBalance,
   });
 
   bool get showsCapitalAmount => capitalEligibleOverride == null;

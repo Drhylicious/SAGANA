@@ -189,9 +189,14 @@ class AdminActivityItem {
     required this.isPrimary,
     this.sourceModule,
     this.referenceId,
+    this.actionType,
     this.plainDescription,
     this.adminName,
   });
+
+  /// admin_activity_log.action_type of a logged row (e.g. 'coop_order_ready'),
+  /// used to open the right kind of record.
+  final String? actionType;
 }
 
 // ─── Cooperative Performance Summary ─────────────────────────────────────────

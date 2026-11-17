@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/workflow_event_model.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
@@ -106,7 +105,7 @@ class _ListingHistoryScreenState extends State<ListingHistoryScreen> {
           ),
           Expanded(
             child: RefreshIndicator(
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
               onRefresh: _load,
               child: _loading
                   ? const Padding(

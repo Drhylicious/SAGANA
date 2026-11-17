@@ -220,7 +220,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
               ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(

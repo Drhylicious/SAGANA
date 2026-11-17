@@ -1,4 +1,6 @@
 import 'admin_loan_model.dart' show FarmerPickerResult;
+import 'analytics_model.dart'
+    show CropPriceCard, PlantingForecast, TopSellingCrop;
 
 /// Splits the active members into the three participation tiers. Only people
 /// in [memberIds] are counted, so a former member who still has old harvest or
@@ -45,4 +47,34 @@ class MemberParticipationSummary {
         totalMembers: 0,
         inactiveFarmers: [],
       );
+}
+
+/// Everything the Analytics Dashboard shows, gathered for CSV and PDF export.
+/// Member Participation covers the chosen period; the price snapshot, top
+/// harvested crops and planting forecast are current, as on the screen.
+class AnalyticsExportData {
+  final MemberParticipationSummary participation;
+  final List<TopSellingCrop> topCrops;
+  final List<CropPriceCard> priceCards;
+
+  /// Market type name for each [CropPriceCard.priceType] code.
+  final Map<String, String> marketTypeNames;
+  final List<PlantingForecast> forecasts;
+
+  const AnalyticsExportData({
+    required this.participation,
+    required this.topCrops,
+    required this.priceCards,
+    required this.marketTypeNames,
+    required this.forecasts,
+  });
+
+  int get participatedCount =>
+      participation.activeHarvestedCount + participation.activeListedCount;
+
+  double get participationRatePercent => participation.totalMembers > 0
+      ? participatedCount / participation.totalMembers * 100
+      : 0;
+
+  String marketTypeName(String code) => marketTypeNames[code] ?? code;
 }

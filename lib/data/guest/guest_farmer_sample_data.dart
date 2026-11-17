@@ -1,4 +1,6 @@
+import '../../core/l10n/app_localizations.dart';
 import '../models/analytics_model.dart';
+import '../models/cooperative_product_model.dart';
 import '../models/dashboard_summary_model.dart';
 import '../models/farmer_market_rate_model.dart';
 import '../models/harvest_model.dart';
@@ -10,6 +12,11 @@ import '../services/market_types_service.dart';
 /// written to, the database: it exists only so a visitor can see what the
 /// Farmer screens look like. Every id starts with [idPrefix] so a sample row can
 /// never be mistaken for (or sent as) a real record.
+///
+/// The crops are ones the SP3 Agriculture Cooperative's members actually grow
+/// (peanut, palay, banana), so the preview reads like the real app. Keep this in
+/// step with the Farmer tabs: when a tab gains or loses a section, the sample for
+/// it changes here.
 class GuestFarmerSampleData {
   GuestFarmerSampleData._();
 
@@ -51,33 +58,42 @@ class GuestFarmerSampleData {
       ),
     );
     return [
-      rate('rate-1', 'Tomato', 'Vegetable', 45, 40),
-      rate('rate-2', 'Corn', 'Grain', 22, 24),
-      rate('rate-3', 'Eggplant', 'Vegetable', 38, 38),
+      rate('rate-1', 'Peanut', 'Legume', 60, 55),
+      rate('rate-2', 'Palay', 'Grain', 20, 20),
+      rate('rate-3', 'Banana', 'Fruit', 25, 27),
     ];
   }
 
-  static List<ActivityItem> get activity => [
+  /// Recent Activity rows, worded in the viewer's language. The types are ones
+  /// the real feed produces today.
+  static List<ActivityItem> activity(AppLocalizations l10n) => [
     ActivityItem(
       id: '${idPrefix}act-1',
       type: ActivityType.harvest,
-      title: 'Sample harvest recorded',
-      subtitle: 'Tomato · 120 kg',
+      title: l10n.guestSampleActHarvest,
+      subtitle: 'Peanut · 120 kg',
       timestamp: _daysAgo(1),
     ),
     ActivityItem(
       id: '${idPrefix}act-2',
       type: ActivityType.listing,
-      title: 'Sample listing approved',
-      subtitle: 'Corn · 300 kg',
+      title: l10n.guestSampleActListing,
+      subtitle: 'Palay · 300 kg',
       timestamp: _daysAgo(3),
     ),
     ActivityItem(
       id: '${idPrefix}act-3',
-      type: ActivityType.profile,
-      title: 'Sample profile update',
-      subtitle: 'Contact details',
-      timestamp: _daysAgo(6),
+      type: ActivityType.programEnrollment,
+      title: l10n.guestSampleActProgram,
+      subtitle: l10n.guestSampleProgramName,
+      timestamp: _daysAgo(5),
+    ),
+    ActivityItem(
+      id: '${idPrefix}act-4',
+      type: ActivityType.loanRequested,
+      title: l10n.guestSampleActLoan,
+      subtitle: 'Peanut Seeds',
+      timestamp: _daysAgo(8),
     ),
   ];
 
@@ -88,8 +104,8 @@ class GuestFarmerSampleData {
       id: '${idPrefix}harvest-1',
       farmerId: '${idPrefix}farmer',
       cropId: '${idPrefix}crop-1',
-      cropName: 'Tomato',
-      cropCategory: 'Vegetable',
+      cropName: 'Peanut',
+      cropCategory: 'Legume',
       quantityKg: 120,
       batchNumber: 'SAMPLE-0001',
       harvestDate: _daysAgo(1),
@@ -100,7 +116,7 @@ class GuestFarmerSampleData {
       id: '${idPrefix}harvest-2',
       farmerId: '${idPrefix}farmer',
       cropId: '${idPrefix}crop-2',
-      cropName: 'Corn',
+      cropName: 'Palay',
       cropCategory: 'Grain',
       quantityKg: 300,
       batchNumber: 'SAMPLE-0002',
@@ -112,8 +128,8 @@ class GuestFarmerSampleData {
       id: '${idPrefix}harvest-3',
       farmerId: '${idPrefix}farmer',
       cropId: '${idPrefix}crop-3',
-      cropName: 'Eggplant',
-      cropCategory: 'Vegetable',
+      cropName: 'Banana',
+      cropCategory: 'Fruit',
       quantityKg: 85,
       batchNumber: 'SAMPLE-0003',
       harvestDate: _daysAgo(15),
@@ -132,37 +148,63 @@ class GuestFarmerSampleData {
     MarketplaceListingModel(
       id: '${idPrefix}listing-1',
       farmerId: '${idPrefix}farmer',
-      cropName: 'Tomato',
-      pricePerKg: 45,
+      cropName: 'Peanut',
+      pricePerKg: 60,
       volumeKg: 100,
       remainingKg: 60,
       status: 'approved',
-      description: 'Sample listing',
       createdAt: _daysAgo(2),
     ),
     MarketplaceListingModel(
       id: '${idPrefix}listing-2',
       farmerId: '${idPrefix}farmer',
-      cropName: 'Corn',
-      pricePerKg: 22,
+      cropName: 'Palay',
+      pricePerKg: 20,
       volumeKg: 300,
       remainingKg: 300,
       status: 'pending_review',
-      description: 'Sample listing',
       createdAt: _daysAgo(1),
     ),
     MarketplaceListingModel(
       id: '${idPrefix}listing-3',
       farmerId: '${idPrefix}farmer',
-      cropName: 'Eggplant',
-      pricePerKg: 38,
+      cropName: 'Banana',
+      pricePerKg: 25,
       volumeKg: 80,
       remainingKg: 0,
       status: 'sold',
-      description: 'Sample listing',
       createdAt: _daysAgo(12),
     ),
   ];
+
+  /// Cooperative Products (Product Sales programs) for the Marketplace pane. The
+  /// database shows these to signed-in Farmers only, so a guest sees samples.
+  static List<CooperativeProduct> cooperativeProducts(AppLocalizations l10n) =>
+      [
+        CooperativeProduct(
+          productId: '${idPrefix}product-1',
+          programId: '${idPrefix}program-1',
+          programName: l10n.guestSampleProgramName,
+          itemName: 'Peanut Seeds',
+          category: 'Seeds',
+          unit: 'kg',
+          regularPrice: 90,
+          memberDiscountPercent: 10,
+          availableToSell: 200,
+          buyers: 5,
+          soldQuantity: 120,
+        ),
+        CooperativeProduct(
+          productId: '${idPrefix}product-2',
+          programId: '${idPrefix}program-1',
+          programName: l10n.guestSampleProgramName,
+          itemName: 'Organic Fertilizer',
+          category: 'Fertilizer',
+          unit: 'sack',
+          regularPrice: 850,
+          availableToSell: 40,
+        ),
+      ];
 
   // ── Analytics ─────────────────────────────────────────────────────────────
 
@@ -188,14 +230,18 @@ class GuestFarmerSampleData {
       totalRevenue: 18500 * s,
       totalExpenses: 6200 * s,
       cropBreakdown: [
-        CropYieldBreakdown(cropName: 'Corn', quantityKg: 300 * s, percentOfMax: 1),
         CropYieldBreakdown(
-          cropName: 'Tomato',
+          cropName: 'Palay',
+          quantityKg: 300 * s,
+          percentOfMax: 1,
+        ),
+        CropYieldBreakdown(
+          cropName: 'Peanut',
           quantityKg: 120 * s,
           percentOfMax: 0.4,
         ),
         CropYieldBreakdown(
-          cropName: 'Eggplant',
+          cropName: 'Banana',
           quantityKg: 85 * s,
           percentOfMax: 0.28,
         ),
@@ -206,18 +252,18 @@ class GuestFarmerSampleData {
   static List<TransactionRecord> get transactions => [
     TransactionRecord(
       id: '${idPrefix}txn-1',
-      cropName: 'Tomato',
+      cropName: 'Peanut',
       quantityKg: 40,
-      totalAmount: 1800,
+      totalAmount: 2400,
       date: _daysAgo(2),
       reference: 'SAMPLE-T1',
       source: TransactionSource.marketplace,
     ),
     TransactionRecord(
       id: '${idPrefix}txn-2',
-      cropName: 'Corn',
+      cropName: 'Palay',
       quantityKg: 150,
-      totalAmount: 3300,
+      totalAmount: 3000,
       date: _daysAgo(9),
       reference: 'SAMPLE-T2',
       source: TransactionSource.cooperative,
@@ -228,17 +274,17 @@ class GuestFarmerSampleData {
     final type = MarketTypes.instance.defaultCode ?? '';
     return [
       CropPriceCard(
-        cropName: 'Tomato',
+        cropName: 'Peanut',
         priceType: type,
-        currentPrice: 45,
-        previousPrice: 40,
+        currentPrice: 60,
+        previousPrice: 55,
         recordedAt: _daysAgo(1),
       ),
       CropPriceCard(
-        cropName: 'Corn',
+        cropName: 'Palay',
         priceType: type,
-        currentPrice: 22,
-        previousPrice: 24,
+        currentPrice: 20,
+        previousPrice: 20,
         recordedAt: _daysAgo(1),
       ),
     ];
@@ -257,15 +303,15 @@ class GuestFarmerSampleData {
 
   static const List<PlantingForecast> forecasts = [
     PlantingForecast(
-      cropName: 'Tomato',
-      category: 'Vegetable',
+      cropName: 'Peanut',
+      category: 'Legume',
       mostRecentCycleKg: 480,
       forecastNextCycleKg: 520,
       trend: 'trending_up',
       cyclesAvailable: 3,
     ),
     PlantingForecast(
-      cropName: 'Corn',
+      cropName: 'Palay',
       category: 'Grain',
       mostRecentCycleKg: 900,
       forecastNextCycleKg: 900,
@@ -275,8 +321,8 @@ class GuestFarmerSampleData {
   ];
 
   static const List<TopSellingCrop> topCrops = [
-    TopSellingCrop(cropName: 'Corn', volumeKg: 900, percentOfMax: 1),
-    TopSellingCrop(cropName: 'Tomato', volumeKg: 480, percentOfMax: 0.53),
-    TopSellingCrop(cropName: 'Eggplant', volumeKg: 250, percentOfMax: 0.28),
+    TopSellingCrop(cropName: 'Palay', volumeKg: 900, percentOfMax: 1),
+    TopSellingCrop(cropName: 'Peanut', volumeKg: 480, percentOfMax: 0.53),
+    TopSellingCrop(cropName: 'Banana', volumeKg: 250, percentOfMax: 0.28),
   ];
 }

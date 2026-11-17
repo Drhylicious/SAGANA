@@ -41,154 +41,6 @@ class MemberSalesTransaction {
   }
 }
 
-class MemberContribution {
-  final String id;
-  final String farmerId;
-  final int year;
-  final double totalSalesAmount;
-  final double palaySalesKg;
-  final double palaySalesAmount;
-  final double peanutSalesKg;
-  final double peanutSalesAmount;
-
-  /// Any crop other than Palay/Peanut sold via Offer to Cooperative, as of
-  /// Phase 9's any-crop widening — previously any such sale was invisible
-  /// on the farmer's own "My Total Sales to SP3" card and Admin's Farmer
-  /// Details "Volume to SP3" stat, even though totalSalesAmount already
-  /// correctly included it (see supabase_schema_member_contributions_
-  /// other_crops.sql).
-  final double otherCropsQtyKg;
-  final double otherCropsAmount;
-  final double estimatedBalikTangkilik;
-  final double estimatedInterestOnCapital;
-  final double? actualBalikTangkilik;
-  final double? actualInterestOnCapital;
-  final DateTime? actualPayoutDate;
-  final String status; // pending | paid | not_yet_computed
-
-  /// How much of this year's finalized payout (actualTotal) the farmer has
-  /// already chosen to reinvest as capital share, via
-  /// reinvest_patronage_capital(). Zero until they ever do.
-  final double reinvestedAmount;
-
-  /// Product Sales Program (farmer buys FROM the coop) — a second, parallel
-  /// patronage pool never blended with the Offer to Cooperative (sales)
-  /// figures above. See supabase_schema_program_sales_patronage.sql.
-  final double programPurchasesAmount;
-  final double estimatedPurchasePatronage;
-  final double? actualPurchasePatronage;
-
-  /// Null | 'pending_cash' | 'pending_capital' | 'cash_confirmed' | 'capital_confirmed'.
-  /// The farmer's own choice for this year's finalized payout, submitted
-  /// via request_payout_decision() — only takes real effect (a capital
-  /// ledger entry) once an admin calls confirm_payout_decision(). Exactly
-  /// one decision is ever allowed per farmer per year.
-  final String? payoutDecision;
-  final double? payoutDecisionAmount;
-
-  const MemberContribution({
-    required this.id,
-    required this.farmerId,
-    required this.year,
-    required this.totalSalesAmount,
-    required this.palaySalesKg,
-    required this.palaySalesAmount,
-    required this.peanutSalesKg,
-    required this.peanutSalesAmount,
-    this.otherCropsQtyKg = 0,
-    this.otherCropsAmount = 0,
-    required this.estimatedBalikTangkilik,
-    required this.estimatedInterestOnCapital,
-    this.actualBalikTangkilik,
-    this.actualInterestOnCapital,
-    this.actualPayoutDate,
-    required this.status,
-    this.reinvestedAmount = 0,
-    this.programPurchasesAmount = 0,
-    this.estimatedPurchasePatronage = 0,
-    this.actualPurchasePatronage,
-    this.payoutDecision,
-    this.payoutDecisionAmount,
-  });
-
-  bool get isPaid => status == 'paid';
-
-  bool get hasPendingPayoutDecision =>
-      payoutDecision == 'pending_cash' || payoutDecision == 'pending_capital';
-  bool get hasConfirmedPayoutDecision =>
-      payoutDecision == 'cash_confirmed' ||
-      payoutDecision == 'capital_confirmed';
-  bool get hasAnyPayoutDecision => payoutDecision != null;
-
-  /// Offer to Cooperative (sales) source only.
-  double get estimatedOfferToCoopTotal =>
-      estimatedBalikTangkilik + estimatedInterestOnCapital;
-  double get estimatedProductSalesTotal => estimatedPurchasePatronage;
-
-  /// Both patronage sources combined.
-  double get estimatedGrandTotal =>
-      estimatedOfferToCoopTotal + estimatedProductSalesTotal;
-
-  double get actualOfferToCoopTotal =>
-      (actualBalikTangkilik ?? 0) + (actualInterestOnCapital ?? 0);
-  double get actualProductSalesTotal => actualPurchasePatronage ?? 0;
-
-  double get actualGrandTotal =>
-      actualOfferToCoopTotal + actualProductSalesTotal;
-
-  // Aliases kept for existing callers (e.g. farmer_details_screen.dart) —
-  // now grand totals across both sources, matching the "total = everything"
-  // convention MemberDistributionRow already uses.
-  double get estimatedTotal => estimatedGrandTotal;
-  double get actualTotal => actualGrandTotal;
-
-  /// How much of the finalized payout is still eligible to be reinvested.
-  /// Only meaningful once [isPaid] — zero otherwise.
-  double get availableToReinvest =>
-      (actualGrandTotal - reinvestedAmount).clamp(0, double.infinity);
-
-  factory MemberContribution.fromMap(Map<String, dynamic> map) {
-    return MemberContribution(
-      id: map['id'] as String,
-      farmerId: map['farmer_id'] as String,
-      year: map['year'] as int,
-      totalSalesAmount: (map['total_sales_amount'] as num? ?? 0).toDouble(),
-      palaySalesKg: (map['palay_sales_kg'] as num? ?? 0).toDouble(),
-      palaySalesAmount: (map['palay_sales_amount'] as num? ?? 0).toDouble(),
-      peanutSalesKg: (map['peanut_sales_kg'] as num? ?? 0).toDouble(),
-      peanutSalesAmount: (map['peanut_sales_amount'] as num? ?? 0).toDouble(),
-      otherCropsQtyKg: (map['other_crops_qty_kg'] as num? ?? 0).toDouble(),
-      otherCropsAmount: (map['other_crops_amount'] as num? ?? 0).toDouble(),
-      estimatedBalikTangkilik: (map['estimated_balik_tangkilik'] as num? ?? 0)
-          .toDouble(),
-      estimatedInterestOnCapital:
-          (map['estimated_interest_on_capital'] as num? ?? 0).toDouble(),
-      actualBalikTangkilik: map['actual_balik_tangkilik'] != null
-          ? (map['actual_balik_tangkilik'] as num).toDouble()
-          : null,
-      actualInterestOnCapital: map['actual_interest_on_capital'] != null
-          ? (map['actual_interest_on_capital'] as num).toDouble()
-          : null,
-      actualPayoutDate: map['actual_payout_date'] != null
-          ? DateTime.parse(map['actual_payout_date'] as String)
-          : null,
-      status: map['status'] as String? ?? 'pending',
-      reinvestedAmount: (map['reinvested_amount'] as num? ?? 0).toDouble(),
-      payoutDecision: map['payout_decision'] as String?,
-      payoutDecisionAmount: map['payout_decision_amount'] != null
-          ? (map['payout_decision_amount'] as num).toDouble()
-          : null,
-      programPurchasesAmount: (map['program_purchases_amount'] as num? ?? 0)
-          .toDouble(),
-      estimatedPurchasePatronage:
-          (map['estimated_purchase_patronage'] as num? ?? 0).toDouble(),
-      actualPurchasePatronage: map['actual_purchase_patronage'] != null
-          ? (map['actual_purchase_patronage'] as num).toDouble()
-          : null,
-    );
-  }
-}
-
 class CapitalSharesModel {
   final String farmerId;
 
@@ -253,6 +105,16 @@ class CapitalContributionEvent {
   final String? reversesEventId;
   final String? reversalReason;
 
+  /// The month a monthly contribution payment is for (first of that month), and the
+  /// date it was paid. Null on every other kind of entry.
+  final DateTime? contributionMonth;
+  final DateTime? paymentDate;
+
+  /// Starting Capital only: the date the member actually held this capital (can
+  /// be a past year). Null = the day it was recorded. A cancellation carries the
+  /// date of the entry it cancels.
+  final DateTime? effectiveDate;
+
   const CapitalContributionEvent({
     required this.id,
     required this.farmerId,
@@ -264,12 +126,25 @@ class CapitalContributionEvent {
     this.recordedByName,
     this.reversesEventId,
     this.reversalReason,
+    this.contributionMonth,
+    this.paymentDate,
+    this.effectiveDate,
   });
+
+  /// The day this entry counts for in the reports: its own date when it has one,
+  /// otherwise the day it was recorded.
+  DateTime get countsOn {
+    final d = effectiveDate;
+    if (d != null) return d;
+    final c = createdAt.toLocal();
+    return DateTime(c.year, c.month, c.day);
+  }
 
   bool get isReversal => reversesEventId != null;
 
-  /// A payout added to capital belongs to a Balik-Tangkilik decision, so it is
-  /// not reversed from the ledger. A reversal itself is never reversed.
+  /// An older payout that was added to capital (source patronage_capital) is a
+  /// permanent part of the Capital Share and is not reversed from the ledger.
+  /// A reversal itself is never reversed.
   bool get canBeReversed => !isReversal && source != 'patronage_capital';
 
   factory CapitalContributionEvent.fromMap(
@@ -287,45 +162,15 @@ class CapitalContributionEvent {
       recordedByName: recordedByName,
       reversesEventId: map['reverses_event_id'] as String?,
       reversalReason: map['reversal_reason'] as String?,
-    );
-  }
-}
-
-class CoopAnnualTotal {
-  final int year;
-  final double totalCoopSales;
-  final double distributableSurplus;
-  final double interestRatePercent;
-  final bool afsFinalized;
-
-  /// Option B's parallel Product Sales Program settings — never combined
-  /// with totalCoopSales/distributableSurplus above, which stay scoped to
-  /// Offer to Cooperative (farmer sells to the coop) only.
-  final double totalProgramSales;
-  final double distributableProgramSurplus;
-
-  const CoopAnnualTotal({
-    required this.year,
-    required this.totalCoopSales,
-    required this.distributableSurplus,
-    required this.interestRatePercent,
-    this.afsFinalized = false,
-    this.totalProgramSales = 0,
-    this.distributableProgramSurplus = 0,
-  });
-
-  factory CoopAnnualTotal.fromMap(Map<String, dynamic> map) {
-    return CoopAnnualTotal(
-      year: map['year'] as int,
-      totalCoopSales: (map['total_coop_sales'] as num? ?? 0).toDouble(),
-      distributableSurplus: (map['distributable_surplus'] as num? ?? 0)
-          .toDouble(),
-      interestRatePercent: (map['interest_rate_percent'] as num? ?? 7)
-          .toDouble(),
-      afsFinalized: map['afs_finalized'] as bool? ?? false,
-      totalProgramSales: (map['total_program_sales'] as num? ?? 0).toDouble(),
-      distributableProgramSurplus:
-          (map['distributable_program_surplus'] as num? ?? 0).toDouble(),
+      contributionMonth: map['contribution_month'] == null
+          ? null
+          : DateTime.parse(map['contribution_month'] as String),
+      paymentDate: map['payment_date'] == null
+          ? null
+          : DateTime.parse(map['payment_date'] as String),
+      effectiveDate: map['effective_date'] == null
+          ? null
+          : DateTime.parse(map['effective_date'] as String),
     );
   }
 }

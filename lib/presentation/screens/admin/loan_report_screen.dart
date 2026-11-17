@@ -7,7 +7,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
-import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
@@ -102,17 +101,6 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
           SubPageTopBar(
             title: l10n.reportsLoanReport,
             onBack: () => context.pop(),
-            trailing: IconButton(
-              icon: Icon(Icons.file_download_outlined, color: cs.primary),
-              onPressed: () => context.push(
-                AppRoutes.exportCenter,
-                extra: ExportCenterArgs(
-                  preselectedModule: ReportModuleType.loan,
-                  period: _period,
-                ),
-              ),
-              tooltip: l10n.reportsExportCenter,
-            ),
           ),
           CachedDataNotice(
             screen: _repo.allLoansCacheScreen(

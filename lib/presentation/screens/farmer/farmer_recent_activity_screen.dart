@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/activity_navigation.dart';
 import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -189,7 +190,7 @@ class _FarmerRecentActivityScreenState
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadActivity,
                         child: CustomScrollView(
                           slivers: [
@@ -410,6 +411,7 @@ RecentActivityCard _farmerActivityCard(
   final l10n = AppLocalizations.of(context);
   final (icon, tone) = _farmerActivityIcon(item);
   return RecentActivityCard(
+    onTap: () => openFarmerActivity(context, item),
     icon: icon,
     iconTone: tone,
     title: item.title,
@@ -489,6 +491,34 @@ RecentActivityCard _farmerActivityCard(
       ActivityType.capitalReinvestment => (
         Icons.savings_outlined,
         RecentActivityIconTone.primary,
+      ),
+      ActivityType.listingEditRequested => (
+        Icons.edit_note_rounded,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.quantityAdjusted => (
+        Icons.inventory_2_outlined,
+        RecentActivityIconTone.accent,
+      ),
+      ActivityType.shelfLifeChecked => (
+        Icons.fact_check_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.produceRotten => (
+        Icons.delete_outline_rounded,
+        RecentActivityIconTone.alert,
+      ),
+      ActivityType.loanRequested => (
+        Icons.account_balance_wallet_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.outcomeReported => (
+        Icons.assignment_turned_in_outlined,
+        RecentActivityIconTone.primary,
+      ),
+      ActivityType.assistanceRequested => (
+        Icons.support_agent_outlined,
+        RecentActivityIconTone.accent,
       ),
       ActivityType.syncCompleted => (
         Icons.sync_rounded,

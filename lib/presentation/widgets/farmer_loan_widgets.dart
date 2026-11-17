@@ -44,10 +44,10 @@ class LoanSectionHeader extends StatelessWidget {
           ),
         ),
         if (onViewAll != null && viewAllLabel != null)
-          TextButton(
+          Flexible(child: TextButton(
             onPressed: onViewAll,
             style: TextButton.styleFrom(
-              foregroundColor: AppConstants.primaryGreen,
+              foregroundColor: Theme.of(context).colorScheme.primary,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               minimumSize: const Size(0, 32),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -55,18 +55,18 @@ class LoanSectionHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                Flexible(child: Text(
                   viewAllLabel!,
                   style: GoogleFonts.inter(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                   ),
-                ),
+                )),
                 const SizedBox(width: 2),
                 const Icon(Icons.chevron_right_rounded, size: 18),
               ],
             ),
-          ),
+          )),
       ],
     );
   }
@@ -80,11 +80,15 @@ class LoanStatusChips extends StatelessWidget {
   final ValueChanged<String?> onChanged;
   final Map<String?, int>? counts;
 
+  /// Adds the Assistance chip after Paid (the Farmer's own history; staff reading a Farmer's loans do not get it).
+  final bool showAssistance;
+
   const LoanStatusChips({
     super.key,
     required this.active,
     required this.onChanged,
     this.counts,
+    this.showAssistance = false,
   });
 
   @override
@@ -95,6 +99,7 @@ class LoanStatusChips extends StatelessWidget {
       'active': l10n.loanDashActiveLoans,
       'overdue': l10n.loanDashOverdueLoans,
       'paid': l10n.loanHistoryFilterPaid,
+      if (showAssistance) 'assistance': l10n.loanHistoryFilterAssistance,
     };
     String label(String? key) => counts == null
         ? options[key]!
@@ -177,7 +182,9 @@ class FarmerLoanCard extends StatelessWidget {
         : (loan.isOverdue ? l10n.loanStatusOverdue : l10n.loanStatusActive);
     final accent = loan.isPaid
         ? AppConstants.buyerBlue
-        : (loan.isOverdue ? AppConstants.errorRed : AppConstants.primaryGreen);
+        : (loan.isOverdue
+              ? AppConstants.errorRed
+              : Theme.of(context).colorScheme.primary);
     final payment =
         loan.monthlyPayment > 0 && loan.monthlyPayment < loan.remainingBalance
         ? loan.monthlyPayment
@@ -335,7 +342,9 @@ class FarmerLoanCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFE6F6FF).withValues(alpha: 0.5),
+              color: context
+                  .adaptiveSurface(const Color(0xFFE6F6FF))
+                  .withValues(alpha: 0.5),
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(AppConstants.radiusLg),
               ),

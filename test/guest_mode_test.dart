@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sagana/core/l10n/app_localizations.dart';
+import 'package:sagana/core/l10n/app_localizations_en.dart';
 import 'package:sagana/core/theme/app_theme.dart';
 import 'package:sagana/data/guest/guest_farmer_sample_data.dart';
 import 'package:sagana/data/services/guest_mode_service.dart';
@@ -125,7 +126,7 @@ void main() {
       final ids = [
         ...GuestFarmerSampleData.harvests.map((h) => h.id),
         ...GuestFarmerSampleData.listings.map((l) => l.id),
-        ...GuestFarmerSampleData.activity.map((a) => a.id),
+        ...GuestFarmerSampleData.activity(AppLocalizationsEn()).map((a) => a.id),
         ...GuestFarmerSampleData.transactions.map((t) => t.id),
       ];
       expect(ids, isNotEmpty);

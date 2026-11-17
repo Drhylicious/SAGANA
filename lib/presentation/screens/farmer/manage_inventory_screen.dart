@@ -39,6 +39,9 @@ import '../../widgets/listing_filter_modal.dart'
 import '../../widgets/shelf_life_widgets.dart';
 import '../../../data/models/shelf_life_model.dart';
 import '../../../data/repositories/shelf_life_repository.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
+import '../../../data/services/feature_restriction_service.dart';
 
 /// The second set of filter chips: where each batch stands against its shelf
 /// life, including what was reported as rotten (a loss).
@@ -442,6 +445,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           );
           return;
         }
+        if (!await ensureFeatureAvailable(context, RestrictableFeature.gingerDaAmad)) return;
+        if (!mounted) return;
         final ready = await _withSellingPhoto(
           batch,
           AppLocalizations.of(context).enhSubmitThisBatchForMarketLinking,
@@ -494,6 +499,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
     switch (action) {
       case DisposalAction.marketplace:
+        if (!await ensureFeatureAvailable(context, RestrictableFeature.marketplaceListing)) return;
+        if (!mounted) return;
         final ready = await _withSellingPhoto(
           batch,
           AppLocalizations.of(context).enhListThisOnTheMarketplace,
@@ -506,6 +513,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         if (result == true) _loadData();
         break;
       case DisposalAction.cooperative:
+        if (!await ensureFeatureAvailable(context, RestrictableFeature.coopOffer)) return;
+        if (!mounted) return;
         final ready = await _withSellingPhoto(
           batch,
           AppLocalizations.of(context).enhOfferThisToTheCooperative,
@@ -518,6 +527,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         if (result == true) _loadData();
         break;
       case DisposalAction.informal:
+        if (!await ensureFeatureAvailable(context, RestrictableFeature.informalSale)) return;
+        if (!mounted) return;
         final result = await showRecordInformalSaleDialog(
           context,
           batch: batch,
@@ -561,7 +572,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: ListView(
                           // No FAB or bottom nav under this pushed (non-tab)
@@ -911,7 +922,7 @@ Widget _batchMenuRow(IconData icon, String label, Color color) {
     children: [
       Icon(icon, size: 18, color: color),
       const SizedBox(width: 10),
-      Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+      Flexible(child: Text(label, style: GoogleFonts.inter(fontSize: 13, color: color))),
     ],
   );
 }
@@ -961,9 +972,12 @@ class _BatchCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color:
-                (batch.isSoldOut || batch.isLost
-                        ? const Color(0xFFF1F5F9)
-                        : Colors.white)
+                context
+                    .adaptiveSurface(
+                      batch.isSoldOut || batch.isLost
+                          ? const Color(0xFFF1F5F9)
+                          : Colors.white,
+                    )
                     .withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
@@ -1344,7 +1358,7 @@ class _BatchCropFallbackIcon extends StatelessWidget {
     return Container(
       width: 56,
       height: 56,
-      decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
+      decoration: BoxDecoration(color: context.adaptiveSurface(const Color(0xFFDBF1FE))),
       child: Icon(
         FarmerCropModel.iconForCategory(category),
         color: Theme.of(context).colorScheme.primary,
@@ -1815,9 +1829,10 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _error = isPhotoRequiredError(e)
-              ? AppLocalizations.of(context).enhTakeAPhotoOfYourActualCropIn
-              : AppLocalizations.of(context).enhCouldNotSubmitPleaseTryAgain;
+          _error = restrictionMessageOf(e) ??
+              (isPhotoRequiredError(e)
+                  ? AppLocalizations.of(context).enhTakeAPhotoOfYourActualCropIn
+                  : AppLocalizations.of(context).enhCouldNotSubmitPleaseTryAgain);
         });
       }
     }
@@ -2140,9 +2155,8 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _submitError = AppLocalizations.of(
-            context,
-          ).enhCouldNotRecordSalePleaseTryAgain;
+          _submitError = restrictionMessageOf(e) ??
+              AppLocalizations.of(context).enhCouldNotRecordSalePleaseTryAgain;
         });
       }
     }

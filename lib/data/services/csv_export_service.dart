@@ -2,9 +2,14 @@ import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/admin_loan_model.dart';
+import '../models/admin_analytics_model.dart';
+import '../models/analytics_model.dart';
 import '../models/admin_reports_model.dart';
 import '../models/export_model.dart';
+import '../repositories/admin_analytics_repository.dart';
 import '../repositories/admin_loan_repository.dart';
+import '../repositories/analytics_repository.dart';
+import 'market_types_service.dart';
 import '../repositories/admin_reports_repository.dart';
 import 'hive_service.dart';
 import 'report_csv_serializers.dart';
@@ -32,6 +37,8 @@ abstract class ReportExportService {
 class CsvExportService implements ReportExportService {
   final _reportsRepo = AdminReportsRepository();
   final _loanRepo = AdminLoanRepository();
+  final _analyticsRepo = AnalyticsRepository();
+  final _adminAnalyticsRepo = AdminAnalyticsRepository();
 
   /// Generates one CSV file per selected module, writes each to local
   /// storage, records each in export history, and returns the file paths
@@ -62,7 +69,9 @@ class CsvExportService implements ReportExportService {
           : period.label;
       final fileName = _fileNameFor(module, periodLabel);
       final file = File('${exportsDir.path}/$fileName');
-      await file.writeAsString(csv);
+      // A byte-order mark makes Excel read the file as UTF-8, so names such as
+      // "Yañez" and the peso text keep their letters.
+      await file.writeAsString('\uFEFF$csv');
 
       await HiveService.addExportHistoryEntry(
         ExportHistoryEntry(
@@ -86,9 +95,8 @@ class CsvExportService implements ReportExportService {
     ReportPeriod period,
     int contributionYear,
   ) async {
-    // Every export except the Member Patronage Report starts with a short
-    // block saying what it covers and its headline totals. The Member
-    // Patronage export is deliberately left exactly as it was.
+    // Every export starts with a short block saying what it covers and its
+    // headline totals.
     String withHeader(String body, List<(String, String)> summary) =>
         csvExportHeader(
           reportName: module.label,
@@ -151,14 +159,62 @@ class CsvExportService implements ReportExportService {
           ('Balance (PHP)', summary.totalOutstanding.toStringAsFixed(2)),
         ]);
       case ReportModuleType.memberContribution:
-        return serializeMemberContributionReportCsv(
-          await _reportsRepo.fetchMemberContributionReport(contributionYear),
+        final data = await _reportsRepo.fetchMemberContributionReport(
+          contributionYear,
         );
+        return withHeader(serializeMemberContributionReportCsv(data), [
+          ('Total Capital Share (PHP)', data.totalCapital.toStringAsFixed(2)),
+          (
+            'Added in the Year (PHP)',
+            data.totalCapitalAdded.toStringAsFixed(2),
+          ),
+          (
+            'Monthly Contribution Added (PHP)',
+            data.totalMemberPaid.toStringAsFixed(2),
+          ),
+          (
+            'Cooperative Purchase Added to Capital Share (PHP)',
+            data.totalPurchaseCredited.toStringAsFixed(2),
+          ),
+          (
+            'Offer to Cooperative Added to Capital Share (PHP)',
+            data.totalOffersCredited.toStringAsFixed(2),
+          ),
+          (
+            'Monthly Obligation Due, Not Counted (PHP)',
+            data.totalMonthlyDue.toStringAsFixed(2),
+          ),
+          (
+            'Monthly Obligation Unpaid, Not Counted (PHP)',
+            data.totalMonthlyBalance.toStringAsFixed(2),
+          ),
+          (
+            'Cooperative Purchases Made, Reference (PHP)',
+            data.totalPurchases.toStringAsFixed(2),
+          ),
+          (
+            'Completed Offers, Reference (PHP)',
+            data.totalOffers.toStringAsFixed(2),
+          ),
+        ]);
       case ReportModuleType.coopStock:
         final data = await _reportsRepo.fetchCoopStockReport();
         return withHeader(serializeCoopStockReportCsv(data), [
           ('Total Items', '${data.totalItems}'),
           ('Low Stock Items', '${data.lowStockCount}'),
+        ]);
+      case ReportModuleType.analytics:
+        final data = await fetchAnalyticsExportData(
+          _analyticsRepo,
+          _adminAnalyticsRepo,
+          period,
+        );
+        return withHeader(serializeAnalyticsCsv(data), [
+          ('Active Members', '${data.participation.totalMembers}'),
+          (
+            'Participation Rate (%)',
+            data.participationRatePercent.toStringAsFixed(1),
+          ),
         ]);
     }
   }
@@ -169,4 +225,29 @@ class CsvExportService implements ReportExportService {
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
     return 'SAGANA_${safeModule}_${safePeriod}_$timestamp.csv';
   }
+}
+
+/// Gathers what the Analytics Dashboard shows, for either export format.
+Future<AnalyticsExportData> fetchAnalyticsExportData(
+  AnalyticsRepository analytics,
+  AdminAnalyticsRepository adminAnalytics,
+  ReportPeriod period,
+) async {
+  final results = await Future.wait([
+    adminAnalytics.fetchMemberParticipation(since: period.range().startDate),
+    analytics.fetchTopSellingCrops(),
+    analytics.fetchPriceCards(),
+    analytics.fetchPlantingForecasts(),
+  ]);
+  final cards = results[2] as List<CropPriceCard>;
+  return AnalyticsExportData(
+    participation: results[0] as MemberParticipationSummary,
+    topCrops: results[1] as List<TopSellingCrop>,
+    priceCards: cards,
+    marketTypeNames: {
+      for (final c in cards)
+        c.priceType: MarketTypes.instance.label(c.priceType),
+    },
+    forecasts: results[3] as List<PlantingForecast>,
+  );
 }

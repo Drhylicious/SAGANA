@@ -1,3 +1,4 @@
+import '../l10n/localized_labels.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// The database's own explanation of why it refused a write, when it wrote one
@@ -31,20 +32,20 @@ String? readableDatabaseMessage(Object error) {
   if (error.code == '23514') {
     final detail = '$message ${error.details ?? ''}'.toLowerCase();
     if (detail.contains('cooperative_inventory_quantity_non_negative')) {
-      return 'There is not enough stock for this. Stock on hand cannot go below zero.';
+      return currentL10n().dlStockBelowZero;
     }
   }
 
   if (error.code == '23505') {
     final detail = '$message ${error.details ?? ''}'.toLowerCase();
     if (detail.contains('uq_inventory_loan_issue_once')) {
-      return 'This item was already taken from stock for this loan.';
+      return currentL10n().dlItemAlreadyTaken;
     }
     if (detail.contains('phone')) {
-      return 'This phone number is already used by another account.';
+      return currentL10n().errPhoneUsed;
     }
     if (detail.contains('username')) {
-      return 'This username is already taken.';
+      return currentL10n().registerUsernameTaken;
     }
   }
   return null;

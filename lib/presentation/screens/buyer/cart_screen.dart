@@ -23,6 +23,8 @@ import '../../widgets/quantity_stepper.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 class CartScreen extends StatefulWidget {
   // Phase 9 — reused as-is for the Farmer Marketplace tab's cart; only the
@@ -279,8 +281,20 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    final l10n = AppLocalizations.of(context);
+    // The busy flag goes up first, so a second tap during the check is ignored.
     setState(() => _isCheckingOut = true);
+
+    // A restricted Farmer can browse and fill the cart but cannot check out.
+    final allowed = await ensureFeatureAvailable(
+      context,
+      RestrictableFeature.checkout,
+    );
+    if (!allowed || !mounted) {
+      if (mounted) setState(() => _isCheckingOut = false);
+      return;
+    }
+
+    final l10n = AppLocalizations.of(context);
 
     final selectedItems = _items
         .where((i) => _selectedIds.contains(i.listingId))
@@ -739,7 +753,10 @@ class _CartItemTile extends StatelessWidget {
           color: context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: selected
-              ? Border.all(color: AppConstants.primaryGreen, width: 1.5)
+              ? Border.all(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 1.5,
+                )
               : AppConstants.cardBorder,
           boxShadow: AppConstants.cardShadow,
         ),

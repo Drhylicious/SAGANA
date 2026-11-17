@@ -318,6 +318,7 @@ class FarmerManagementRepository {
       'admin_delete_rejected_applicant',
       params: {'p_user_id': userId},
     );
+    logStaffAction('members', 'applicant_deleted', 'adminLogApplicantDeleted');
   }
 
   Future<void> suspendMember({

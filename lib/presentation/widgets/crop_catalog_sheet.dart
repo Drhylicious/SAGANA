@@ -9,6 +9,7 @@ import '../../core/constants/app_constants.dart';
 import '../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/crop_repository.dart';
+import '../../data/services/connectivity_service.dart';
 import 'app_dropdown_field.dart';
 import 'management_modal.dart';
 import 'material_list_tile.dart';
@@ -258,7 +259,11 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
-              _catalog.isEmpty
+              // Offline with no saved catalog is "needs a connection", never
+              // "you already added every crop".
+              _catalog.isEmpty && !ConnectivityService.instance.isOnline
+                  ? AppLocalizations.of(context).offlineNeedsInternet
+                  : _catalog.isEmpty
                   ? AppLocalizations.of(
                       context,
                     ).enhYouVeAlreadyAddedEveryCropInThe
@@ -342,12 +347,12 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
                     ],
                   ),
                   trailing: isAdding
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppConstants.primaryGreen,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         )
                       : Icon(
@@ -437,14 +442,14 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 4),
-              Text(
+              Flexible(child: Text(
                 AppLocalizations.of(context).enhBackToCropList,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-              ),
+              )),
             ],
           ),
         ),

@@ -105,7 +105,7 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
           SubPageTopBar(title: l10n.offerCoopTitle, onBack: () => context.pop()),
           Expanded(
             child: RefreshIndicator(
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
               onRefresh: _loadAll,
               child: _isLoading
                   ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())

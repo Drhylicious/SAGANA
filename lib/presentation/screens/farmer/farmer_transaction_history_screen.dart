@@ -132,7 +132,7 @@ class _FarmerTransactionHistoryScreenState
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -643,8 +643,8 @@ class _EmptyState extends StatelessWidget {
           Container(
             width: 96,
             height: 96,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDBF1FE),
+            decoration: BoxDecoration(
+              color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
               shape: BoxShape.circle,
             ),
             child: Icon(

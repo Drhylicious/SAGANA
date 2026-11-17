@@ -3,7 +3,6 @@ import '../../../core/l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
@@ -201,7 +200,7 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
             ),
             Expanded(
               child: RefreshIndicator(
-                color: AppConstants.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
                 onRefresh: _loadNotifications,
                 child: _isLoading
                     ? const Padding(

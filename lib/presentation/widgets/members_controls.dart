@@ -287,7 +287,7 @@ class _StatusChipView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 '${data.label}: ',
                 maxLines: 1,
                 style: GoogleFonts.inter(
@@ -295,7 +295,7 @@ class _StatusChipView extends StatelessWidget {
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                   color: selected ? data.color : cs.onSurfaceVariant,
                 ),
-              ),
+              )),
               Text(
                 '${data.count}',
                 style: GoogleFonts.poppins(

@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
@@ -107,9 +108,7 @@ class AnalyticsRepository {
 
   /// The other OfflineCache keys fetchFarmPerformance writes for [period]
   /// (revenue channels and expenses), for the screen notice.
-  static List<String> farmPerformanceOtherCacheScreens(
-    AnalyticsPeriod period,
-  ) {
+  static List<String> farmPerformanceOtherCacheScreens(AnalyticsPeriod period) {
     final key = _periodKey(period.startDate);
     return [
       'analytics_orders_$key',
@@ -123,296 +122,323 @@ class AnalyticsRepository {
   Future<FarmPerformanceSummary> fetchFarmPerformance(
     AnalyticsPeriod period,
   ) async {
-    return _safeFetch('fetchFarmPerformance', () async {
-      final failures = _LoadFailures();
-      final start = period.startDate;
-      final key = _periodKey(start);
+    return _safeFetch(
+      'fetchFarmPerformance',
+      () async {
+        final failures = _LoadFailures();
+        final start = period.startDate;
+        final key = _periodKey(start);
 
-      // Harvests — its own failure mode: a harvest read that fails must not
-      // blank the revenue and expense figures below, which come from other
-      // tables.
-      final harvestRows = await _source(failures, 'harvests', () async {
-        var query = _client
-            .from('harvest_records')
-            .select('crop_id, crop_name, quantity_kg, unit, harvest_date').eq('source_type', 'self')
-            .eq('farmer_id', _userId);
-        if (start != null) {
-          query = query.gte('harvest_date', _dateOnly(start));
+        // Harvests — its own failure mode: a harvest read that fails must not
+        // blank the revenue and expense figures below, which come from other
+        // tables.
+        final harvestRows = await _source(failures, 'harvests', () async {
+          var query = _client
+              .from('harvest_records')
+              .select('crop_id, crop_name, quantity_kg, unit, harvest_date')
+              .eq('source_type', 'self')
+              .eq('farmer_id', _userId);
+          if (start != null) {
+            query = query.gte('harvest_date', _dateOnly(start));
+          }
+          return OfflineCache.load(
+            screen: farmPerformanceCacheScreen(period),
+            fetch: () => query,
+          );
+        }, <Map<String, dynamic>>[]);
+
+        double totalYield = 0;
+        // Harvests in another unit, left out of the kg figures below.
+        var otherUnitHarvests = 0;
+        // Accumulated per harvest_records.crop_id (== farmer_crops.id), not
+        // per raw crop_name text, so two differently-spelled crop_master
+        // catalog entries for the same real crop (e.g. a legacy "Palay" /
+        // "Rice (Palay)" split) are grouped as one before display — see the
+        // canonical-name resolution pass below. rawNameByCropId is the
+        // fallback if that resolution can't find a match for a given id.
+        final Map<String, double> qtyByCropId = {};
+        final Map<String, String> rawNameByCropId = {};
+
+        void addHarvest({
+          required String? unit,
+          required num? quantity,
+          required String? cropId,
+          required String? cropName,
+        }) {
+          // Total Yield and Harvest by Crop are kg figures: a harvest measured
+          // in another unit is not added to them (units are never mixed).
+          if (!isKg(unit)) {
+            otherUnitHarvests++;
+            return;
+          }
+          final qty = quantity?.toDouble() ?? 0;
+          final rawName = cropName ?? currentL10n().dlUnknownCrop;
+          // A harvest with no crop id is still the farmer's: group it by name
+          // rather than dropping it (or failing the whole summary).
+          final id = cropId ?? 'name:$rawName';
+          totalYield += qty;
+          qtyByCropId[id] = (qtyByCropId[id] ?? 0) + qty;
+          rawNameByCropId.putIfAbsent(id, () => rawName);
         }
-        return OfflineCache.load(
-          screen: farmPerformanceCacheScreen(period),
-          fetch: () => query,
-        );
-      }, <Map<String, dynamic>>[]);
 
-      double totalYield = 0;
-      // Harvests in another unit, left out of the kg figures below.
-      var otherUnitHarvests = 0;
-      // Accumulated per harvest_records.crop_id (== farmer_crops.id), not
-      // per raw crop_name text, so two differently-spelled crop_master
-      // catalog entries for the same real crop (e.g. a legacy "Palay" /
-      // "Rice (Palay)" split) are grouped as one before display — see the
-      // canonical-name resolution pass below. rawNameByCropId is the
-      // fallback if that resolution can't find a match for a given id.
-      final Map<String, double> qtyByCropId = {};
-      final Map<String, String> rawNameByCropId = {};
-
-      void addHarvest({
-        required String? unit,
-        required num? quantity,
-        required String? cropId,
-        required String? cropName,
-      }) {
-        // Total Yield and Harvest by Crop are kg figures: a harvest measured
-        // in another unit is not added to them (units are never mixed).
-        if (!isKg(unit)) {
-          otherUnitHarvests++;
-          return;
-        }
-        final qty = quantity?.toDouble() ?? 0;
-        final rawName = cropName ?? 'Unknown crop';
-        // A harvest with no crop id is still the farmer's: group it by name
-        // rather than dropping it (or failing the whole summary).
-        final id = cropId ?? 'name:$rawName';
-        totalYield += qty;
-        qtyByCropId[id] = (qtyByCropId[id] ?? 0) + qty;
-        rawNameByCropId.putIfAbsent(id, () => rawName);
-      }
-
-      for (final row in harvestRows) {
-        addHarvest(
-          unit: row['unit'] as String?,
-          quantity: row['quantity_kg'] as num?,
-          cropId: row['crop_id'] as String?,
-          cropName: row['crop_name'] as String?,
-        );
-      }
-
-      // Pending, not-yet-synced harvests queued locally in Hive — mirrors
-      // HarvestRepository's own merge pattern (fetchStats(), etc.) so a
-      // farmer who just logged a harvest while offline sees it reflected
-      // here immediately, rather than Analytics silently lagging behind
-      // Harvest Hub until the device reconnects and syncs. Scoped to
-      // Total Yield / Harvest by Crop only — Revenue/Net Profit are
-      // untouched, since a pending harvest has no corresponding sale yet.
-      // Pending entries carry their own crop_id (HarvestEntryRepository
-      // queues it alongside crop_name), so they fold into the same
-      // qtyByCropId map and get canonicalized exactly like synced rows.
-      //
-      // Deliberately NOT routed through _source — a local Hive read failure
-      // shouldn't blank out the already-fetched synced totals above it.
-      try {
-        for (final entry in HiveService.getPendingHarvests()) {
-          final p = entry.value;
-          final harvestDate = DateTime.parse(p['harvest_date'] as String);
-          if (start != null && harvestDate.isBefore(start)) continue;
+        for (final row in harvestRows) {
           addHarvest(
-            unit: p['unit'] as String?,
-            quantity: p['quantity_kg'] as num?,
-            cropId: p['crop_id'] as String?,
-            cropName: p['crop_name'] as String?,
+            unit: row['unit'] as String?,
+            quantity: row['quantity_kg'] as num?,
+            cropId: row['crop_id'] as String?,
+            cropName: row['crop_name'] as String?,
           );
         }
-      } catch (e) {
-        debugPrint(
-          'AnalyticsRepository.fetchFarmPerformance/pendingHarvests failed: $e',
-        );
-      }
 
-      // Resolve canonical crop_master.crop_name for every accumulated
-      // crop_id via the same two-hop path (crop_id -> farmer_crops.id ->
-      // farmer_crops.crop_master_id -> crop_master.crop_name)
-      // crop_lookup.dart already provides for Admin Reports / Farmer
-      // Details. Kept outside _source: a failure here degrades to
-      // grouping by each id's raw crop_name (the same COALESCE fallback
-      // the underlying SQL views use), never to a blank breakdown.
-      final Map<String, double> byCrop = {};
-      try {
-        final realIds = qtyByCropId.keys
-            .where((id) => !id.startsWith('name:'))
-            .toList();
-        final farmerCropToMaster = await fetchFarmerCropToCropMasterMap(
-          _client,
-          realIds,
-        );
-        final masterNames = await fetchCropNameMap(
-          _client,
-          farmerCropToMaster.values.toSet().toList(),
-        );
-        qtyByCropId.forEach((cropId, qty) {
-          final masterId = farmerCropToMaster[cropId];
-          final canonicalName = masterId != null
-              ? (masterNames[masterId] ?? rawNameByCropId[cropId]!)
-              : rawNameByCropId[cropId]!;
-          byCrop[canonicalName] = (byCrop[canonicalName] ?? 0) + qty;
-        });
-      } catch (e) {
-        debugPrint(
-          'AnalyticsRepository.fetchFarmPerformance/cropResolution failed: $e',
-        );
-        byCrop.clear();
-        qtyByCropId.forEach((cropId, qty) {
-          final rawName = rawNameByCropId[cropId]!;
-          byCrop[rawName] = (byCrop[rawName] ?? 0) + qty;
-        });
-      }
-
-      // Total revenue — the four real farmer income channels, the same four
-      // Home's earnings and Transaction History count: completed marketplace
-      // orders, confirmed cooperative sales (member_sales_transactions),
-      // informal/farm-gate sales (informal_sales) and completed Market
-      // Linking rounds. Only a COMPLETED order counts as a sale; a pending,
-      // approved, cancelled or rejected order is never revenue. No fallback
-      // to approved-listing value — that would substitute a farmer's total
-      // *listed* value for their actual *earned* value. Each source runs
-      // through its own _source so one failing can't blank out the others.
-      //
-      // AnalyticsPeriod.startDate is open-ended (no upper bound — always
-      // "from X to now"), so only the lower-bound handling differs per
-      // source (a DATE column takes a day, a TIMESTAMPTZ takes an instant).
-      final marketplaceRevenue = await _source(failures, 'orders', () async {
-        // A completed order counts on the day the buyer confirmed receipt (see
-        // CompletedOrderDates): the same day the Farmer's history and Profile use.
-        final orderRows = await OfflineCache.load(
-          screen: 'analytics_orders_$key',
-          fetch: () => CompletedOrderDates.withFallback((withReceivedAt) {
-            final base = _client
-                .from('orders')
-                .select(withReceivedAt ? 'total_price, created_at, received_at' : 'total_price, created_at')
-                .eq('farmer_id', _userId)
-                .eq('status', 'completed');
-            if (start == null) return base;
-            return withReceivedAt
-                ? base.or(CompletedOrderDates.window(start, null)!)
-                : base.gte('created_at', _instant(start));
-          }),
-        );
-        return _sumMoney(orderRows.map((r) => r['total_price'] as num?));
-      }, 0.0);
-
-      final cooperativeRevenue = await _source(failures, 'memberSales', () async {
-        var coopQuery = _client
-            .from('member_sales_transactions')
-            .select('amount')
-            .eq('farmer_id', _userId);
-        if (start != null) {
-          coopQuery = coopQuery.gte('sale_date', _dateOnly(start));
+        // Pending, not-yet-synced harvests queued locally in Hive — mirrors
+        // HarvestRepository's own merge pattern (fetchStats(), etc.) so a
+        // farmer who just logged a harvest while offline sees it reflected
+        // here immediately, rather than Analytics silently lagging behind
+        // Harvest Hub until the device reconnects and syncs. Scoped to
+        // Total Yield / Harvest by Crop only — Revenue/Net Profit are
+        // untouched, since a pending harvest has no corresponding sale yet.
+        // Pending entries carry their own crop_id (HarvestEntryRepository
+        // queues it alongside crop_name), so they fold into the same
+        // qtyByCropId map and get canonicalized exactly like synced rows.
+        //
+        // Deliberately NOT routed through _source — a local Hive read failure
+        // shouldn't blank out the already-fetched synced totals above it.
+        try {
+          for (final entry in HiveService.getPendingHarvests()) {
+            final p = entry.value;
+            final harvestDate = DateTime.parse(p['harvest_date'] as String);
+            if (start != null && harvestDate.isBefore(start)) continue;
+            addHarvest(
+              unit: p['unit'] as String?,
+              quantity: p['quantity_kg'] as num?,
+              cropId: p['crop_id'] as String?,
+              cropName: p['crop_name'] as String?,
+            );
+          }
+        } catch (e) {
+          debugPrint(
+            'AnalyticsRepository.fetchFarmPerformance/pendingHarvests failed: $e',
+          );
         }
-        final coopRows = await OfflineCache.load(
-          screen: 'analytics_coop_sales_$key',
-          fetch: () => coopQuery,
-        );
-        return _sumMoney(coopRows.map((r) => r['amount'] as num?));
-      }, 0.0);
 
-      final informalRevenue = await _source(failures, 'informalSales', () async {
-        var informalQuery = _client
-            .from('informal_sales')
-            .select('amount')
-            .eq('farmer_id', _userId);
-        if (start != null) {
-          informalQuery = informalQuery.gte('sale_date', _instant(start));
+        // Resolve canonical crop_master.crop_name for every accumulated
+        // crop_id via the same two-hop path (crop_id -> farmer_crops.id ->
+        // farmer_crops.crop_master_id -> crop_master.crop_name)
+        // crop_lookup.dart already provides for Admin Reports / Farmer
+        // Details. Kept outside _source: a failure here degrades to
+        // grouping by each id's raw crop_name (the same COALESCE fallback
+        // the underlying SQL views use), never to a blank breakdown.
+        final Map<String, double> byCrop = {};
+        try {
+          final realIds = qtyByCropId.keys
+              .where((id) => !id.startsWith('name:'))
+              .toList();
+          final farmerCropToMaster = await fetchFarmerCropToCropMasterMap(
+            _client,
+            realIds,
+          );
+          final masterNames = await fetchCropNameMap(
+            _client,
+            farmerCropToMaster.values.toSet().toList(),
+          );
+          qtyByCropId.forEach((cropId, qty) {
+            final masterId = farmerCropToMaster[cropId];
+            final canonicalName = masterId != null
+                ? (masterNames[masterId] ?? rawNameByCropId[cropId]!)
+                : rawNameByCropId[cropId]!;
+            byCrop[canonicalName] = (byCrop[canonicalName] ?? 0) + qty;
+          });
+        } catch (e) {
+          debugPrint(
+            'AnalyticsRepository.fetchFarmPerformance/cropResolution failed: $e',
+          );
+          byCrop.clear();
+          qtyByCropId.forEach((cropId, qty) {
+            final rawName = rawNameByCropId[cropId]!;
+            byCrop[rawName] = (byCrop[rawName] ?? 0) + qty;
+          });
         }
-        final informalRows = await OfflineCache.load(
-          screen: 'analytics_informal_sales_$key',
-          fetch: () => informalQuery,
-        );
-        return _sumMoney(informalRows.map((r) => r['amount'] as num?));
-      }, 0.0);
 
-      // Market Linking (Ginger, run with DA-AMAD): income counts once the
-      // round is completed, dated by completed_at — the same rule Home uses.
-      final marketLinkingRevenue = await _source(failures, 'marketLinking', () async {
-        // One row per recorded sale (market_linking_sales): a request sold in
-        // parts counts each part on the day it was sold.
-        var mlQuery = _client
-            .from('market_linking_sales')
-            .select('confirmed_volume_kg, price_per_kg, completed_at')
-            .eq('farmer_id', _userId);
-        if (start != null) {
-          mlQuery = mlQuery.gte('completed_at', _instant(start));
+        // Total revenue — the four real farmer income channels, the same four
+        // Home's earnings and Transaction History count: completed marketplace
+        // orders, confirmed cooperative sales (member_sales_transactions),
+        // informal/farm-gate sales (informal_sales) and completed Market
+        // Linking rounds. Only a COMPLETED order counts as a sale; a pending,
+        // approved, cancelled or rejected order is never revenue. No fallback
+        // to approved-listing value — that would substitute a farmer's total
+        // *listed* value for their actual *earned* value. Each source runs
+        // through its own _source so one failing can't blank out the others.
+        //
+        // AnalyticsPeriod.startDate is open-ended (no upper bound — always
+        // "from X to now"), so only the lower-bound handling differs per
+        // source (a DATE column takes a day, a TIMESTAMPTZ takes an instant).
+        final marketplaceRevenue = await _source(failures, 'orders', () async {
+          // A completed order counts on the day the buyer confirmed receipt (see
+          // CompletedOrderDates): the same day the Farmer's history and Profile use.
+          final orderRows = await OfflineCache.load(
+            screen: 'analytics_orders_$key',
+            fetch: () => CompletedOrderDates.withFallback((withReceivedAt) {
+              final base = _client
+                  .from('orders')
+                  .select(
+                    withReceivedAt
+                        ? 'total_price, created_at, received_at'
+                        : 'total_price, created_at',
+                  )
+                  .eq('farmer_id', _userId)
+                  .eq('status', 'completed');
+              if (start == null) return base;
+              return withReceivedAt
+                  ? base.or(CompletedOrderDates.window(start, null)!)
+                  : base.gte('created_at', _instant(start));
+            }),
+          );
+          return _sumMoney(orderRows.map((r) => r['total_price'] as num?));
+        }, 0.0);
+
+        final cooperativeRevenue = await _source(
+          failures,
+          'memberSales',
+          () async {
+            var coopQuery = _client
+                .from('member_sales_transactions')
+                .select('amount')
+                .eq('farmer_id', _userId);
+            if (start != null) {
+              coopQuery = coopQuery.gte('sale_date', _dateOnly(start));
+            }
+            final coopRows = await OfflineCache.load(
+              screen: 'analytics_coop_sales_$key',
+              fetch: () => coopQuery,
+            );
+            return _sumMoney(coopRows.map((r) => r['amount'] as num?));
+          },
+          0.0,
+        );
+
+        final informalRevenue = await _source(
+          failures,
+          'informalSales',
+          () async {
+            var informalQuery = _client
+                .from('informal_sales')
+                .select('amount')
+                .eq('farmer_id', _userId);
+            if (start != null) {
+              informalQuery = informalQuery.gte('sale_date', _instant(start));
+            }
+            final informalRows = await OfflineCache.load(
+              screen: 'analytics_informal_sales_$key',
+              fetch: () => informalQuery,
+            );
+            return _sumMoney(informalRows.map((r) => r['amount'] as num?));
+          },
+          0.0,
+        );
+
+        // Market Linking (Ginger, run with DA-AMAD): income counts once the
+        // round is completed, dated by completed_at — the same rule Home uses.
+        final marketLinkingRevenue = await _source(
+          failures,
+          'marketLinking',
+          () async {
+            // One row per recorded sale (market_linking_sales): a request sold in
+            // parts counts each part on the day it was sold.
+            var mlQuery = _client
+                .from('market_linking_sales')
+                .select('confirmed_volume_kg, price_per_kg, completed_at')
+                .eq('farmer_id', _userId);
+            if (start != null) {
+              mlQuery = mlQuery.gte('completed_at', _instant(start));
+            }
+            final mlRows = await OfflineCache.load(
+              screen: 'analytics_market_linking_$key',
+              fetch: () => mlQuery,
+            );
+            return _sumMoney(mlRows.map(marketLinkingAmountOf));
+          },
+          0.0,
+        );
+
+        final totalRevenue = _sumMoney([
+          marketplaceRevenue,
+          cooperativeRevenue,
+          informalRevenue,
+          marketLinkingRevenue,
+        ]);
+
+        // Expenses — the same definition My Expenses and the Profile tile use:
+        // subsidized entries (covered by MAO/SP3, recorded at ₱0) are excluded,
+        // and expenses still queued on this device are included.
+        final syncedExpenses = await _source(failures, 'expenses', () async {
+          var expenseQuery = _client
+              .from('farmer_expenses')
+              .select('amount')
+              .eq('farmer_id', _userId)
+              .eq('is_subsidy', false);
+          if (start != null) {
+            expenseQuery = expenseQuery.gte('expense_date', _dateOnly(start));
+          }
+          final expenseRows = await OfflineCache.load(
+            screen: 'analytics_expenses_$key',
+            fetch: () => expenseQuery,
+          );
+          return _sumMoney(expenseRows.map((r) => r['amount'] as num?));
+        }, 0.0);
+
+        var pendingExpenses = 0.0;
+        try {
+          pendingExpenses = _sumMoney(
+            ExpenseRepository()
+                .pendingExpenseModels()
+                .where(
+                  (e) =>
+                      !e.isSubsidy &&
+                      (start == null || !e.expenseDate.isBefore(start)),
+                )
+                .map((e) => e.amount),
+          );
+        } catch (e) {
+          debugPrint(
+            'AnalyticsRepository.fetchFarmPerformance/pendingExpenses failed: $e',
+          );
         }
-        final mlRows = await OfflineCache.load(
-          screen: 'analytics_market_linking_$key',
-          fetch: () => mlQuery,
+        final totalExpenses = _sumMoney([syncedExpenses, pendingExpenses]);
+
+        final maxQty = byCrop.values.isEmpty
+            ? 1.0
+            : byCrop.values.reduce((a, b) => a > b ? a : b);
+        final breakdown =
+            byCrop.entries
+                .map(
+                  (e) => CropYieldBreakdown(
+                    cropName: e.key,
+                    quantityKg: roundQuantity(e.value),
+                    percentOfMax: maxQty > 0
+                        ? (e.value / maxQty).clamp(0.0, 1.0)
+                        : 0,
+                  ),
+                )
+                .toList()
+              ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
+
+        return FarmPerformanceSummary(
+          totalYieldKg: roundQuantity(totalYield),
+          totalRevenue: totalRevenue,
+          totalExpenses: totalExpenses,
+          cropBreakdown: breakdown.take(5).toList(),
+          otherUnitHarvestCount: otherUnitHarvests,
+          hasLoadError: failures.any,
         );
-        return _sumMoney(mlRows.map(marketLinkingAmountOf));
-      }, 0.0);
-
-      final totalRevenue = _sumMoney([
-        marketplaceRevenue,
-        cooperativeRevenue,
-        informalRevenue,
-        marketLinkingRevenue,
-      ]);
-
-      // Expenses — the same definition My Expenses and the Profile tile use:
-      // subsidized entries (covered by MAO/SP3, recorded at ₱0) are excluded,
-      // and expenses still queued on this device are included.
-      final syncedExpenses = await _source(failures, 'expenses', () async {
-        var expenseQuery = _client
-            .from('farmer_expenses')
-            .select('amount')
-            .eq('farmer_id', _userId)
-            .eq('is_subsidy', false);
-        if (start != null) {
-          expenseQuery = expenseQuery.gte('expense_date', _dateOnly(start));
-        }
-        final expenseRows = await OfflineCache.load(
-          screen: 'analytics_expenses_$key',
-          fetch: () => expenseQuery,
-        );
-        return _sumMoney(expenseRows.map((r) => r['amount'] as num?));
-      }, 0.0);
-
-      var pendingExpenses = 0.0;
-      try {
-        pendingExpenses = _sumMoney(
-          ExpenseRepository().pendingExpenseModels().where(
-            (e) =>
-                !e.isSubsidy &&
-                (start == null || !e.expenseDate.isBefore(start)),
-          ).map((e) => e.amount),
-        );
-      } catch (e) {
-        debugPrint(
-          'AnalyticsRepository.fetchFarmPerformance/pendingExpenses failed: $e',
-        );
-      }
-      final totalExpenses = _sumMoney([syncedExpenses, pendingExpenses]);
-
-      final maxQty = byCrop.values.isEmpty
-          ? 1.0
-          : byCrop.values.reduce((a, b) => a > b ? a : b);
-      final breakdown =
-          byCrop.entries
-              .map(
-                (e) => CropYieldBreakdown(
-                  cropName: e.key,
-                  quantityKg: roundQuantity(e.value),
-                  percentOfMax: maxQty > 0
-                      ? (e.value / maxQty).clamp(0.0, 1.0)
-                      : 0,
-                ),
-              )
-              .toList()
-            ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
-
-      return FarmPerformanceSummary(
-        totalYieldKg: roundQuantity(totalYield),
-        totalRevenue: totalRevenue,
-        totalExpenses: totalExpenses,
-        cropBreakdown: breakdown.take(5).toList(),
-        otherUnitHarvestCount: otherUnitHarvests,
-        hasLoadError: failures.any,
-      );
-    }, const FarmPerformanceSummary(
-      totalYieldKg: 0,
-      totalRevenue: 0,
-      totalExpenses: 0,
-      cropBreakdown: [],
-      hasLoadError: true,
-    ));
+      },
+      const FarmPerformanceSummary(
+        totalYieldKg: 0,
+        totalRevenue: 0,
+        totalExpenses: 0,
+        cropBreakdown: [],
+        hasLoadError: true,
+      ),
+    );
   }
 
   // ─── Recent Transactions (the four selling channels) ──────────────────────
@@ -484,7 +510,8 @@ class AnalyticsRepository {
           final listing = row['marketplace_listings'] as Map<String, dynamic>?;
           return TransactionRecord(
             id: id,
-            cropName: listing?['crop_name'] as String? ?? 'Unknown crop',
+            cropName:
+                listing?['crop_name'] as String? ?? currentL10n().dlUnknownCrop,
             quantityKg: (row['quantity_kg'] as num).toDouble(),
             unit: unitOrDefault(row['unit'] as String?),
             totalAmount: (row['total_price'] as num).toDouble(),

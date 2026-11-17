@@ -99,9 +99,9 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
       backgroundColor: sagana.scaffoldBackground,
       body: SafeArea(
         child: _isLoading
-            ? const Center(
+            ? Center(
                 child: CircularProgressIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               )
             : ListView(

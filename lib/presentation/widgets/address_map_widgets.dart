@@ -82,14 +82,14 @@ class ViewFullMapLink extends StatelessWidget {
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 4),
-          Text(
+          Flexible(child: Text(
             label,
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: Theme.of(context).colorScheme.primary,
             ),
-          ),
+          )),
         ],
       ),
     );

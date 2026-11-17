@@ -1,8 +1,8 @@
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/program_outcome_model.dart';
+import '../../data/services/connectivity_service.dart';
 import '../../data/services/server_only.dart';
 import '../../data/services/offline_actions.dart';
 import '../l10n/app_localizations.dart';
@@ -31,8 +31,20 @@ String friendlyError(
     if (error.offline) return l10n.errOffline;
     return _fromText(l10n, error.message, null) ?? other;
   }
-  if (error is SocketException) return l10n.errNetwork;
+  // A dropped connection is never shown as "something went wrong". When the
+  // device is offline it gets the same "needs internet" message as every
+  // other server-only action.
+  if (isOfflineConnectionFailure(error)) {
+    return ConnectivityService.instance.isOnline
+        ? l10n.errNetwork
+        : l10n.errOffline;
+  }
   if (error is PostgrestException) {
+    // A feature restriction stopped this: the database wrote the sentence (what,
+    // why, until when) for the person, so it is shown as it is.
+    if ((error.details?.toString() ?? '').startsWith('feature_restricted:')) {
+      return error.message;
+    }
     // The app expects a column or function the database does not have yet.
     if (error.code == 'PGRST204' ||
         error.code == 'PGRST202' ||
@@ -80,6 +92,12 @@ String? _fromText(AppLocalizations l10n, String raw, String? sqlState) {
   switch (code) {
     case 'NOT_ALLOWED':
       return l10n.errNotAllowed;
+    case 'CROP_SHELF_LIFE_REQUIRED':
+      return l10n.errShelfLifeRequired;
+    case 'COOP_SHELF_HOLD':
+      return l10n.errCoopShelfHold;
+    case 'COMPLETION_CONFIRM_NEEDED':
+      return l10n.errCompletionConfirm;
     case 'PROGRAM_NOT_READY':
       return l10n.errProgramNotReady;
     case 'PROGRAM_COMPLETED':
@@ -124,8 +142,12 @@ String? _fromText(AppLocalizations l10n, String raw, String? sqlState) {
       return l10n.errReturnUnit;
     case 'RETURN_QUANTITY':
       return l10n.errReturnQuantity;
+    case 'VERIFY_AFTER_REVIEW':
+      return l10n.outcVerifyAfterReview;
     case 'RESOLUTION_LOCKED':
       return l10n.errResolutionLocked;
+    case 'RESOLUTION_FINAL':
+      return l10n.errResolutionFinal;
     case 'OUTCOME_LOCKED':
       return l10n.errOutcomeLocked;
     case 'RESTORE_CONFLICT':

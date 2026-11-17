@@ -221,11 +221,13 @@ class ShelfLifeRepository {
     DateTime? to,
     List<String>? types,
     String? farmerId,
+    String? batchId,
   }) async {
     try {
       var q = _client.from('shelf_life_events').select();
       if (types != null && types.isNotEmpty) q = q.inFilter('event_type', types);
       if (farmerId != null) q = q.eq('farmer_id', farmerId);
+      if (batchId != null) q = q.eq('batch_id', batchId);
       if (from != null) q = q.gte('created_at', from.toUtc().toIso8601String());
       if (to != null) q = q.lt('created_at', to.toUtc().toIso8601String());
       final rows = await q.order('created_at', ascending: false).limit(2000);

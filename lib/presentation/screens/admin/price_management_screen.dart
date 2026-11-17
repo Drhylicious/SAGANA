@@ -423,7 +423,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
               const TopBarSpacer(height: 64),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _loadAll,
                   child: _isLoading
                       ? const Padding(
@@ -552,7 +552,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
             bottom: 24,
             right: 20,
             child: FloatingActionButton.extended(
-              onPressed: _openAddSheet,
+              heroTag: null, onPressed: _openAddSheet,
               backgroundColor: _isOnline
                   ? AppConstants.primaryGreen
                   : cs.outline,

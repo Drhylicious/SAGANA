@@ -195,15 +195,7 @@ class _StockHistorySheetState extends State<_StockHistorySheet> {
       maxChildSize: 0.95,
       builder: (context, scroll) => Column(
         children: [
-          const SizedBox(height: 10),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: cs.outline.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          // The sheet already has its drag handle (the theme's); a second one drawn here doubled the line.
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
             child: Row(

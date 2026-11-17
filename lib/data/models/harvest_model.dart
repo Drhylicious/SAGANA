@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/quantity_utils.dart';
 import 'shelf_life_model.dart';
 
@@ -60,7 +61,7 @@ class HarvestModel {
   /// The batch number with its leading #, or a note when the database has not
   /// issued one yet (a harvest saved offline is numbered when it syncs).
   String get displayBatch => formatBatchNumber(batchNumber).isEmpty
-      ? 'Assigned when synced'
+      ? currentL10n().dlBatchWhenSynced
       : formatBatchNumber(batchNumber);
 
   String get displayQty {

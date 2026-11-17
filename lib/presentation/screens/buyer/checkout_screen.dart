@@ -27,6 +27,8 @@ import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 enum _FulfillmentMethod { pickup, delivery }
 
@@ -237,11 +239,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // (place_order takes the kg off the listing each time it runs), so the
     // second tap is ignored rather than relying on the button having rebuilt.
     if (_isSubmitting) return;
+    // The flag goes up first, so a second tap during the restriction check below is
+    // ignored too.
     setState(() {
       _isSubmitting = true;
       _error = null;
       _checkoutIndex = 0;
     });
+    // The last stop before an order exists: a restriction applied while this screen
+    // was open is respected here too (the database refuses it as well).
+    final allowed = await ensureFeatureAvailable(
+      context,
+      RestrictableFeature.checkout,
+    );
+    if (!allowed || !mounted) {
+      if (mounted) setState(() => _isSubmitting = false);
+      return;
+    }
 
     final method = _method == _FulfillmentMethod.pickup ? 'pickup' : 'delivery';
     final address = _method == _FulfillmentMethod.delivery
@@ -466,7 +480,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
+                            Flexible(child: Text(
                               l10n.checkoutSubtotalLabel(widget.items.length),
                               style: GoogleFonts.inter(
                                 fontSize: 12,
@@ -474,7 +488,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                   context,
                                 ).colorScheme.onSurfaceVariant,
                               ),
-                            ),
+                            )),
                             Text(
                               '₱${_total.toStringAsFixed(2)}',
                               style: GoogleFonts.poppins(
@@ -497,7 +511,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              Flexible(child: Text(
                                 l10n.uoPaymentDeliveryFee,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
@@ -505,7 +519,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                     context,
                                   ).colorScheme.onSurfaceVariant,
                                 ),
-                              ),
+                              )),
                               Text(
                                 '₱${_quote!.fee.toStringAsFixed(2)}',
                                 style: GoogleFonts.poppins(
@@ -901,13 +915,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           const SizedBox(width: 10),
-          Text(
+          Flexible(child: Text(
             l10n.uoCheckoutQuoteLoading,
             style: GoogleFonts.inter(
               fontSize: 12,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-          ),
+          )),
         ],
       );
     }

@@ -300,7 +300,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
               const TopBarSpacer(height: 64),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: () => _load(showSpinner: false),
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -529,13 +529,13 @@ class _HeroSection extends StatelessWidget {
                           color: cs.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        Flexible(child: Text(
                           listing.cropName,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: cs.onSurfaceVariant,
                           ),
-                        ),
+                        )),
                       ],
                     ),
                     if (listing.marketType != null)
@@ -549,13 +549,13 @@ class _HeroSection extends StatelessWidget {
                           color: cs.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        Flexible(child: Text(
                           listing.submittedLabel,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: cs.onSurfaceVariant,
                           ),
-                        ),
+                        )),
                       ],
                     ),
                   ],
@@ -680,14 +680,14 @@ class _SectionCard extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: cs.primary),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 title,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 14),
@@ -1372,14 +1372,14 @@ class _ReviewActions extends StatelessWidget {
                           color: Colors.white,
                         ),
                         const SizedBox(width: 8),
-                        Text(
+                        Flexible(child: Text(
                           l10n.listingReviewApproveTitle,
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
-                        ),
+                        )),
                       ],
                     ),
             ),
@@ -1411,14 +1411,14 @@ class _ReviewActions extends StatelessWidget {
                   color: AppConstants.errorRed,
                 ),
                 const SizedBox(width: 8),
-                Text(
+                Flexible(child: Text(
                   l10n.listingReviewRejectTitle,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppConstants.errorRed,
                   ),
-                ),
+                )),
               ],
             ),
           ),

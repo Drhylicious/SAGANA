@@ -145,11 +145,11 @@ Future<void> main() async {
       expect(loans.tables, isNot(contains('loan_items_master')));
     });
 
-    test('Reports covers the Balik-Tangkilik tables AND the exports; Exports alone is only the exports', () {
+    test('Reports is the Capital Share settings changes and the exports the app wrote', () {
       final reports = staffLogGroupByKey('reports')!;
       final whole = StaffLogScope.of(reports, null);
       expect(whole.exports, isTrue);
-      expect(whole.tables, containsAll(['cooperative_annual_totals', 'member_contributions']));
+      expect(whole.tables, ['capital_share_rates']);
       final exports = StaffLogScope.of(reports, staffLogFeatureByKey(reports, 'exports'));
       expect(exports.exports, isTrue);
       expect(exports.tables, isEmpty);

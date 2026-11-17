@@ -532,6 +532,65 @@ class SalesReportData {
   );
 }
 
+/// One month of a member's monthly contribution, for the year's month list.
+class MemberMonthStatus {
+  final DateTime month;
+  final double amountDue;
+  final double paid;
+
+  /// paid | partial | unpaid | overdue | waived
+  final String status;
+  const MemberMonthStatus({
+    required this.month,
+    required this.amountDue,
+    required this.paid,
+    required this.status,
+  });
+
+  factory MemberMonthStatus.fromMap(Map<String, dynamic> m) =>
+      MemberMonthStatus(
+        month: DateTime.parse(m['month'] as String),
+        amountDue: (m['due'] as num?)?.toDouble() ?? 0,
+        paid: (m['paid'] as num?)?.toDouble() ?? 0,
+        status: (m['status'] as String?) ?? 'unpaid',
+      );
+}
+
+/// One Monthly Contribution record of the year: a payment, Starting Capital, a
+/// correction or an older payout, or the cancellation of one.
+class MemberCapitalRecord {
+  final DateTime date;
+  final String source;
+  final double amount;
+  final DateTime? month;
+  final bool isReversal;
+  const MemberCapitalRecord({
+    required this.date,
+    required this.source,
+    required this.amount,
+    this.month,
+    this.isReversal = false,
+  });
+
+  factory MemberCapitalRecord.fromMap(Map<String, dynamic> m) =>
+      MemberCapitalRecord(
+        date: DateTime.parse(m['date'] as String),
+        source: m['source'] as String,
+        amount: (m['amount'] as num).toDouble(),
+        month: m['month'] == null ? null : DateTime.parse(m['month'] as String),
+        isReversal: m['rev'] == true,
+      );
+}
+
+/// version -> [credited, base amount, discount earned], from the cached map form.
+Map<int, List<double>> parseCreditSlices(Object? raw) => {
+  if (raw is Map)
+    for (final e in raw.entries)
+      int.parse('${e.key}'): [
+        for (final v in (e.value as List)) (v as num).toDouble(),
+      ],
+};
+
 class MemberContributionRow {
   final String farmerId;
   final String farmerName;
@@ -540,7 +599,6 @@ class MemberContributionRow {
   final double peanutQtyKg;
   final double peanutAmount;
   final double totalAmount;
-  final double sharePercent;
 
   /// Any crop other than Palay/Peanut sold via Offer to Cooperative, as of
   /// Phase 9's any-crop widening (Phase 11 addition) — previously any such
@@ -549,7 +607,7 @@ class MemberContributionRow {
   final double otherCropsAmount;
 
   /// Option B — Product Sales Program purchases (farmer buys FROM the
-  /// coop), kept structurally separate from totalAmount/sharePercent
+  /// coop), kept structurally separate from totalAmount
   /// above (farmer sells TO the coop via Offer to Cooperative). Shown as
   /// its own line, never folded into the sales-based total.
   final double programPurchasesAmount;
@@ -558,10 +616,73 @@ class MemberContributionRow {
   final double programRegularAmount;
   final double programDiscountAmount;
 
-  /// This member's share of the year's total Product Sales Program
-  /// purchases across all members — computed the same way sharePercent
-  /// is, but against the purchases pool, never against coopTotalSales.
-  final double purchaseSharePercent;
+  /// Source 1 — monthly contributions PAID toward the year's months (the Contribution
+  /// section in Farmer Details), net of cancellations. Only actual payments: an
+  /// unpaid balance is never in here or in the Capital Share.
+  final double monthlyContributions;
+
+  /// The year's monthly obligation (waived months owe nothing), what is still owed
+  /// (due - paid), and how many months are in each status. A month is in exactly
+  /// one status, so the five counts add up to the months of the year.
+  final double monthlyDue;
+  final double monthlyBalance;
+  final int monthsPaid;
+  final int monthsPartial;
+  final int monthsUnpaid;
+  final int monthsOverdue;
+  final int monthsWaived;
+
+  /// Monthly payments recorded before payments were tied to a month. They stay in
+  /// the Capital Share but belong to no month, so they are not in [monthlyContributions].
+  final double monthlyUnassigned;
+
+  /// Purchase discount that has been credited to this member's Capital Share in
+  /// the year. Compare with [programDiscountAmount] (what was earned).
+  final double discountCredited;
+
+  /// Cooperative Purchase credits (a percentage of the net amount paid) and the
+  /// amounts they were worked out from; Offer to Cooperative credits likewise.
+  final double purchaseShareCredited;
+  final double purchaseShareBase;
+  final double offerShareCredited;
+  final double offerShareBase;
+
+  /// Starting Capital dated in the year: capital the member already had, shown
+  /// beside the contributions but NOT counted in [totalContributions].
+  final double startingCapital;
+
+  /// Capital Share at the end of the year (this year: right now), as in Farmer
+  /// Details: the ledger total and the whole ₱ shares it makes up.
+  final double capitalBalance;
+
+  /// The value of one full share for this member (member_capital_shares.
+  /// share_value_per_unit, the cooperative's setting; 2,000 when the member has no row).
+  final double capitalShareValue;
+
+  /// The Capital Share at the start of the year (the ledger before it). The
+  /// balance at the end (or now) is [capitalBalance]; what was added in between
+  /// is [capitalAddedInYear].
+  final double capitalAtYearStart;
+
+  /// The year's months with their status, oldest first (what the member card lists).
+  final List<MemberMonthStatus> months;
+
+  /// The year's Monthly Contribution records, each its own entry.
+  final List<MemberCapitalRecord> records;
+
+  /// The percentage credits split by the settings version they were made under
+  /// (version -> [credited, base amount, discount earned]), the latest version and
+  /// how many times the settings have been changed. Newly credited = the latest
+  /// version; previous = every earlier one.
+  final Map<int, List<double>> purchaseByVersion;
+  final Map<int, List<double>> offerByVersion;
+  final int latestRateVersion;
+  final int rateChanges;
+
+  /// transaction id -> the settings version its credit was made under (to split a
+  /// member's purchases / offers into newly credited and previous).
+  final Map<String, int> creditVersions;
+  final int capitalShares;
 
   const MemberContributionRow({
     required this.farmerId,
@@ -571,45 +692,129 @@ class MemberContributionRow {
     required this.peanutQtyKg,
     required this.peanutAmount,
     required this.totalAmount,
-    required this.sharePercent,
     this.otherCropsQtyKg = 0,
     this.otherCropsAmount = 0,
     this.programPurchasesAmount = 0,
     this.programRegularAmount = 0,
     this.programDiscountAmount = 0,
-    this.purchaseSharePercent = 0,
+    this.monthlyContributions = 0,
+    this.monthlyDue = 0,
+    this.monthlyBalance = 0,
+    this.monthsPaid = 0,
+    this.monthsPartial = 0,
+    this.monthsUnpaid = 0,
+    this.monthsOverdue = 0,
+    this.monthsWaived = 0,
+    this.monthlyUnassigned = 0,
+    this.discountCredited = 0,
+    this.purchaseShareCredited = 0,
+    this.purchaseShareBase = 0,
+    this.offerShareCredited = 0,
+    this.offerShareBase = 0,
+    this.startingCapital = 0,
+    this.capitalBalance = 0,
+    this.capitalShareValue = 2000,
+    this.capitalAtYearStart = 0,
+    this.months = const [],
+    this.records = const [],
+    this.purchaseByVersion = const {},
+    this.offerByVersion = const {},
+    this.latestRateVersion = 1,
+    this.rateChanges = 0,
+    this.creditVersions = const {},
+    this.capitalShares = 0,
   });
 
-  bool get hasContributed => totalAmount > 0;
+  /// What the three sources ADDED to the Capital Share in the year. Total Capital
+  /// Share = Monthly Contribution + Cooperative Purchase + Offer to Cooperative.
+  ///  - Cooperative Purchase: [purchaseCredited], a percentage of the completed
+  ///    member-price orders (and any earlier discount credit).
+  ///  - Offer to Cooperative: [offersCredited], a percentage of the completed
+  ///    offers' sale value.
+  ///  - Monthly Contribution: [memberPaidInYear], everything the member paid in
+  ///    themselves (the payments, Starting Capital, corrections).
+  /// All three come from the one capital ledger, so nothing is counted twice and
+  /// the three always add up to [capitalAddedInYear].
+  double get purchaseCredited => discountCredited + purchaseShareCredited;
+  double get offersCredited => offerShareCredited;
 
-  /// Both patronage sources combined — selling to the cooperative AND
-  /// buying from it. The headline figure a member's overall patronage
-  /// should be judged by, so the report doesn't read as biased toward
-  /// whichever side happens to be shown first.
-  double get combinedTotalAmount => totalAmount + programPurchasesAmount;
+  /// Everything the ledger added to the Capital Share in the year (the balance
+  /// now or at year end, minus the balance at the start).
+  double get capitalAddedInYear => capitalBalance - capitalAtYearStart;
+
+  /// The Monthly Contribution part of what was added: whatever the member paid
+  /// in (monthly payments, Starting Capital, corrections), i.e. the rest after the
+  /// two percentage credits.
+  double get memberPaidInYear =>
+      capitalAddedInYear - purchaseCredited - offersCredited;
+
+  /// Of [memberPaidInYear], what is neither a monthly payment nor Starting Capital:
+  /// corrections and an older payout added to capital.
+  double get otherCapitalAdded =>
+      memberPaidInYear - monthlyContributions - startingCapital;
+
+  double get totalContributions => capitalAddedInYear;
+
+  bool get hasContributed => capitalAddedInYear > 0.004;
 
   /// The effective discount rate on this farmer's member-price purchases:
   /// discount given as a share of the regular price (0 when there is none).
   double get programDiscountRatePercent =>
       programRegularAmount > 0 ? programDiscountAmount / programRegularAmount * 100 : 0;
 
-  bool get hasAnyActivity => combinedTotalAmount > 0;
+  /// Anything to show for the year: a contribution, a purchase or offer, or a month.
+  bool get hasAnyActivity =>
+      hasContributed ||
+      programPurchasesAmount > 0 ||
+      totalAmount > 0 ||
+      monthsCount > 0;
+
+  /// What is still needed for the NEXT full share: the next whole share's value
+  /// minus the Capital Share held. Never below zero.
+  double get remainingForNextShare =>
+      ((capitalShares + 1) * capitalShareValue - capitalBalance)
+          .clamp(0.0, double.infinity)
+          .toDouble();
+
+  /// The member has monthly months this year (even if nothing is paid yet).
+  int get monthsCount =>
+      monthsPaid + monthsPartial + monthsUnpaid + monthsOverdue + monthsWaived;
 }
 
 class MemberContributionReportData {
   final int year;
-  final double totalCoopSales;
   final int memberCount;
   final int contributingMemberCount;
   final List<MemberContributionRow> rows;
 
   const MemberContributionReportData({
     required this.year,
-    required this.totalCoopSales,
     required this.memberCount,
     required this.contributingMemberCount,
     required this.rows,
   });
+
+  double _sum(double Function(MemberContributionRow r) f) =>
+      rows.fold<double>(0, (t, r) => t + f(r));
+
+  // The three sources, and what they add up to, for all active members.
+  double get totalMonthly => _sum((r) => r.monthlyContributions);
+  double get totalMonthlyDue => _sum((r) => r.monthlyDue);
+  double get totalMonthlyBalance => _sum((r) => r.monthlyBalance);
+  int get totalMonthsOverdue =>
+      rows.fold<int>(0, (t, r) => t + r.monthsOverdue);
+  double get totalPurchases => _sum((r) => r.programPurchasesAmount);
+  double get totalOffers => _sum((r) => r.totalAmount);
+  double get totalContributions => _sum((r) => r.totalContributions);
+  double get totalCapitalAdded => _sum((r) => r.capitalAddedInYear);
+
+  // Capital Share.
+  double get totalPurchaseCredited => _sum((r) => r.purchaseCredited);
+  double get totalOffersCredited => _sum((r) => r.offersCredited);
+  double get totalMemberPaid => _sum((r) => r.memberPaidInYear);
+  double get totalStartingCapital => _sum((r) => r.startingCapital);
+  double get totalCapital => _sum((r) => r.capitalBalance);
+  int get totalShares => rows.fold<int>(0, (t, r) => t + r.capitalShares);
 
   double get participationPercent =>
       memberCount > 0 ? (contributingMemberCount / memberCount * 100) : 0;
@@ -617,7 +822,6 @@ class MemberContributionReportData {
   factory MemberContributionReportData.empty(int year) =>
       MemberContributionReportData(
         year: year,
-        totalCoopSales: 0,
         memberCount: 0,
         contributingMemberCount: 0,
         rows: const [],

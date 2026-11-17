@@ -293,6 +293,7 @@ class FarmerProgramRepository {
   /// submit_program_enrollment_request()), so the caller needs to know
   /// if it was rejected rather than have that swallowed silently.
   Future<void> requestEnrollment(String programId) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'submit_program_enrollment_request',
       params: {'p_program_id': programId},

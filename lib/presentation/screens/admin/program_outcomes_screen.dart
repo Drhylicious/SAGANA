@@ -226,9 +226,9 @@ class _ProgramOutcomesScreenState extends State<ProgramOutcomesScreen>
             ),
             TabBar(
               controller: _tabs,
-              labelColor: AppConstants.primaryGreen,
+              labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: AppConstants.primaryGreen,
+              indicatorColor: Theme.of(context).colorScheme.primary,
               tabs: [
                 Tab(text: l10n.outcFilterPending(pending.length)),
                 Tab(text: l10n.outcFilterFinalized(finalized.length)),

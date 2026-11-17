@@ -12,6 +12,8 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 // Carries the batch-level context (Market Type, Batch Number) that
 // MarketplaceListingModel itself doesn't own — those live on
@@ -131,7 +133,9 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     context.goTab(AppRoutes.myListings);
   }
 
-  void _createAnother() {
+  Future<void> _createAnother() async {
+    if (!await ensureFeatureAvailable(context, RestrictableFeature.marketplaceListing)) return;
+    if (!mounted) return;
     context.pushReplacementRoute(AppRoutes.createListing);
   }
 
@@ -202,9 +206,11 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   Widget build(BuildContext context) {
     if (_listing == null) {
       // Normally unreachable: the route redirects when no listing is passed.
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       );
     }
@@ -780,7 +786,7 @@ class _BottomActions extends StatelessWidget {
             child: OutlinedButton(
               onPressed: isWithdrawing ? null : onCreateAnother,
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppConstants.primaryGreen,
+                foregroundColor: Theme.of(context).colorScheme.primary,
                 side: BorderSide(
                   color: Theme.of(context).colorScheme.primary,
                   width: 2,

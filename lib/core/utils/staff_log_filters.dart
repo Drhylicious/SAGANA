@@ -43,7 +43,12 @@ const staffLogPrimaryGroups = <StaffLogGroup>[
       'inventory_categories',
       'units',
     ]),
-    StaffLogFeature('crops', ['crop_master', 'crop_categories', 'crop_requests']),
+    StaffLogFeature('crops', [
+      'crop_master',
+      'crop_categories',
+      'crop_requests',
+      'shelf_life_settings',
+    ]),
     StaffLogFeature('programs', [
       'cooperative_programs',
       'program_activities',
@@ -55,8 +60,8 @@ const staffLogPrimaryGroups = <StaffLogGroup>[
       'program_enrollment_requests',
       'program_outcome_reports',
       'program_returns',
-      'program_failure_resolutions',
       'program_report_reminders',
+      'program_types',
     ]),
     StaffLogFeature('prices', ['price_records']),
     StaffLogFeature('loanItems', ['loan_items_master']),
@@ -69,7 +74,12 @@ const staffLogPrimaryGroups = <StaffLogGroup>[
       'password_reset_requests',
       'account_creation_requests',
     ]),
-    StaffLogFeature('contributions', ['capital_contribution_events', 'member_capital_shares']),
+    StaffLogFeature('contributions', [
+      'capital_contribution_events',
+      'member_capital_shares',
+    ]),
+    StaffLogFeature('monthlyContributions', ['member_monthly_contributions']),
+    StaffLogFeature('restrictions', ['member_restrictions']),
     StaffLogFeature('officerAccess', ['officer_permissions']),
   ]),
   StaffLogGroup('marketplace', [
@@ -82,17 +92,18 @@ const staffLogPrimaryGroups = <StaffLogGroup>[
       'market_linking_sales',
       'da_amad_enrollments',
     ]),
-    StaffLogFeature('deliverySettings', ['cooperative_details', 'delivery_settings', 'delivery_fee_bands']),
   ]),
   StaffLogGroup('loans', [
     StaffLogFeature('loansIssued', ['farmer_loans']),
     StaffLogFeature('payments', ['farmer_loan_payments']),
     StaffLogFeature('loanRequests', ['loan_requests']),
     StaffLogFeature('loanPolicy', ['loan_policy_settings']),
+    StaffLogFeature('bodReminders', ['bod_meeting_notices']),
     StaffLogFeature('programAssistance', ['program_assistance_requests']),
   ]),
   StaffLogGroup('reports', [
-    StaffLogFeature('balik', ['cooperative_annual_totals', 'member_contributions']),
+    // Changing the Capital Share percentages (who, when, old and new values).
+    StaffLogFeature('capitalShareSettings', ['capital_share_rates']),
     StaffLogFeature('exports', [], exports: true),
   ]),
 ];

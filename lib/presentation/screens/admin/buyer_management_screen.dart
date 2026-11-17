@@ -138,7 +138,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
               ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(
@@ -280,7 +280,7 @@ class BuyerManagementCard extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: color),
         const SizedBox(width: 10),
-        Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+        Flexible(child: Text(label, style: GoogleFonts.inter(fontSize: 13, color: color))),
       ],
     );
   }

@@ -58,29 +58,29 @@ class FarmerProfileRepository {
 
       // capital_shares isn't a column on user_information or
       // farmer_profiles — it lives in member_capital_shares, the same
-      // table ContributionRepository.fetchCapitalShares() reads. Queried
-      // directly here (not via ContributionRepository) to stay in this
+      // table CapitalContributionRepository reads. Queried
+      // directly here (not via that repository) to stay in this
       // repository's existing pattern, matching how fetchOutstandingLoans()
       // reads farmer_loans directly rather than depending on
-      // LoanRepository. Value = total_shares * share_value_per_unit,
-      // same formula as CapitalSharesModel.investmentValue, so the
-      // Dashboard and My Contribution screen can never disagree.
+      // LoanRepository. Value = total_contribution, the same figure Farmer
+      // Details and the Member Contribution Report show.
       double capitalShares = 0;
       try {
         final sharesRows = await OfflineCache.load(
-          screen: 'profile_capital_shares',
+          screen: 'profile_capital_balance',
           fetch: () => _client
               .from('member_capital_shares')
-              .select('total_shares, share_value_per_unit')
+              .select('total_contribution')
               .eq('farmer_id', _userId)
               .limit(1),
         );
         final sharesRow = sharesRows.isEmpty ? null : sharesRows.first;
         if (sharesRow != null) {
-          final totalShares = (sharesRow['total_shares'] as int? ?? 0);
-          final valuePerUnit =
-              (sharesRow['share_value_per_unit'] as num? ?? 2000).toDouble();
-          capitalShares = totalShares * valuePerUnit;
+          // The Capital Share is the real balance (the sum of the capital records).
+          // It used to be whole shares x share value, which showed PHP 0.00 for a
+          // member who has capital but not yet a full PHP 2,000 share.
+          capitalShares = (sharesRow['total_contribution'] as num? ?? 0)
+              .toDouble();
         }
       } catch (_) {}
 
@@ -726,7 +726,17 @@ class FarmerProfileRepository {
 
   // ─── My Programs ────────────────────────────────────────────────────────────
 
-  Future<List<MyProgramEntry>> fetchMyPrograms() async {
+  Future<List<MyProgramEntry>> fetchMyPrograms() =>
+      _fetchProgramEntries(_userId, 'my_programs');
+
+  /// The same records for ANOTHER Farmer: the read-only Programs tab of Farmer Details (Manager / Officer).
+  Future<List<MyProgramEntry>> fetchProgramsOf(String farmerId) =>
+      _fetchProgramEntries(farmerId, 'fd_my_programs_$farmerId');
+
+  Future<List<MyProgramEntry>> _fetchProgramEntries(
+    String farmerId,
+    String cacheScreen,
+  ) async {
     try {
       const memberCols =
           'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
@@ -746,14 +756,14 @@ class FarmerProfileRepository {
       const returnCols =
           'return_quantity, return_unit, return_crop:crop_master!return_crop_id(crop_name)';
       final rows = await OfflineCache.load(
-        screen: 'my_programs',
+        screen: cacheScreen,
         fetch: () async {
           Future<List<Map<String, dynamic>>> read(String select) async =>
               List<Map<String, dynamic>>.from(
                 await _client
                     .from('program_members')
                     .select(select)
-                    .eq('farmer_id', _userId)
+                    .eq('farmer_id', farmerId)
                     .order('enrolled_at', ascending: false),
               );
           try {

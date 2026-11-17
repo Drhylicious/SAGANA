@@ -24,6 +24,7 @@ import '../../widgets/crop_photo_capture.dart';
 import 'listing_success_screen.dart' show ListingSuccessArgs;
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../data/services/feature_restriction_service.dart';
 
 // Quantity and price are typed with the shared DecimalInputFormatter
 // (quantity_utils.dart): it validates the WHOLE new value on every edit — at
@@ -334,7 +335,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       // network/server errors. The database's own sentence for the second
       // case ("<crop> can only be sold through <channel> — …") is shown as is.
       final errorText = e.toString();
-      final message = errorText.contains('Not enough available quantity')
+      final message = restrictionMessageOf(e) != null
+          ? restrictionMessageOf(e)!
+          : errorText.contains('Not enough available quantity')
           ? AppLocalizations.of(
               context,
             ).enhNotEnoughAvailableStockForThatQuantityPlease
@@ -563,14 +566,14 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        Text(
+        Flexible(child: Text(
           title,
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w700,
             color: Theme.of(context).colorScheme.onSurface,
           ),
-        ),
+        )),
       ],
     );
   }
@@ -1148,7 +1151,7 @@ class _FormCard extends StatelessWidget {
                                   color: AppConstants.warningAmber,
                                 ),
                                 const SizedBox(width: 3),
-                                Text(
+                                Flexible(child: Text(
                                   AppLocalizations.of(context).enhMarket(
                                     (formatPricePerUnit(
                                       marketPrice!,
@@ -1160,7 +1163,7 @@ class _FormCard extends StatelessWidget {
                                     fontWeight: FontWeight.w600,
                                     color: AppConstants.warningAmber,
                                   ),
-                                ),
+                                )),
                               ],
                             ),
                           ),
@@ -1555,14 +1558,14 @@ class _LivePreviewCard extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    Flexible(child: Text(
                       AppLocalizations.of(context).enhEstimatedTotalRevenue,
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    ),
+                    )),
                     Text(
                       '₱${estimatedRevenue.toStringAsFixed(2)}',
                       style: GoogleFonts.poppins(
@@ -1675,7 +1678,7 @@ class _BottomActions extends StatelessWidget {
                         size: 20,
                       ),
                       const SizedBox(width: 8),
-                      Text(
+                      Flexible(child: Text(
                         AppLocalizations.of(
                           context,
                         ).enhGoOnlineToSubmitYourListing,
@@ -1686,7 +1689,7 @@ class _BottomActions extends StatelessWidget {
                             context,
                           ).colorScheme.outline.withValues(alpha: 0.70),
                         ),
-                      ),
+                      )),
                     ],
                   ),
                 )
@@ -1736,14 +1739,14 @@ class _BottomActions extends StatelessWidget {
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
-                              Text(
+                              Flexible(child: Text(
                                 AppLocalizations.of(context).enhSubmitForReview,
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.white,
                                 ),
-                              ),
+                              )),
                             ],
                           ),
                   ),
@@ -1756,7 +1759,7 @@ class _BottomActions extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onViewListings,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppConstants.primaryGreen,
+              foregroundColor: Theme.of(context).colorScheme.primary,
               side: BorderSide(color: Theme.of(context).colorScheme.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -1767,13 +1770,13 @@ class _BottomActions extends StatelessWidget {
               children: [
                 const Icon(Icons.list_alt_rounded, size: 18),
                 const SizedBox(width: 8),
-                Text(
+                Flexible(child: Text(
                   AppLocalizations.of(context).enhViewListing,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
-                ),
+                )),
               ],
             ),
           ),

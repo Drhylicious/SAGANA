@@ -28,6 +28,9 @@ class AssistanceRequest {
   /// LRN-YYYYMMDD-… (assigned only when it is approved).
   final String? assistanceReference;
   final String programMemberId;
+
+  /// Staff rows only (the Farmer's own copy does not carry it).
+  final String? farmerId;
   final String? programName;
   final String? farmerName;
 
@@ -48,6 +51,7 @@ class AssistanceRequest {
     required this.programMemberId,
     required this.status,
     required this.createdAt,
+    this.farmerId,
     this.assistanceReference,
     this.programName,
     this.farmerName,
@@ -62,24 +66,27 @@ class AssistanceRequest {
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
 
-  factory AssistanceRequest.fromMap(Map<String, dynamic> m) => AssistanceRequest(
-        id: m['id'] as String,
-        requestNumber: m['request_number'] as String? ?? '',
-        assistanceReference: m['assistance_reference'] as String?,
-        programMemberId: m['program_member_id'] as String? ?? '',
-        programName: m['program_name'] as String?,
-        farmerName: m['farmer_name'] as String?,
-        status: m['status'] as String? ?? 'pending',
-        message: m['message'] as String?,
-        // The Farmer's function names it rejection_reason; staff rows hold review_note.
-        reviewNote: (m['rejection_reason'] ?? m['review_note']) as String?,
-        reviewedByName: m['reviewed_by_name'] as String?,
-        createdAt: DateTime.parse(m['created_at'] as String).toLocal(),
-        reviewedAt: DateTime.tryParse(m['reviewed_at'] as String? ?? '')?.toLocal(),
-        items: ((m['items'] as List?) ?? const [])
-            .map((e) => AssistanceItem.fromMap((e as Map).cast<String, dynamic>()))
-            .toList(),
-      );
+  factory AssistanceRequest.fromMap(
+    Map<String, dynamic> m,
+  ) => AssistanceRequest(
+    id: m['id'] as String,
+    requestNumber: m['request_number'] as String? ?? '',
+    assistanceReference: m['assistance_reference'] as String?,
+    programMemberId: m['program_member_id'] as String? ?? '',
+    farmerId: m['farmer_id'] as String?,
+    programName: m['program_name'] as String?,
+    farmerName: m['farmer_name'] as String?,
+    status: m['status'] as String? ?? 'pending',
+    message: m['message'] as String?,
+    // The Farmer's function names it rejection_reason; staff rows hold review_note.
+    reviewNote: (m['rejection_reason'] ?? m['review_note']) as String?,
+    reviewedByName: m['reviewed_by_name'] as String?,
+    createdAt: DateTime.parse(m['created_at'] as String).toLocal(),
+    reviewedAt: DateTime.tryParse(m['reviewed_at'] as String? ?? '')?.toLocal(),
+    items: ((m['items'] as List?) ?? const [])
+        .map((e) => AssistanceItem.fromMap((e as Map).cast<String, dynamic>()))
+        .toList(),
+  );
 }
 
 /// One of the Farmer's failed outcomes and whether it may ask for assistance.

@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../models/admin_analytics_model.dart';
@@ -19,11 +20,9 @@ class AdminAnalyticsRepository {
     DateTime? since,
   }) async {
     try {
-      // Active members only — see BalikTangkilikRepository.
-      // fetchDistributionPreview() for the full reasoning; this method
-      // shares the identical previously-unfiltered farmer_profiles bug,
-      // which was inflating the Inactive tier with draft/rejected/
-      // suspended accounts that never became real members.
+      // Active members only, as in Member Contribution Report: draft, rejected and
+      // suspended accounts never became real members and must not inflate the
+      // Inactive tier.
       final activeRoleRows = await OfflineCache.load(
         screen: 'admin_participation_active_roles',
         fetch: () => _client
@@ -66,7 +65,7 @@ class AdminAnalyticsRepository {
       if (since != null) {
         listingQuery = listingQuery.gte(
           'submitted_at',
-          since.toIso8601String(),
+          since.toUtc().toIso8601String(),
         );
       }
       final listingRows = await OfflineCache.load(
@@ -91,7 +90,8 @@ class AdminAnalyticsRepository {
               .map(
                 (id) => FarmerPickerResult(
                   id: id,
-                  fullName: farmerInfo[id]?.fullName ?? 'Unknown Farmer',
+                  fullName:
+                      farmerInfo[id]?.fullName ?? currentL10n().dlUnknownFarmer,
                 ),
               )
               .toList()

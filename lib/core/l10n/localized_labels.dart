@@ -1,4 +1,10 @@
+import '../../data/services/app_settings_service.dart';
 import 'app_localizations.dart';
+
+/// The app's strings in the language chosen in Settings, for code that has no
+/// BuildContext (models, repositories, validators).
+AppLocalizations currentL10n() =>
+    lookupAppLocalizations(AppSettingsService.instance.locale);
 
 /// Translates built-in display labels while retaining stored filter values.
 /// Custom category names and user-entered text pass through unchanged.

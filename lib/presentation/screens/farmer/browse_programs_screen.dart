@@ -217,7 +217,7 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
               const SizedBox(height: 12),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(

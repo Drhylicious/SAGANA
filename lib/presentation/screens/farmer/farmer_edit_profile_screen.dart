@@ -509,7 +509,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                         children: [
                           SettingsRow(
                             icon: Icons.lock_reset_rounded,
-                            iconColor: AppConstants.primaryGreen,
+                            iconColor: Theme.of(context).colorScheme.primary,
                             title: l10n.changePassword,
                             subtitle: l10n.updatePasswordSubtitle,
                             onTap: () => AppDialog.show<void>(

@@ -163,7 +163,7 @@ class _MyLoanRequestsScreenState extends State<MyLoanRequestsScreen> {
               ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(

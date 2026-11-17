@@ -175,7 +175,7 @@ class _ListingEditRequestScreenState extends State<ListingEditRequestScreen> {
                 : r == null
                 ? Center(child: Text(l.listingReviewNotFound))
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -463,13 +463,13 @@ class _ValueRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                Flexible(child: Text(
                   l.leNoChange,
                   style: GoogleFonts.inter(
                     fontSize: 11.5,
                     color: cs.onSurfaceVariant,
                   ),
-                ),
+                )),
               ],
             )
           else

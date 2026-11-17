@@ -63,8 +63,11 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   // Files made by the most recent Generate, shown in the "Export ready" card.
   List<String> _lastExportPaths = [];
 
-  bool get _needsYearSelector =>
-      _selectedModules.contains(ReportModuleType.memberContribution);
+  bool get _needsYearSelector => _selectedModules.any((m) => m.usesYear);
+
+  /// What this staff member may export.
+  List<ReportModuleType> get _modules =>
+      exportableModules(isOfficer: HiveService.isOfficer);
 
   /// Whether the chosen reports use the period at all. With nothing chosen yet
   /// the period stays available, so it can be set before or after picking.
@@ -77,7 +80,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     super.initState();
     _contributionYear = widget.args?.contributionYear ?? DateTime.now().year;
     if (widget.args?.period != null) _period = widget.args!.period!;
-    if (widget.args?.preselectedModule != null) {
+    if (widget.args?.preselectedModule != null &&
+        _modules.contains(widget.args!.preselectedModule)) {
       _selectedModules.add(widget.args!.preselectedModule!);
     }
     _loadHistory();
@@ -85,7 +89,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   }
 
   Future<void> _loadAvailableContributionYears() async {
-    final years = await _reportsRepo.fetchAvailablePatronageYears();
+    final years = await _reportsRepo.fetchAvailableContributionYears();
     if (!mounted) return;
     setState(() => _availableContributionYears = years);
   }
@@ -244,6 +248,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         return l10n.reportsMemberContributionReport;
       case ReportModuleType.coopStock:
         return l10n.reportsCoopStockReport;
+      case ReportModuleType.analytics:
+        return l10n.reportsAnalyticsDashboard;
     }
   }
 
@@ -261,6 +267,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         return l10n.rptExportDescPatronage;
       case ReportModuleType.coopStock:
         return l10n.rptExportDescCoopStock;
+      case ReportModuleType.analytics:
+        return l10n.rptExportDescAnalytics;
     }
   }
 
@@ -513,7 +521,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppConstants.primaryGreen,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
                     side: BorderSide(
                       color: enabled
                           ? Theme.of(context).colorScheme.primary
@@ -629,8 +637,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final allSelected =
-        _selectedModules.length == ReportModuleType.values.length;
+    final allSelected = _selectedModules.length == _modules.length;
     return _card(
       cs,
       sagana,
@@ -651,7 +658,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 if (allSelected) {
                   _selectedModules.clear();
                 } else {
-                  _selectedModules.addAll(ReportModuleType.values);
+                  _selectedModules.addAll(_modules);
                 }
               }),
               child: Text(
@@ -665,9 +672,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
             ),
           ),
           const SizedBox(height: AppConstants.spacingSm),
-          ...ReportModuleType.values.map(
-            (m) => _moduleRow(m, l10n, cs, sagana),
-          ),
+          ..._modules.map((m) => _moduleRow(m, l10n, cs, sagana)),
         ],
       ),
     );
@@ -790,14 +795,10 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
               ),
             ),
             const SizedBox(height: AppConstants.spacingSm),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: YearFilterSelector(
-                selectedYear: _contributionYear,
-                onYearSelected: (y) => setState(() => _contributionYear = y),
-                years: _availableContributionYears,
-                selectedColor: AppConstants.buyerBlue,
-              ),
+            YearNavigator(
+              selectedYear: _contributionYear,
+              years: _availableContributionYears,
+              onChanged: (y) => setState(() => _contributionYear = y),
             ),
           ],
           if (hasSnapshot && _periodApplies) ...[
@@ -1056,7 +1057,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     final isPdf = entry.format == 'pdf';
     final enabled = canManage && !_isBusy;
     final actionStyle = TextButton.styleFrom(
-      foregroundColor: AppConstants.primaryGreen,
+      foregroundColor: Theme.of(context).colorScheme.primary,
       minimumSize: const Size(0, 36),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,

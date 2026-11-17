@@ -189,7 +189,7 @@ class _AllListingsScreenState extends State<AllListingsScreen>
               ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _loadAll,
                   child: _isLoading
                       ? const Padding(
@@ -503,7 +503,7 @@ class _AllListingCard extends StatelessWidget {
                         ),
                         if (listing.hasStockWarning) ...[
                           const SizedBox(width: 6),
-                          Row(
+                          Flexible(child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
@@ -512,7 +512,7 @@ class _AllListingCard extends StatelessWidget {
                                 color: cs.error,
                               ),
                               const SizedBox(width: 2),
-                              Text(
+                              Flexible(child: Text(
                                 AppLocalizations.of(
                                   context,
                                 ).marketplaceStockWarningBadge,
@@ -521,9 +521,9 @@ class _AllListingCard extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: cs.error,
                                 ),
-                              ),
+                              )),
                             ],
-                          ),
+                          )),
                         ],
                       ],
                     ),

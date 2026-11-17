@@ -784,7 +784,11 @@ class AdminListingRepository {
 
   Future<void> approveEditRequest(String requestId) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('approve_listing_edit', params: {'p_request_id': requestId});
+    await _client.rpc(
+      'approve_listing_edit',
+      params: {'p_request_id': requestId},
+    );
+    logStaffAction('listings', 'edit_approved', 'adminLogListingEditApproved');
   }
 
   Future<void> rejectEditRequest({
@@ -796,6 +800,7 @@ class AdminListingRepository {
       'reject_listing_edit',
       params: {'p_request_id': requestId, 'p_reason': reason.trim()},
     );
+    logStaffAction('listings', 'edit_rejected', 'adminLogListingEditRejected');
   }
 
   Future<void> approveListing(String listingId) async {

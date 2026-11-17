@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/quantity_utils.dart';
 import 'farmer_crop_model.dart' show marketTypeLabelFor;
 
@@ -140,9 +141,9 @@ class BuyerListingModel {
   String get harvestedLabel {
     if (harvestDate == null) return '';
     final diff = DateTime.now().difference(harvestDate!);
-    if (diff.inDays <= 0) return 'Harvested today';
-    if (diff.inDays == 1) return 'Harvested yesterday';
-    return 'Harvested ${diff.inDays} days ago';
+    if (diff.inDays <= 0) return currentL10n().dlHarvestedToday;
+    if (diff.inDays == 1) return currentL10n().dlHarvestedYesterday;
+    return currentL10n().dlHarvestedDaysAgo(diff.inDays);
   }
 
   factory BuyerListingModel.fromMap(Map<String, dynamic> map) {

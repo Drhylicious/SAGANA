@@ -383,7 +383,7 @@ class _NotificationBroadcastScreenState
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              GestureDetector(
+                              Flexible(child: GestureDetector(
                                 onTap: _showTemplateSheet,
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -394,17 +394,17 @@ class _NotificationBroadcastScreenState
                                       color: cs.primary,
                                     ),
                                     const SizedBox(width: 4),
-                                    Text(
+                                    Flexible(child: Text(
                                       l10n.broadcastUseTemplate,
                                       style: GoogleFonts.poppins(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
                                         color: cs.primary,
                                       ),
-                                    ),
+                                    )),
                                   ],
                                 ),
-                              ),
+                              )),
                             ],
                           ),
                           const SizedBox(height: 12),
@@ -508,14 +508,14 @@ class _NotificationBroadcastScreenState
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              Flexible(child: Text(
                                 l10n.broadcastRecent,
                                 style: GoogleFonts.poppins(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,
                                   color: cs.onSurface,
                                 ),
-                              ),
+                              )),
                               TextButton.icon(
                                 onPressed: () =>
                                     context.push(AppRoutes.broadcastHistory),
@@ -664,15 +664,15 @@ class _ComposeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Flexible(child: Text(
                 l10n.broadcastRecipientsLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: cs.onSurface,
                 ),
-              ),
-              Text(
+              )),
+              Flexible(child: Text(
                 l10n.broadcastSendingTo(
                   recipientCount,
                   _recipientNoun(l10n, recipientType),
@@ -682,7 +682,7 @@ class _ComposeCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: AppConstants.successGreen,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 8),
@@ -810,15 +810,15 @@ class _ComposeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Flexible(child: Text(
                 l10n.broadcastNotificationTitleLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: cs.onSurface,
                 ),
-              ),
-              Text(
+              )),
+              Flexible(child: Text(
                 '${titleCtrl.text.length}/$maxTitle',
                 style: GoogleFonts.inter(
                   fontSize: 10,
@@ -826,7 +826,7 @@ class _ComposeCard extends StatelessWidget {
                       ? cs.error
                       : cs.outline,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 6),
@@ -852,14 +852,14 @@ class _ComposeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Flexible(child: Text(
                 l10n.broadcastMessageBodyLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: cs.onSurface,
                 ),
-              ),
+              )),
               Text(
                 '${bodyCtrl.text.length}/$maxBody',
                 style: GoogleFonts.inter(
@@ -996,7 +996,7 @@ class _LivePreview extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
+                          Flexible(child: Text(
                             AppLocalizations.of(context).appName,
                             style: GoogleFonts.poppins(
                               fontSize: 10,
@@ -1004,14 +1004,14 @@ class _LivePreview extends StatelessWidget {
                               color: Theme.of(context).colorScheme.primary,
                               letterSpacing: 0.5,
                             ),
-                          ),
-                          Text(
+                          )),
+                          Flexible(child: Text(
                             l10n.broadcastJustNow,
                             style: GoogleFonts.inter(
                               fontSize: 10,
                               color: Theme.of(context).colorScheme.outline,
                             ),
-                          ),
+                          )),
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -1161,7 +1161,7 @@ class _ScheduleRow extends StatelessWidget {
                       color: cs.primary,
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    Flexible(child: Text(
                       scheduledAt != null
                           ? formatLabel(scheduledAt!)
                           : AppLocalizations.of(context).enhTapToPickDateTime,
@@ -1169,7 +1169,7 @@ class _ScheduleRow extends StatelessWidget {
                         fontSize: 13,
                         color: scheduledAt != null ? cs.onSurface : cs.outline,
                       ),
-                    ),
+                    )),
                   ],
                 ),
               ),
@@ -1391,7 +1391,9 @@ class _BroadcastHistoryCard extends StatelessWidget {
                         letterSpacing: 0.3,
                       ),
                     ),
-                    Row(
+                    Flexible(
+                      child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
                           Icons.done_all_rounded,
@@ -1399,7 +1401,8 @@ class _BroadcastHistoryCard extends StatelessWidget {
                           color: AppConstants.successGreen,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        Flexible(
+                          child: Text(
                           AppLocalizations.of(
                             context,
                           ).enhDelivered((broadcast.recipientCount).toString()),
@@ -1409,7 +1412,9 @@ class _BroadcastHistoryCard extends StatelessWidget {
                             color: AppConstants.successGreen,
                           ),
                         ),
+                        ),
                       ],
+                    ),
                     ),
                   ],
                 ),

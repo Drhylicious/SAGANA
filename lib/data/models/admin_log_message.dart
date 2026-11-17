@@ -29,6 +29,76 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogAccountResetResolved;
     case 'adminLogMemberAdded':
       return l.adminLogMemberAdded(v('fullName'));
+    case 'adminLogMemberRestricted':
+      return l.adminLogMemberRestricted;
+    case 'adminLogMemberRestrictionLifted':
+      return l.adminLogMemberRestrictionLifted;
+    case 'adminLogContributionWaived':
+      return l.adminLogContributionWaived;
+    case 'adminLogContributionWaiverRemoved':
+      return l.adminLogContributionWaiverRemoved;
+    case 'adminLogApplicantDeleted':
+      return l.adminLogApplicantDeleted;
+    case 'adminLogListingEditApproved':
+      return l.adminLogListingEditApproved;
+    case 'adminLogListingEditRejected':
+      return l.adminLogListingEditRejected;
+    case 'adminLogOrderPaymentRecorded':
+      return l.adminLogOrderPaymentRecorded;
+    case 'adminLogOrderCompletedForCustomer':
+      return l.adminLogOrderCompletedForCustomer;
+    case 'adminLogCoopOrderApproved':
+      return l.adminLogCoopOrderApproved;
+    case 'adminLogCoopOrderReady':
+      return l.adminLogCoopOrderReady;
+    case 'adminLogCoopOrderOutForDelivery':
+      return l.adminLogCoopOrderOutForDelivery;
+    case 'adminLogCoopOrderHandover':
+      return l.adminLogCoopOrderHandover;
+    case 'adminLogCoopOrderCompleted':
+      return l.adminLogCoopOrderCompleted;
+    case 'adminLogProgramReturnAdjusted':
+      return l.adminLogProgramReturnAdjusted;
+    case 'adminLogProgramReturnReceived':
+      return l.adminLogProgramReturnReceived;
+    case 'adminLogProgramReturnClosed':
+      return l.adminLogProgramReturnClosed;
+    case 'adminLogProgramFailedResolution':
+      return l.adminLogProgramFailedResolution;
+    case 'adminLogProgramReturnArrangement':
+      return l.adminLogProgramReturnArrangement;
+    case 'adminLogProgramReportReminder':
+      return l.adminLogProgramReportReminder;
+    case 'adminLogProgramOutcomeReviewed':
+      return l.adminLogProgramOutcomeReviewed;
+    case 'adminLogProgramOutcomeVerified':
+      return l.adminLogProgramOutcomeVerified;
+    case 'adminLogProgramOutcomeFinalized':
+      return l.adminLogProgramOutcomeFinalized;
+    case 'adminLogProgramAssistanceReviewed':
+      return l.adminLogProgramAssistanceReviewed;
+    case 'adminLogCoopLotStillGood':
+      return l.adminLogCoopLotStillGood;
+    case 'adminLogCoopLotRotten':
+      return l.adminLogCoopLotRotten;
+    case 'adminLogCoopDetailsSaved':
+      return l.adminLogCoopDetailsSaved;
+    case 'adminLogCoopContactVerified':
+      return l.adminLogCoopContactVerified;
+    case 'adminLogDeliveryFeesSaved':
+      return l.adminLogDeliveryFeesSaved;
+    case 'adminLogPickupEnabled':
+      return l.adminLogPickupEnabled;
+    case 'adminLogPickupDisabled':
+      return l.adminLogPickupDisabled;
+    case 'adminLogDeliveryEnabled':
+      return l.adminLogDeliveryEnabled;
+    case 'adminLogDeliveryDisabled':
+      return l.adminLogDeliveryDisabled;
+    case 'adminLogExpiryDiscountSaved':
+      return l.adminLogExpiryDiscountSaved;
+    case 'adminLogInventoryReturnItemSet':
+      return l.adminLogInventoryReturnItemSet;
     case 'adminLogListingApproved':
       return l.adminLogListingApproved;
     case 'adminLogListingRejected':
@@ -161,6 +231,8 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogProgramOutcomeThriving;
     case 'adminLogProgramCompleted':
       return l.adminLogProgramCompleted;
+    case 'adminLogProgramCompletedWarned':
+      return l.adminLogProgramCompletedWarned(v('referred'), v('waiting'));
     case 'adminLogProgramConvertedToLoan':
       return l.adminLogProgramConvertedToLoan;
     case 'adminLogProgramActivityCreated':

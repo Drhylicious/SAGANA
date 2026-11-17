@@ -41,11 +41,13 @@ import '../../presentation/screens/farmer/farmer_listing_detail_screen.dart';
 import '../../presentation/screens/farmer/farmer_orders_screen.dart';
 import '../../presentation/screens/farmer/listing_success_screen.dart';
 import '../../presentation/screens/farmer/manage_inventory_screen.dart';
-import '../../presentation/screens/farmer/my_contribution_screen.dart';
+import '../../presentation/screens/farmer/benefits_tracking_screen.dart';
+import '../../presentation/screens/admin/capital_share_settings_screen.dart';
 import '../../presentation/screens/farmer/my_expenses_screen.dart';
 import '../../presentation/screens/farmer/my_listings_screen.dart';
 import '../../data/models/marketplace_listing_model.dart';
 import '../../presentation/screens/farmer/my_loans_screen.dart';
+import '../../presentation/screens/farmer/my_restrictions_screen.dart';
 import '../../presentation/screens/farmer/request_loan_screen.dart';
 import '../../presentation/screens/farmer/my_loan_requests_screen.dart';
 import '../../presentation/screens/farmer/my_loan_history_screen.dart';
@@ -68,7 +70,9 @@ import '../../presentation/screens/admin/add_new_member_screen.dart';
 import '../../presentation/screens/admin/admin_activity_screen.dart';
 import '../../presentation/screens/admin/admin_profile_screen.dart';
 import '../../presentation/screens/shared/about_sagana_screen.dart';
-import '../../presentation/screens/shared/support_info_screen.dart';
+import '../../presentation/screens/shared/about_cooperative_screen.dart';
+import '../../presentation/screens/shared/privacy_policy_screen.dart';
+import '../../presentation/screens/shared/terms_of_use_screen.dart';
 import '../../presentation/screens/admin/admin_settings_screen.dart';
 import '../../presentation/screens/admin/admin_edit_profile_screen.dart';
 import '../../presentation/screens/admin/create_officer_account_screen.dart';
@@ -112,7 +116,6 @@ import '../../presentation/screens/admin/analytics_dashboard_screen.dart';
 import '../../presentation/screens/admin/admin_calendar_screen.dart';
 import '../../presentation/screens/admin/admin_route_placeholder_screen.dart';
 import '../../presentation/screens/admin/broadcast_history_screen.dart';
-import '../../presentation/screens/admin/balik_tangkilik_management_screen.dart';
 import '../../presentation/screens/admin/farmer_harvest_history_screen.dart';
 import '../../presentation/screens/admin/marketplace_dashboard_screen.dart';
 import '../../presentation/screens/admin/offer_to_cooperative_screen.dart';
@@ -242,10 +245,9 @@ class AppRouter {
   };
 
   /// Screens only the Manager opens, whatever permissions an Officer holds:
-  /// the Balik-Tangkilik payout, the staff accountability history, and the
+  /// the staff accountability history and the
   /// creation of Officer accounts (an Officer can create Farmer accounts only).
   static const _managerOnlyPaths = <String>{
-    AppRoutes.balikTangkilikManagement,
     AppRoutes.staffAccountability,
     AppRoutes.createOfficerAccount,
   };
@@ -334,8 +336,8 @@ class AppRouter {
         // An Officer opens every Manager screen, Members included: what an
         // Officer may DO in each module is set per module (View Only or
         // Manage, see StaffPermissions) and enforced by the database, so the
-        // router does not wall off screens. The one exception is the Balik
-        // Tangkilik yearly payout, which stays Manager-only. Redirects to the
+        // router does not wall off screens. The exceptions are the Manager-only
+        // screens listed above. Redirects to the
         // dashboard rather than splash — the person is legitimately logged in,
         // just hit a wall on one screen.
         if (HiveService.getUserRole() == 'officer') {
@@ -430,6 +432,26 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.farmerLoanHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: MyLoanHistoryScreen(
+              farmerId: s.extra is String ? s.extra as String : null,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerPaymentHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: MyPaymentHistoryScreen(
+              farmerId: s.extra is String ? s.extra as String : null,
+            ),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.farmerSettings,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -474,6 +496,14 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.myRestrictions,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyRestrictionsScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.myPaymentHistory,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -506,11 +536,11 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.myContribution,
+          path: AppRoutes.benefitsTracking,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const MyContributionScreen(),
+            child: const BenefitsTrackingScreen(),
           ),
         ),
         GoRoute(
@@ -1300,11 +1330,11 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.balikTangkilikManagement,
+          path: AppRoutes.capitalShareSettings,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const BalikTangkilikManagementScreen(),
+            child: const CapitalShareSettingsScreen(),
           ),
         ),
         GoRoute(
@@ -1897,17 +1927,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: Builder(
-              builder: (context) {
-                final l10n = AppLocalizations.of(context);
-                return SupportInfoScreen(
-                  icon: Icons.support_agent_rounded,
-                  iconColor: AppConstants.buyerBlue,
-                  title: l10n.aboutCooperative,
-                  body: l10n.aboutCooperativeBody,
-                );
-              },
-            ),
+            child: const AboutCooperativeScreen(),
           ),
         ),
         GoRoute(
@@ -1915,17 +1935,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: Builder(
-              builder: (context) {
-                final l10n = AppLocalizations.of(context);
-                return SupportInfoScreen(
-                  icon: Icons.privacy_tip_outlined,
-                  iconColor: AppConstants.amber,
-                  title: l10n.privacyPolicy,
-                  body: l10n.privacyPolicyBody,
-                );
-              },
-            ),
+            child: const PrivacyPolicyScreen(),
           ),
         ),
         GoRoute(
@@ -1933,17 +1943,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: Builder(
-              builder: (context) {
-                final l10n = AppLocalizations.of(context);
-                return SupportInfoScreen(
-                  icon: Icons.gavel_rounded,
-                  iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                  title: l10n.termsOfUse,
-                  body: l10n.termsOfUseBody,
-                );
-              },
-            ),
+            child: const TermsOfUseScreen(),
           ),
         ),
       ],

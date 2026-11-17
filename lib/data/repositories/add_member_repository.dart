@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/person_name.dart';
 import 'admin_activity_repository.dart';
@@ -94,8 +95,8 @@ class AddMemberRepository {
         return AddMemberResult.success(userId: newUserId);
       }
       return AddMemberResult.failure(
-        step:    'Account Creation',
-        message: 'Unexpected response from server. Please try again.',
+        step: 'Account Creation',
+        message: currentL10n().dlServerUnexpected,
       );
     } catch (rpcError) {
       // RPC not deployed yet — fall through to manual field validation check
@@ -108,29 +109,27 @@ class AddMemberRepository {
   }
 
   String _parseError(Object e) {
+    final l = currentL10n();
     final msg = e.toString().toLowerCase();
     if (msg.contains('already used by another account')) {
-      return msg.contains('phone')
-          ? 'This phone number is already used by another account.'
-          : 'This email address is already used by another account.';
+      return msg.contains('phone') ? l.errPhoneUsed : l.registerEmailTaken;
     }
     if (msg.contains('valid philippine mobile')) {
-      return 'Please enter a valid Philippine mobile number.';
+      return l.addMemberPhoneInvalid;
     }
     if (msg.contains('valid email')) {
-      return 'Please enter a valid email address.';
+      return l.addMemberEmailInvalid;
     }
     if (msg.contains('at least 18 years')) {
-      return 'The member must be at least 18 years old.';
+      return l.addMemberAgeRequirement;
     }
     if (msg.contains('already registered') ||
         msg.contains('already taken') ||
         msg.contains('already exists')) {
-      return 'This username is already taken.';
+      return l.registerUsernameTaken;
     }
     if (msg.contains('username must be')) {
-      return 'Username must be 3 to 30 characters: letters, numbers, dots, '
-          'underscores or hyphens.';
+      return l.dlUsernameRule;
     }
     if (msg.contains('function') && msg.contains('does not exist')) {
       return 'The account creation function is not yet deployed. '
@@ -138,12 +137,12 @@ class AddMemberRepository {
           'first.';
     }
     if (msg.contains('password')) {
-      return 'Password must be at least 8 characters.';
+      return l.passwordMinLength;
     }
     if (msg.contains('network') || msg.contains('connection')) {
-      return 'Network error. Please check your connection.';
+      return l.errNetwork;
     }
-    return 'Failed to create account. Please try again.';
+    return l.dlCreateAccountFailed;
   }
 }
 

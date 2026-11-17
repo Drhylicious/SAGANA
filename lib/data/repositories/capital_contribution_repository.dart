@@ -37,8 +37,8 @@ class CapitalContributionRepository {
   /// Records one capital contribution for [farmerId].
   ///
   /// [source] is one of: `member_payment` (a ₱100+ payment toward the
-  /// annual share), `patronage_capital` (member left their Balik-
-  /// Tangkilik refund in the coop), `manual_adjustment` (correction — may
+  /// annual share), `patronage_capital` (an older payout left in the
+  /// coop; no longer offered), `manual_adjustment` (correction — may
   /// be negative), `opening_balance`.
   /// Records now, or keeps the entry on this device to be recorded by the
   /// next Sync when offline.
@@ -47,6 +47,7 @@ class CapitalContributionRepository {
     required double amount,
     String source = 'member_payment',
     String? note,
+    DateTime? effectiveDate,
   }) {
     final eventId = newClientId();
     return OfflineActions.run(
@@ -57,6 +58,9 @@ class CapitalContributionRepository {
         'amount': amount,
         'source': source,
         'note': note,
+        'effectiveDate': effectiveDate == null
+            ? null
+            : _dateOnly(effectiveDate),
       },
       online: () => recordContributionOnline(
         eventId: eventId,
@@ -64,9 +68,13 @@ class CapitalContributionRepository {
         amount: amount,
         source: source,
         note: note,
+        effectiveDate: effectiveDate,
       ),
     );
   }
+
+  static String _dateOnly(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   /// The server write behind recordContribution(). Also run by offline replay.
   Future<void> recordContributionOnline({
@@ -75,6 +83,7 @@ class CapitalContributionRepository {
     required double amount,
     String source = 'member_payment',
     String? note,
+    DateTime? effectiveDate,
   }) async {
     final id = eventId ?? newClientId();
     final existing = await _client
@@ -90,6 +99,8 @@ class CapitalContributionRepository {
       'source': source,
       'note': (note != null && note.trim().isNotEmpty) ? note.trim() : null,
       'recorded_by': _client.auth.currentUser?.id,
+      // Starting Capital only: the date the capital was actually held.
+      if (effectiveDate != null) 'effective_date': _dateOnly(effectiveDate),
     });
 
     AdminActivityRepository().log(
@@ -99,29 +110,6 @@ class CapitalContributionRepository {
         'amount': amount.toStringAsFixed(2),
       }),
       referenceId: farmerId,
-    );
-  }
-
-  /// Reverses a recorded contribution: adds an opposite entry that points back to
-  /// the original and carries the reason. Nothing is deleted or edited. Needs a
-  /// connection; throws on failure so the screen can say why (the database writes
-  /// readable messages: already reversed, reason missing, view-only access...).
-  Future<void> reverseContribution({
-    required String eventId,
-    required String reason,
-    required double amount,
-  }) async {
-    await _client.rpc(
-      'reverse_capital_contribution',
-      params: {'p_event_id': eventId, 'p_reason': reason.trim()},
-    );
-
-    AdminActivityRepository().log(
-      module: 'members',
-      actionType: 'contribution_reversed',
-      message: AdminLogMessage('adminLogContributionReversed', {
-        'amount': amount.abs().toStringAsFixed(2),
-      }),
     );
   }
 

@@ -130,7 +130,7 @@ class _MarketplaceDashboardScreenState
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         onRefresh: _loadAll,
         child: CustomScrollView(
           slivers: [

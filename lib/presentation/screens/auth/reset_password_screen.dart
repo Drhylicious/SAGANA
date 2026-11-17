@@ -1,11 +1,13 @@
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/l10n/app_localizations.dart';
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/password_requirements.dart';
 import '../../widgets/set_password_form.dart';
 
 /// Lands here after a user requests a password reset from the Login
@@ -50,6 +52,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   @override
   void dispose() {
+    // Leaving before the password is set (back, a new code): the session the code
+    // opened was never a sign-in, so it ends here. A reload is covered at start-up.
+    if (_stage != _ResetStage.success) {
+      unawaited(AuthService.abandonPasswordReset());
+    }
     _codeController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
@@ -131,17 +138,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       _formError = null;
     });
     try {
-      await AuthService.changePassword(_passwordController.text);
-      await AuthService.logout();
+      await AuthService.finishPasswordReset(_passwordController.text);
       if (!mounted) return;
       setState(() => _stage = _ResetStage.success);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      // The server's own reason (same password, weak password, expired session),
+      // not a generic failure: the person can fix exactly that and try again.
+      final reason = passwordUpdateErrorMessage(e, l10n);
+      final expired = reason == l10n.passwordErrExpired;
       setState(() {
         _isSaving = false;
-        _formError = AppLocalizations.of(
-          context,
-        ).enhCouldNotUpdateYourPasswordPleaseTryAgain;
+        if (expired) {
+          // The code's session is gone: a new code is needed.
+          _stage = _ResetStage.enterCode;
+          _isVerifying = false;
+          _codeController.clear();
+          _codeError = reason;
+        } else {
+          _formError = reason ?? l10n.enhCouldNotUpdateYourPasswordPleaseTryAgain;
+        }
       });
     }
   }

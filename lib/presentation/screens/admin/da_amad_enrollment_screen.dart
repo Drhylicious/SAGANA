@@ -209,9 +209,9 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
               ),
               child: TabBar(
                 controller: _tabs,
-                labelColor: AppConstants.primaryGreen,
+                labelColor: Theme.of(context).colorScheme.primary,
                 unselectedLabelColor: cs.onSurfaceVariant,
-                indicatorColor: AppConstants.primaryGreen,
+                indicatorColor: Theme.of(context).colorScheme.primary,
                 indicatorWeight: 3,
                 dividerColor: Colors.transparent,
                 labelStyle: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700),
@@ -280,7 +280,7 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
       );
     }
     return RefreshIndicator(
-      color: AppConstants.primaryGreen,
+      color: Theme.of(context).colorScheme.primary,
       onRefresh: _load,
       child: content,
     );

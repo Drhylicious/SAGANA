@@ -209,7 +209,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
 
           Expanded(
             child: RefreshIndicator(
-              color: AppConstants.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
               onRefresh: _loadEvents,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -450,13 +450,13 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 5),
-                                      Text(
+                                      Flexible(child: Text(
                                         _eventTypeName(l10n, type),
                                         style: GoogleFonts.inter(
                                           fontSize: 11,
                                           color: cs.onSurfaceVariant,
                                         ),
-                                      ),
+                                      )),
                                     ],
                                   ),
                                 )
@@ -470,7 +470,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                     // ── Selected day events ────────────────────────────────
                     Row(
                       children: [
-                        Text(
+                        Flexible(child: Text(
                           _selectedDay != null
                               ? _dayLabel(l10n, _selectedDay!)
                               : l10n.adminCalSelectDay,
@@ -479,7 +479,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                             fontWeight: FontWeight.w600,
                             color: cs.onSurface,
                           ),
-                        ),
+                        )),
                         if (selectedEvents.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -616,7 +616,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                                                       shape: BoxShape.circle,
                                                     ),
                                                   ),
-                                                  Text(
+                                                  Flexible(child: Text(
                                                     _eventTypeName(
                                                       l10n,
                                                       event.type,
@@ -628,7 +628,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                                                       color: color,
                                                       letterSpacing: 0.5,
                                                     ),
-                                                  ),
+                                                  )),
                                                 ],
                                               ),
                                               const SizedBox(height: 2),

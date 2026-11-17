@@ -1,36 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/services/guest_mode_service.dart';
 import '../../../data/services/hive_service.dart';
-import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/support_info_widgets.dart';
 
-/// About SAGANA — dedicated screen (Admin Profile & Settings Phase 7),
-/// shared by every role. Unlike the other three Support & Info items
-/// (About the Cooperative, Privacy Policy, Terms of Use — all built on
-/// the generic SupportInfoScreen since their content is role-agnostic),
-/// this one needs its own screen: the summary line at the top is
-/// role-specific (matches the existing per-role ARB pattern — Admin,
-/// Farmer, and Buyer already had distinct one-line bodies to avoid
-/// showing another role's description), and it also displays the
-/// developer grid, which no other Support & Info screen needs.
+/// About SAGANA — shared by every role and by guests.
 ///
-/// Developer names/photos are placeholders (Developer 1-4, generic
-/// avatar icon) — real names/photos to be supplied later; swapping them
-/// in only touches the _developerNames list below, not this screen's
-/// structure.
+/// The "what SAGANA does for you" line follows the viewer: a signed-in role, or
+/// the Buyer / Farmer preview a guest is exploring. The team section is a single
+/// column of individual cards (picture, full name, role). Pictures are
+/// placeholders: give a member a [_TeamMember.photo] in [_team] below to replace
+/// the avatar; nothing else on the screen needs to change.
 class AboutSaganaScreen extends StatelessWidget {
   const AboutSaganaScreen({super.key});
 
   String _roleSummary(AppLocalizations l10n) {
+    final guest = GuestModeService.instance;
+    if (guest.isGuest) {
+      return guest.role == GuestRole.farmer
+          ? l10n.farmerAboutSaganaBody
+          : l10n.aboutSaganaBody;
+    }
     switch (HiveService.getUserRole()) {
       case 'farmer':
         return l10n.farmerAboutSaganaBody;
       case 'buyer':
         return l10n.aboutSaganaBody;
-      case 'admin':
-      case 'officer':
       default:
         return l10n.adminAboutSaganaBody;
     }
@@ -40,135 +39,361 @@ class AboutSaganaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
 
-    return Scaffold(
-      backgroundColor: sagana.scaffoldBackground,
+    final features = <(IconData, Color, String, String)>[
+      (
+        Icons.eco_rounded,
+        AppConstants.primaryGreen,
+        l10n.aboutFeat1Title,
+        l10n.aboutFeat1Desc,
+      ),
+      (
+        Icons.storefront_rounded,
+        AppConstants.buyerBlue,
+        l10n.aboutFeat2Title,
+        l10n.aboutFeat2Desc,
+      ),
+      (
+        Icons.handshake_rounded,
+        AppConstants.programPurple,
+        l10n.aboutFeat3Title,
+        l10n.aboutFeat3Desc,
+      ),
+      (
+        Icons.show_chart_rounded,
+        AppConstants.amber,
+        l10n.aboutFeat4Title,
+        l10n.aboutFeat4Desc,
+      ),
+      (
+        Icons.cloud_off_rounded,
+        AppConstants.successGreen,
+        l10n.aboutFeat5Title,
+        l10n.aboutFeat5Desc,
+      ),
+      (
+        Icons.translate_rounded,
+        AppConstants.buyerBlue,
+        l10n.aboutFeat6Title,
+        l10n.aboutFeat6Desc,
+      ),
+    ];
 
-      body: Column(
-        children: [
-          SubPageTopBar(
-            title: l10n.aboutSagana,
-            onBack: () => Navigator.of(context).pop(),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spacingSafeH,
-                8,
-                AppConstants.spacingSafeH,
-                40,
-              ),
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppConstants.primaryGreen.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.info_outline_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _roleSummary(l10n),
-                  textAlign: TextAlign.justify,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    height: 1.5,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  l10n.aboutSaganaFullDescription,
-                  textAlign: TextAlign.justify,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    height: 1.6,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  l10n.aboutSaganaBuiltBy,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  // No automatic status-bar padding: this list sits inside a bigger scroll view.
-                  padding: EdgeInsets.zero,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.92,
-                  children: [
-                    for (int i = 1; i <= 4; i++)
-                      _developerCard(l10n, i, cs, sagana),
-                  ],
-                ),
-              ],
+    final team = _team(l10n);
+
+    return SupportScaffold(
+      title: l10n.aboutSagana,
+      children: [
+        SupportHero(
+          leading: Container(
+            width: 84,
+            height: 84,
+            padding: const EdgeInsets.all(14),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Image.asset(
+              'assets/images/sagana_icon.png',
+              fit: BoxFit.contain,
             ),
           ),
+          title: AppConstants.appName,
+          subtitle: l10n.aboutSaganaTagline,
+          detail: l10n.aboutSaganaHeroSubtitle,
+        ),
+        const SizedBox(height: 10),
+        const _VersionLine(),
+        const SizedBox(height: 16),
+        SupportCard(
+          accent: AppConstants.primaryGreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.aboutSaganaForYou,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _roleSummary(l10n),
+                style: GoogleFonts.inter(
+                  fontSize: 13.5,
+                  height: 1.55,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SupportGroupTitle(title: l10n.aboutSaganaWhatsInside),
+        SupportCard(
+          child: Column(
+            children: [
+              for (var i = 0; i < features.length; i++) ...[
+                if (i > 0) const SupportDivider(),
+                SupportFeatureRow(
+                  icon: features[i].$1,
+                  color: features[i].$2,
+                  title: features[i].$3,
+                  description: features[i].$4,
+                ),
+              ],
+            ],
+          ),
+        ),
+        SupportGroupTitle(title: l10n.aboutSaganaBuiltForTitle),
+        SupportCard(
+          child: Text(
+            l10n.aboutSaganaBuiltForBody,
+            style: GoogleFonts.inter(
+              fontSize: 13.5,
+              height: 1.6,
+              color: cs.onSurface,
+            ),
+          ),
+        ),
+        SupportGroupTitle(
+          title: l10n.aboutTeamTitle,
+          subtitle: l10n.aboutTeamSubtitle,
+        ),
+        for (var i = 0; i < team.length; i++) ...[
+          if (i > 0) const SizedBox(height: 14),
+          _TeamCard(member: team[i]),
         ],
+      ],
+    );
+  }
+
+  // The team. Names are people, not translated text. Swap a placeholder
+  // picture for a real one by passing an image to [_TeamMember.photo].
+  static List<_TeamMember> _team(AppLocalizations l10n) => [
+    _TeamMember(
+      name: 'Jhon Drhy M. Salangsang',
+      role: l10n.aboutRoleLeadDeveloper,
+      icon: Icons.code_rounded,
+      color: AppConstants.primaryGreen,
+    ),
+    _TeamMember(
+      name: 'Marc Louie M. Yañez',
+      role: l10n.aboutRoleUiUxDesigner,
+      icon: Icons.palette_rounded,
+      color: AppConstants.programPurple,
+    ),
+    _TeamMember(
+      name: 'John Harvey Revilloza',
+      role: l10n.aboutRoleSystemAnalyst,
+      icon: Icons.account_tree_rounded,
+      color: AppConstants.buyerBlue,
+    ),
+    _TeamMember(
+      name: 'John Harold Revilloza',
+      role: l10n.aboutRoleQaTester,
+      icon: Icons.fact_check_rounded,
+      color: AppConstants.amber,
+    ),
+  ];
+}
+
+class _TeamMember {
+  final String name;
+  final String role;
+  final IconData icon;
+  final Color color;
+
+  /// The member's picture. Null shows the placeholder avatar.
+  final ImageProvider? photo;
+
+  const _TeamMember({
+    required this.name,
+    required this.role,
+    required this.icon,
+    required this.color,
+    this.photo,
+  });
+}
+
+/// One team member in their own centered card: a picture, the full name and the
+/// role, and nothing else. Each card carries its role colour (banner, ring and
+/// role pill) so the four read as one team while staying distinct.
+class _TeamCard extends StatelessWidget {
+  final _TeamMember member;
+
+  const _TeamCard({required this.member});
+
+  static const double _bannerHeight = 88;
+  static const double _avatarSize = 104;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final c = member.color;
+
+    return SupportCard(
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        child: Column(
+          children: [
+            SizedBox(
+              height: _bannerHeight + _avatarSize / 2,
+              child: Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Container(
+                    height: _bannerHeight,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [c, c.withValues(alpha: 0.65)],
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: -24,
+                          top: -34,
+                          child: _bannerCircle(90),
+                        ),
+                        Positioned(
+                          right: -18,
+                          bottom: -42,
+                          child: _bannerCircle(110),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: _bannerHeight - _avatarSize / 2,
+                    child: Container(
+                      width: _avatarSize,
+                      height: _avatarSize,
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: context.saganaColors.cardBackground,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: c.withValues(alpha: 0.30),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: c, width: 3),
+                          color: c.withValues(alpha: 0.12),
+                          image: member.photo == null
+                              ? null
+                              : DecorationImage(
+                                  image: member.photo!,
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
+                        child: member.photo == null
+                            ? Icon(
+                                Icons.person_rounded,
+                                size: 54,
+                                color: c.withValues(alpha: 0.7),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              child: Column(
+                children: [
+                  Text(
+                    member.name,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
+                      border: Border.all(color: c.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(member.icon, size: 15, color: c),
+                        const SizedBox(width: 7),
+                        Text(
+                          member.role,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: c,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _developerCard(
-    AppLocalizations l10n,
-    int number,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: cs.primary.withValues(alpha: 0.12),
-            child: Icon(Icons.person_rounded, color: cs.primary, size: 30),
+  static Widget _bannerCircle(double size) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.white.withValues(alpha: 0.12),
+    ),
+  );
+}
+
+/// "Version 1.0.0 (build 2)": the installed app, so it can be compared with the
+/// version shown on the SAGANA download page. Nothing is shown until it is read.
+class _VersionLine extends StatelessWidget {
+  const _VersionLine();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        if (info == null) return const SizedBox.shrink();
+        return Center(
+          child: Text(
+            l10n.aboutVersion(info.version, info.buildNumber),
+            style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurfaceVariant),
           ),
-          const SizedBox(height: 10),
-          Text(
-            '${l10n.aboutSaganaDeveloperLabel} $number',
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            l10n.aboutSaganaDeveloperRole,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

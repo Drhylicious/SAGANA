@@ -13,6 +13,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/offline_unavailable_view.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
@@ -57,6 +58,9 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
 
   DaAmadEnrollmentModel? _enrollment;
   bool _hasGinger = false;
+  // True when it could not be checked (offline, nothing saved): the screen
+  // then asks for a connection instead of saying a Ginger crop is missing.
+  bool _gingerUnknown = false;
   bool _hasPendingGingerRequest = false;
   List<MarketLinkingModel> _entries = [];
   bool _isLoadingGate = true;
@@ -97,7 +101,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
     setState(() => _isLoadingGate = true);
     final results = await Future.wait([
       _repo.fetchMyEnrollment(),
-      _repo.fetchHasGingerCrop(),
+      _repo.fetchHasGingerCropOrUnknown(),
       _repo.fetchHasPendingGingerRequest(),
     ]);
     if (!mounted) return;
@@ -116,7 +120,8 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
         !HiveService.getDaAmadApprovalSeen(enrollment.id, userId: _userId);
     setState(() {
       _enrollment = enrollment;
-      _hasGinger = results[1] as bool;
+      _hasGinger = (results[1] as bool?) ?? false;
+      _gingerUnknown = results[1] == null;
       _hasPendingGingerRequest = results[2] as bool;
       _isLoadingGate = false;
       _showApprovalCelebration = showCelebration;
@@ -206,7 +211,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
                     // with its own pull-to-refresh.
                     ? _buildGatedBody(cs, sagana)
                     : RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadGate,
                         child: _buildGatedBody(cs, sagana),
                       ),
@@ -270,7 +275,9 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
               cs: cs,
               sagana: sagana,
             ),
-          if (!_hasGinger && _hasPendingGingerRequest)
+          if (_gingerUnknown)
+            OfflineUnavailableView(onRetry: _loadGate)
+          else if (!_hasGinger && _hasPendingGingerRequest)
             // Distinct from "no Ginger at all" — the farmer already
             // requested it, it's just still awaiting Admin's crop
             // approval (a separate review from Enrollment itself).
@@ -311,7 +318,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
     }
     if (_entries.isEmpty) {
       return RefreshIndicator(
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         onRefresh: _loadEntries,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -747,7 +754,7 @@ class _PendingEnrollmentCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  Flexible(child: Text(
                     localizeBuiltinLabel(
                       AppLocalizations.of(context),
                       _stages[i ~/ 2],
@@ -759,7 +766,7 @@ class _PendingEnrollmentCard extends StatelessWidget {
                           ? cs.onSurface
                           : cs.onSurfaceVariant.withValues(alpha: 0.6),
                     ),
-                  ),
+                  )),
                 ],
               );
             }),
@@ -801,7 +808,7 @@ class _EnrolledPill extends StatelessWidget {
             color: AppConstants.successGreen,
           ),
           const SizedBox(width: 5),
-          Text(
+          Flexible(child: Text(
             AppLocalizations.of(context).marketLinkKpiEnrolled,
             style: GoogleFonts.inter(
               fontSize: 10,
@@ -809,7 +816,7 @@ class _EnrolledPill extends StatelessWidget {
               letterSpacing: 0.3,
               color: AppConstants.successGreen,
             ),
-          ),
+          )),
         ],
       ),
     );
@@ -1051,7 +1058,7 @@ class _RequestList extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return RefreshIndicator(
-      color: AppConstants.primaryGreen,
+      color: Theme.of(context).colorScheme.primary,
       onRefresh: onRefresh,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),

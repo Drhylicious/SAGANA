@@ -6,6 +6,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/loan_sorting.dart';
+import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../data/repositories/loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/cached_data_notice.dart';
@@ -20,7 +21,10 @@ import '../../widgets/top_bar_spacer.dart';
 /// of the payment), grouped by month, with the total paid at the top. The order is
 /// the same one the Input Loans landing page uses (see loan_sorting.dart).
 class MyPaymentHistoryScreen extends StatefulWidget {
-  const MyPaymentHistoryScreen({super.key});
+  /// Set when a Manager / Officer opens a Farmer's history: the same screen, read-only,
+  /// reading that Farmer's payments instead of the signed-in user's.
+  final String? farmerId;
+  const MyPaymentHistoryScreen({super.key, this.farmerId});
 
   @override
   State<MyPaymentHistoryScreen> createState() => _MyPaymentHistoryScreenState();
@@ -51,7 +55,9 @@ class _MyPaymentHistoryScreenState extends State<MyPaymentHistoryScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final loans = await _repo.fetchLoans();
+    final loans = widget.farmerId == null
+        ? await _repo.fetchLoans()
+        : await FarmerDetailsRepository().fetchFarmerLoans(widget.farmerId!);
     if (!mounted) return;
     setState(() {
       _payments = paymentsNewestFirst(loans);
@@ -104,13 +110,13 @@ class _MyPaymentHistoryScreenState extends State<MyPaymentHistoryScreen> {
             children: [
               const TopBarSpacer(height: 64),
               CachedDataNotice(
-                screen: "loans",
+                screen: widget.farmerId == null ? "loans" : 'fd_loans_${widget.farmerId}',
                 isOnline: _isOnline,
                 offlineMessage: l10n.offlineLoans,
               ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(

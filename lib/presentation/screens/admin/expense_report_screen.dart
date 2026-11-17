@@ -8,9 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/expense_model.dart';
-import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
-import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/report_ui_widgets.dart';
@@ -128,17 +126,6 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           SubPageTopBar(
             title: l10n.reportsExpenseReport,
             onBack: () => context.pop(),
-            trailing: IconButton(
-              icon: Icon(Icons.file_download_outlined, color: cs.primary),
-              onPressed: () => context.push(
-                AppRoutes.exportCenter,
-                extra: ExportCenterArgs(
-                  preselectedModule: ReportModuleType.expense,
-                  period: _period,
-                ),
-              ),
-              tooltip: l10n.reportsExportCenter,
-            ),
           ),
           CachedDataNotice(
             screen: AdminReportsRepository.expenseCacheScreen(_period),

@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 import '../../../core/constants/app_constants.dart';
 import 'encrypted_box.dart';
 import '../../core/utils/client_id.dart';
@@ -85,6 +86,30 @@ class HiveService {
   /// their own boxes and survive logout.
   static Box get cacheBox => _cacheBox;
 
+  // Which pages a user has loaded (the request, never its data), so they can
+  // be saved again after the next sign-in. Kept across logout on purpose: the
+  // saved data itself is cleared then (see clearUserSession).
+  static String _recipesKey(String userId, String role) =>
+      'offline_recipes::$userId::$role';
+
+  static Map<String, Map<dynamic, dynamic>> getOfflineRecipes(
+    String userId,
+    String role,
+  ) {
+    final raw = _settingsBox.get(_recipesKey(userId, role));
+    if (raw is! Map) return {};
+    return {
+      for (final e in raw.entries)
+        if (e.value is Map) e.key.toString(): e.value as Map,
+    };
+  }
+
+  static Future<void> saveOfflineRecipes(
+    String userId,
+    String role,
+    Map<String, Map<dynamic, dynamic>> recipes,
+  ) => _settingsBox.put(_recipesKey(userId, role), recipes);
+
   // ─── User Session ────────────────────────────────────────────────────────────
 
   static Future<void> saveUserSession({
@@ -124,6 +149,7 @@ class HiveService {
     ); // legacy key — cleared for old sessions
     await _userBox.delete('pending_acknowledgement');
     await _userBox.delete('staff_access_levels');
+    await _userBox.delete('password_reset_pending');
     // Per-user caches: cleared on logout. Unsynced queues are not touched here.
     // The cart belongs to this user only: remove just their items, so any
     // other account's cart on this device is left alone.
@@ -141,8 +167,28 @@ class HiveService {
     await _cacheBox.clear();
   }
 
-  static String? getUserRole() =>
-      _userBox.get(AppConstants.hiveKeyUserRole) as String?;
+  /// Whether the identity saved on this device belongs to the account that is signed
+  /// in to Supabase right now. The saved role, name and staff levels are written at
+  /// sign-in for ONE account; if a different account holds the session (a password
+  /// reset session, a session restored after the local data was cleared, anything
+  /// else) they must never be read as that account's. With no Supabase session at
+  /// all (offline start) the saved identity is kept, as before.
+  static bool get _identityMatchesSession {
+    try {
+      final current = Supabase.instance.client.auth.currentUser?.id;
+      if (current == null) return true;
+      final saved = _userBox.get(AppConstants.hiveKeyUserId) as String?;
+      return saved != null && saved == current;
+    } catch (_) {
+      // Supabase is not started (a test, or very early start-up).
+      return true;
+    }
+  }
+
+  /// The signed-in account's role, or null when the saved role is not that account's.
+  static String? getUserRole() => _identityMatchesSession
+      ? _userBox.get(AppConstants.hiveKeyUserRole) as String?
+      : null;
 
   static String? getUserId() =>
       _userBox.get(AppConstants.hiveKeyUserId) as String?;
@@ -155,6 +201,24 @@ class HiveService {
 
   static bool isLoggedIn() =>
       _userBox.get(AppConstants.hiveKeyIsLoggedIn, defaultValue: false) as bool;
+
+  // ─── Password reset in progress ─────────────────────────────────────────────
+  //
+  // After the emailed code is accepted, Supabase holds a session for that account
+  // so the new password can be set. That session is NOT a sign-in: it is marked
+  // here until the password is set (or the reset is abandoned), and a session found
+  // still marked at the next start is ended instead of being treated as a login.
+
+  static Future<void> setPasswordResetPending(bool value) async {
+    if (value) {
+      await _userBox.put('password_reset_pending', true);
+    } else {
+      await _userBox.delete('password_reset_pending');
+    }
+  }
+
+  static bool get isPasswordResetPending =>
+      _userBox.get('password_reset_pending', defaultValue: false) as bool;
 
   // ─── Member Status (offline splash routing) ─────────────────────────────────
   //
@@ -209,6 +273,7 @@ class HiveService {
   }
 
   static Map<String, String>? getStaffAccess() {
+    if (!_identityMatchesSession) return null;
     final raw = _userBox.get('staff_access_levels');
     if (raw is! Map) return null;
     return raw.map((k, v) => MapEntry(k as String, v as String));
@@ -282,6 +347,22 @@ class HiveService {
             defaultValue: false,
           )
           as bool;
+
+  // ─── App update reminder ─────────────────────────────────────────────────────
+  //
+  // When someone taps "Later" on the optional-update prompt, it is not shown
+  // again for that build until this time. Device-wide (not per account): the
+  // update is about the installed app, not the signed-in user.
+
+  static String _updateReminderKey(int build) => 'app_update_remind_at::$build';
+
+  static Future<void> setUpdateReminderAt(int build, DateTime at) =>
+      _settingsBox.put(_updateReminderKey(build), at.toIso8601String());
+
+  static DateTime? getUpdateReminderAt(int build) {
+    final raw = _settingsBox.get(_updateReminderKey(build));
+    return raw is String ? DateTime.tryParse(raw) : null;
+  }
 
   // ─── Farmer Roster Cache (offline Issue-Loan / Record-Payment picker) ────────
   //
@@ -391,7 +472,10 @@ class HiveService {
 
   static List<MapEntry<String, Map<dynamic, dynamic>>> _ownedEntries(Box box) {
     final me = getUserId();
-    if (me == null) return const [];
+    // A growable list, not `const []`: callers sort this list in place (see
+    // getOfflineActions), and a constant list throws "Unsupported operation:
+    // sort" whenever no one is signed in yet.
+    if (me == null) return <MapEntry<String, Map<dynamic, dynamic>>>[];
     final result = <MapEntry<String, Map<dynamic, dynamic>>>[];
     for (final key in box.keys) {
       final value = Map<dynamic, dynamic>.from(box.get(key) as Map);

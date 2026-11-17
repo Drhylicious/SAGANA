@@ -5,9 +5,12 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/admin_reports_model.dart';
 import '../models/export_model.dart';
+import '../repositories/admin_analytics_repository.dart';
 import '../repositories/admin_loan_repository.dart';
+import '../repositories/analytics_repository.dart';
 import '../repositories/admin_reports_repository.dart';
-import 'csv_export_service.dart' show ReportExportService;
+import 'csv_export_service.dart'
+    show ReportExportService, fetchAnalyticsExportData;
 import 'hive_service.dart';
 import 'report_pdf_serializers.dart';
 
@@ -73,8 +76,7 @@ class PdfExportService implements ReportExportService {
     ReportPeriod period,
     int contributionYear,
   ) async {
-    // What the file covers, printed under the title. The Member Patronage
-    // Report keeps its original subtitle, so it gets none.
+    // What the file covers, printed under the title.
     final scope = exportScopeText(module, period, contributionYear);
     switch (module) {
       case ReportModuleType.sales:
@@ -111,10 +113,20 @@ class PdfExportService implements ReportExportService {
       case ReportModuleType.memberContribution:
         return buildMemberContributionReportPdf(
           await _reportsRepo.fetchMemberContributionReport(contributionYear),
+          scopeText: scope,
         );
       case ReportModuleType.coopStock:
         return buildCoopStockReportPdf(
           await _reportsRepo.fetchCoopStockReport(),
+          scopeText: scope,
+        );
+      case ReportModuleType.analytics:
+        return buildAnalyticsPdf(
+          await fetchAnalyticsExportData(
+            AnalyticsRepository(),
+            AdminAnalyticsRepository(),
+            period,
+          ),
           scopeText: scope,
         );
     }

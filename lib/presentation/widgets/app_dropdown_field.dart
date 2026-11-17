@@ -177,6 +177,21 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
     final renderBox = _fieldKey.currentContext!.findRenderObject() as RenderBox;
     final fieldWidth = renderBox.size.width;
     final fieldHeight = renderBox.size.height;
+    // The list always opens BELOW the field. When the room left under the field on the
+    // screen is less than the list needs, the list is only as tall as that room and
+    // scrolls, so every option can be reached (it used to run off the screen with its
+    // last options out of reach).
+    final media = MediaQuery.of(context);
+    final fieldTop = renderBox.localToGlobal(Offset.zero).dy;
+    final spaceBelow =
+        media.size.height -
+        media.viewInsets.bottom -
+        media.padding.bottom -
+        (fieldTop + fieldHeight) -
+        12;
+    final menuMaxHeight = spaceBelow
+        .clamp(110.0, widget.maxMenuHeight)
+        .toDouble();
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -209,9 +224,7 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                   color: Colors.transparent,
                   child: Container(
                     width: fieldWidth,
-                    constraints: BoxConstraints(
-                      maxHeight: widget.maxMenuHeight,
-                    ),
+                    constraints: BoxConstraints(maxHeight: menuMaxHeight),
                     decoration: BoxDecoration(
                       color: sagana.cardBackground,
                       borderRadius: BorderRadius.circular(8),

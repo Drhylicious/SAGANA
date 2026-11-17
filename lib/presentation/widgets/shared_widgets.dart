@@ -266,7 +266,9 @@ class _AppTextFieldState extends State<AppTextField> {
         labelText: widget.label,
         hintText: widget.hint,
         filled: widget.locked,
-        fillColor: widget.locked ? const Color(0xFFE6F6FF) : null,
+        fillColor: widget.locked
+            ? context.adaptiveSurface(const Color(0xFFE6F6FF))
+            : null,
         prefixIcon: widget.prefixIcon != null
             ? Icon(widget.prefixIcon, size: 20, color: cs.outline)
             : null,
@@ -674,7 +676,7 @@ class StatusStepper extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            Flexible(child: Text(
               localizeBuiltinLabel(
                 AppLocalizations.of(context),
                 labels[stepIndex],
@@ -686,7 +688,7 @@ class StatusStepper extends StatelessWidget {
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.outline,
               ),
-            ),
+            )),
           ],
         );
       }),
@@ -943,14 +945,14 @@ class SignOutButton extends StatelessWidget {
                 size: 18,
               ),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 label,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppConstants.errorRed,
                 ),
-              ),
+              )),
             ],
           ),
         ),

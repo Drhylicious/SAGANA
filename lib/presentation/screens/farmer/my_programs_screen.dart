@@ -72,10 +72,13 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
     super.dispose();
   }
 
+  // One card per program: the latest round. Earlier rounds sit under History on that card.
+  ProgramRoundGroups get _groups => groupProgramRounds(_programs);
+
   bool _matchesPurpose(MyProgramEntry p, String label) =>
       label == 'All' || (label == 'Sales' ? p.isSalesProgram : !p.isSalesProgram);
 
-  List<MyProgramEntry> get _visible => _programs
+  List<MyProgramEntry> get _visible => _groups.current
       .where((p) =>
           _matchesPurpose(p, _purposeFilter) &&
           (_searchQuery.isEmpty || p.programName.toLowerCase().contains(_searchQuery)))
@@ -382,7 +385,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                     itemBuilder: (_, i) {
                       final label = ['All', 'Distribution', 'Sales'][i];
                       final isSelected = label == _purposeFilter;
-                      final count = _programs.where((p) => _matchesPurpose(p, label)).length;
+                      final count = _groups.current.where((p) => _matchesPurpose(p, label)).length;
                       return GestureDetector(
                         onTap: () => setState(() => _purposeFilter = label),
                         child: Container(
@@ -414,7 +417,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
               ],
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _load,
                   child: _isLoading
                       ? const Padding(
@@ -494,6 +497,15 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                               shown[i],
                               _reportByMember[shown[i].id],
                             ),
+                            history: [
+                              for (final e in _groups.earlier[shown[i].id] ?? const <MyProgramEntry>[])
+                                MyProgramRound(
+                                  entry: e,
+                                  report: _reportByMember[e.id],
+                                  resolution: _returns.resolutionByMember[e.id],
+                                  assistRequest: _assistLatest[e.id],
+                                ),
+                            ],
                             formatDate: _formatDate,
                             statusLabel: (s) => _statusLabel(l10n, s),
                           ),
@@ -521,6 +533,50 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   }
 }
 
+/// One program, one card: the latest round is the card, the earlier rounds of the same program go under History.
+class ProgramRoundGroups {
+  final List<MyProgramEntry> current;
+
+  /// Earlier rounds by the id of the current round's entry, oldest first.
+  final Map<String, List<MyProgramEntry>> earlier;
+  const ProgramRoundGroups(this.current, this.earlier);
+}
+
+ProgramRoundGroups groupProgramRounds(List<MyProgramEntry> all) {
+  final latest = <String, MyProgramEntry>{};
+  for (final e in all) {
+    final cur = latest[e.programId];
+    if (cur == null || e.roundNo > cur.roundNo) latest[e.programId] = e;
+  }
+  final current = [
+    for (final e in all)
+      if (identical(latest[e.programId], e)) e,
+  ];
+  final earlier = <String, List<MyProgramEntry>>{};
+  for (final e in all) {
+    final cur = latest[e.programId]!;
+    if (!identical(cur, e)) (earlier[cur.id] ??= []).add(e);
+  }
+  for (final list in earlier.values) {
+    list.sort((a, b) => a.roundNo.compareTo(b.roundNo));
+  }
+  return ProgramRoundGroups(current, earlier);
+}
+
+/// An earlier round of a program with what its History row shows.
+class MyProgramRound {
+  final MyProgramEntry entry;
+  final MyOutcomeReport? report;
+  final String? resolution;
+  final AssistanceRequest? assistRequest;
+  const MyProgramRound({
+    required this.entry,
+    this.report,
+    this.resolution,
+    this.assistRequest,
+  });
+}
+
 /// One enrolled program on the Farmer's My Programs screen (public so its layout can be tested).
 class MyProgramCard extends StatelessWidget {
   final MyProgramEntry entry;
@@ -534,7 +590,11 @@ class MyProgramCard extends StatelessWidget {
   final VoidCallback? onRequestRedistribution;
   final VoidCallback? onAssist;
   final VoidCallback? onCancelAssist;
-  final VoidCallback onReport;
+  final VoidCallback? onReport;
+  // Staff view (Farmer Details): the same card, nothing to tap. No buttons, no links.
+  final bool readOnly;
+  // The earlier (failed) rounds of this program, oldest first. Shown under History on the same card.
+  final List<MyProgramRound> history;
   final String Function(DateTime) formatDate;
   final String Function(String) statusLabel;
 
@@ -550,7 +610,9 @@ class MyProgramCard extends StatelessWidget {
     this.onRequestRedistribution,
     this.onAssist,
     this.onCancelAssist,
-    required this.onReport,
+    this.onReport,
+    this.readOnly = false,
+    this.history = const [],
     required this.formatDate,
     required this.statusLabel,
   });
@@ -571,8 +633,9 @@ class MyProgramCard extends StatelessWidget {
 
     // Every enrolled program opens Program Details.
     return GestureDetector(
-      onTap: () =>
-          context.push(AppRoutes.programDetails, extra: {'entry': entry}),
+      onTap: readOnly
+          ? null
+          : () => context.push(AppRoutes.programDetails, extra: {'entry': entry}),
       child: Container(
         decoration: BoxDecoration(
           color: context.saganaColors.cardBackground,
@@ -638,11 +701,12 @@ class MyProgramCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                      if (!readOnly)
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -704,6 +768,10 @@ class MyProgramCard extends StatelessWidget {
                     )
                   else
                     ..._distributionBody(context, l10n),
+                  if (history.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _RoundHistory(rounds: history, formatDate: formatDate),
+                  ],
                 ],
               ),
             ),
@@ -910,8 +978,9 @@ class MyProgramCard extends StatelessWidget {
             ),
           ),
         ],
-        if ((entry.isHarvestReturn && r != null && r.isReturned) ||
-            canReport) ...[
+        if (!readOnly &&
+            ((entry.isHarvestReturn && r != null && r.isReturned) ||
+                canReport)) ...[
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -954,7 +1023,7 @@ class MyProgramCard extends StatelessWidget {
             : Theme.of(context).colorScheme.outline,
       ),
       const SizedBox(width: 4),
-      Text(
+      Flexible(child: Text(
         label,
         style: GoogleFonts.inter(
           fontSize: 11,
@@ -962,7 +1031,7 @@ class MyProgramCard extends StatelessWidget {
               ? Theme.of(context).colorScheme.onSurface
               : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
-      ),
+      )),
     ],
   );
 
@@ -1141,16 +1210,6 @@ class MyProgramCard extends StatelessWidget {
               fontSize: 12,
               height: 1.4,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Builder(
-            builder: (ctx) => OutlinedButton.icon(
-              key: const Key('requestLoanFromReferral'),
-              onPressed: () => ctx.push(AppRoutes.requestLoan),
-              icon: const Icon(Icons.request_quote_outlined, size: 18),
-              label: Text(l10n.resFarmerRequestLoan),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
             ),
           ),
         ],
@@ -1373,6 +1432,145 @@ class _StepLine extends StatelessWidget {
               ? AppConstants.successGreen
               : Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
         ),
+      ),
+    );
+  }
+}
+
+/// Earlier rounds of the same program (each was a distribution of its own). Collapsed until opened.
+class _RoundHistory extends StatefulWidget {
+  final List<MyProgramRound> rounds;
+  final String Function(DateTime) formatDate;
+  const _RoundHistory({required this.rounds, required this.formatDate});
+
+  @override
+  State<_RoundHistory> createState() => _RoundHistoryState();
+}
+
+class _RoundHistoryState extends State<_RoundHistory> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      key: const Key('programRoundHistory'),
+      decoration: BoxDecoration(
+        color: cs.onSurface.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.history_rounded, size: 16, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.farmerProgHistory(widget.rounds.length),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Icon(
+                    _open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                    size: 20,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_open)
+            for (final r in widget.rounds)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: _row(context, l10n, r),
+              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, AppLocalizations l10n, MyProgramRound r) {
+    final cs = Theme.of(context).colorScheme;
+    final e = r.entry;
+    final rep = r.report;
+    final failed = rep != null ? rep.finalOutcome == 'failed' : e.isOutcomeFailed;
+    final done = (rep?.isFinalized ?? false) || (rep == null && (e.isOutcomeThriving || e.isOutcomeFailed));
+    final outcome = rep != null
+        ? (rep.isFinalized
+              ? (failed ? l10n.outcStatusFailed : l10n.outcStatusSuccessful)
+              : rep.isReturned
+              ? l10n.outcStatusReturned
+              : l10n.outcStatusPending)
+        : e.isOutcomeThriving
+        ? l10n.farmerProgOutcomeThriving
+        : e.isOutcomeFailed
+        ? l10n.farmerProgOutcomeFailed
+        : l10n.farmerProgOutcomePending;
+    final outcomeColor = done
+        ? (failed ? AppConstants.errorRed : AppConstants.successGreen)
+        : cs.onSurfaceVariant;
+    final what = e.isDistributed
+        ? '${formatQuantityGrouped(e.quantityGiven ?? 0)}'
+              '${e.itemUnit != null ? ' ${e.itemUnit}' : ''}'
+              '${e.itemName != null ? ' ${e.itemName}' : ''}'
+        : '';
+    final decision = failed && done
+        ? switch (r.resolution) {
+            FailedResolution.closedNoFurtherObligation => l10n.resFarmerClosed,
+            FailedResolution.eligibleForReassessment => l10n.resFarmerReassess,
+            FailedResolution.referredForLoanAssessment => l10n.resFarmerReferred,
+            null => null,
+            _ => l10n.resFarmerPending,
+          }
+        : null;
+    final assist = r.assistRequest;
+    final small = GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.farmerProgRound(e.roundNo),
+            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          if (e.isDistributed) ...[
+            const SizedBox(height: 2),
+            Text(l10n.farmerProgReceivedLine(what, widget.formatDate(e.distributedAt!)), style: small),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            outcome,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: outcomeColor),
+          ),
+          if (decision != null) Text(decision, style: small),
+          if (assist != null)
+            Text(
+              '${l10n.assistStatusLine(assist.requestNumber)} · ${switch (assist.status) {
+                'approved' => l10n.assistStatusApproved,
+                'rejected' => l10n.assistStatusRejected,
+                'cancelled' => l10n.assistStatusCancelled,
+                _ => l10n.assistStatusPending,
+              }}',
+              style: small,
+            ),
+        ],
       ),
     );
   }

@@ -12,6 +12,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/bod_schedule_utils.dart';
+import '../../../core/utils/loan_capital_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -132,9 +133,42 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
   // ─── Derived values ─────────────────────────────────────────────────────
 
-  // The capital-share requirement (PHP 2,000) is no longer part of issuing a
-  // loan: neither this screen nor issue_loan() checks it, and no other
-  // eligibility rule has replaced it (none is confirmed by the cooperative).
+  // The Capital Share loan rule: a loan item can be worth no more than the
+  // farmer's current Capital Share. The database refuses a loan that goes over
+  // (supabase_schema_loan_capital_eligibility.sql, also for a loan that was saved
+  // offline and is sent later); this screen shows the limit first. Null when the
+  // Capital Share is not known (offline, or it could not be read): no limit is
+  // shown then and the database still decides.
+  double? get _capitalShare =>
+      _standingCheckedOnline ? _farmerStanding?.capitalShare : null;
+
+  /// The Capital Share is 0: no loan can be issued.
+  bool get _zeroCapital => _capitalShare != null && _capitalShare! <= 0;
+
+  /// What is still unpaid on the farmer's overdue loans. A partly paid overdue
+  /// loan still counts: it must be paid in full.
+  double get _overdueBalance =>
+      _standingCheckedOnline ? (_farmerStanding?.overdueBalance ?? 0) : 0;
+
+  /// This farmer cannot be issued a loan: no Capital Share, or an overdue loan
+  /// that is not paid in full. The Issue Loan button is switched off and the
+  /// database refuses it too (supabase_schema_loan_eligibility_overdue_zero_capital.sql).
+  bool get _loanBlocked => _zeroCapital || _overdueBalance > 0;
+
+  /// A farmer is chosen and the standing is still being read: not yet known
+  /// whether they may borrow, so nothing is sent.
+  bool get _standingPending =>
+      _isOnline && _selectedFarmer != null && !_standingCheckedOnline;
+
+  /// The lines worth more than the Capital Share (empty when it is not known).
+  List<LoanItemDraft> get _itemsOverCapital {
+    final capital = _capitalShare;
+    if (capital == null) return const [];
+    return [
+      for (final i in _items)
+        if (!lineWithinCapital(i.lineTotal, capital)) i,
+    ];
+  }
 
   /// Sum of the line totals, each already rounded to centavos, so the total
   /// shown is exactly what the lines add up to and what is saved.
@@ -159,6 +193,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             if (i.id != existing?.id && i.inventoryItemId != null)
               i.inventoryItemId!,
         },
+        capitalShare: _capitalShare,
         onSave: (draft) {
           setState(() {
             if (existing != null) {
@@ -190,7 +225,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   }
 
   Future<void> _submit() async {
-    if (_isSubmitting) return;
+    if (_isSubmitting || _loanBlocked || _standingPending) return;
     final l10n = AppLocalizations.of(context);
 
     // Missing farmer / items / monthly payment are shown inline, on the field
@@ -201,6 +236,21 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     if (_selectedFarmer == null || _items.isEmpty || !formValid) return;
     final monthlyPayment = _enteredMonthlyPayment;
     if (monthlyPayment <= 0) return;
+
+    // Capital Share rule: say which item is over, before anything is sent.
+    final over = _itemsOverCapital;
+    if (over.isNotEmpty) {
+      final money = NumberFormat('#,##0.00');
+      _showSnack(
+        l10n.issueLoanItemOverCapital(
+          over.first.itemName,
+          '₱${money.format(over.first.lineTotal)}',
+          '₱${money.format(_capitalShare!)}',
+        ),
+        isError: true,
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -475,13 +525,13 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               ),
             ),
             const SizedBox(width: AppConstants.spacingSm),
-            Text(
+            Flexible(child: Text(
               l10n.issueLoanStandingLoading,
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: cs.onSurfaceVariant,
               ),
-            ),
+            )),
           ],
         ),
       );
@@ -490,14 +540,26 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     final standing = _farmerStanding;
     if (standing == null) return const SizedBox.shrink();
 
-    final currency = NumberFormat.currency(
+    final money = NumberFormat.currency(
       locale: 'en_PH',
       symbol: '₱',
-      decimalDigits: 0,
+      decimalDigits: 2,
     );
-    final color = standing.hasOverdueLoan
-        ? AppConstants.errorRed
-        : AppConstants.buyerBlue;
+    final blocked = _loanBlocked;
+    final color = blocked ? AppConstants.errorRed : AppConstants.buyerBlue;
+    final overdue = standing.overdueBalance ?? 0;
+
+    Widget reason(String text) => Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          height: 1.35,
+          color: AppConstants.errorRed,
+        ),
+      ),
+    );
 
     return Container(
       width: double.infinity,
@@ -508,11 +570,10 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            standing.hasOverdueLoan
-                ? Icons.warning_amber_rounded
-                : Icons.info_outline_rounded,
+            blocked ? Icons.block_rounded : Icons.info_outline_rounded,
             color: color,
             size: 18,
           ),
@@ -521,20 +582,40 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Not eligible: the action is switched off (Issue Loan), and
+                // this says why and what has to happen first.
+                if (blocked)
+                  Text(
+                    l10n.issueLoanBlockedTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
                 Text(
-                  '${l10n.issueLoanOutstandingBalance}: ${currency.format(standing.outstandingBalance)}',
+                  '${l10n.issueLoanOutstandingBalance}: ${money.format(standing.outstandingBalance)}',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
                   ),
                 ),
-                if (standing.hasOverdueLoan)
-                  Text(
-                    l10n.issueLoanOverdueWarning,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppConstants.errorRed,
+                if (_zeroCapital) reason(l10n.issueLoanBlockedZeroCapital),
+                if (overdue > 0)
+                  reason(l10n.issueLoanBlockedOverdue(money.format(overdue))),
+                // Eligible: what this farmer can borrow.
+                if (!blocked && standing.capitalShare != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      l10n.issueLoanCapitalInfo(
+                        money.format(standing.capitalShare!),
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
               ],
@@ -639,7 +720,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => _openAddItemSheet(),
+            onPressed: _loanBlocked ? null : () => _openAddItemSheet(),
             icon: const Icon(Icons.add_rounded, size: 18),
             label: Text(
               l10n.issueLoanAddItem,
@@ -719,6 +800,16 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                     color: cs.onSurface,
                   ),
                 ),
+                if (_capitalShare != null &&
+                    !lineWithinCapital(item.lineTotal, _capitalShare!))
+                  Text(
+                    l10n.loanCapLineAbove,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
                 Text(
                   '$qtyLabel ${item.unit} × ${currency.format(item.unitPrice)}',
                   style: GoogleFonts.inter(
@@ -972,7 +1063,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                 label: l10n.issueLoanSubmit,
                 expand: false,
                 isLoading: _isSubmitting,
-                onPressed: _isSubmitting ? null : _submit,
+                // Switched off, not just warned about, while the farmer is not
+                // eligible (the banner above says why).
+                onPressed: (_isSubmitting || _loanBlocked || _standingPending)
+                    ? null
+                    : _submit,
               ),
             ],
           ),
@@ -1159,6 +1254,10 @@ class AddLoanItemModalBody extends StatefulWidget {
   final LoanItemDraft? existing;
   final List<LoanCatalogItem> loanCatalog;
   final Set<String> takenInventoryIds;
+
+  /// The farmer's Capital Share now: a loan item can be worth no more than it.
+  /// Null when it is not known (no limit is shown; the database still decides).
+  final double? capitalShare;
   final ValueChanged<LoanItemDraft> onSave;
 
   const AddLoanItemModalBody({
@@ -1166,6 +1265,7 @@ class AddLoanItemModalBody extends StatefulWidget {
     this.existing,
     required this.loanCatalog,
     this.takenInventoryIds = const {},
+    this.capitalShare,
     required this.onSave,
   });
 
@@ -1306,6 +1406,31 @@ class _AddLoanItemModalBodyState extends State<AddLoanItemModalBody> {
       );
     }
 
+    // The Capital Share is 0: no loan item can be borrowed, so there is nothing
+    // to choose (the Capital Share loan rule).
+    final capital = widget.capitalShare;
+    if (capital != null && capital <= 0) {
+      return _messageState(
+        l10n,
+        cs,
+        title: l10n.issueLoanCapitalZeroNow,
+        hint: '',
+        footer: SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              l10n.close,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     // Every loanable item is already on this loan.
     if (_available.isEmpty) {
       return _messageState(
@@ -1442,9 +1567,51 @@ class _AddLoanItemModalBodyState extends State<AddLoanItemModalBody> {
                     item.unit,
                   );
                 }
+                // Capital Share rule: this line cannot be worth more than it.
+                if (item != null &&
+                    capital != null &&
+                    !lineWithinCapital(
+                      _roundCents(quantity * item.unitPrice),
+                      capital,
+                    )) {
+                  final fits = maxQuantityWithinCapital(
+                    capitalShare: capital,
+                    unitPrice: item.unitPrice,
+                  );
+                  final money = NumberFormat('#,##0.00');
+                  final worth =
+                      '₱${money.format(_roundCents(quantity * item.unitPrice))}';
+                  final limit = '₱${money.format(capital)}';
+                  return fits <= 0
+                      ? l10n.issueLoanItemOverCapitalNone(worth, limit)
+                      : l10n.issueLoanItemOverCapitalMax(
+                          worth,
+                          limit,
+                          '${_quantityText(fits)} ${item.unit}',
+                        );
+                }
                 return null;
               },
             ),
+            if (_selected != null && capital != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                maxQuantityWithinCapital(
+                          capitalShare: capital,
+                          unitPrice: _selected!.unitPrice,
+                        ) >=
+                        _selected!.quantityOnHand
+                    ? l10n.issueLoanCapitalInfo(currency.format(capital))
+                    : l10n.issueLoanCapitalLimitsQuantity(
+                        currency.format(capital),
+                        '${_quantityText(maxQuantityWithinCapital(capitalShare: capital, unitPrice: _selected!.unitPrice))} ${_selected!.unit}',
+                      ),
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
             if (_selected != null && _quantity > 0) ...[
               const SizedBox(height: 10),
               Row(

@@ -1150,13 +1150,13 @@ class _PriceCardsRow extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              Flexible(child: Text(
                                 l10n.farmerAnalyticsMarginPerKg,
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   color: cs.onSurfaceVariant,
                                 ),
-                              ),
+                              )),
                               Text(
                                 '${c.hasPositiveMargin ? '+' : ''}₱${c.marginPerKg!.toStringAsFixed(2)}',
                                 style: GoogleFonts.inter(

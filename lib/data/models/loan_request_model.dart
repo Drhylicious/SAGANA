@@ -1,3 +1,4 @@
+import '../../core/utils/loan_capital_utils.dart';
 import '../../core/utils/quantity_utils.dart';
 
 /// One item the Farmer can ask for: a loan-eligible item of the existing loan
@@ -68,6 +69,16 @@ class LoanRequestItem {
 
   String get label => '$itemName × ${formatQuantityUnit(quantity, unit)}';
 
+  /// This line is worth more than [capitalShare], the most one loan item may be
+  /// worth (the Capital Share loan rule; the database refuses it too). The value
+  /// is quantity x price, or the saved line total if that is larger.
+  bool overCapital(double capitalShare) => !lineWithinCapital(
+    lineTotal > moneyOf(quantity, unitPrice)
+        ? lineTotal
+        : moneyOf(quantity, unitPrice),
+    capitalShare,
+  );
+
   /// Stock on hand is known and is less than what was asked for.
   bool get shortOnStock => stockOnHand != null && stockOnHand! < quantity;
 
@@ -120,6 +131,14 @@ class LoanRequestModel {
   final String? reviewerName;
   final String? loanId;
 
+  /// Manager / Officer view, requests still waiting: the farmer's Capital Share
+  /// right now. Null when it is not known (or the request is decided).
+  final double? farmerCapitalShare;
+
+  /// Manager / Officer view, requests still waiting: what the farmer still owes on
+  /// overdue loans (a partly paid overdue loan counts). Null when not known.
+  final double? farmerOverdueBalance;
+
   const LoanRequestModel({
     required this.id,
     required this.requestNo,
@@ -136,6 +155,8 @@ class LoanRequestModel {
     this.farmerPhone,
     this.reviewerName,
     this.loanId,
+    this.farmerCapitalShare,
+    this.farmerOverdueBalance,
   });
 
   bool get isPending => status == 'pending';
@@ -145,6 +166,20 @@ class LoanRequestModel {
 
   /// Manager / Officer view: at least one line asks for more than is in stock now.
   bool get hasStockShortage => items.any((i) => i.shortOnStock);
+
+  /// Manager / Officer view: a line is worth more than the farmer's Capital Share
+  /// now, so the request cannot be approved (Capital Share loan rule).
+  /// Manager / Officer view: the farmer has an overdue loan that is not paid in
+  /// full, so no new loan can be issued from this request.
+  bool get hasOverdueBlock => (farmerOverdueBalance ?? 0) > 0;
+
+  /// The farmer cannot be issued this loan now: Capital Share too low, or an
+  /// overdue loan not paid in full.
+  bool get isFarmerBlocked => hasCapitalShortage || hasOverdueBlock;
+
+  bool get hasCapitalShortage =>
+      farmerCapitalShare != null &&
+      items.any((i) => i.overCapital(farmerCapitalShare!));
 
   /// The Farmer's copy, from get_my_loan_requests().
   factory LoanRequestModel.fromFarmerJson(Map<String, dynamic> map) {
@@ -175,6 +210,8 @@ class LoanRequestModel {
     String? farmerPhone,
     String? reviewerName,
     String? loanReference,
+    double? farmerCapitalShare,
+    double? farmerOverdueBalance,
   }) {
     return LoanRequestModel(
       id: row['id'] as String,
@@ -197,6 +234,8 @@ class LoanRequestModel {
       farmerPhone: farmerPhone,
       reviewerName: reviewerName,
       loanId: row['loan_id'] as String?,
+      farmerCapitalShare: farmerCapitalShare,
+      farmerOverdueBalance: farmerOverdueBalance,
     );
   }
 }

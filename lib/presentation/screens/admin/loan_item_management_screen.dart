@@ -456,7 +456,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                     child: SkeletonList(),
                   )
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     // Single outer scrollable so the KPI cards and category
                     // chips scroll away with the list below them.
@@ -737,10 +737,10 @@ class LoanItemCard extends StatelessWidget {
                               children: [
                                 const Icon(Icons.archive_rounded, size: 16),
                                 const SizedBox(width: 8),
-                                Text(
+                                Flexible(child: Text(
                                   l10n.commonArchive,
                                   style: GoogleFonts.inter(),
-                                ),
+                                )),
                               ],
                             ),
                           ),

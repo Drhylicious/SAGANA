@@ -221,6 +221,10 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           l10n.programMgmtBlockedReturns(status!.openReturns),
         if ((status?.pendingDecisions ?? 0) > 0)
           l10n.programMgmtBlockedDecisions(status!.pendingDecisions),
+        if ((status?.openReassessments ?? 0) > 0)
+          l10n.programMgmtBlockedReassess(status!.openReassessments),
+        if ((status?.pendingAssistanceRequests ?? 0) > 0)
+          l10n.programMgmtBlockedAssistance(status!.pendingAssistanceRequests),
         if (status == null) l10n.programMgmtBlockedUnknown,
       ];
       await showDialog<void>(
@@ -270,6 +274,12 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       return;
     }
 
+    // Allowed, but staff must confirm: referred Farmers with no approved loan request, and members still waiting
+    // for their item.
+    final warnings = await _repo.fetchCompletionWarnings(program.id);
+    if (!mounted) return;
+    final unapproved = warnings.unapprovedReferrals;
+    final waiting = warnings.waitingMembers;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -277,9 +287,65 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           l10n.programMgmtCompleteTitle(program.programName),
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
-        content: Text(
-          l10n.programMgmtCompleteBody,
-          style: GoogleFonts.inter(fontSize: 13, height: 1.4),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (key, text) in [
+              if (waiting > 0)
+                ('completeWaitingWarning', l10n.programMgmtCompleteWaiting(waiting)),
+              if (unapproved > 0)
+                (
+                  'completeUnapprovedWarning',
+                  l10n.programMgmtCompleteUnapproved(unapproved),
+                ),
+            ]) ...[
+              Container(
+                key: Key(key),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppConstants.warningAmber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  border: Border.all(
+                    color: AppConstants.warningAmber.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: AppConstants.warningAmber,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        text,
+                        style: GoogleFonts.inter(fontSize: 13, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (unapproved > 0 || waiting > 0) ...[
+              Text(
+                l10n.programMgmtCompleteAreYouSure,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Text(
+              l10n.programMgmtCompleteBody,
+              style: GoogleFonts.inter(fontSize: 13, height: 1.4),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -299,7 +365,11 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      final declined = await _repo.completeProgram(program.id);
+      final declined = await _repo.completeProgram(
+        program.id,
+        confirmedReferrals: unapproved,
+        confirmedWaiting: waiting,
+      );
       if (!mounted) return;
       _load();
       AppToast.show(
@@ -1115,7 +1185,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: _isOnline
           ? FloatingActionButton(
-              onPressed: () => _showProgramSheet(null),
+              heroTag: null, onPressed: () => _showProgramSheet(null),
               backgroundColor: AppConstants.primaryGreen,
               child: const Icon(Icons.add_rounded, color: Colors.white),
             )
@@ -1135,7 +1205,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     child: SkeletonList(),
                   )
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     // Single outer scrollable so the KPI cards scroll away
                     // with the list below them, instead of staying pinned
@@ -1343,7 +1413,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                   color: cs.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 6),
-                                Text(
+                                Flexible(child: Text(
                                   l10n.programMgmtCompletedSection
                                       .toUpperCase(),
                                   style: GoogleFonts.inter(
@@ -1352,7 +1422,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                     letterSpacing: 0.6,
                                     color: cs.onSurfaceVariant,
                                   ),
-                                ),
+                                )),
                               ],
                             ),
                             const SizedBox(height: 10),
@@ -1587,6 +1657,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   Map<String, FailedResolution> _resolutions = {};
   // Farmers' pending requests for another distribution, by the failed round.
   Map<String, RedistributionRequest> _redistRequests = {};
+  // The failed first distribution behind a second round, by 'farmerId:roundNo'.
+  Map<String, EarlierRound> _earlierRounds = {};
   // Product Sales: each member's orders, spent, saved and pending (one read for all).
   Map<String, MemberPurchaseSummary> _purchaseSummaries = {};
   // The latest reminder sent to each member to report, and the member being reminded now.
@@ -1651,6 +1723,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
 
   Future<void> _loadMembers() async {
     setState(() => _isLoading = true);
+    var redistLoadFailed = false;
     final results = await Future.wait([
       widget.repo.fetchProgramMembers(widget.program.id),
       widget.repo.fetchDistributionItems(),
@@ -1664,7 +1737,12 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       widget.repo
           .fetchResolutions(programId: widget.program.id)
           .catchError((_) => <FailedResolution>[]),
-      widget.repo.fetchRedistributionRequests(widget.program.id),
+      widget.repo.fetchRedistributionRequests(widget.program.id).catchError((
+        _,
+      ) {
+        redistLoadFailed = true;
+        return <String, RedistributionRequest>{};
+      }),
       widget.program.isSalesProgram
           ? widget.repo.fetchPurchaseSummaries(widget.program.id)
           : Future<Map<String, MemberPurchaseSummary>>.value(const {}),
@@ -1672,8 +1750,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           ? Future<Map<String, ProgramReportReminder>>.value(const {})
           : widget.repo.fetchLastReminders(widget.program.id),
     ]);
+    final earlier = await widget.repo.fetchEarlierRounds(widget.program.id);
     if (!mounted) return;
     setState(() {
+      _earlierRounds = earlier;
       _members = results[0] as List<ProgramMember>;
       _items = results[1] as List<DistributionItem>;
       _reports = results[2] as List<OutcomeReport>;
@@ -1689,6 +1769,13 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       _lastReminders = results[7] as Map<String, ProgramReportReminder>;
       _isLoading = false;
     });
+    // A Farmer's request must never be hidden without a word.
+    if (redistLoadFailed) {
+      _showSnack(
+        AppLocalizations.of(context).memRedistLoadFailed,
+        isError: true,
+      );
+    }
   }
 
   String _formatDate(DateTime dt) {
@@ -1750,7 +1837,12 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     }
     setState(() {
       _distributingId = member.id;
-      _distItemId = eligible.length == 1 ? eligible.first.id : null;
+      // A second round starts on the item the Farmer asked for again (staff can still change it).
+      _distItemId = eligible.length == 1
+          ? eligible.first.id
+          : (member.requestedItemId != null && eligible.any((e) => e.id == member.requestedItemId)
+                ? member.requestedItemId
+                : null);
       _qtyCtrl.clear();
       _applyReturnDefaults(member);
       _distError = null;
@@ -2168,9 +2260,13 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                         child: Row(
                           key: Key('outcomeTicks_${m.id}'),
                           children: [
-                            _tick(l10n.memTickEvidence, r.isReviewed),
+                            Flexible(
+                              child: _tick(l10n.memTickEvidence, r.isReviewed),
+                            ),
                             const SizedBox(width: 12),
-                            _tick(l10n.memTickField, r.isVerified),
+                            Flexible(
+                              child: _tick(l10n.memTickField, r.isVerified),
+                            ),
                           ],
                         ),
                       )
@@ -2248,7 +2344,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  l10n.memWaitingToReceive(days),
+                  m.roundNo > 1
+                      ? l10n.memWaitingToReceiveAgain
+                      : l10n.memWaitingToReceive(days),
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: cs.onSurfaceVariant,
@@ -2392,13 +2490,15 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           color: color,
         ),
         const SizedBox(width: 4),
-        Text(
+        Flexible(
+          child: Text(
           label,
           style: GoogleFonts.inter(
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: color,
           ),
+        ),
         ),
       ],
     );
@@ -2756,21 +2856,41 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   /// A small line on a card that belongs to a second (or later) distribution.
   Widget _roundNote(ProgramMember m, AppLocalizations l10n) {
     final cs = Theme.of(context).colorScheme;
+    final earlier = _earlierRounds['${m.farmerId}:${m.roundNo - 1}'];
+    final what = earlier == null
+        ? ''
+        : '${earlier.quantity != null ? '${formatQuantity(earlier.quantity!)} ' : ''}'
+                  '${earlier.unit ?? ''} ${earlier.itemName ?? ''}'
+              .trim();
+    final style = GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant);
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.replay_rounded, size: 14, color: cs.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              l10n.memRoundNote(m.roundNo),
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: cs.onSurfaceVariant,
+          Row(
+            children: [
+              Icon(Icons.replay_rounded, size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(l10n.memRoundNote(m.roundNo), style: style),
+              ),
+            ],
+          ),
+          if (what.isNotEmpty)
+            Padding(
+              key: Key('earlierRound_${m.id}'),
+              padding: const EdgeInsets.only(top: 4, left: 20),
+              child: Text(
+                l10n.memEarlierRound(
+                  what,
+                  earlier!.distributedAt == null
+                      ? '—'
+                      : _formatDate(earlier.distributedAt!),
+                ),
+                style: style,
               ),
             ),
-          ),
         ],
       ),
     );
@@ -2799,8 +2919,11 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       final res = _resolutions[m.id];
       final block = ResolutionSummaryBlock(
         resolution: res,
-        // Closed means closed: no change, no assistance, no loan, no second chance.
-        onSet: res?.resolution == FailedResolution.closedNoFurtherObligation
+        // A Final Decision stays, whichever it is (Closed, Referred, Eligible). Only Pending Cooperative Decision, the
+        // state waiting for it, can still be set.
+        onSet:
+            res != null &&
+                res.resolution != FailedResolution.pendingCooperativeDecision
             ? null
             : () async {
           final changed = await showFailedResolutionSheet(
@@ -2847,6 +2970,17 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  if ((m.distributedItemName ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      AppLocalizations.of(context).memRedistRequestedItem(
+                        '${m.quantityGiven != null ? '${formatQuantity(m.quantityGiven!)} ' : ''}'
+                                '${m.distributedUnit ?? ''} ${m.distributedItemName}'
+                            .trim(),
+                      ),
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     request.note,
@@ -2995,6 +3129,15 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           Icons.pause_circle_outline_rounded,
           AppConstants.warningAmber,
         ),
+      // Farmers waiting to be approved for another distribution (they are on the Failed tab).
+      if (!program.isSalesProgram &&
+          program.status == 'active' &&
+          _redistRequests.isNotEmpty)
+        _notice(
+          l10n.memRedistWaitingNotice(_redistRequests.length),
+          Icons.replay_rounded,
+          AppConstants.buyerBlue,
+        ),
     ];
 
     // Product Sales: just who is enrolled. No sections, no counters.
@@ -3051,9 +3194,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             ...notices,
             // Two sections only: the tabs share the width equally, each label centered.
             TabBar(
-              labelColor: AppConstants.primaryGreen,
+              labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: AppConstants.primaryGreen,
+              indicatorColor: Theme.of(context).colorScheme.primary,
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: cs.outline.withValues(alpha: 0.15),
               labelStyle: GoogleFonts.poppins(
@@ -3094,9 +3237,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            labelColor: AppConstants.primaryGreen,
+            labelColor: Theme.of(context).colorScheme.primary,
             unselectedLabelColor: cs.onSurfaceVariant,
-            indicatorColor: AppConstants.primaryGreen,
+            indicatorColor: Theme.of(context).colorScheme.primary,
             tabs: [
               Tab(text: l10n.memTabToDistribute(toDistribute.length)),
               Tab(text: l10n.memTabDistributed(distributed.length)),

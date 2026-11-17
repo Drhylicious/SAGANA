@@ -686,7 +686,6 @@ void main() {
         ],
         'lib/presentation/screens/admin/farmer_details_screen.dart': [
           '_recordContribution',
-          '_reverseEntry',
         ],
         'lib/presentation/screens/admin/manage_accounts_screen.dart': [
           '_resolveRequest',
@@ -1071,7 +1070,7 @@ void main() {
     });
 
     test(
-      'Officer: can never delete a disapproved account, whoever created it',
+      'Officer (Members = Manage): deletes a disapproved account, whoever created it',
       () {
         for (final created in [false, true]) {
           expect(
@@ -1080,7 +1079,7 @@ void main() {
               officer: true,
               officerCreated: created,
             ),
-            isNot(contains(MemberListAction.deleteApplicant)),
+            contains(MemberListAction.deleteApplicant),
             reason: 'created=$created',
           );
         }
@@ -1096,11 +1095,10 @@ void main() {
           base,
           reason: '$st manager',
         );
-        // An Officer sees the original menu minus the three restricted actions.
+        // An Officer sees the original menu minus the two decisions on Officer-created applicants.
         final restricted = {
           MemberListAction.approve,
           MemberListAction.disapprove,
-          MemberListAction.deleteApplicant,
         };
         expect(
           offered(st, officer: true, officerCreated: true).toSet(),
@@ -1124,7 +1122,6 @@ void main() {
         for (final guard in [
           "case 'approve':\n        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;",
           "case 'reject':\n        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;",
-          "case 'delete':\n        if (HiveService.isOfficer) return;",
         ]) {
           expect(src, contains(guard));
         }
@@ -1187,7 +1184,7 @@ void main() {
     }
 
     ftest(
-      'Officer is sent to the dashboard from Staff Accountability, Add Officer and Balik, even with Manage everywhere',
+      'Officer is sent to the dashboard from Staff Accountability and Add Officer, even with Manage everywhere',
       (t) async {
         await setRole(t, 'officer');
         StaffPermissions.instance.debugSet({
@@ -1197,7 +1194,6 @@ void main() {
         for (final p in [
           '/admin/accountability',
           '/admin/members/add-officer',
-          '/admin/balik-tangkilik',
         ]) {
           expect(
             await resolve(t, ctx, router, p),
@@ -1208,13 +1204,12 @@ void main() {
       },
     );
 
-    ftest('the Manager opens all three', (t) async {
+    ftest('the Manager opens both', (t) async {
       await setRole(t, 'admin');
       final (router, ctx) = await boot(t);
       for (final p in [
         '/admin/accountability',
         '/admin/members/add-officer',
-        '/admin/balik-tangkilik',
       ]) {
         expect(await resolve(t, ctx, router, p), p, reason: p);
       }
@@ -1334,7 +1329,7 @@ void main() {
           src.lastIndexOf('if (_statusHistory.isNotEmpty', at),
           at,
         );
-        expect(cond, contains('!HiveService.isOfficer'));
+        expect(cond, isNot(contains('HiveService.isOfficer')), reason: 'every staff member reads Status History (script 24)');
         expect(
           cond,
           isNot(contains('MemberStatus.pending')),
@@ -1414,7 +1409,7 @@ void main() {
     );
 
     ftest(
-      'Manage Accounts is display-only: tapping any account opens nothing',
+      'Manage Accounts is information only: tapping an account opens its Cooperative ID Card, with no Reset Password',
       (t) async {
         for (final role in ['admin', 'officer']) {
           await setRole(t, role);
@@ -1432,6 +1427,11 @@ void main() {
             await t.tap(find.text(name), warnIfMissed: false);
             await settle(t);
             expect(
+              find.text('Cooperative ID'),
+              findsOneWidget,
+              reason: '$role / $name: the card opens',
+            );
+            expect(
               find.text('Reset Password'),
               findsNothing,
               reason: '$role / $name',
@@ -1446,32 +1446,56 @@ void main() {
               findsNothing,
               reason: '$role / $name',
             );
+            await t.tap(find.byIcon(Icons.close_rounded).last);
+            await settle(t);
           }
           // Farmers tab.
           await pumpRouted(t, const ManageAccountsScreen());
           await settle(t);
           await t.tap(find.text('Farah Reyes'), warnIfMissed: false);
           await settle(t);
+          expect(find.text('Cooperative ID'), findsOneWidget, reason: '$role / farmer');
           expect(
             find.text('Reset Password'),
             findsNothing,
             reason: '$role / farmer',
           );
+          await t.tap(find.byIcon(Icons.close_rounded).last);
+          await settle(t);
         }
       },
     );
 
     test(
-      'the account list has no tap handler and no Reset Password / Edit Access modal',
+      'the account list opens the ID card only: no Reset Password / Edit Access modal of its own',
       () {
         final src = File(
           'lib/presentation/screens/admin/manage_accounts_screen.dart',
         ).readAsStringSync();
+        expect(src, contains('showCooperativeIdCard(context, account)'));
         expect(src.contains('_showAccountActions'), isFalse);
         expect(src.contains('showOfficerAccessSheet'), isFalse);
         expect(src.contains('showManagementModal'), isFalse);
         // The Requests tab (a person asked for help) still resets and resolves.
         expect(src, contains('_resolveRequest'));
+      },
+    );
+
+    test(
+      'Cooperative ID Card: no ID number; date of birth and gender shown; only the Manager edits an Officer\'s access',
+      () {
+        final src = File(
+          'lib/presentation/widgets/cooperative_id_card.dart',
+        ).readAsStringSync();
+        expect(RegExp('member_id|idNumber|ID number', caseSensitive: false).hasMatch(src), isFalse);
+        expect(src, contains('idCardBirthDate'));
+        expect(src, contains('idCardGender'));
+        expect(
+          src,
+          contains("bool get _canEditAccess => _a.role == 'officer' && _viewerIsManager && !_isSelf;"),
+        );
+        // No Reset Password on the card.
+        expect(src.toLowerCase().contains('resetpassword'), isFalse);
       },
     );
   });
@@ -1787,15 +1811,10 @@ void main() {
         );
         expect(last()['table_name'], isNot(contains('loan_items_master')));
 
-        // Reports: the Balik-Tangkilik tables AND the exports the app wrote.
+        // Reports: only the exports the app wrote.
         await tap('log-chip-reports');
-        expect(
-          last()['or'],
-          allOf(
-            contains('cooperative_annual_totals'),
-            contains('action_type.eq.exported'),
-          ),
-        );
+        expect(last()['source'], 'eq.app');
+        expect(last()['action_type'], 'eq.exported');
         await tap('log-feature-exports');
         expect(last()['source'], 'eq.app');
         expect(last()['module'], 'eq.reports');

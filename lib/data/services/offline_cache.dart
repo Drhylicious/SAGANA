@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show ValueNotifier, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'connectivity_service.dart';
 import 'hive_service.dart';
@@ -31,6 +31,18 @@ class OfflineCache {
   static const liveFetchZoneKey = #saganaLiveListFetch;
 
   static final Map<String, bool> _servedFromCache = {};
+
+  /// Counts reads that found nothing saved while the server was unreachable.
+  /// An empty result then means "not on this device", never "does not exist";
+  /// the connectivity notice listens to this and says so (see
+  /// ConnectivityOverlay).
+  static final ValueNotifier<int> offlineMisses = ValueNotifier<int>(0);
+
+  static void reportOfflineMiss() => offlineMisses.value++;
+
+  /// Marks reads that must be answered from the saved request copies only
+  /// (OfflineReadClient never touches the network for them).
+  static const savedReadZoneKey = #saganaSavedRead;
 
   static String _key(String screen) =>
       '${HiveService.getUserId() ?? 'anonymous'}::$screen';
@@ -80,7 +92,25 @@ class OfflineCache {
       _servedFromCache[key] = true;
       return snapshot.rows;
     }
+    // No list snapshot. The same rows may still be on the device as saved
+    // request copies (loaded by another screen, or by the sign-in preload), so
+    // read through those before concluding there is nothing.
+    if (HiveService.getUserId() == owner && owner != null) {
+      try {
+        final rows = await runZoned(
+          fetch,
+          zoneValues: {savedReadZoneKey: true},
+        ).timeout(const Duration(seconds: 6));
+        if (!ConnectivityService.instance.isOnline || failure != null) {
+          _servedFromCache[key] = true;
+        }
+        return rows;
+      } catch (_) {
+        // Nothing saved for this list.
+      }
+    }
     _servedFromCache[key] = false;
+    reportOfflineMiss();
     if (failure != null) throw failure;
     return const [];
   }

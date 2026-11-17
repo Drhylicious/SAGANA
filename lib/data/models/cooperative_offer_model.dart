@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/quantity_utils.dart';
 
 /// Dedicated model for cooperative_purchase_offers.
@@ -135,17 +136,17 @@ class CooperativeOfferModel {
 
   String get offeredLabel {
     final diff = DateTime.now().difference(offeredAt);
-    if (diff.inDays <= 0) return 'Offered today';
-    if (diff.inDays == 1) return 'Offered yesterday';
-    return 'Offered ${diff.inDays} days ago';
+    if (diff.inDays <= 0) return currentL10n().dlOfferedToday;
+    if (diff.inDays == 1) return currentL10n().dlOfferedYesterday;
+    return currentL10n().dlOfferedDaysAgo(diff.inDays);
   }
 
   String get harvestedLabel {
     if (harvestDate == null) return '';
     final diff = DateTime.now().difference(harvestDate!);
-    if (diff.inDays <= 0) return 'Harvested today';
-    if (diff.inDays == 1) return 'Harvested yesterday';
-    return 'Harvested ${diff.inDays} days ago';
+    if (diff.inDays <= 0) return currentL10n().dlHarvestedToday;
+    if (diff.inDays == 1) return currentL10n().dlHarvestedYesterday;
+    return currentL10n().dlHarvestedDaysAgo(diff.inDays);
   }
 
   /// Columns every offer query selects.

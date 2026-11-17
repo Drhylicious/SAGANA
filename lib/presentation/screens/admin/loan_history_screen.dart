@@ -8,7 +8,10 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
+import '../../../data/models/program_assistance_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/repositories/program_assistance_repository.dart';
+import '../../widgets/assistance_record_card.dart';
 
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart';
@@ -52,6 +55,8 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
 
   AllTimeLoanSummary _summary = AllTimeLoanSummary.empty();
   List<AdminLoanSummary> _loans = [];
+  // Approved assistance (not a loan), newest first. Listed before the loans.
+  List<AssistanceRequest> _assistance = [];
   // How many loans each status chip holds in the chosen period (null = All).
   Map<String?, int> _statusCounts = const {};
 
@@ -88,19 +93,27 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
       _isLoading = true;
     });
 
+    // The Assistance chip is not a loan status: the loans are then read unfiltered and not shown.
+    final loanFilter = _statusFilter == 'assistance' ? null : _statusFilter;
     final results = await Future.wait([
       _repo.fetchAllTimeLoanSummary(),
       _repo.fetchAllLoans(
-        statusFilter: _statusFilter,
+        statusFilter: loanFilter,
         issuedAfter: _periodCutoff(),
       ),
       // Every status in the same period, for the count on each chip. With no
       // status chosen the list above already is that, so it is not read twice.
-      if (_statusFilter != null)
+      if (loanFilter != null)
         _repo.fetchAllLoans(statusFilter: null, issuedAfter: _periodCutoff()),
     ]);
+    final assistance = await ProgramAssistanceRepository().fetchApprovedAll();
 
     if (!mounted) return;
+    final cutoff = _periodCutoff();
+    final assistInPeriod = [
+      for (final a in assistance)
+        if (cutoff == null || (a.reviewedAt ?? a.createdAt).isAfter(cutoff)) a,
+    ];
     final loans = results[1] as List<AdminLoanSummary>;
     final everyStatus = results.length > 2
         ? results[2] as List<AdminLoanSummary>
@@ -108,10 +121,12 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     setState(() {
       _summary = results[0] as AllTimeLoanSummary;
       _loans = loans;
+      _assistance = assistInPeriod;
       _statusCounts = {
-        null: everyStatus.length,
+        null: everyStatus.length + assistInPeriod.length,
         for (final status in const ['active', 'overdue', 'paid'])
           status: everyStatus.where((l) => l.status == status).length,
+        'assistance': assistInPeriod.length,
       };
       _isLoading = false;
     });
@@ -161,7 +176,22 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final visibleLoans = _loans.applySearch(_searchQuery);
+    // Assistance is listed first (under All and under its own chip); a loan status chip shows loans only.
+    final q = _searchQuery.trim().toLowerCase();
+    final visibleAssistance = (_statusFilter == null || _statusFilter == 'assistance')
+        ? [
+            for (final a in _assistance)
+              if (q.isEmpty ||
+                  (a.farmerName ?? '').toLowerCase().contains(q) ||
+                  a.requestNumber.toLowerCase().contains(q) ||
+                  (a.assistanceReference ?? '').toLowerCase().contains(q) ||
+                  a.items.any((i) => i.itemName.toLowerCase().contains(q)))
+                a,
+          ]
+        : <AssistanceRequest>[];
+    final visibleLoans = _statusFilter == 'assistance'
+        ? <AdminLoanSummary>[]
+        : _loans.applySearch(_searchQuery);
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -191,18 +221,27 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                 child: SkeletonList(),
               ),
             )
-          else if (visibleLoans.isEmpty)
+          else if (visibleLoans.isEmpty && visibleAssistance.isEmpty)
             _buildMessageState(
               Icons.receipt_long_outlined,
-              _statusFilter == null
+              _statusFilter == 'assistance'
+                  ? l10n.loanHistoryNoAssistance
+                  : _statusFilter == null
                   ? l10n.loanHistoryNoResults
                   : l10n.loanHistoryNoResultsForFilter,
               cs,
             )
-          else
+          else ...[
+            // Approved assistance first, the same card as in Loan Requests.
+            for (final a in visibleAssistance)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                child: AssistanceRecordCard(request: a, showFarmer: true),
+              ),
             ...visibleLoans.map(
               (loan) => _buildLoanRow(context, loan, cs, sagana, l10n),
             ),
+          ],
         ],
       ),
     );
@@ -260,7 +299,9 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Flexible(
+                child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(6),
@@ -277,16 +318,21 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  Flexible(
+                    child: Text(
                     l10n.loanHistoryTotalIssued(_summary.totalLoanCount),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
+                  ),
                 ],
               ),
-              Container(
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 4,
@@ -305,6 +351,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                     color: healthColor,
                   ),
                 ),
+              ),
               ),
             ],
           ),
@@ -441,6 +488,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
       'active': l10n.loanDashActiveLoans,
       'overdue': l10n.loanDashOverdueLoans,
       'paid': l10n.loanHistoryFilterPaid,
+      'assistance': l10n.loanHistoryFilterAssistance,
     };
 
     return SizedBox(

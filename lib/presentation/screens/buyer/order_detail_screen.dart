@@ -355,13 +355,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 6),
-              Text(
+              Flexible(child: Text(
                 l10n.buyerOrderDetailJourney,
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 16),
@@ -411,7 +411,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             : Colors.transparent),
                   shape: BoxShape.circle,
                   border: isCurrent
-                      ? Border.all(color: AppConstants.primaryGreen, width: 2)
+                      ? Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 2,
+                        )
                       : null,
                 ),
                 child: isDone
@@ -598,13 +601,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 6),
-              Text(
+              Flexible(child: Text(
                 l10n.buyerOrderDetailSummary,
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 12),
@@ -681,7 +684,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
+          Flexible(child: Text(
             label,
             style: GoogleFonts.inter(
               fontSize: bold ? 15 : 13,
@@ -690,7 +693,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-          ),
+          )),
           Text(
             value,
             style: GoogleFonts.poppins(
@@ -790,13 +793,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 6),
-              Text(
+              Flexible(child: Text(
                 l10n.buyerOrderDeliveryPhotoTitle,
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 10),

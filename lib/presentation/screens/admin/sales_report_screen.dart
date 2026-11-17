@@ -9,9 +9,7 @@ import '../../../core/utils/quantity_utils.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/models/admin_reports_model.dart';
-import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
-import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/report_ui_widgets.dart';
@@ -138,17 +136,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           SubPageTopBar(
             title: l10n.reportsSalesReport,
             onBack: () => context.pop(),
-            trailing: IconButton(
-              icon: Icon(Icons.file_download_outlined, color: cs.primary),
-              onPressed: () => context.push(
-                AppRoutes.exportCenter,
-                extra: ExportCenterArgs(
-                  preselectedModule: ReportModuleType.sales,
-                  period: _period,
-                ),
-              ),
-              tooltip: l10n.reportsExportCenter,
-            ),
           ),
           CachedDataNotice(
             screen: AdminReportsRepository.salesCacheScreen(_period),

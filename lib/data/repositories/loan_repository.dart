@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/client_id.dart';
+import '../models/loan_capital_standing.dart';
 import '../models/loan_model.dart';
 import '../models/loan_request_model.dart';
 import '../services/offline_cache.dart';
@@ -52,6 +53,23 @@ class LoanRepository {
       for (final r in res)
         LoanableItem.fromMap(Map<String, dynamic>.from(r as Map)),
     ];
+  }
+
+  /// The Farmer's Capital Share and the most one loan item may be worth. The
+  /// rule lives in the database (get_loan_capital_standing); it also refuses a
+  /// request that goes over, so this only lets the screen show the limit first.
+  /// Null when it cannot be read: the screen then shows no limit and the
+  /// database still decides.
+  Future<LoanCapitalStanding?> fetchMyCapitalStanding() async {
+    try {
+      final res = await _client.rpc('get_loan_capital_standing') as List;
+      if (res.isEmpty) return null;
+      return LoanCapitalStanding.fromMap(
+        Map<String, dynamic>.from(res.first as Map),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   /// The Farmer's own requests, newest first (viewable offline from the last load).

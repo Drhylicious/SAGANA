@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/order_reference.dart';
 import '../../core/utils/order_status.dart';
 import '../../core/utils/quantity_utils.dart';
@@ -171,9 +172,9 @@ class BuyerOrderModel {
   String get harvestedLabel {
     if (harvestDate == null) return '';
     final diff = DateTime.now().difference(harvestDate!);
-    if (diff.inDays <= 0) return 'Harvested today';
-    if (diff.inDays == 1) return 'Harvested yesterday';
-    return 'Harvested ${diff.inDays} days ago';
+    if (diff.inDays <= 0) return currentL10n().dlHarvestedToday;
+    if (diff.inDays == 1) return currentL10n().dlHarvestedYesterday;
+    return currentL10n().dlHarvestedDaysAgo(diff.inDays);
   }
 
   String get marketTypeLabel => marketTypeLabelFor(marketType);

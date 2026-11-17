@@ -7,6 +7,7 @@ import 'hive_service.dart';
 import 'app_settings_service.dart'; // NEW import — needed to read the current userId
 import 'offline_action_replay.dart';
 import 'offline_actions.dart' show isOfflineConnectionFailure;
+import 'offline_preload.dart';
 import 'offline_read_client.dart';
 import 'server_only.dart';
 import '../repositories/admin_loan_repository.dart';
@@ -64,7 +65,10 @@ class SyncService {
   static void start() {
     _connectionSub ??= ConnectivityService.instance.onConnectivityChanged
         .listen((online) {
-          if (online) unawaited(syncPending());
+          if (online) {
+            unawaited(syncPending());
+            unawaited(OfflinePreload.run());
+          }
         });
     _authSub ??= Supabase.instance.client.auth.onAuthStateChange.listen((_) {
       if (_eligible) unawaited(syncPending());
@@ -76,7 +80,13 @@ class SyncService {
         unawaited(syncPending());
       }
     });
-    if (_eligible) unawaited(syncPending());
+    if (_eligible) {
+      unawaited(syncPending());
+      // After the first requests of this start have carried the keys it needs.
+      Timer(const Duration(seconds: 8), () {
+        unawaited(OfflinePreload.run());
+      });
+    }
   }
 
   static final _adminLoanRepo = AdminLoanRepository();
@@ -117,6 +127,20 @@ class SyncService {
       if (await AccountStatusWatcher.instance.checkNow() || !_sameSession) {
         return;
       }
+      // Crops added or requested offline go first: a harvest or crop photo
+      // queued for one of them needs the crop to exist on the server.
+      final blockedActions = <String>{};
+      for (final entry in HiveService.getOfflineActions()) {
+        if (!_sameSession) return;
+        final kind = entry.value['kind'] as String;
+        if (!_isCropRosterAction(kind)) continue;
+        final ok = await _replayAction(
+          entry.key,
+          kind,
+          entry.value['payload'] as Map<dynamic, dynamic>,
+        );
+        if (!ok) blockedActions.add(kind);
+      }
       for (final entry in HiveService.getPendingHarvests()) {
         if (!_sameSession) return;
         await _replayHarvest(entry.key, entry.value);
@@ -133,10 +157,11 @@ class SyncService {
         if (!_sameSession) return;
         await _replayLoanPayment(entry.key, entry.value);
       }
-      final blockedActions = <String>{};
       for (final entry in HiveService.getOfflineActions()) {
         if (!_sameSession) return;
         final kind = entry.value['kind'] as String;
+        // Already attempted above in this run.
+        if (_isCropRosterAction(kind)) continue;
         final orderKey = kind.startsWith('notification_')
             ? 'notification'
             : kind == 'admin_photo_remove'
@@ -366,6 +391,9 @@ class SyncService {
       return false;
     }
   }
+
+  static bool _isCropRosterAction(String kind) =>
+      kind == 'crop_add' || kind == 'crop_request';
 
   static String _reason(Object e) => e is PostgrestException
       ? e.message

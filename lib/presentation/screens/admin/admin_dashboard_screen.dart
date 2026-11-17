@@ -20,6 +20,7 @@ import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/dashboard_cards.dart';
 import '../../widgets/sync_status_card.dart';
 import '../../../core/utils/member_access.dart';
+import '../../../core/utils/activity_navigation.dart';
 import 'admin_activity_screen.dart'
     show adminActivityDescription, adminActivityTimeLabel, moduleColor;
 
@@ -210,26 +211,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case AdminActivityType.cropRequest:
         context.push(AppRoutes.cropRequestApproval);
       case AdminActivityType.logged:
-        switch (item.sourceModule) {
-          case 'inventory':
-            context.push(AppRoutes.adminInventory);
-          case 'crops':
-            context.push(AppRoutes.cropManagement);
-          case 'programs':
-            context.push(AppRoutes.programManagement);
-          case 'loans':
-            context.push(AppRoutes.loanItemManagement);
-          case 'prices':
-            context.push(AppRoutes.priceManagement);
-          case 'market_linking':
-            context.push(AppRoutes.marketLinking);
-          case 'offers':
-            context.push(AppRoutes.offerToCooperative);
-          case 'broadcast':
-            context.push(AppRoutes.broadcastHistory);
-          case 'profile':
-            context.push(AppRoutes.adminProfile);
-        }
+        openLoggedAdminActivity(context, item);
     }
   }
 
@@ -279,7 +261,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         onRefresh: _loadAll,
         child: CustomScrollView(
           slivers: [
@@ -1059,13 +1041,13 @@ class _MiniCalendar extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Text(
+                    Flexible(child: Text(
                       _legendLabel(l10n, type),
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         color: cs.onSurfaceVariant,
                       ),
-                    ),
+                    )),
                   ],
                 );
               }).toList(),
@@ -1299,13 +1281,13 @@ class _ActivityRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text(
+                    Flexible(child: Text(
                       adminActivityTimeLabel(l10n, item.timestamp),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: cs.onSurfaceVariant,
                       ),
-                    ),
+                    )),
                     if (item.referenceId != null) ...[
                       const SizedBox(width: 6),
                       Icon(

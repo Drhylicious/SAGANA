@@ -136,8 +136,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   _buildDetailedReportsGrid(context, l10n),
                   const SizedBox(height: AppConstants.spacingSectionV),
                   // Renamed from "Reporting Tools" (Phase 14) — that name
-                  // didn't fit a section containing Analytics, Balik-
-                  // Tangkilik Management, and Export Center. Reuses the
+                  // didn't fit a section containing Analytics and Export Center. Reuses the
                   // pre-existing reportsManagementTools l10n key, which
                   // already had both English and Tagalog strings defined
                   // but was never wired up to any screen.
@@ -478,10 +477,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     );
   }
 
-  /// Management Tools: the same cards again. The yearly payout is Manager-only,
-  /// so an Officer sees neither the card nor anything behind it. The Manager's
-  /// three tools scroll sideways in one row (three cards would leave a lone
-  /// card on a second row); the Officer's two fill a fixed row.
+  /// Management Tools: Analytics Dashboard and Export Center, the same cards
+  /// again, in one fixed row for Manager and Officer alike.
   Widget _buildManagementToolsGrid(BuildContext context, AppLocalizations l10n) {
     final items = [
         DashboardModuleItem(
@@ -491,14 +488,6 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           badge: l10n.rptHubBadgeNoActivity(_participation.inactiveCount),
           onTap: () => context.push(AppRoutes.adminAnalytics),
         ),
-        if (!HiveService.isOfficer)
-          DashboardModuleItem(
-            icon: Icons.volunteer_activism_rounded,
-            title: l10n.reportsBalikTangkilikManagement,
-            subtitle: l10n.rptHubBalikSub,
-            badge: '${DateTime.now().year}',
-            onTap: () => context.push(AppRoutes.balikTangkilikManagement),
-          ),
         DashboardModuleItem(
           icon: Icons.file_download_rounded,
           title: l10n.reportsExportCenter,
@@ -507,8 +496,6 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           onTap: () => context.push(AppRoutes.exportCenter),
         ),
     ];
-    return HiveService.isOfficer
-        ? DashboardModuleGrid(items: items)
-        : DashboardModuleStrip(items: items);
+    return DashboardModuleGrid(items: items);
   }
 }

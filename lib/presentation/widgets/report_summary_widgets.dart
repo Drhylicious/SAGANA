@@ -35,7 +35,7 @@ String reportPeriodLabel(AppLocalizations l10n, ReportPeriod period) {
 /// Small icon-badged section header — the same "icon in a tinted rounded
 /// square + bold title" row ReportHeroCard has always rendered above its
 /// own stat grid (Harvest Report's "Harvest Overview", Loan Report's
-/// "All-Time Loan Summary", Member Patronage's "Total Cooperative Sales
+/// "All-Time Loan Summary", Member Contribution's "Total Cooperative Sales
 /// (year)"). Extracted as its own widget so Sales, Cooperative Stock,
 /// Expense, and Analytics Dashboard — none of which use ReportHeroCard —
 /// can carry the identical visual framing above their own KPI area,

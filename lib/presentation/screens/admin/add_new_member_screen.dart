@@ -317,7 +317,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
             value: (_step + 1) / titles.length,
             minHeight: 4,
             backgroundColor: AppConstants.primaryGreen.withValues(alpha: 0.12),
-            color: AppConstants.primaryGreen,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ],

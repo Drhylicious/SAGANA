@@ -14,6 +14,8 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 /// Shown for every row in My Programs (not just sales-purpose ones — Full
 /// Workflow closes the gap where tapping a distribution/benefit program
@@ -99,6 +101,9 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   Future<void> _requestEnrollment() async {
     final programId = widget.program?.id;
     if (programId == null) return;
+    // A restricted Farmer cannot join a new program; programs already joined carry on.
+    if (!await ensureFeatureAvailable(context, RestrictableFeature.programJoin)) return;
+    if (!mounted) return;
     setState(() => _isRequesting = true);
     try {
       await _repo.requestEnrollment(programId);
@@ -291,7 +296,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
           children: [
             _StatusChip(label: _enrollmentStatusLabel(entry.enrollmentStatus)),
             const SizedBox(width: 8),
-            Text(
+            Flexible(child: Text(
               AppLocalizations.of(
                 context,
               ).farmerProgEnrolledOn(_formatDate(entry.enrolledAt)),
@@ -299,7 +304,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-            ),
+            )),
           ],
         ),
       ),
@@ -625,7 +630,7 @@ class _OutcomeBody extends StatelessWidget {
                 icon: const Icon(Icons.receipt_long_rounded, size: 18),
                 label: Text(AppLocalizations.of(context).enhViewInMyLoans),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
                   side: BorderSide(
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -881,14 +886,14 @@ class _SectionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 title,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 12),

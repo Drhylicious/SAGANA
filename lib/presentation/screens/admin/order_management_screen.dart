@@ -397,7 +397,7 @@ class _OrderRow extends StatelessWidget {
                         color: Theme.of(context).colorScheme.primary,
                       ),
                       const SizedBox(width: 4),
-                      Text(
+                      Flexible(child: Text(
                         order.isDelivery
                             ? l10n.checkoutFulfillmentDelivery
                             : l10n.checkoutFulfillmentPickup,
@@ -406,7 +406,7 @@ class _OrderRow extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: Theme.of(context).colorScheme.primary,
                         ),
-                      ),
+                      )),
                     ],
                   ),
                   if (order.awaitingConfirmation) ...[

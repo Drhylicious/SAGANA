@@ -9,6 +9,7 @@ import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/member_access.dart';
+import '../../../core/utils/activity_navigation.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/recent_activity_widgets.dart';
@@ -343,28 +344,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
       case AdminActivityType.cropRequest:
         context.push(AppRoutes.cropRequestApproval);
       case AdminActivityType.logged:
-        switch (item.sourceModule) {
-          case 'inventory':
-            context.push(AppRoutes.adminInventory);
-          case 'crops':
-            context.push(AppRoutes.cropManagement);
-          case 'programs':
-            context.push(AppRoutes.programManagement);
-          case 'loans':
-            context.push(AppRoutes.loanItemManagement);
-          case 'prices':
-            context.push(AppRoutes.priceManagement);
-          case 'market_linking':
-            context.push(AppRoutes.marketLinking);
-          case 'offers':
-            context.push(AppRoutes.offerToCooperative);
-          case 'broadcast':
-            context.push(AppRoutes.broadcastHistory);
-          case 'profile':
-            context.push(AppRoutes.adminProfile);
-          // 'members' and other future modules with no known destination
-          // simply aren't navigable — same as any item with no referenceId.
-        }
+        openLoggedAdminActivity(context, item);
     }
   }
 
@@ -381,7 +361,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
   static const _categoryModules = {
     'dashboard': ['prices', 'crops', 'inventory', 'programs', 'broadcast'],
     'members': ['members'],
-    'marketplace': ['listings', 'orders', 'market_linking', 'offers'],
+    'marketplace': ['listings', 'orders', 'market_linking', 'offers', 'marketplace'],
     'loans': ['loans'],
     'reports': ['reports'],
     'profile': ['profile'],
@@ -427,17 +407,12 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     ColorScheme cs,
     AdminActivityItem item,
   ) {
-    final isNavigable =
-        item.referenceId != null ||
-        item.type == AdminActivityType.order ||
-        item.type == AdminActivityType.price ||
-        (item.type == AdminActivityType.logged &&
-            item.sourceModule != 'members');
+    // Every record opens something: its own record, or the screen of its module.
     final tappable =
-        isNavigable &&
-        (membersAccessAllowed ||
-            !(item.type == AdminActivityType.member ||
-                item.type == AdminActivityType.harvest));
+        membersAccessAllowed ||
+        !(item.type == AdminActivityType.member ||
+            item.type == AdminActivityType.harvest ||
+            item.sourceModule == 'members');
 
     return RecentActivityCard(
       icon: moduleIcon(item.sourceModule),
@@ -477,7 +452,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                     child: SkeletonList(),
                   )
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     child: CustomScrollView(
                       slivers: [

@@ -1,3 +1,4 @@
+import 'admin_activity_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/cooperative_delivery_model.dart';
 import '../services/server_only.dart';
@@ -52,8 +53,8 @@ class CooperativeDeliveryRepository {
     double? latitude,
     double? longitude,
     String? contactNumber,
-  }) => _write(
-    () => _client.rpc(
+  }) => _write(() async {
+    await _client.rpc(
       'save_cooperative_details',
       params: {
         'p_sitio_purok': null,
@@ -62,11 +63,22 @@ class CooperativeDeliveryRepository {
         'p_longitude': longitude,
         'p_contact_number': contactNumber,
       },
-    ),
-  );
+    );
+    logStaffAction(
+      'marketplace',
+      'cooperative_details',
+      'adminLogCoopDetailsSaved',
+    );
+  });
 
-  Future<void> verifyContact() =>
-      _write(() => _client.rpc('verify_cooperative_contact'));
+  Future<void> verifyContact() => _write(() async {
+    await _client.rpc('verify_cooperative_contact');
+    logStaffAction(
+      'marketplace',
+      'contact_verified',
+      'adminLogCoopContactVerified',
+    );
+  });
 
   Future<int> saveBands(List<DeliveryFeeBand> bands) => _write(() async {
     final v = await _client.rpc(
@@ -76,16 +88,27 @@ class CooperativeDeliveryRepository {
         'p_is_demo': false,
       },
     );
+    logStaffAction('marketplace', 'delivery_fees', 'adminLogDeliveryFeesSaved');
     return (v as num).toInt();
   });
 
-  Future<void> setPickupEnabled(bool enabled) => _write(
-    () => _client.rpc('set_pickup_enabled', params: {'p_enabled': enabled}),
-  );
+  Future<void> setPickupEnabled(bool enabled) => _write(() async {
+    await _client.rpc('set_pickup_enabled', params: {'p_enabled': enabled});
+    logStaffAction(
+      'marketplace',
+      enabled ? 'pickup_enabled' : 'pickup_disabled',
+      enabled ? 'adminLogPickupEnabled' : 'adminLogPickupDisabled',
+    );
+  });
 
-  Future<void> setDeliveryEnabled(bool enabled) => _write(
-    () => _client.rpc('set_delivery_enabled', params: {'p_enabled': enabled}),
-  );
+  Future<void> setDeliveryEnabled(bool enabled) => _write(() async {
+    await _client.rpc('set_delivery_enabled', params: {'p_enabled': enabled});
+    logStaffAction(
+      'marketplace',
+      enabled ? 'delivery_enabled' : 'delivery_disabled',
+      enabled ? 'adminLogDeliveryEnabled' : 'adminLogDeliveryDisabled',
+    );
+  });
 
   /// What delivery to this saved address costs (writes nothing). Throws with a code at the
   /// start of the message; see [deliveryRefusalOf].

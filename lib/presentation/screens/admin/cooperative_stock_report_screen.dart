@@ -8,7 +8,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_reports_model.dart';
-import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
@@ -144,21 +143,11 @@ class _CooperativeStockReportScreenState
     return SubPageTopBar(
       title: l10n.reportsCoopStockReport,
       onBack: () => context.pop(),
-      trailing: IconButton(
-        icon: Icon(Icons.file_download_outlined, color: cs.primary),
-        onPressed: () => context.push(
-          AppRoutes.exportCenter,
-          extra: const ExportCenterArgs(
-            preselectedModule: ReportModuleType.coopStock,
-          ),
-        ),
-        tooltip: l10n.reportsExportCenter,
-      ),
     );
   }
 
   /// Header + KPI row together in one bordered, padded card — matching
-  /// the breathing room Harvest/Loan/Member Patronage's ReportHeroCard-
+  /// the breathing room Harvest/Loan/Member Contribution's ReportHeroCard-
   /// based headers already have, rather than a bare header row sitting
   /// directly on the page background with only a small gap to the tiles.
   Widget _buildOverviewCard(
@@ -311,14 +300,14 @@ class _CooperativeStockReportScreenState
                           color: cs.onSurface,
                         ),
                       ),
-                      Text(
+                      Flexible(child: Text(
                         l10n.rptItemsCount(entry.value),
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                           color: cs.onSurface,
                         ),
-                      ),
+                      )),
                     ],
                   ),
                   const SizedBox(height: 4),

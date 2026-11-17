@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
@@ -38,6 +39,22 @@ class AssistanceRequestCard extends StatefulWidget {
 class _AssistanceRequestCardState extends State<AssistanceRequestCard> {
   final _repo = ProgramAssistanceRepository();
   bool _busy = false;
+
+  /// Capital Share rule (Manager / Officer): the Farmer's Capital Share now, and
+  /// whether this request cannot be approved because of it. Read for waiting
+  /// requests only; null until read or when it cannot be.
+  ({double capitalShare, bool blocked})? _capital;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.request.isPending) _loadCapital();
+  }
+
+  Future<void> _loadCapital() async {
+    final check = await _repo.fetchCapitalCheck(widget.request.id);
+    if (mounted) setState(() => _capital = check);
+  }
 
   String _qty(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
@@ -158,6 +175,7 @@ class _AssistanceRequestCardState extends State<AssistanceRequestCard> {
         ? AppConstants.warningAmber
         : cs.onSurfaceVariant;
     final canAct = widget.canDecide && !_busy;
+    final blocked = _capital?.blocked ?? false;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -172,6 +190,8 @@ class _AssistanceRequestCardState extends State<AssistanceRequestCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            // The badge on the left, the status ("Waiting for review") at the far right.
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Not a loan: the badge says so.
               Flexible(
@@ -196,36 +216,39 @@ class _AssistanceRequestCardState extends State<AssistanceRequestCard> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                switch (r.status) {
-                  'approved' => l10n.assistStatusApproved,
-                  'rejected' => l10n.assistStatusRejected,
-                  'cancelled' => l10n.assistStatusCancelled,
-                  _ => l10n.assistStatusPending,
-                },
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(
+                  switch (r.status) {
+                    'approved' => l10n.assistStatusApproved,
+                    'rejected' => l10n.assistStatusRejected,
+                    'cancelled' => l10n.assistStatusCancelled,
+                    _ => l10n.assistStatusPending,
+                  },
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            r.farmerName ?? '',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
+          if ((r.farmerName ?? '').isNotEmpty)
+            Text(
+              r.farmerName!,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
             ),
-          ),
           Text(
-            [
-              r.requestNumber,
-              if (r.assistanceReference != null) r.assistanceReference!,
-            ].join('  ·  '),
+            // Once approved, the approval reference is the number; the request number is not repeated.
+            r.isApproved && r.assistanceReference != null
+                ? r.assistanceReference!
+                : r.requestNumber,
             style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
@@ -287,20 +310,36 @@ class _AssistanceRequestCardState extends State<AssistanceRequestCard> {
               ),
             ),
           ],
+          if (r.isPending && _capital != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              blocked
+                  ? l10n.assistCapStaffBlocked(
+                      NumberFormat('#,##0.00').format(_capital!.capitalShare),
+                    )
+                  : l10n.loanCapFarmerShare(
+                      NumberFormat('#,##0.00').format(_capital!.capitalShare),
+                    ),
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+                color: blocked ? AppConstants.errorRed : cs.onSurfaceVariant,
+              ),
+            ),
+          ],
           if (r.isPending) ...[
             const SizedBox(height: 12),
+            // The same two buttons as a loan request card: Approve on the left, Disapprove on the right.
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: canAct ? _reject : null,
-                    child: Text(l10n.assistReject),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: canAct ? _approve : null,
+                  child: ElevatedButton(
+                    onPressed: canAct && !blocked ? _approve : null,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
                     child: _busy
                         ? const SizedBox(
                             width: 18,
@@ -310,7 +349,30 @@ class _AssistanceRequestCardState extends State<AssistanceRequestCard> {
                               color: Colors.white,
                             ),
                           )
-                        : Text(l10n.assistApprove),
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(l10n.assistApprove, maxLines: 1),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: canAct ? _reject : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppConstants.errorRed,
+                      side: BorderSide(
+                        color: canAct
+                            ? AppConstants.errorRed.withValues(alpha: 0.6)
+                            : cs.outline.withValues(alpha: 0.3),
+                      ),
+                      minimumSize: const Size.fromHeight(44),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(l10n.assistReject, maxLines: 1),
+                    ),
                   ),
                 ),
               ],

@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/quantity_utils.dart';
 
 /// One completed sale, across any of the 4 selling channels, for the
@@ -127,13 +128,13 @@ class FarmerTransactionModel {
 String sellingTypeLabel(String sellingType) {
   switch (sellingType) {
     case 'offer_to_cooperative':
-      return 'Offer to Cooperative';
+      return currentL10n().offerCoopTitle;
     case 'marketplace':
-      return 'Marketplace';
+      return currentL10n().dlMarketplace;
     case 'informal_sale':
-      return 'Informal Sale (F2F)';
+      return currentL10n().dlInformalSaleF2f;
     case 'da_amad_market_linking':
-      return 'DA-AMAD Market Linking';
+      return currentL10n().dlDaAmadLinking;
     default:
       return sellingType;
   }

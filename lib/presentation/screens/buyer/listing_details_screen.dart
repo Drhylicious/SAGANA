@@ -22,6 +22,8 @@ import '../../widgets/cooperative_address_text.dart';
 import '../../widgets/product_buy_now_sheet.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 // A visibly deeper card treatment than the shared flatCardDecoration()
 // (alpha 0.04 / blur 8 — reads as almost no shadow at all) for this
@@ -139,7 +141,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
     });
   }
 
-  void _openBuyNowSheet() {
+  Future<void> _openBuyNowSheet() async {
     if (GuestModeService.active) {
       context.promptGuest(
         (l) => l.guestBuyNowTitle,
@@ -148,6 +150,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       );
       return;
     }
+    // A restricted Farmer cannot buy; adding to the cart stays available.
+    if (!await ensureFeatureAvailable(context, RestrictableFeature.checkout)) return;
+    if (!mounted) return;
     final listing = _listing!;
     // The router is taken now, so going on to the checkout does not depend on this
     // screen's context once the sheet has closed.
@@ -390,9 +395,11 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                             ),
                           ],
                         ),
-                        Padding(
+                        Flexible(
+                          child: Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.sell_outlined,
@@ -402,7 +409,8 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                 ).colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
-                              Text(
+                              Flexible(
+                                child: Text(
                                 l10n.buyerBrowseUnitsSold(
                                   formatQuantityUnit(
                                     listing.soldKg,
@@ -416,8 +424,10 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                   ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
+                              ),
                             ],
                           ),
+                        ),
                         ),
                       ],
                     ),
@@ -642,7 +652,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                       height: 52,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppConstants.primaryGreen,
+                          foregroundColor: Theme.of(context).colorScheme.primary,
                           side: BorderSide(
                             color: Theme.of(context).colorScheme.primary,
                           ),
@@ -655,12 +665,12 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                         ),
                         onPressed: _isAddingToCart ? null : _addToCart,
                         child: _isAddingToCart
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppConstants.primaryGreen,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               )
                             : const Icon(

@@ -664,6 +664,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
     if (saved == null || !mounted) return;
     try {
       await _shelfRepo.saveExpiryDiscountPercent(saved);
+      logStaffAction('crops', 'expiry_discount', 'adminLogExpiryDiscountSaved');
       if (!mounted) return;
       setState(() => _expiryDiscount = saved);
       PostActionFeedback.success(context, l10n.shelfDiscountSaved);
@@ -1461,7 +1462,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: _isOnline
           ? FloatingActionButton(
-              onPressed: _showAddSheet,
+              heroTag: null, onPressed: _showAddSheet,
               backgroundColor: AppConstants.primaryGreen,
               child: const Icon(Icons.add_rounded, color: Colors.white),
             )
@@ -1486,7 +1487,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                     child: SkeletonList(),
                   )
                 : RefreshIndicator(
-                    color: AppConstants.primaryGreen,
+                    color: Theme.of(context).colorScheme.primary,
                     onRefresh: _load,
                     child: filtered.isEmpty
                         ? ListView(
@@ -2040,10 +2041,10 @@ class CropCard extends StatelessWidget {
                             children: [
                               const Icon(Icons.edit_outlined, size: 16),
                               const SizedBox(width: 8),
-                              Text(
+                              Flexible(child: Text(
                                 l10n.cropMgmtEditCropAction,
                                 style: GoogleFonts.inter(),
-                              ),
+                              )),
                             ],
                           ),
                         ),
@@ -2053,10 +2054,10 @@ class CropCard extends StatelessWidget {
                             children: [
                               const Icon(Icons.archive_rounded, size: 16),
                               const SizedBox(width: 8),
-                              Text(
+                              Flexible(child: Text(
                                 l10n.commonArchive,
                                 style: GoogleFonts.inter(),
-                              ),
+                              )),
                             ],
                           ),
                         ),

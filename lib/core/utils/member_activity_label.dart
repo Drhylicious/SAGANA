@@ -189,12 +189,26 @@ String? staffThingLabel(AppLocalizations l10n, String? table) {
       return l10n.staffThingLoanRequests;
     case 'loan_policy_settings':
       return l10n.staffThingLoanPolicySettings;
+    case 'capital_share_rates':
+      return l10n.staffThingCapitalShareRates;
     case 'cooperative_annual_totals':
       return l10n.staffThingCooperativeAnnualTotals;
     case 'member_contributions':
       return l10n.staffThingMemberContributions;
     case 'broadcast_logs':
       return l10n.staffThingBroadcastLogs;
+    case 'bod_meeting_notices':
+      return l10n.staffThingBodMeetingNotices;
+    case 'member_monthly_contributions':
+      return l10n.staffThingMemberMonthlyContributions;
+    case 'member_restrictions':
+      return l10n.staffThingMemberRestrictions;
+    case 'program_types':
+      return l10n.staffThingProgramTypes;
+    case 'shelf_life_settings':
+      return l10n.staffThingShelfLifeSettings;
+    case 'program_redistribution_requests':
+      return l10n.staffThingProgramRedistributionRequests;
     case 'program_outcome_reports':
       return l10n.staffThingProgramOutcomeReports;
     case 'program_returns':
@@ -409,6 +423,50 @@ String? staffActionDetail(StaffActionEntry e, AppLocalizations l10n) {
         '${after['status']}',
       );
     }
+    return _changedFieldsSummary(before, after, l10n);
   }
   return null;
+}
+
+/// Columns that change on every save and say nothing about what the person did.
+const _quietColumns = {
+  'updated_at',
+  'created_at',
+  'modified_at',
+  'last_updated',
+  'id',
+};
+
+String _humanColumn(String key) {
+  final s = key.replaceAll('_', ' ').trim();
+  return s.isEmpty ? key : s[0].toUpperCase() + s.substring(1);
+}
+
+String _shortValue(dynamic v) {
+  if (v == null) return '—';
+  var s = v is Map || v is List ? '…' : '$v';
+  if (s.length > 28) s = '${s.substring(0, 27)}…';
+  return s.isEmpty ? '—' : s;
+}
+
+/// "Price: 40 → 45; Unit: kg → sack (+1 more)": up to two columns that actually
+/// changed, so a row says what changed and what it was before.
+String? _changedFieldsSummary(
+  Map<String, dynamic> before,
+  Map<String, dynamic> after,
+  AppLocalizations l10n,
+) {
+  final changed = <String>[
+    for (final k in after.keys)
+      if (!_quietColumns.contains(k) && '${before[k]}' != '${after[k]}') k,
+  ];
+  if (changed.isEmpty) return null;
+  final shown = changed
+      .take(2)
+      .map((k) => '${_humanColumn(k)}: ${_shortValue(before[k])} → ${_shortValue(after[k])}')
+      .join('; ');
+  final text = changed.length > 2
+      ? l10n.staffLogChangedMore(shown, changed.length - 2)
+      : shown;
+  return l10n.staffLogChangedFields(text);
 }

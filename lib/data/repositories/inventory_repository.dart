@@ -206,6 +206,27 @@ extension AvailableBatchesFetch on InventoryRepository {
     }
   }
 
+  /// The inventory batch a harvest record created (with its shelf-life row), or
+  /// null when it has none yet (not synced) or cannot be read. Works for a Farmer
+  /// reading their own harvest and for a Manager / Officer reading any Farmer's.
+  Future<InventoryBatchModel?> fetchBatchForHarvest(String harvestId) async {
+    try {
+      final rows = await withShelfLifeEmbed(
+        _batchColumns,
+        _batchShelfLife,
+        (columns) => _client
+            .from('inventory_batches')
+            .select(columns)
+            .eq('harvest_record_id', harvestId)
+            .limit(1),
+      );
+      if (rows.isEmpty) return null;
+      return InventoryBatchModel.fromMap(rows.first);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetches one specific batch by id regardless of status — a listing's
   /// batch is almost always 'reserved' (fully committed to that listing)
   /// and would be silently excluded by fetchAvailableBatches()'s status

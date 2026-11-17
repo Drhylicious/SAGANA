@@ -209,3 +209,40 @@ class CategoryBreakdown {
     required this.hasSubsidy,
   });
 }
+
+/// The per-category totals of a list of expenses, biggest first: a subsidised
+/// entry counts as zero (its category still appears), and each bar is scaled to
+/// the biggest total. Used by both the Farmer's My Expenses and the Manager /
+/// Officer's Farmer Details, so the two always agree.
+List<CategoryBreakdown> buildExpenseBreakdown(List<ExpenseModel> expenses) {
+  final Map<String, double> totals = {};
+  final Map<String, bool> hasSubsidy = {};
+
+  for (final e in expenses) {
+    if (!e.isSubsidy) {
+      totals[e.category] = (totals[e.category] ?? 0) + e.amount;
+    } else {
+      hasSubsidy[e.category] = true;
+    }
+  }
+
+  // Include subsidy-only categories at 0
+  for (final cat in hasSubsidy.keys) {
+    totals.putIfAbsent(cat, () => 0);
+  }
+
+  if (totals.isEmpty) return [];
+
+  final maxVal = totals.values.reduce((a, b) => a > b ? a : b);
+  return totals.entries
+      .map(
+        (e) => CategoryBreakdown(
+          category: e.key,
+          total: e.value,
+          percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
+          hasSubsidy: hasSubsidy.containsKey(e.key),
+        ),
+      )
+      .toList()
+    ..sort((a, b) => b.total.compareTo(a.total));
+}

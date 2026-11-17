@@ -1,10 +1,7 @@
-import '../../../core/l10n/localized_labels.dart';
 import '../../../core/theme/sagana_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
@@ -15,9 +12,9 @@ import '../../../data/services/connectivity_service.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/crop_category_chips.dart';
-import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/harvest_details_sheet.dart';
 import '../../widgets/harvest_log_widgets.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -162,7 +159,7 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -215,10 +212,10 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
                                 (h) => Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
                                   child: GestureDetector(
-                                    onTap: () => _showHarvestDetails(
+                                    onTap: () => showHarvestDetailsSheet(
                                       context,
-                                      h,
-                                      _cropsById[h.cropId],
+                                      harvest: h,
+                                      crop: _cropsById[h.cropId],
                                     ),
                                     child: HarvestLogEntry(
                                       harvest: h,
@@ -256,17 +253,6 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
       ),
     );
   }
-}
-
-void _showHarvestDetails(
-  BuildContext context,
-  HarvestModel harvest,
-  FarmerCropModel? crop,
-) {
-  showManagementModal<void>(
-    context: context,
-    builder: (_) => _HarvestDetailsSheet(harvest: harvest, crop: crop),
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -337,176 +323,6 @@ class _HistoryStatsRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Harvest Details — read-only. Tapping a log entry opens this instead of
-// navigating anywhere; there's nothing here a farmer can edit (an already-
-// submitted harvest record isn't editable from History in this app).
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _HarvestDetailsSheet extends StatelessWidget {
-  final HarvestModel harvest;
-  final FarmerCropModel? crop;
-  const _HarvestDetailsSheet({required this.harvest, this.crop});
-
-  // Was omitted entirely when no crop photo existed — the sheet jumped
-  // straight from the title to "Quantity" with no image area at all.
-  // Shows the same default crop icon the list row falls back to instead.
-  Widget _imagePlaceholder(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 140,
-      color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-      child: Icon(
-        Icons.eco_rounded,
-        color: Theme.of(context).colorScheme.primary,
-        size: 40,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ManagementModalShell(
-      title: harvest.cropName,
-      subtitle: harvest.variety != null && harvest.variety!.isNotEmpty
-          ? harvest.variety
-          : null,
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: crop?.hasDisplayImage == true
-                ? Image.network(
-                    crop!.displayImageUrl!,
-                    width: double.infinity,
-                    height: 140,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imagePlaceholder(context),
-                  )
-                : _imagePlaceholder(context),
-          ),
-          const SizedBox(height: 14),
-          _DetailRow(
-            label: AppLocalizations.of(context).issueLoanQuantity,
-            value: formatQuantityUnit(harvest.quantityKg, harvest.unit),
-          ),
-          _DetailRow(
-            label: AppLocalizations.of(context).buyerListingCategory,
-            value: localizeBuiltinLabel(
-              AppLocalizations.of(context),
-              harvest.cropCategory,
-            ),
-          ),
-          _DetailRow(
-            label: AppLocalizations.of(context).enhBatchNumber,
-            value: harvest.displayBatch,
-          ),
-          _DetailRow(
-            label: AppLocalizations.of(context).enhStorageLocation,
-            value: harvest.storageLocation ?? '—',
-          ),
-          _DetailRow(
-            label: AppLocalizations.of(context).enhHarvestDate,
-            value: DateFormat(
-              'MMM d, yyyy · h:mm a',
-            ).format(harvest.harvestDate),
-          ),
-          _DetailRow(
-            label: AppLocalizations.of(context).enhSyncStatus,
-            value: harvest.isSynced
-                ? AppLocalizations.of(context).reportsSynced
-                : AppLocalizations.of(context).reportsPendingSync,
-            isLast: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The name of the program a harvest record came from (looked up by its id; "—" if unavailable).
-class _ProgramNameRow extends StatefulWidget {
-  const _ProgramNameRow({required this.label, required this.programId});
-
-  final String label;
-  final String programId;
-
-  @override
-  State<_ProgramNameRow> createState() => _ProgramNameRowState();
-}
-
-class _ProgramNameRowState extends State<_ProgramNameRow> {
-  String _name = '—';
-
-  @override
-  void initState() {
-    super.initState();
-    () async {
-      try {
-        final row = await Supabase.instance.client
-            .from('cooperative_programs')
-            .select('program_name')
-            .eq('id', widget.programId)
-            .maybeSingle();
-        final n = row?['program_name'] as String?;
-        if (mounted && n != null && n.isNotEmpty) setState(() => _name = n);
-      } catch (_) {
-        // Offline or not readable: the row keeps its dash.
-      }
-    }();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      _DetailRow(label: widget.label, value: _name);
-}
-
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isLast;
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -586,8 +402,8 @@ class _EmptyState extends StatelessWidget {
           Container(
             width: 96,
             height: 96,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDBF1FE),
+            decoration: BoxDecoration(
+              color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
               shape: BoxShape.circle,
             ),
             child: Icon(

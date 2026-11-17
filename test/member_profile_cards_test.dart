@@ -7,10 +7,9 @@ import 'package:sagana/core/l10n/app_localizations.dart';
 import 'package:sagana/core/theme/app_theme.dart';
 import 'package:sagana/data/models/admin_reports_model.dart';
 import 'package:sagana/data/models/buyer_address_model.dart';
-import 'package:sagana/data/models/contribution_model.dart';
 import 'package:sagana/data/models/farmer_profile_model.dart';
 import 'package:sagana/presentation/widgets/address_map_widgets.dart';
-import 'package:sagana/presentation/widgets/member_patronage_card.dart';
+import 'package:sagana/presentation/widgets/member_contribution_card.dart';
 import 'package:sagana/presentation/widgets/member_profile_cards.dart';
 
 import 'support/ignore_font_errors.dart';
@@ -106,21 +105,6 @@ BuyerAddressModel _address({
   houseNo: '5',
 );
 
-MemberContribution _contribution() => const MemberContribution(
-  id: 'c1',
-  farmerId: 'u1',
-  year: 2026,
-  totalSalesAmount: 0,
-  palaySalesKg: 100,
-  palaySalesAmount: 0,
-  peanutSalesKg: 50,
-  peanutSalesAmount: 0,
-  otherCropsQtyKg: 25,
-  estimatedBalikTangkilik: 1000,
-  estimatedInterestOnCapital: 234.5,
-  status: 'not_yet_computed',
-);
-
 const _row = MemberContributionRow(
   farmerId: 'u1',
   farmerName: 'Marc',
@@ -129,9 +113,7 @@ const _row = MemberContributionRow(
   peanutQtyKg: 50,
   peanutAmount: 3000,
   totalAmount: 5000,
-  sharePercent: 12.5,
   programPurchasesAmount: 800,
-  purchaseSharePercent: 4.0,
 );
 
 void main() {
@@ -670,7 +652,7 @@ void main() {
     });
   });
 
-  group('Patronage card (Contribution tab)', () {
+  group('Member Contribution card (Contribution tab)', () {
     testWidgets(
       'year summary, breakdown and shares come from the same sources as before',
       (tester) async {
@@ -678,26 +660,22 @@ void main() {
         await runIgnoringFontErrors(() async {
           await _pump(
             tester,
-            MemberPatronageCard(
+            MemberContributionCard(
               row: _row,
-              contribution: _contribution(),
               year: 2026,
               onViewFull: () => opened++,
             ),
           );
-          expect(find.text('Member Patronage (2026)'), findsOneWidget);
-          // member_contributions: estimated total = 1000 + 234.5, volume 100+50+25.
-          expect(find.text('₱1234.50'), findsOneWidget);
-          expect(find.text('175kg'), findsOneWidget);
-          // Member Patronage Report row: combined total 5000 + 800.
-          expect(find.text('₱5,800'), findsOneWidget);
-          expect(find.text('12.5%'), findsOneWidget);
-          expect(find.text('4.0%'), findsOneWidget);
-          expect(find.textContaining('Palay: 100 kg'), findsOneWidget);
-          expect(find.textContaining('Peanut: 50 kg'), findsOneWidget);
-          expect(find.textContaining('Purchases:'), findsOneWidget);
+          expect(find.text('Contributions in 2026'), findsWidgets);
+          // The card tracks the Capital Share (the fixture has none), not the
+          // sales and purchases: those are reference figures, never added together.
+          expect(find.text('Total Capital Share'), findsWidgets);
+          expect(find.text('₱5,800.00'), findsNothing);
+          expect(find.textContaining('%'), findsNothing);
+          expect(find.textContaining('Palay'), findsNothing);
+          expect(find.text('Cooperative Purchase'), findsOneWidget);
 
-          await tester.tap(find.text('View Full Contribution'));
+          await tester.tap(find.text('View Member Contribution Report'));
           expect(opened, 1);
         });
       },
@@ -709,17 +687,15 @@ void main() {
         await runIgnoringFontErrors(() async {
           await _pump(
             tester,
-            MemberPatronageCard(
+            MemberContributionCard(
               row: null,
-              contribution: null,
               year: 2026,
               onViewFull: () {},
             ),
           );
-          expect(find.text('₱0.00'), findsOneWidget);
-          expect(find.text('No records'), findsOneWidget);
+          expect(find.text('₱0.00'), findsWidgets);
           expect(
-            find.text('No patronage activity recorded for 2026.'),
+            find.text('No contribution recorded for 2026.'),
             findsOneWidget,
           );
         });
@@ -732,7 +708,7 @@ void main() {
       'lib/presentation/screens/admin/farmer_details_screen.dart',
     ).readAsStringSync();
 
-    test('Profile tab: identity, residential, farm - and no patronage', () {
+    test('Profile tab: identity, residential, farm - and no contribution card', () {
       int at(String s) {
         final i = source.indexOf(s);
         expect(i, isNonNegative, reason: s);
@@ -743,7 +719,7 @@ void main() {
       final residential = at('MemberResidentialAddressCard(');
       final farm = at('MemberFarmSection(');
       final contribution = at('_ContributionCard(');
-      final patronage = at('MemberPatronageCard(');
+      final patronage = at('MemberContributionCard(');
       expect(personal, lessThan(residential));
       expect(residential, lessThan(farm));
       // Patronage is in the Contribution tab, after the capital card.
@@ -756,11 +732,11 @@ void main() {
         reason: 'no separate Personal Information card',
       );
       expect(source.contains('_IdentityCard'), isFalse);
-      expect(source.contains('_MemberPatronageCard'), isFalse);
+      expect(source.contains('_MemberContributionCard'), isFalse);
       expect(source.contains('_FarmDetailsCard'), isFalse);
       expect(source.contains('_AddressCard'), isFalse);
       // The patronage card appears once, not on both tabs.
-      expect('MemberPatronageCard('.allMatches(source).length, 1);
+      expect('MemberContributionCard('.allMatches(source).length, 1);
     });
 
     test(
@@ -773,13 +749,14 @@ void main() {
     );
 
     test(
-      'the patronage data is still loaded from the Report and member_contributions',
+      'the patronage data is loaded from the Report only (no member_contributions snapshot)',
       () {
         expect(
           source.contains('fetchMemberContributionReport(_patronageYear)'),
           isTrue,
         );
-        expect(source.contains('fetchCurrentYearContribution'), isTrue);
+        expect(source.contains('fetchCurrentYearContribution'), isFalse);
+        expect(source.contains('MemberContribution?'), isFalse);
       },
     );
   });

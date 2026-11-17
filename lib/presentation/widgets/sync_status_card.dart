@@ -79,6 +79,15 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
     final l10n = AppLocalizations.of(context);
     final queuedBefore = _queued;
     setState(() => _syncing = true);
+    // Sync Now is the fallback when automatic sync did not start, so it asks
+    // the server directly instead of trusting the last known connection state.
+    final reachable = await ConnectivityService.instance.checkConnectivity();
+    if (!mounted) return;
+    if (!reachable) {
+      setState(() => _syncing = false);
+      PostActionFeedback.error(context, l10n.syncNeedsConnection);
+      return;
+    }
     await SyncService.syncPending();
     if (!mounted) return;
     widget.onSyncCompleted?.call(queuedBefore);
@@ -93,11 +102,13 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
 
   Future<void> _retry(FailedSyncRecord record) async {
     final l10n = AppLocalizations.of(context);
-    if (!_online) {
+    setState(() => _retryingId = record.localId);
+    if (!await ConnectivityService.instance.checkConnectivity()) {
+      if (!mounted) return;
+      setState(() => _retryingId = null);
       PostActionFeedback.error(context, l10n.syncNeedsConnection);
       return;
     }
-    setState(() => _retryingId = record.localId);
     final ok = await SyncService.retry(record);
     if (!mounted) return;
     setState(() {
@@ -128,6 +139,9 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
     }
     if (actionKind == 'capital_record') return l10n.syncActionCapital;
     if (actionKind == 'crop_photo') return l10n.syncActionCropPhoto;
+    if (actionKind == 'crop_add' || actionKind == 'crop_request') {
+      return l10n.syncActionCrop;
+    }
     if (actionKind.endsWith('_photo') || actionKind == 'admin_photo_remove') {
       return l10n.syncActionPhoto;
     }
@@ -139,7 +153,8 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final busy = _syncing || _retryingId != null || SyncService.isSyncing;
-    final canSync = _online && !busy;
+    // Stays available while offline: tapping it rechecks the connection.
+    final canSync = !busy;
 
     final statusText = _online ? l10n.syncStatusOnline : l10n.syncStatusOffline;
     final statusColor = _online ? AppConstants.successGreen : cs.outline;

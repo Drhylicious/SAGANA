@@ -153,7 +153,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),

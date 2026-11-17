@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/contact_email.dart';
 import 'farmer_member_model.dart' show MemberStatus, MemberStatusExt;
 
@@ -124,7 +125,7 @@ class FarmerProfileModel {
 
   /// Human-readable coordinates string (e.g. "13.6302° N, 121.9392° E")
   String get coordinatesLabel {
-    if (!hasCoordinates) return 'Not pinned yet';
+    if (!hasCoordinates) return currentL10n().dlNotPinned;
     final lat = farmLatitude!;
     final lon = farmLongitude!;
     final latDir = lat >= 0 ? 'N' : 'S';

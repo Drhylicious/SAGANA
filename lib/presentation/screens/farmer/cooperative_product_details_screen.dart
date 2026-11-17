@@ -17,6 +17,8 @@ import '../../widgets/cooperative_address_text.dart';
 import '../../widgets/product_buy_now_sheet.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/feature_restriction_notice.dart';
+import '../../../data/models/member_restriction.dart';
 
 /// A Cooperative Product (a Product Sales program product) as a Farmer sees it in the
 /// Marketplace.
@@ -128,7 +130,10 @@ class _CooperativeProductDetailsScreenState
     );
   }
 
-  void _openBuyNowSheet() {
+  Future<void> _openBuyNowSheet() async {
+    // A restricted Farmer cannot buy; adding to the cart stays available.
+    if (!await ensureFeatureAvailable(context, RestrictableFeature.checkout)) return;
+    if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     final router = GoRouter.of(context);
     ProductBuyNowSheet.show(
@@ -279,7 +284,7 @@ class _CooperativeProductDetailsScreenState
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Padding(
+                        Flexible(child: Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
                             children: [
@@ -291,7 +296,7 @@ class _CooperativeProductDetailsScreenState
                                 ).colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
-                              Text(
+                              Flexible(child: Text(
                                 l10n.buyerBrowseUnitsSold(
                                   formatQuantityUnit(_p.soldQuantity, _p.unit),
                                 ),
@@ -302,10 +307,10 @@ class _CooperativeProductDetailsScreenState
                                     context,
                                   ).colorScheme.onSurfaceVariant,
                                 ),
-                              ),
+                              )),
                             ],
                           ),
-                        ),
+                        )),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -506,7 +511,9 @@ class _CooperativeProductDetailsScreenState
                       child: OutlinedButton(
                         key: const Key('cpAddToCart'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppConstants.primaryGreen,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           side: BorderSide(
                             color: Theme.of(context).colorScheme.primary,
                           ),
@@ -519,12 +526,12 @@ class _CooperativeProductDetailsScreenState
                         ),
                         onPressed: _adding ? null : _addToCart,
                         child: _adding
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppConstants.primaryGreen,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               )
                             : const Icon(

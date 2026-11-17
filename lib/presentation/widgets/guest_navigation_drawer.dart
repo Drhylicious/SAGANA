@@ -122,7 +122,7 @@ class GuestNavigationDrawer extends StatelessWidget {
                         children: [
                           SettingsRow(
                             icon: Icons.login_rounded,
-                            iconColor: AppConstants.primaryGreen,
+                            iconColor: Theme.of(context).colorScheme.primary,
                             title: l10n.guestLogin,
                             contentPadding: pad,
                             onTap: () =>
@@ -131,7 +131,7 @@ class GuestNavigationDrawer extends StatelessWidget {
                           const SettingsDivider(),
                           SettingsRow(
                             icon: Icons.person_add_alt_1_rounded,
-                            iconColor: AppConstants.primaryGreen,
+                            iconColor: Theme.of(context).colorScheme.primary,
                             title: l10n.guestRegister,
                             contentPadding: pad,
                             onTap: () =>
@@ -159,7 +159,7 @@ class GuestNavigationDrawer extends StatelessWidget {
                         children: [
                           SettingsRow(
                             icon: Icons.info_outline_rounded,
-                            iconColor: AppConstants.primaryGreen,
+                            iconColor: Theme.of(context).colorScheme.primary,
                             title: l10n.aboutSagana,
                             contentPadding: pad,
                             onTap: () =>

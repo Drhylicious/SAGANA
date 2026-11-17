@@ -10,7 +10,10 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
+import '../../../data/models/program_assistance_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/repositories/program_assistance_repository.dart';
+import '../../widgets/assistance_record_card.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/cached_data_notice.dart';
@@ -36,6 +39,8 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   List<AdminLoanSummary> _activeLoans = [];
   (int, int) _paidCountTrend = (0, 0);
   int _pendingRequests = 0;
+  // The latest approved assistance (not a loan), listed before the loans.
+  List<AssistanceRequest> _assistance = [];
 
   /// Overdue first (most urgent), topped up with active loans to a max
   /// of 5 cards — replaces the old separate Overdue/Active sections.
@@ -65,6 +70,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       _repo.fetchActiveLoans(limit: 5),
       _repo.fetchPaidCountThisVsLastMonth(),
       _repo.fetchPendingLoanRequestCount(),
+      ProgramAssistanceRepository().fetchApprovedAll(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -73,6 +79,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       _activeLoans = results[2] as List<AdminLoanSummary>;
       _paidCountTrend = results[3] as (int, int);
       _pendingRequests = results[4] as int;
+      _assistance = (results[5] as List<AssistanceRequest>).take(2).toList();
       _isLoading = false;
     });
   }
@@ -127,7 +134,14 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                           l10n: l10n,
                         ),
                         const SizedBox(height: AppConstants.spacingMd),
-                        if (_recentLoans.isEmpty)
+                        for (final a in _assistance)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppConstants.spacingMd,
+                            ),
+                            child: AssistanceRecordCard(request: a, showFarmer: true),
+                          ),
+                        if (_recentLoans.isEmpty && _assistance.isEmpty)
                           _buildEmptyState(
                             l10n.loanDashNoRecentActivity,
                             cs,
@@ -225,14 +239,14 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                   size: 20,
                 ),
                 const SizedBox(width: AppConstants.spacingSm),
-                Text(
+                Flexible(child: Text(
                   l10n.loanDashOverdueSection(_stats.overdueLoansCount),
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                     color: Colors.white,
                   ),
-                ),
+                )),
               ],
             ),
             const SizedBox(height: 6),
@@ -301,14 +315,14 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                 size: 20,
               ),
               const SizedBox(width: AppConstants.spacingSm),
-              Text(
+              Flexible(child: Text(
                 l10n.loanDashNextCollection,
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                   color: Colors.white,
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 6),

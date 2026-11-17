@@ -243,7 +243,9 @@ class AppNavigationDrawer extends StatelessWidget {
                                 children: [
                                   SettingsRow(
                                     icon: Icons.person_outline_rounded,
-                                    iconColor: AppConstants.primaryGreen,
+                                    iconColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     title: l10n.editProfile,
                                     onTap: onEditProfile,
                                     contentPadding: const EdgeInsets.symmetric(
@@ -374,7 +376,9 @@ class AppNavigationDrawer extends StatelessWidget {
                                 children: [
                                   SettingsRow(
                                     icon: Icons.info_outline_rounded,
-                                    iconColor: AppConstants.primaryGreen,
+                                    iconColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     title: l10n.aboutSagana,
                                     onTap: onAboutSagana,
                                     contentPadding: const EdgeInsets.symmetric(

@@ -15,8 +15,8 @@ import 'trend_chart_painter.dart';
 /// filter, search box, filter chips, record card, bar row, trend card and
 /// detail row that Sales, Harvest, Loan, Expense, Analytics and Export Center
 /// all use. They live in their own file (not in report_summary_widgets.dart)
-/// so the Member Patronage Report and Balik-Tangkilik Management, which use
-/// that file, are not affected by anything here.
+/// so the Member Contribution Report, which uses
+/// that file, is not affected by anything here.
 
 /// "Oct 1 – Oct 31, 2026" for a period, or "All dates" for All Time.
 String reportPeriodRangeText(AppLocalizations l10n, ReportPeriod period) {
@@ -454,6 +454,92 @@ class ReportDetailRow extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Year selector: the selected year in the centre, with `<` on the left and
+/// `>` on the right, each shown only when another year can be opened.
+///
+/// [years] are the years that can be opened (any order). `>` never leads to a
+/// year that has not started yet, whatever [years] holds, so in 2026 only 2026
+/// shows (no `>`), and in 2027 the report can step between 2026 and 2027. The
+/// arrow slots keep their width when hidden, so the year stays centred.
+class YearNavigator extends StatelessWidget {
+  final int selectedYear;
+  final List<int> years;
+  final ValueChanged<int> onChanged;
+  final int? currentYear;
+
+  const YearNavigator({
+    super.key,
+    required this.selectedYear,
+    required this.years,
+    required this.onChanged,
+    this.currentYear,
+  });
+
+  int? get _previous {
+    final earlier = years.where((y) => y < selectedYear).toList()..sort();
+    return earlier.isEmpty ? null : earlier.last;
+  }
+
+  int? get _next {
+    final latest = currentYear ?? DateTime.now().year;
+    final later = years.where((y) => y > selectedYear && y <= latest).toList()
+      ..sort();
+    return later.isEmpty ? null : later.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    final previous = _previous;
+    final next = _next;
+
+    Widget slot(int? target, IconData icon) => SizedBox(
+      width: 44,
+      height: 44,
+      child: target == null
+          ? null
+          : IconButton(
+              onPressed: () => onChanged(target),
+              tooltip: '$target',
+              icon: Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 26,
+              ),
+            ),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          slot(previous, Icons.chevron_left_rounded),
+          Expanded(
+            child: Text(
+              '$selectedYear',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+          slot(next, Icons.chevron_right_rounded),
         ],
       ),
     );

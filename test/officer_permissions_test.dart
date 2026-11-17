@@ -320,9 +320,8 @@ void main() {
   });
 
   group('Manager-only screens', () {
-    test('Balik, Staff Accountability and creating an Officer stay with the Manager', () {
+    test('Staff Accountability and creating an Officer stay with the Manager', () {
       expect(AppRouter.managerOnlyPaths, {
-        AppRoutes.balikTangkilikManagement,
         AppRoutes.staffAccountability,
         AppRoutes.createOfficerAccount,
       });

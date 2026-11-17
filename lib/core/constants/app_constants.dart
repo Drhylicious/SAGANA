@@ -10,6 +10,11 @@ class AppConstants {
   static const String appSubtitle = 'Streamlined Agricultural Gateway';
   static const String cooperativeName = 'SP3 Agriculture Cooperative';
 
+  /// The permanent SAGANA download page (the address the QR code opens). An
+  /// update prompt sends people here. Used when a release row carries no usable
+  /// address of its own. Never change it once QR codes are printed.
+  static const String updatePageUrl = 'https://sagana-landing.vercel.app/get';
+
   // ─── Brand Colors ────────────────────────────────────────────────────────────
   static const Color primaryGreen = Color(0xFF00450D);
   static const Color midGreen = Color(0xFF2E7D32);

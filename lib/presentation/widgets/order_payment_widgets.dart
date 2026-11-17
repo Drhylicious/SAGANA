@@ -40,14 +40,14 @@ class OrderSourceBadge extends StatelessWidget {
             color: color,
           ),
           const SizedBox(width: 3),
-          Text(
+          Flexible(child: Text(
             coop ? l10n.uoSourceCooperative : l10n.uoSourceMarketplace,
             style: GoogleFonts.inter(
               fontSize: 9.5,
               fontWeight: FontWeight.w700,
               color: color,
             ),
-          ),
+          )),
         ],
       ),
     );
@@ -184,13 +184,13 @@ class OrderPaymentCard extends StatelessWidget {
                     : AppConstants.warningAmber,
               ),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 l10n.uoPaymentTitle,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
-              ),
+              )),
             ],
           ),
           if (paid) ...[

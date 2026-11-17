@@ -339,6 +339,10 @@ String staffLogFeatureLabel(AppLocalizations l10n, String key) {
       return l10n.staffLogFeatureAccounts;
     case 'contributions':
       return l10n.staffLogFeatureContributions;
+    case 'monthlyContributions':
+      return l10n.staffLogFeatureMonthlyContributions;
+    case 'restrictions':
+      return l10n.staffLogFeatureRestrictions;
     case 'officerAccess':
       return l10n.staffLogFeatureOfficerAccess;
     case 'listings':
@@ -359,12 +363,12 @@ String staffLogFeatureLabel(AppLocalizations l10n, String key) {
       return l10n.staffLogFeatureLoanRequests;
     case 'loanPolicy':
       return l10n.staffLogFeatureLoanPolicy;
+    case 'bodReminders':
+      return l10n.staffLogFeatureBodReminders;
     case 'programAssistance':
       return l10n.staffLogFeatureProgramAssistance;
-    case 'deliverySettings':
-      return l10n.staffLogFeatureDeliverySettings;
-    case 'balik':
-      return l10n.reportsBalikTangkilikManagement;
+    case 'capitalShareSettings':
+      return l10n.capSettingsTitle;
     case 'exports':
       return l10n.reportsExportCenter;
   }

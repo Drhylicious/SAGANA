@@ -1,3 +1,6 @@
+import 'package:intl/intl.dart';
+import '../../core/l10n/localized_labels.dart';
+
 // ─── Broadcast Category ───────────────────────────────────────────────────────
 
 enum BroadcastCategory { meeting, financial, harvest, update, general }
@@ -59,12 +62,18 @@ extension RecipientTypeExt on RecipientType {
 
   String get label {
     switch (this) {
-      case RecipientType.allMembers:       return 'All Members';
-      case RecipientType.allBuyers:        return 'All Buyers';
-      case RecipientType.outstandingLoans: return 'Outstanding Loans';
-      case RecipientType.specificCrop:     return 'Specific Crop';
-      case RecipientType.specificFarmer:   return 'Specific Farmer';
-      case RecipientType.specificBuyer:    return 'Specific Buyer';
+      case RecipientType.allMembers:
+        return currentL10n().recipientTypeAllMembers;
+      case RecipientType.allBuyers:
+        return currentL10n().recipientTypeAllBuyers;
+      case RecipientType.outstandingLoans:
+        return currentL10n().recipientTypeOutstandingLoans;
+      case RecipientType.specificCrop:
+        return currentL10n().recipientTypeSpecificCrop;
+      case RecipientType.specificFarmer:
+        return currentL10n().recipientTypeSpecificFarmer;
+      case RecipientType.specificBuyer:
+        return currentL10n().recipientTypeSpecificBuyer;
     }
   }
 
@@ -119,19 +128,19 @@ class BroadcastModel {
   String get recipientLabel {
     switch (recipientType) {
       case RecipientType.allBuyers:
-        return 'All Buyers';
+        return currentL10n().recipientTypeAllBuyers;
       case RecipientType.outstandingLoans:
-        return 'Outstanding Loans';
+        return currentL10n().recipientTypeOutstandingLoans;
       case RecipientType.specificCrop:
         return recipientFilter != null
-            ? '${recipientFilter!} Farmers'
-            : 'Specific Crop';
+            ? currentL10n().dlRecipientCropFarmers(recipientFilter!)
+            : currentL10n().recipientTypeSpecificCrop;
       case RecipientType.specificFarmer:
-        return 'Specific Farmer';
+        return currentL10n().recipientTypeSpecificFarmer;
       case RecipientType.specificBuyer:
-        return 'Specific Buyer';
+        return currentL10n().recipientTypeSpecificBuyer;
       default:
-        return 'All Members';
+        return currentL10n().recipientTypeAllMembers;
     }
   }
 
@@ -161,20 +170,8 @@ class BroadcastModel {
 /// Formats an absolute future date/time for a queued broadcast, e.g.
 /// "Sep 19, 2:30 PM". Shared by the Compose screen's recent-sends list and
 /// the Broadcast History screen for a still-pending (sent_at == null) item.
-String formatBroadcastSchedule(DateTime dt) {
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  final h = dt.hour > 12
-      ? dt.hour - 12
-      : dt.hour == 0
-          ? 12
-          : dt.hour;
-  final min = dt.minute.toString().padLeft(2, '0');
-  final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-  return '${months[dt.month - 1]} ${dt.day}, $h:$min $ampm';
-}
+String formatBroadcastSchedule(DateTime dt) =>
+    DateFormat('MMM d, h:mm a').format(dt);
 
 // ─── Broadcast Template ───────────────────────────────────────────────────────
 

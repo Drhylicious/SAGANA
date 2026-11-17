@@ -686,7 +686,7 @@ class _LabelChip extends StatelessWidget {
                   : Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 6),
-            Text(
+            Flexible(child: Text(
               label,
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
@@ -695,7 +695,7 @@ class _LabelChip extends StatelessWidget {
                     ? Colors.white
                     : Theme.of(context).colorScheme.onSurface,
               ),
-            ),
+            )),
           ],
         ),
       ),

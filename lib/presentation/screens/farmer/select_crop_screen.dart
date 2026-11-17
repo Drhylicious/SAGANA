@@ -1,4 +1,3 @@
-import '../../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -15,6 +14,9 @@ import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/channel_only_badge.dart';
+import '../../widgets/crop_photo_capture.dart';
+import 'crop_listing_screen.dart'
+    show CropCategoryBadge, CropMarketTypeBadge, CropShelfLifeLine;
 import '../../../core/l10n/app_localizations.dart';
 
 /// Shared "choose which crop" step, standing between "Record New Harvest"
@@ -120,7 +122,7 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
                   children: [
                     const TopBarSpacer(height: 72),
                     CachedDataNotice(
-                      screen: 'farmer_crops_approved',
+                      screen: 'farmer_crops',
                       isOnline: _isOnline,
                       offlineMessage: AppLocalizations.of(
                         context,
@@ -138,7 +140,7 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
                                   context.pushRoute(AppRoutes.cropListing),
                             )
                           : RefreshIndicator(
-                              color: AppConstants.primaryGreen,
+                              color: Theme.of(context).colorScheme.primary,
                               onRefresh: _load,
                               child: ListView(
                                 padding: const EdgeInsets.fromLTRB(
@@ -407,20 +409,24 @@ class _SelectableCropCard extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    localizeBuiltinLabel(
-                      AppLocalizations.of(context),
-                      crop.category,
-                    ),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      CropCategoryBadge(category: crop.category),
+                      if (crop.cropMasterId != null) CropMarketTypeBadge(cropType: crop.cropType),
+                      ChannelOnlyBadge(channel: crop.exclusiveChannel),
+                    ],
                   ),
-                  if (crop.exclusiveChannel != null) ...[
+                  const SizedBox(height: 6),
+                  CropShelfLifeLine(crop: crop),
+                  const SizedBox(height: 6),
+                  // An indicator only: nothing here is tappable beyond choosing the crop.
+                  _HarvestEntriesIndicator(count: crop.harvestCount),
+                  if (crop.needsPhoto) ...[
                     const SizedBox(height: 6),
-                    ChannelOnlyBadge(channel: crop.exclusiveChannel),
+                    const PhotoRequiredBadge(),
                   ],
                 ],
               ),
@@ -445,7 +451,9 @@ class _CropTypeIcon extends StatelessWidget {
     return Container(
       width: 68,
       height: 68,
-      decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
+      decoration: BoxDecoration(
+        color: context.adaptiveSurface(const Color(0xFFDBF1FE)),
+      ),
       child: Icon(
         FarmerCropModel.iconForCategory(category),
         color: Theme.of(context).colorScheme.primary,
@@ -529,6 +537,39 @@ class _NoCropsEmptyState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// How many harvest records the crop has: "(N) Harvest Entries", or "No Harvest Entries". Shown on this screen
+/// only (the Crop Roster keeps its own indicator). Drawn like the Roster's indicator, with no action.
+class _HarvestEntriesIndicator extends StatelessWidget {
+  const _HarvestEntriesIndicator({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final has = count > 0;
+    final color = has ? AppConstants.successGreen : Theme.of(context).colorScheme.outline;
+    return Row(
+      children: [
+        Icon(
+          has ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          size: 14,
+          color: color,
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            has ? l10n.harvestEntriesCountLabel(count) : l10n.harvestNoEntriesLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: color),
+          ),
+        ),
+      ],
     );
   }
 }

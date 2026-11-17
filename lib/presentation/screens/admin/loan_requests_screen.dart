@@ -459,7 +459,7 @@ class _RequestCard extends StatelessWidget {
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(
-          color: r.isPending && r.hasStockShortage
+          color: r.isPending && (r.hasStockShortage || r.isFarmerBlocked)
               ? AppConstants.errorRed.withValues(alpha: 0.35)
               : cs.outline.withValues(alpha: 0.12),
         ),
@@ -555,6 +555,17 @@ class _RequestCard extends StatelessWidget {
                                   : AppConstants.successGreen,
                             ),
                           ),
+                        if (r.isPending &&
+                            r.farmerCapitalShare != null &&
+                            i.overCapital(r.farmerCapitalShare!))
+                          Text(
+                            l10n.loanCapLineAbove,
+                            style: GoogleFonts.inter(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppConstants.errorRed,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -603,6 +614,71 @@ class _RequestCard extends StatelessWidget {
               ),
             ),
           ],
+          if (r.isPending && r.farmerCapitalShare != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.loanCapFarmerShare(money.format(r.farmerCapitalShare!)),
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: r.hasCapitalShortage
+                    ? AppConstants.errorRed
+                    : cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+          if (r.isPending && r.hasCapitalShortage) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: AppConstants.errorRed,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    l10n.loanCapStaffWarning(
+                      money.format(r.farmerCapitalShare!),
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (r.isPending && r.hasOverdueBlock) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: AppConstants.errorRed,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    l10n.loanReqOverdueWarning(
+                      money.format(r.farmerOverdueBalance!),
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppConstants.errorRed,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (r.isPending && r.hasStockShortage) ...[
             const SizedBox(height: 10),
             Row(
@@ -627,10 +703,46 @@ class _RequestCard extends StatelessWidget {
               ],
             ),
           ],
+          // History sits above the Disapprove button (the right-hand one).
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => showWorkflowHistorySheet(
+                context,
+                entityType: 'loan_request',
+                entityId: r.id,
+                title: r.requestNo,
+              ),
+              icon: const Icon(Icons.history_rounded, size: 16),
+              label: Text(l10n.wfHistoryAction),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
+          ),
           if (r.isPending) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             Row(
               children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed:
+                        canDecide && !r.hasStockShortage && !r.isFarmerBlocked
+                        ? onApprove
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(l10n.loanReqApprove, maxLines: 1),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: canDecide ? onDisapprove : null,
@@ -647,22 +759,6 @@ class _RequestCard extends StatelessWidget {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(l10n.loanReqDisapprove, maxLines: 1),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: canDecide && !r.hasStockShortage
-                        ? onApprove
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(l10n.loanReqApprove, maxLines: 1),
                     ),
                   ),
                 ),
@@ -706,23 +802,6 @@ class _RequestCard extends StatelessWidget {
                 ),
               ),
           ],
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => showWorkflowHistorySheet(
-                context,
-                entityType: 'loan_request',
-                entityId: r.id,
-                title: r.requestNo,
-              ),
-              icon: const Icon(Icons.history_rounded, size: 16),
-              label: Text(l10n.wfHistoryAction),
-              style: TextButton.styleFrom(
-                foregroundColor: AppConstants.primaryGreen,
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          ),
         ],
       ),
     );

@@ -12,6 +12,7 @@ import '../../../data/repositories/harvest_entry_repository.dart';
 import '../../../data/repositories/unit_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/offline_cache.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/top_bar_spacer.dart';
@@ -92,6 +93,13 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       ]);
       crops = results[0] as List<FarmerCropModel>;
       units = results[1] as List<String>;
+      // Offline with no saved crop list is "could not load", never "you have no
+      // crops" or "still awaiting approval".
+      if (crops.isEmpty &&
+          !ConnectivityService.instance.isOnline &&
+          OfflineCache.savedAt('farmer_crops') == null) {
+        throw StateError('No saved crop list');
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {

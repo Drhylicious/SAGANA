@@ -8,6 +8,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/l10n/system_notification_text.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/activity_navigation.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/dashboard_summary_model.dart';
@@ -119,7 +120,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     setState(() {
       _summary = GuestFarmerSampleData.summary;
       _marketRates = GuestFarmerSampleData.marketRates;
-      _activity = GuestFarmerSampleData.activity;
+      _activity = GuestFarmerSampleData.activity(l10n);
       _priorityItems = [
         PriorityItem(
           title: l10n.farmerDashLoanDueInDaysTitleOther(3),
@@ -374,7 +375,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                   children: [
                     Expanded(
                       child: RefreshIndicator(
-                        color: AppConstants.primaryGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         onRefresh: _loadData,
                         child: CustomScrollView(
                           slivers: [
@@ -811,13 +812,13 @@ class _YieldCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Text(
+                    Flexible(child: Text(
                       l10n.farmerDashKgUnit,
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    ),
+                    )),
                   ],
                 ),
           const SizedBox(height: 10),
@@ -1313,7 +1314,11 @@ class _ActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // Tapping a record opens the screen that shows it.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => openFarmerActivity(context, item),
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
@@ -1373,6 +1378,7 @@ class _ActivityTile extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -1393,7 +1399,7 @@ class _ActivityIcon extends StatelessWidget {
       case ActivityType.harvest:
         icon = Icons.eco_rounded;
         bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-        fg = AppConstants.primaryGreen;
+        fg = Theme.of(context).colorScheme.primary;
         break;
       case ActivityType.listing:
         icon = Icons.storefront_outlined;
@@ -1409,12 +1415,14 @@ class _ActivityIcon extends StatelessWidget {
         icon = Icons.local_florist_outlined;
         bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
             .withValues(alpha: 0.10);
-        fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
+        fg = isAlert
+            ? AppConstants.errorRed
+            : Theme.of(context).colorScheme.primary;
         break;
       case ActivityType.cropAdded:
         icon = Icons.grass_rounded;
         bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-        fg = AppConstants.primaryGreen;
+        fg = Theme.of(context).colorScheme.primary;
         break;
       case ActivityType.informalSale:
         icon = Icons.sell_outlined;
@@ -1424,7 +1432,7 @@ class _ActivityIcon extends StatelessWidget {
       case ActivityType.cropPhotoUpdated:
         icon = Icons.photo_camera_outlined;
         bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-        fg = AppConstants.primaryGreen;
+        fg = Theme.of(context).colorScheme.primary;
         break;
       case ActivityType.cooperativeOffer:
         icon = Icons.groups_outlined;
@@ -1434,7 +1442,7 @@ class _ActivityIcon extends StatelessWidget {
       case ActivityType.marketLinkingEnrollment:
         icon = Icons.handshake_outlined;
         bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-        fg = AppConstants.primaryGreen;
+        fg = Theme.of(context).colorScheme.primary;
         break;
       case ActivityType.gingerBatchSubmission:
         icon = Icons.outbox_outlined;
@@ -1459,7 +1467,7 @@ class _ActivityIcon extends StatelessWidget {
       case ActivityType.programEnrollment:
         icon = Icons.assignment_turned_in_outlined;
         bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-        fg = AppConstants.primaryGreen;
+        fg = Theme.of(context).colorScheme.primary;
         break;
       case ActivityType.programPurchase:
         icon = Icons.shopping_bag_outlined;
@@ -1469,7 +1477,42 @@ class _ActivityIcon extends StatelessWidget {
       case ActivityType.capitalReinvestment:
         icon = Icons.savings_outlined;
         bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-        fg = AppConstants.primaryGreen;
+        fg = Theme.of(context).colorScheme.primary;
+        break;
+      case ActivityType.listingEditRequested:
+        icon = Icons.edit_note_rounded;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.primary;
+        break;
+      case ActivityType.quantityAdjusted:
+        icon = Icons.inventory_2_outlined;
+        bg = AppConstants.amber.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
+        break;
+      case ActivityType.shelfLifeChecked:
+        icon = Icons.fact_check_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.primary;
+        break;
+      case ActivityType.produceRotten:
+        icon = Icons.delete_outline_rounded;
+        bg = AppConstants.errorRed.withValues(alpha: 0.10);
+        fg = AppConstants.errorRed;
+        break;
+      case ActivityType.loanRequested:
+        icon = Icons.account_balance_wallet_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.primary;
+        break;
+      case ActivityType.outcomeReported:
+        icon = Icons.assignment_turned_in_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = Theme.of(context).colorScheme.primary;
+        break;
+      case ActivityType.assistanceRequested:
+        icon = Icons.support_agent_outlined;
+        bg = AppConstants.amber.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
         break;
       case ActivityType.syncCompleted:
         icon = Icons.sync_rounded;

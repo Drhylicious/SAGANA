@@ -1,3 +1,4 @@
+import '../../core/l10n/localized_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'admin_reports_model.dart';
@@ -70,6 +71,8 @@ enum ReportModuleType {
   loan,
   memberContribution,
   coopStock,
+  // The Management Tool in Reports that can be exported.
+  analytics,
 }
 
 extension ReportModuleTypeExt on ReportModuleType {
@@ -84,9 +87,11 @@ extension ReportModuleTypeExt on ReportModuleType {
       case ReportModuleType.loan:
         return 'Loan Report';
       case ReportModuleType.memberContribution:
-        return 'Member Patronage Report';
+        return 'Member Contribution Report';
       case ReportModuleType.coopStock:
         return 'Cooperative Stock Report';
+      case ReportModuleType.analytics:
+        return 'Analytics Dashboard';
     }
   }
 
@@ -104,14 +109,16 @@ extension ReportModuleTypeExt on ReportModuleType {
         return Icons.groups_rounded;
       case ReportModuleType.coopStock:
         return Icons.warehouse_rounded;
+      case ReportModuleType.analytics:
+        return Icons.insights_rounded;
     }
   }
 
-  /// Member Patronage Report is year-scoped and Cooperative Stock is a current
-  /// snapshot, so neither is ReportPeriod-scoped.
-  bool get usesReportPeriod =>
-      this != ReportModuleType.memberContribution &&
-      this != ReportModuleType.coopStock;
+  /// Member Contribution Report is year-scoped
+  /// and Cooperative Stock is a current snapshot, so neither is ReportPeriod-
+  /// scoped. The Analytics Dashboard uses the period for its Member
+  /// Participation section (its price, crop and forecast sections are current).
+  bool get usesReportPeriod => !usesYear && this != ReportModuleType.coopStock;
 
   bool get usesYear => this == ReportModuleType.memberContribution;
 
@@ -119,24 +126,29 @@ extension ReportModuleTypeExt on ReportModuleType {
   bool get isSnapshot => this == ReportModuleType.coopStock;
 }
 
+/// The modules the signed-in staff member may export. Manager and Officer
+/// export the same reports (an Officer needs Manage on Reports, as before).
+List<ReportModuleType> exportableModules({required bool isOfficer}) =>
+    List.unmodifiable(ReportModuleType.values);
+
 enum CompliancePreset { cda, da }
 
 extension CompliancePresetExt on CompliancePreset {
   String get label {
     switch (this) {
       case CompliancePreset.cda:
-        return 'CDA Submission';
+        return currentL10n().dlPresetCda;
       case CompliancePreset.da:
-        return 'DA Submission';
+        return currentL10n().dlPresetDa;
     }
   }
 
   String get description {
     switch (this) {
       case CompliancePreset.cda:
-        return 'Sales, Loan, and Member Contribution reports';
+        return currentL10n().dlPresetCdaDesc;
       case CompliancePreset.da:
-        return 'Harvest report (includes batches & stock)';
+        return currentL10n().dlPresetDaDesc;
     }
   }
 

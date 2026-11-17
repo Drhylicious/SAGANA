@@ -393,6 +393,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                   const SizedBox(height: 16),
 
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: selectedCropType,
                     decoration: InputDecoration(
                       labelText: l10n.cropRequestCropTypeLabel,
@@ -529,9 +530,9 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
             ),
             TabBar(
               controller: _tabController,
-              labelColor: AppConstants.primaryGreen,
+              labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: AppConstants.primaryGreen,
+              indicatorColor: Theme.of(context).colorScheme.primary,
               tabs: [
                 Tab(text: l10n.cropRequestPendingTab(_pending.length)),
                 Tab(text: l10n.cropRequestReviewedTab),

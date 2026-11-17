@@ -426,9 +426,6 @@ void main() {
       final agg = _read('lib/data/repositories/member_sales_aggregation.dart');
       expect(agg, contains(".eq('is_member_price', true)"));
       expect(agg, contains('fetchMemberProgramPurchaseBreakdown'));
-      // The pool maths itself is unchanged: still the same formula in the same place.
-      final bt = _read('lib/data/repositories/balik_tangkilik_repository.dart');
-      expect(bt, contains('distributableProgramSurplus * purchaseShare'));
     });
 
     test('every farmer finds a Product Sales program\'s products in the Marketplace, not behind a program Shop button', () {

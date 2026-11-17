@@ -11,6 +11,8 @@ import '../../core/utils/bod_schedule_utils.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../routes/app_routes.dart';
 import 'farmer_lookup.dart';
+import '../../core/l10n/localized_labels.dart';
+import '../../core/utils/app_utils.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AdminDashboardRepository
@@ -324,9 +326,9 @@ class AdminDashboardRepository {
           id: 'bod',
           level: DashboardPriorityLevel.warning,
           label: daysUntilBod == 0
-              ? 'BOD Meeting — TODAY'
-              : 'BOD Meeting in $daysUntilBod day${daysUntilBod == 1 ? '' : 's'}',
-          value: '$farmersWithLoans farmers with outstanding loans',
+              ? currentL10n().dlBodToday
+              : currentL10n().dlBodInDays(daysUntilBod),
+          value: currentL10n().dlFarmersWithLoans(farmersWithLoans),
           route: AppRoutes.loanDashboard,
           useGo: true, // switch to Loans tab
         ),
@@ -345,8 +347,8 @@ class AdminDashboardRepository {
           DashboardPriority(
             id: 'overdue_loans',
             level: DashboardPriorityLevel.critical,
-            label: '${rows.length} Overdue Loan${rows.length == 1 ? '' : 's'}',
-            value: 'Immediate attention required',
+            label: currentL10n().dlOverdueLoans(rows.length),
+            value: currentL10n().dlImmediateAttention,
             route: AppRoutes.loanDashboard,
             useGo: true,
           ),
@@ -366,9 +368,8 @@ class AdminDashboardRepository {
           DashboardPriority(
             id: 'pending_listings',
             level: DashboardPriorityLevel.warning,
-            label:
-                '${rows.length} Listing${rows.length == 1 ? '' : 's'} Awaiting Approval',
-            value: 'Farmers waiting for review',
+            label: currentL10n().dlListingsAwaiting(rows.length),
+            value: currentL10n().dlFarmersWaitingReview,
             route: AppRoutes.pendingApprovals,
             // AppRoutes.pendingApprovals is a root-navigator push route, not a
             // shell branch — MarketplaceDashboardScreen already pushes this same
@@ -408,8 +409,7 @@ class AdminDashboardRepository {
           DashboardPriority(
             id: 'low_stock',
             level: DashboardPriorityLevel.warning,
-            label:
-                '${lowItems.length} Item${lowItems.length == 1 ? '' : 's'} Low on Stock',
+            label: currentL10n().dlItemsLowStock(lowItems.length),
             value: names,
             route: AppRoutes.adminInventory,
             useGo: false, // push above shell
@@ -434,9 +434,8 @@ class AdminDashboardRepository {
           DashboardPriority(
             id: 'crop_requests',
             level: DashboardPriorityLevel.warning,
-            label:
-                '${rows.length} Crop Request${rows.length == 1 ? '' : 's'} Pending',
-            value: 'Farmers waiting for catalog review',
+            label: currentL10n().dlCropRequestsPending(rows.length),
+            value: currentL10n().dlFarmersWaitingCatalog,
             route: AppRoutes.cropRequestApproval,
             useGo: false, // push above shell
           ),
@@ -459,9 +458,8 @@ class AdminDashboardRepository {
           DashboardPriority(
             id: 'pending_members',
             level: DashboardPriorityLevel.info,
-            label:
-                '${rows.length} Member${rows.length == 1 ? '' : 's'} Pending Verification',
-            value: 'New registrations to review',
+            label: currentL10n().dlMembersPending(rows.length),
+            value: currentL10n().dlNewRegistrations,
             route: AppRoutes.farmerManagement,
             useGo: true, // switch to Members tab
           ),
@@ -678,7 +676,9 @@ class AdminDashboardRepository {
         fetch: () =>
             _client.from('crop_master').select('id').eq('is_active', true),
       );
-      cropsBadge = rows.isEmpty ? 'No crops' : '${rows.length} crops';
+      cropsBadge = rows.isEmpty
+          ? currentL10n().dlBadgeNoCrops
+          : currentL10n().dlBadgeCrops(rows.length);
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchManagementModuleBadges/crops: $e',
@@ -693,7 +693,9 @@ class AdminDashboardRepository {
             .select('id')
             .eq('is_active', true),
       );
-      loanItemsBadge = rows.isEmpty ? 'No items' : '${rows.length} items';
+      loanItemsBadge = rows.isEmpty
+          ? currentL10n().dlBadgeNoItems
+          : currentL10n().dlBadgeItems(rows.length);
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchManagementModuleBadges/loanItems: $e',
@@ -703,7 +705,7 @@ class AdminDashboardRepository {
     try {
       // Supplies that moved this calendar year (incoming + outgoing).
       final totals = await SupplyChainRepository().fetchYearTotals();
-      supplyChainBadge = '${totals.total} supplies';
+      supplyChainBadge = currentL10n().dlBadgeSupplies(totals.total);
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchManagementModuleBadges/supplyChain: $e',
@@ -722,9 +724,10 @@ class AdminDashboardRepository {
       if (rows.isNotEmpty) {
         final crop = rows.first['crop_name'] as String;
         final ts = DateTime.parse(rows.first['recorded_at'] as String);
-        pricesBadge = '$crop · ${_timeLabel(ts, DateTime.now())}';
+        pricesBadge =
+            '$crop · ${AppUtils.formatRelativeTime(ts, currentL10n())}';
       } else {
-        pricesBadge = 'No entries';
+        pricesBadge = currentL10n().dlBadgeNoEntries;
       }
     } catch (e) {
       debugPrint(
@@ -742,8 +745,8 @@ class AdminDashboardRepository {
             .eq('is_active', true),
       );
       inventoryBadge = rows.isEmpty
-          ? 'No items'
-          : '${rows.length} ${rows.length == 1 ? 'item' : 'items'}';
+          ? currentL10n().dlBadgeNoItems
+          : currentL10n().dlBadgeItems(rows.length);
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchManagementModuleBadges/inventory: $e',
@@ -758,7 +761,9 @@ class AdminDashboardRepository {
             .select('id')
             .eq('status', 'active'),
       );
-      programsBadge = rows.isEmpty ? 'No programs' : '${rows.length} active';
+      programsBadge = rows.isEmpty
+          ? currentL10n().dlBadgeNoPrograms
+          : currentL10n().dlBadgeActive(rows.length);
     } catch (e) {
       debugPrint(
         '[AdminDashboardRepository] fetchManagementModuleBadges/programs: $e',
@@ -951,7 +956,6 @@ class AdminDashboardRepository {
       // pending, rejected, and suspended accounts that never became real
       // members — while the Reports/Analytics tab's equivalent figures
       // were already scoped to active members only. Matches
-      // BalikTangkilikRepository.fetchDistributionPreview() /
       // AdminReportsRepository / AdminAnalyticsRepository's identical fix.
       final rows = await _fetchFarmerRoleRows();
       activeFarmerIds = rows
@@ -1034,13 +1038,4 @@ class AdminDashboardRepository {
   // today), which made the "BOD Meeting — TODAY" label above unreachable in
   // practice — using the shared, already-correct utility fixes that as a
   // side effect of this consolidation.
-
-  String _timeLabel(DateTime dt, DateTime now) {
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    return '${diff.inDays}d ago';
-  }
 }

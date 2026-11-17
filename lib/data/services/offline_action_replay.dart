@@ -116,6 +116,21 @@ class OfflineActionReplay {
           cropId: p['cropId'] as String,
           cropName: p['cropName'] as String,
         );
+      case 'crop_add':
+        await CropRepository().addCropOnline(
+          id: p['id'] as String,
+          cropName: p['cropName'] as String,
+          category: p['category'] as String,
+          cropMasterId: p['cropMasterId'] as String,
+        );
+      case 'crop_request':
+        await CropRepository().requestNewCropOnline(
+          id: p['id'] as String,
+          cropName: p['cropName'] as String,
+          category: p['category'] as String,
+          cropType: p['cropType'] as String?,
+          shelfLifeDays: (p['shelfLifeDays'] as num?)?.toInt(),
+        );
       case 'notification_read':
         await NotificationRepository().markAsReadOnline(p['id'] as String);
       case 'notification_read_all':
@@ -137,6 +152,9 @@ class OfflineActionReplay {
           amount: (p['amount'] as num).toDouble(),
           source: p['source'] as String,
           note: p['note'] as String?,
+          effectiveDate: p['effectiveDate'] == null
+              ? null
+              : DateTime.parse(p['effectiveDate'] as String),
         );
       default:
         throw StateError('Unknown queued action: $kind');

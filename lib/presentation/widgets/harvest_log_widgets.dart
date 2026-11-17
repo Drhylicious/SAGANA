@@ -99,7 +99,7 @@ class HarvestSummaryStats extends StatelessWidget {
             label: l10n.harvestSummaryTotalLabel,
             value: isLoading ? '—' : _fmtYield(stats['total_yield'] ?? 0),
             unit: "kg",
-            valueColor: AppConstants.primaryGreen,
+            valueColor: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(width: 16),
@@ -364,7 +364,7 @@ class HarvestLogEntry extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Column(
+          Flexible(child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
@@ -390,7 +390,7 @@ class HarvestLogEntry extends StatelessWidget {
                           : AppConstants.warningAmber,
                     ),
                     const SizedBox(width: 4),
-                    Text(
+                    Flexible(child: Text(
                       harvest.isSynced
                           ? l10n.reportsSynced
                           : l10n.adminDashKpiPending,
@@ -401,7 +401,7 @@ class HarvestLogEntry extends StatelessWidget {
                             ? AppConstants.successGreen
                             : AppConstants.warningAmber,
                       ),
-                    ),
+                    )),
                   ],
                 ),
               ),
@@ -411,7 +411,7 @@ class HarvestLogEntry extends StatelessWidget {
                 style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
               ),
             ],
-          ),
+          )),
         ],
       ),
     );

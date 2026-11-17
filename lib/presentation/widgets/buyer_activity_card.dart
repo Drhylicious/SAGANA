@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/utils/activity_navigation.dart';
 import '../../data/models/buyer_activity_model.dart';
 import 'recent_activity_widgets.dart';
 
@@ -141,6 +142,7 @@ class BuyerActivityCard extends StatelessWidget {
     final iconTone = isOrder ? RecentActivityIconTone.info : badge!.iconTone;
 
     return RecentActivityCard(
+      onTap: () => openBuyerActivity(context, item),
       icon: icon,
       iconTone: iconTone,
       title: title,
