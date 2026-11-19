@@ -77,7 +77,7 @@ class _CreateOfficerAccountScreenState
   // random source) or typed by the Manager, matching Create Farmer Account.
   void _generatePassword() {
     setState(() {
-      _passwordCtrl.text = generateTemporaryPassword();
+      _passwordCtrl.text = generateAccountPassword();
       _obscurePassword = false;
     });
   }
@@ -246,7 +246,7 @@ class _CreateOfficerAccountScreenState
                           ),
                           onGenerate: _generatePassword,
                           requiredMessage: l10n.addMemberPasswordRequired,
-                          tooShortMessage: l10n.createOfficerPasswordTooShort,
+                          tooShortMessage: l10n.passwordRequirements,
                         ),
                       ],
                     ),

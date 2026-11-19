@@ -12092,5 +12092,6 @@
   "@assistCapBody": {"placeholders": {"amount": {"type": "String"}}},
   "assistCapStaffBlocked": "This farmer's Capital Share is ₱{amount}. At least one item is worth more than that, or the Capital Share is ₱0.00, so this request cannot be approved. You can disapprove it with a reason.",
   "@assistCapStaffBlocked": {"placeholders": {"amount": {"type": "String"}}},
-  "passwordErrPrevious": "Your new password must be different from your previous password."
+  "passwordErrPrevious": "Your new password must be different from your previous password.",
+  "passwordRequirements": "Password must be at least 8 characters and include an uppercase letter, a number and a special character."
 }

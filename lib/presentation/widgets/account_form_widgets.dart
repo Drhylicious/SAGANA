@@ -4,6 +4,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../core/utils/app_utils.dart';
+import 'password_requirements.dart' show isPasswordValid;
 
 // Building blocks shared by the Manager's account-creation forms (Create
 // Farmer Account and Create Officer Account), so both screens look and behave
@@ -161,7 +162,7 @@ class AccountFieldLabel extends StatelessWidget {
 }
 
 /// The temporary-password field: show/hide, an AUTO button that fills in a
-/// secure random password, and the 8-character minimum.
+/// secure random password, and the app password rule (8+ characters, an uppercase letter, a number and a special character).
 class TemporaryPasswordField extends StatelessWidget {
   const TemporaryPasswordField({
     super.key,
@@ -231,7 +232,7 @@ class TemporaryPasswordField extends StatelessWidget {
       ),
       validator: (v) {
         if (v == null || v.isEmpty) return requiredMessage;
-        if (v.length < 8) return tooShortMessage;
+        if (!isPasswordValid(v)) return tooShortMessage;
         return null;
       },
     );

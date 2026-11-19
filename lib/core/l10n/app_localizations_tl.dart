@@ -20935,4 +20935,8 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get passwordErrPrevious =>
       'Dapat iba ang bagong password sa dati mong password.';
+
+  @override
+  String get passwordRequirements =>
+      'Dapat ay hindi bababa sa 8 character ang password at may kahit isang malaking titik, isang numero, at isang espesyal na character.';
 }

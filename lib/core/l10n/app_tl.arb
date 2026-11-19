@@ -9458,5 +9458,6 @@
   "assistCapZero": "₱0.00 ang iyong Capital Share. Limitado ng iyong Capital Share ang mga item ng tulong, at lumalaki ito sa pamamagitan ng iyong mga kontribusyon at pagbili sa presyong miyembro.",
   "assistCapBody": "Ang bawat item ng tulong ay maaaring nagkakahalaga hanggang {amount} (dami × presyo). Ibinibigay ang tulong bilang mga item, hindi pera, at hindi binabayaran.",
   "assistCapStaffBlocked": "Ang Capital Share ng magsasakang ito ay ₱{amount}. May kahit isang item na mas mahal dito, o ₱0.00 ang Capital Share, kaya hindi maaaprubahan ang kahilingan. Maaari mo itong hindi aprubahan na may dahilan.",
-  "passwordErrPrevious": "Dapat iba ang bagong password sa dati mong password."
+  "passwordErrPrevious": "Dapat iba ang bagong password sa dati mong password.",
+  "passwordRequirements": "Dapat ay hindi bababa sa 8 character ang password at may kahit isang malaking titik, isang numero, at isang espesyal na character."
 }

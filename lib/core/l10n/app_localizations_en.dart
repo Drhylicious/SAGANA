@@ -20780,4 +20780,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get passwordErrPrevious =>
       'Your new password must be different from your previous password.';
+
+  @override
+  String get passwordRequirements =>
+      'Password must be at least 8 characters and include an uppercase letter, a number and a special character.';
 }

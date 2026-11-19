@@ -5,11 +5,15 @@ import 'package:supabase_flutter/supabase_flutter.dart'
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 
-/// The one password rule enforced app-wide: a minimum of 8 characters.
-/// Deliberately not a multi-rule strength policy (uppercase/number/symbol
-/// etc.) — that was tried and explicitly rejected as unnecessarily
-/// restrictive for this project.
-bool isPasswordValid(String value) => value.length >= 8;
+/// The one password rule enforced app-wide, for every role (Buyer, Farmer, Manager, Officer)
+/// wherever a password is CHOSEN: at least 8 characters, with at least one uppercase letter,
+/// one number and one special character (anything that is not a letter, digit or space).
+/// (Signing in is not checked against this rule, so existing accounts keep working.)
+bool isPasswordValid(String value) =>
+    value.length >= 8 &&
+    RegExp(r'[A-Z]').hasMatch(value) &&
+    RegExp(r'[0-9]').hasMatch(value) &&
+    RegExp(r'[^A-Za-z0-9\s]').hasMatch(value);
 
 /// What to tell the person when the server refused a new password (HTTP 422 from
 /// Supabase Auth: the same password again, or one its own policy calls weak), or
@@ -40,7 +44,7 @@ String? passwordUpdateErrorMessage(Object error, AppLocalizations l10n) {
   return null;
 }
 
-/// Form-field validator for the minimum-length rule. Shared by every
+/// Form-field validator for the password rule (length, uppercase, number, special character). Shared by every
 /// screen where a user chooses their own new password — Register
 /// (Farmer/Buyer), the OTP "Forgot Password" reset flow, the forced
 /// password-change screen after an admin-issued temporary password, and
@@ -49,7 +53,7 @@ String? passwordUpdateErrorMessage(Object error, AppLocalizations l10n) {
 String? validatePasswordMinLength(String? value, AppLocalizations l10n) {
   final v = value ?? '';
   if (v.isEmpty) return l10n.passwordRequired;
-  if (!isPasswordValid(v)) return l10n.passwordMinLength;
+  if (!isPasswordValid(v)) return l10n.passwordRequirements;
   return null;
 }
 
@@ -78,7 +82,7 @@ class PasswordLengthHint extends StatelessWidget {
                   const SizedBox(width: 5),
                   Flexible(
                     child: Text(
-                      AppLocalizations.of(context).passwordMinLength,
+                      AppLocalizations.of(context).passwordRequirements,
                       style: GoogleFonts.inter(
                         fontSize: 11.5,
                         color: AppConstants.warningAmber,

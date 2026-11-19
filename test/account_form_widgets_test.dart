@@ -153,7 +153,11 @@ void main() {
       await tester.pump();
       expect(find.text('Minimum 8 characters'), findsOneWidget);
 
+      // 8 digits alone no longer qualifies: the password rule also needs an uppercase letter and a special character.
       controller.text = '12345678';
+      expect(key.currentState!.validate(), isFalse);
+
+      controller.text = 'Abcd123!';
       expect(key.currentState!.validate(), isTrue);
     });
 

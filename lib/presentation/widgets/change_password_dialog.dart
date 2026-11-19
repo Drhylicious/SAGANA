@@ -57,7 +57,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       return;
     }
     if (!isPasswordValid(_newController.text)) {
-      setState(() => _error = l10n.passwordMinLength);
+      setState(() => _error = l10n.passwordRequirements);
       return;
     }
     if (_newController.text != _confirmController.text) {

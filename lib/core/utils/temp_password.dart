@@ -6,6 +6,18 @@ const String _upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const String _lower = 'abcdefghijkmnpqrstuvwxyz';
 const String _digits = '23456789';
 
+/// A temporary password that meets the app's password rule for every account a Manager or
+/// Officer creates: [generateTemporaryPassword] (readable letters and digits, with an uppercase
+/// letter, a lowercase letter and a digit) plus one special character from a set that is easy to
+/// read out, at a random position. 10 characters long.
+String generateAccountPassword({Random? random}) {
+  final r = random ?? Random.secure();
+  const specials = '!@#%&*?';
+  final base = generateTemporaryPassword(length: 9, random: r).split('');
+  base.insert(r.nextInt(base.length + 1), specials[r.nextInt(specials.length)]);
+  return base.join();
+}
+
 /// A random temporary password for an account a Manager creates.
 ///
 /// Drawn from the operating system's cryptographically secure random source

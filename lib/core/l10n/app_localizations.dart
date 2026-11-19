@@ -34878,6 +34878,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your new password must be different from your previous password.'**
   String get passwordErrPrevious;
+
+  /// No description provided for @passwordRequirements.
+  ///
+  /// In en, this message translates to:
+  /// **'Password must be at least 8 characters and include an uppercase letter, a number and a special character.'**
+  String get passwordRequirements;
 }
 
 class _AppLocalizationsDelegate

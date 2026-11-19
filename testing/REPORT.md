@@ -11,7 +11,7 @@ Run 2026-11-18 to 2026-11-19 on branch `testing/software-testing`. Everything ra
 
 | Type | Result | Evidence |
 |---|---|---|
-| Regression | 2,667 of 2,667 Dart tests pass (baseline 174 failing; the 35 stale tests left at the first report were rewritten). SQL harness 322/322. | `dart_tests_final4.json` |
+| Regression | 2,671 of 2,671 Dart tests pass (final run after the password rule; baseline 174 failing; the 35 stale tests left at the first report were rewritten). SQL harness 322/322. | `dart_tests_final7.json` |
 | White-box | Function permissions, row-level security, storage policies, stock and money rules and the sync replay code reviewed. Replay is safe: queued expenses carry a client id (second send refused), loans and payments carry idempotency keys. | `[replay]` checks in `api2_run2.txt`; lockdown scripts |
 | API | 310 of 310 checks pass: part 1 141 (auth, isolation, escalation, Officer gate, marketplace, orders, loans, restrictions, 20 simultaneous orders), part 2 133 (cooperative stock, programs, distribution, outcomes, returns, cooperative offers, market linking, delivery, notifications, broadcasts, replay), storage 36. | `api_run6.txt`, `api2_run2.txt`, `storage_run2.txt` |
 | Smoke | Six roles, 6 browser configurations, every main tab: no error text, console error or failed request. | `e2e_run_*.txt` |
@@ -90,12 +90,20 @@ Good: clear titles; the same bottom navigation per role; price and stock visible
 
 1. The three SQL scripts (`security_01`, `02`, `03`) are already run (you confirmed).
 2. Sign-in lockout hook: Authentication, Hooks, "Password Verification Attempt". You could not find it, which most likely means it is not offered on your current plan (I cannot check the live project). Until it is available the lockout function exists but is not called; the sign-in service does not limit wrong passwords. Options: upgrade the plan, or ask me to add CAPTCHA to the app (a Supabase CAPTCHA key plus an app change; do not switch CAPTCHA on in the dashboard before that or nobody can sign in).
-3. Authentication, Sign In / Providers, Email: set "Minimum password length" to 8 (a live-project setting I cannot change).
+3. Authentication, Sign In / Providers, Email: set "Minimum password length" to 8 (a live-project setting I cannot change). The fuller rule (uppercase letter, number, special character) is enforced by the app on every screen where a password is chosen (see below); the server setting only enforces the length.
 4. Push or merge the commits when you are ready.
+
+## Final status
+
+Functional Testing: Done. Non-Functional Testing: Done. Final regression run: 2,671 of 2,671 Dart tests pass; SQL harness 322/322, API and storage suites all pass (last run before the password change, which touched no SQL or server code); Chrome checks pass. Known limits are in sections 4 and 6.
+
+## Password rule (added after testing, at your request)
+
+One rule for every role (Buyer, Farmer, Manager, Officer) wherever a password is chosen: at least 8 characters, one uppercase letter, one number, one special character (not a letter, digit or space). It applies to Register, the staff-side Create Farmer Member screen, the Manager-side Create Officer screen, Forgot Password, the forced password change and the in-app Change Password. Signing in is not checked against it, so existing accounts keep working. The auto-generated temporary passwords now include a special character (new `generateAccountPassword`; the old generator and its tests are unchanged). Checks: new `test/password_rule_all_roles_test.dart` (4 tests) and the 14 existing password-related test files. The one existing test that encoded the old rule (`account_form_widgets_test.dart`, `12345678` accepted) was updated with your approval: it now expects `12345678` to be refused and `Abcd123!` to be accepted. Chrome check of the new rule: 65 of 65 pass (Register for Farmer and Buyer, staff Create Farmer Member, Manager Create Officer, in-app Change Password for Farmer, Buyer, Manager and Officer, and the forced password change, which shares its form with Forgot Password); evidence `e2e_password_rule.txt`.
 
 ## Verification of the latest round
 
-- Dart: 2,667 of 2,667 pass after the changes (`dart_tests_final6.json`).
+- Dart: 2,671 of 2,671 pass after all changes including the password rule (`dart_tests_final7.json`).
 - Chrome, rebuilt app: smoke walk, all six roles at phone width, 35 of 35 pass; Order Management shows all 6,976 orders; Loans dashboard shows 108 active loans = database; a tap 14 px off the notification bell and 11 px off the profile picture still works; "View Market" is 48 px tall; Farmer, Buyer and Manager home screens render normally.
 - Not verified (and so not shipped): the "could not load" notice (section 4).
 

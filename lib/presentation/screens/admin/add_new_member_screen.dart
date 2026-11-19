@@ -104,7 +104,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
 
   void _generatePassword() {
     setState(() {
-      _passwordCtrl.text = generateTemporaryPassword();
+      _passwordCtrl.text = generateAccountPassword();
       _obscurePassword = false;
     });
   }
@@ -380,7 +380,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                   setState(() => _obscurePassword = !_obscurePassword),
               onGenerate: _generatePassword,
               requiredMessage: l10n.addMemberPasswordRequired,
-              tooShortMessage: l10n.addMemberPasswordTooShort,
+              tooShortMessage: l10n.passwordRequirements,
             ),
           ],
         ),
