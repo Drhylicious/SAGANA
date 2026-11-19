@@ -365,7 +365,7 @@ void main() {
       'an unverified address shows "Unverified" and a Verify Email action',
       (tester) async {
         await runIgnoringFontErrors(() async {
-          await _pump(tester, _Host(verifier: _Fake(), log: const []));
+          await _pump(tester, _Host(verifier: _Fake(), log: <String>[]));
           expect(_unverified(), findsOneWidget);
           expect(find.text('Unverified'), findsOneWidget);
           expect(_action(), findsOneWidget);
@@ -381,7 +381,7 @@ void main() {
       await runIgnoringFontErrors(() async {
         await _pump(
           tester,
-          _Host(verifier: _Fake(), log: const [], verified: true),
+          _Host(verifier: _Fake(), log: <String>[], verified: true),
         );
         expect(_verifiedChip(), findsOneWidget);
         expect(find.text('Verified'), findsOneWidget);
@@ -395,7 +395,7 @@ void main() {
           tester,
           _Host(
             verifier: _Fake(),
-            log: const [],
+            log: <String>[],
             initialText: '',
             savedEmail: null,
           ),
@@ -411,7 +411,7 @@ void main() {
         await runIgnoringFontErrors(() async {
           await _pump(
             tester,
-            _Host(verifier: _Fake(), log: const [], verified: true),
+            _Host(verifier: _Fake(), log: <String>[], verified: true),
           );
           expect(_verifiedChip(), findsOneWidget);
           await tester.enterText(
@@ -482,7 +482,7 @@ void main() {
         final fake = _Fake();
         await _pump(
           tester,
-          _Host(verifier: fake, log: const [], saveSucceeds: false),
+          _Host(verifier: fake, log: <String>[], saveSucceeds: false),
         );
         await tester.enterText(
           find.byKey(const ValueKey('email-field')),
@@ -501,7 +501,7 @@ void main() {
         final fake = _Fake();
         await _pump(
           tester,
-          _Host(verifier: fake, log: const [], isOnline: false),
+          _Host(verifier: fake, log: <String>[], isOnline: false),
         );
         await tester.tap(_action());
         await tester.pump();
@@ -574,7 +574,7 @@ void main() {
       (tester) async {
         await runIgnoringFontErrors(() async {
           final fake = _Fake(requests: [_sent]);
-          await _pump(tester, _Host(verifier: fake, log: const []));
+          await _pump(tester, _Host(verifier: fake, log: <String>[]));
           await _openCodeEntry(tester);
           await _type(tester, '12345');
           await tester.tap(_confirm());
@@ -591,7 +591,7 @@ void main() {
           tester,
           _Host(
             verifier: _Fake(requests: [_sent]),
-            log: const [],
+            log: <String>[],
           ),
         );
         await _openCodeEntry(tester);
@@ -632,7 +632,7 @@ void main() {
               requests: [_sent],
               checks: [EmailCodeCheckResult(c.$1)],
             );
-            await _pump(tester, _Host(verifier: fake, log: const []));
+            await _pump(tester, _Host(verifier: fake, log: <String>[]));
             await _openCodeEntry(tester);
             await _type(tester, '123456');
             await tester.tap(_confirm());
@@ -655,7 +655,7 @@ void main() {
             requests: [_sent],
             checks: [const EmailCodeCheckResult(EmailCodeCheckStatus.error)],
           );
-          await _pump(tester, _Host(verifier: fake, log: const []));
+          await _pump(tester, _Host(verifier: fake, log: <String>[]));
           await _openCodeEntry(tester);
           await _type(tester, '123456');
           await tester.tap(_confirm());
@@ -705,7 +705,7 @@ void main() {
             tester,
             _Host(
               verifier: _Fake(requests: [c.$1]),
-              log: const [],
+              log: <String>[],
             ),
           );
           await _openCodeEntry(tester);
@@ -749,7 +749,7 @@ void main() {
       (tester) async {
         await runIgnoringFontErrors(() async {
           final fake = _Fake(requests: [_sent, _sent]);
-          await _pump(tester, _Host(verifier: fake, log: const []));
+          await _pump(tester, _Host(verifier: fake, log: <String>[]));
           await _openCodeEntry(tester);
           expect(find.text('Resend in 60s'), findsOneWidget);
           expect(tester.widget<TextButton>(_resend()).onPressed, isNull);
@@ -784,7 +784,7 @@ void main() {
               ),
             ],
           );
-          await _pump(tester, _Host(verifier: fake, log: const []));
+          await _pump(tester, _Host(verifier: fake, log: <String>[]));
           await _openCodeEntry(tester);
           await tester.pump(const Duration(seconds: 61));
           await tester.tap(_resend());
@@ -807,7 +807,7 @@ void main() {
             tester,
             _Host(
               verifier: _Fake(requests: [_sent]),
-              log: const [],
+              log: <String>[],
             ),
           );
           await _openCodeEntry(tester);
@@ -842,7 +842,7 @@ void main() {
                 ),
               ],
             ),
-            log: const [],
+            log: <String>[],
             initialText:
                 'a-very-long-address.with.many.parts@some-long-domain-name.example.org',
             savedEmail:

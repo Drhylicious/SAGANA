@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import '../models/account_source_model.dart';
@@ -66,31 +67,22 @@ class FarmerManagementRepository {
           };
 
           // 2. user_information
-          final infoRows = await _client
-              .from('user_information')
-              .select(
+          final infoRows = await chunkedIn(userIds, (slice) => _client.from('user_information').select(
                 'user_id, full_name, profile_photo_url, last_active_at, '
                 'contact_email, phone_number',
-              )
-              .inFilter('user_id', userIds);
+              ).inFilter('user_id', slice));
 
           final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
           // 3. farmer_profiles (is_verified)
-          final profileRows = await _client
-              .from('farmer_profiles')
-              .select('user_id, is_verified')
-              .inFilter('user_id', userIds);
+          final profileRows = await chunkedIn(userIds, (slice) => _client.from('farmer_profiles').select('user_id, is_verified').inFilter('user_id', slice));
 
           final profileMap = {
             for (final r in profileRows) r['user_id'] as String: r,
           };
 
           // 4. Crops per farmer
-          final cropRows = await _client
-              .from('farmer_crops')
-              .select('farmer_id, crop_name')
-              .inFilter('farmer_id', userIds);
+          final cropRows = await chunkedIn(userIds, (slice) => _client.from('farmer_crops').select('farmer_id, crop_name').inFilter('farmer_id', slice));
 
           final cropsMap = <String, List<String>>{};
           for (final r in cropRows) {
@@ -141,10 +133,7 @@ class FarmerManagementRepository {
           // when it cannot be read: the list itself must still load.
           final capitalMap = <String, double>{};
           try {
-            final capitalRows = await _client
-                .from('member_capital_shares')
-                .select('farmer_id, total_contribution')
-                .inFilter('farmer_id', userIds);
+            final capitalRows = await chunkedIn(userIds, (slice) => _client.from('member_capital_shares').select('farmer_id, total_contribution').inFilter('farmer_id', slice));
             for (final r in capitalRows) {
               capitalMap[r['farmer_id'] as String] =
                   (r['total_contribution'] as num? ?? 0).toDouble();

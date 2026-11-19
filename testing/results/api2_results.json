@@ -1,0 +1,800 @@
+[
+ {
+  "area": "coop-stock",
+  "name": "direct API insert of stock with a quantity is refused (stock moves only through the stock RPC)",
+  "pass": true,
+  "detail": "400 Use the authorized cooperative stock RPC."
+ },
+ {
+  "area": "coop-stock",
+  "name": "Manager creates an item with zero stock",
+  "pass": true,
+  "detail": "201 [{\"id\":\"383da9be-5b46-444e-8ad7-151d41cecb28\",\"item_name\":\"API Seed 1795075411741\",\"category\":\"Tools\",\"unit\":\"sack\",\"quantity_on_hand\":0,\"qu"
+ },
+ {
+  "area": "coop-stock",
+  "name": "Farmer cannot create cooperative stock items",
+  "pass": true,
+  "detail": "400 Source is required for an inventory item."
+ },
+ {
+  "area": "coop-stock",
+  "name": "view-only Officer cannot restock",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "coop-stock",
+  "name": "Farmer and Buyer cannot restock",
+  "pass": true,
+  "detail": "400/400"
+ },
+ {
+  "area": "coop-stock",
+  "name": "Manager restocks +40 (decimal 2 places accepted)",
+  "pass": true,
+  "detail": "200 40"
+ },
+ {
+  "area": "coop-stock",
+  "name": "sending the same request again does not add the stock twice (idempotent)",
+  "pass": true,
+  "detail": "on hand 40"
+ },
+ {
+  "area": "coop-stock",
+  "name": "the same request id with a different quantity is refused",
+  "pass": true,
+  "detail": "400 This request ID was already used for a different stock operation."
+ },
+ {
+  "area": "coop-stock",
+  "name": "a restock with a negative quantity, an adjustment with a positive one, zero and 3 decimals are all refused",
+  "pass": true,
+  "detail": "x,x,x,x,x"
+ },
+ {
+  "area": "coop-stock",
+  "name": "writing off more than is on hand is refused and the stock is unchanged",
+  "pass": true,
+  "detail": "Insufficient unreserved stock. on hand 40"
+ },
+ {
+  "area": "coop-stock",
+  "name": "Manage Officer can write off 0.5 (valid)",
+  "pass": true,
+  "detail": "200 39.5"
+ },
+ {
+  "area": "coop-stock",
+  "name": "stock changes are written to the ledger",
+  "pass": true,
+  "detail": "[{\"transaction_type\":\"restock\",\"quantity\":40},{\"transaction_type\":\"written_off\",\"quantity\":-0.5}]"
+ },
+ {
+  "area": "coop-stock",
+  "name": "a Buyer cannot read cooperative stock",
+  "pass": true,
+  "detail": "rows=0 "
+ },
+ {
+  "area": "programs",
+  "name": "Farmer cannot create a program",
+  "pass": true,
+  "detail": "403 new row violates row-level security policy for table \"cooperative_programs\""
+ },
+ {
+  "area": "programs",
+  "name": "view-only Officer cannot create a program",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "programs",
+  "name": "a distribution program without photo and description is refused with the missing fields named",
+  "pass": true,
+  "detail": "A distribution program needs every required field. Missing: photo, description"
+ },
+ {
+  "area": "programs",
+  "name": "a bad benefit type is refused",
+  "pass": true,
+  "detail": "400 new row for relation \"cooperative_programs\" violates check constraint \"cooperative_programs_benefit_type_check\""
+ },
+ {
+  "area": "programs",
+  "name": "a member discount over 100% is refused",
+  "pass": true,
+  "detail": "400 new row for relation \"cooperative_programs\" violates check constraint \"cooperative_programs_member_discount_check\""
+ },
+ {
+  "area": "programs",
+  "name": "Manager creates a distribution program",
+  "pass": true,
+  "detail": "201 [{\"id\":\"df62c18a-9415-40d4-b9f5-bc7f396e906a\",\"program_name\":\"API Program 1795075411741\",\"program_type\":\"Crop\",\"description\":\"API test progr"
+ },
+ {
+  "area": "programs",
+  "name": "a Buyer cannot read programs' members",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "programs",
+  "name": "Farmer 1 asks to join the program",
+  "pass": true,
+  "detail": "200 4f1827d4-31e5-4adf-aa4d-2bcc11d01173"
+ },
+ {
+  "area": "programs",
+  "name": "asking twice while the first request is pending is refused",
+  "pass": true,
+  "detail": "400 You already have a pending or approved request for this program"
+ },
+ {
+  "area": "programs",
+  "name": "a pending (unapproved) applicant cannot ask to join",
+  "pass": true,
+  "detail": "400 Your membership is pending approval. This feature is available once the SP3 Manager approves your application."
+ },
+ {
+  "area": "programs",
+  "name": "Farmer 2 cannot see Farmer 1's join request",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "programs",
+  "name": "Manager sees the request",
+  "pass": true,
+  "detail": "[{\"id\":\"4f1827d4-31e5-4adf-aa4d-2bcc11d01173\",\"status\":\"pending\"}]"
+ },
+ {
+  "area": "programs",
+  "name": "a Farmer cannot approve a join request (own or anyone's)",
+  "pass": true,
+  "detail": "400 Unauthorized: only a Manager or Officer can review join requests"
+ },
+ {
+  "area": "programs",
+  "name": "view-only Officer cannot approve a join request",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "programs",
+  "name": "a Farmer cannot make themselves a member by inserting directly",
+  "pass": true,
+  "detail": "403 new row violates row-level security policy for table \"program_members\""
+ },
+ {
+  "area": "programs",
+  "name": "Manager approves; Farmer 1 becomes an active member",
+  "pass": true,
+  "detail": " [{\"id\":\"395f76cd-df5e-43d6-85a7-103efaabcda3\",\"status\":\"active\",\"distributed_at\":null}]"
+ },
+ {
+  "area": "programs",
+  "name": "approving the same request again is refused",
+  "pass": true,
+  "detail": "400 Request already reviewed (status: approved)"
+ },
+ {
+  "area": "programs",
+  "name": "Farmer 2 cannot see Farmer 1's membership",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "programs",
+  "name": "a Farmer cannot distribute stock to themselves",
+  "pass": true,
+  "detail": "400 Unauthorized: only a Manager or Officer can distribute a program benefit"
+ },
+ {
+  "area": "programs",
+  "name": "view-only Officer cannot distribute stock",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "programs",
+  "name": "distributing more than is on hand, zero, or a negative quantity is refused",
+  "pass": true,
+  "detail": "x,x,x"
+ },
+ {
+  "area": "programs",
+  "name": "Manager distributes 2 units; stock falls by exactly 2 and the member is marked as received",
+  "pass": true,
+  "detail": "39.5->37.5  {\"distributed_at\":\"2026-11-19T08:03:32.595925+00:00\",\"quantity_given\":2}"
+ },
+ {
+  "area": "programs",
+  "name": "distributing to the same member a second time is refused (one distribution per round)",
+  "pass": true,
+  "detail": "400 This member has already received a distribution"
+ },
+ {
+  "area": "outcome",
+  "name": "a Free Distribution refuses an outcome report (the item belongs to the Farmer once given)",
+  "pass": true,
+  "detail": "A Free Distribution does not need an outcome report: once the item is distributed it belongs to the Farmer."
+ },
+ {
+  "area": "outcome",
+  "name": "Manager creates a Harvest Return program (revenue share)",
+  "pass": true,
+  "detail": "201 [{\"id\":\"62395da8-e615-4caf-93a4-74f50f0f3d03\",\"program_name\":\"API HR 1795075411741\",\"program_type\":\"Crop\",\"description\":\"API test program\",\""
+ },
+ {
+  "area": "outcome",
+  "name": "Farmer 1 joins it; distributing is refused until the expected return is set, then works",
+  "pass": true,
+  "detail": "200  | 204  | 400 RETURN_QUANTITY_REQUIRED: Enter the quantity this Farmer is expected to return before distributing. | 200  | 204 "
+ },
+ {
+  "area": "outcome",
+  "name": "the evidence photo uploaded",
+  "pass": true,
+  "detail": "19364f1a-9537-4eff-a5df-e382f74d49dd/out1795075411741.png"
+ },
+ {
+  "area": "outcome",
+  "name": "Farmer 2 cannot report an outcome for Farmer 1's membership",
+  "pass": true,
+  "detail": "400 Program enrollment not found."
+ },
+ {
+  "area": "outcome",
+  "name": "a report needs an explanation, a quantity for success, a date, and a photo",
+  "pass": true,
+  "detail": "x,x,x,x,x,x"
+ },
+ {
+  "area": "outcome",
+  "name": "a photo path in someone else's folder is refused",
+  "pass": true,
+  "detail": "A photo does not belong to you."
+ },
+ {
+  "area": "outcome",
+  "name": "a failed outcome needs the cause and the date it failed",
+  "pass": true,
+  "detail": "400 Describe what caused the failure."
+ },
+ {
+  "area": "outcome",
+  "name": "Farmer 1 reports a successful outcome with a photo",
+  "pass": true,
+  "detail": "0e1e1c6c-8aee-4302-8367-156e0c949a22 reports=20"
+ },
+ {
+  "area": "outcome",
+  "name": "a second report while one is in progress is refused",
+  "pass": true,
+  "detail": "400 An outcome report for this program is already in progress or finished."
+ },
+ {
+  "area": "outcome",
+  "name": "Farmer 2 does not see Farmer 1's report",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "outcome",
+  "name": "a Farmer cannot review, verify or finalise a report",
+  "pass": true,
+  "detail": "400/400/400"
+ },
+ {
+  "area": "outcome",
+  "name": "view-only Officer cannot review a report",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "outcome",
+  "name": "returning a report needs a note",
+  "pass": true,
+  "detail": "400 Explain what the Farmer needs to fix."
+ },
+ {
+  "area": "outcome",
+  "name": "Manager validates the report",
+  "pass": true,
+  "detail": "204 "
+ },
+ {
+  "area": "outcome",
+  "name": "finalising before the field verification is refused",
+  "pass": true,
+  "detail": "400 The field verification must be completed first."
+ },
+ {
+  "area": "outcome",
+  "name": "view-only Officer cannot record the field verification",
+  "pass": true,
+  "detail": "404 Could not find the function public.verify_program_outcome(p_field_visit_date, p_finding, p_photo_paths, p_report_id, p_verified_quantity, p_"
+ },
+ {
+  "area": "outcome",
+  "name": "Manage Officer records the field verification (confirms 12.5 kg)",
+  "pass": true,
+  "detail": "204 "
+ },
+ {
+  "area": "outcome",
+  "name": "finalising with an invalid outcome value is refused",
+  "pass": true,
+  "detail": "400 The final outcome must be successful or failed."
+ },
+ {
+  "area": "outcome",
+  "name": "Manager finalises the outcome as Successful",
+  "pass": true,
+  "detail": " {\"status\":\"finalized\",\"final_outcome\":\"successful\"}"
+ },
+ {
+  "area": "outcome",
+  "name": "finalising a second time is refused (nothing is applied twice)",
+  "pass": true,
+  "detail": "400 This outcome was already finalized."
+ },
+ {
+  "area": "returns",
+  "name": "a Farmer cannot confirm, adjust or close a program return",
+  "pass": true,
+  "detail": "403/400/400"
+ },
+ {
+  "area": "returns",
+  "name": "a Farmer sees only their own returns",
+  "pass": true,
+  "detail": "shape={\"returns\":[],\"resolutions\":[]}"
+ },
+ {
+  "area": "programs",
+  "name": "a Farmer cannot complete a program",
+  "pass": true,
+  "detail": "400 NOT_ALLOWED: Only a Manager or Officer can complete a program."
+ },
+ {
+  "area": "programs",
+  "name": "view-only Officer cannot complete a program",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "programs",
+  "name": "Manager completes the program; it is then closed to new join requests",
+  "pass": true,
+  "detail": "0 | join: 400 This program is not currently accepting enrollments"
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 1 has a 20 kg batch to offer",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 2 cannot offer Farmer 1's batch",
+  "pass": true,
+  "detail": "400 This batch was not found in your inventory."
+ },
+ {
+  "area": "offers",
+  "name": "a Buyer cannot offer to the cooperative",
+  "pass": true,
+  "detail": "400 Only farmer members can offer a harvest to the cooperative."
+ },
+ {
+  "area": "offers",
+  "name": "offering more than the batch holds, zero, a negative quantity or a negative price is refused",
+  "pass": true,
+  "detail": "x,x,x,x"
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 1 offers 10 kg at ₱40",
+  "pass": true,
+  "detail": "200 980fea62-c50a-4447-9c51-34e07b81522b status=pending round=1"
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 2 cannot see Farmer 1's offer; a Buyer cannot either",
+  "pass": true,
+  "detail": "0/0"
+ },
+ {
+  "area": "offers",
+  "name": "offering the same stock twice cannot exceed what the batch holds",
+  "pass": true,
+  "detail": "400 Not enough available quantity in this batch."
+ },
+ {
+  "area": "offers",
+  "name": "a Farmer cannot counter or accept on behalf of the cooperative",
+  "pass": true,
+  "detail": "400/400"
+ },
+ {
+  "area": "offers",
+  "name": "view-only Officer cannot counter an offer",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the marketplace module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "offers",
+  "name": "a counter-price of zero or a negative price is refused",
+  "pass": true,
+  "detail": "x,x"
+ },
+ {
+  "area": "offers",
+  "name": "Manager counters at ₱35 (round advances)",
+  "pass": true,
+  "detail": "2 round=2 price=35 by=cooperative"
+ },
+ {
+  "area": "offers",
+  "name": "a counter that uses an out-of-date round is refused (two people cannot overwrite each other)",
+  "pass": true,
+  "detail": "400 This offer was updated. Please refresh and review the latest price."
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 2 cannot accept Farmer 1's offer",
+  "pass": true,
+  "detail": "400 You are not allowed to respond to this offer."
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 1 accepts the counter; the agreed price is ₱35",
+  "pass": true,
+  "detail": "980fea62-c50a-4447-9c51-34e07b81522b status=approved agreed=35"
+ },
+ {
+  "area": "offers",
+  "name": "accepting again, or countering after agreement, is refused",
+  "pass": true,
+  "detail": "400/400"
+ },
+ {
+  "area": "offers",
+  "name": "a Farmer cannot confirm receipt of their own delivery",
+  "pass": true,
+  "detail": "400 Only the cooperative can confirm a delivery."
+ },
+ {
+  "area": "offers",
+  "name": "confirming receipt before the Farmer has delivered is refused",
+  "pass": true,
+  "detail": "400 Only a delivered offer can be confirmed as received (current status: approved)."
+ },
+ {
+  "area": "offers",
+  "name": "another Farmer cannot deliver against this offer",
+  "pass": true,
+  "detail": "400 Cooperative offer not found."
+ },
+ {
+  "area": "offers",
+  "name": "delivery needs a photo; Farmer 1 delivers; the Manager confirms receipt twice, yet the stock and the payment amount are applied exactly once (10 kg x ₱35 = ₱350)",
+  "pass": true,
+  "detail": "photo-less 400, deliver 204, confirm 200, again 200, receipts=1, amount=350, stock=150 (ledger sum 150), status=completed"
+ },
+ {
+  "area": "offers",
+  "name": "Farmer 1 cannot cancel Farmer 2's offer; Farmer 2 can cancel their own",
+  "pass": true,
+  "detail": "400/204 "
+ },
+ {
+  "area": "offers",
+  "name": "Manager can decline a fresh offer with a reason, and a cancelled offer cannot be declined again",
+  "pass": true,
+  "detail": "204/400 This negotiation is already closed."
+ },
+ {
+  "area": "offers",
+  "name": "every negotiation step is recorded in the offer history",
+  "pass": true,
+  "detail": "events=5"
+ },
+ {
+  "area": "linking",
+  "name": "a Farmer without Ginger in the Crop Roster cannot enrol in DA-AMAD (Ginger is taken out of Farmer 2 roster for this check, then restored)",
+  "pass": true,
+  "detail": "400 A Ginger crop in your Crop Roster is required to enroll"
+ },
+ {
+  "area": "linking",
+  "name": "a Buyer and a pending applicant cannot enrol",
+  "pass": true,
+  "detail": "400/400"
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 1 (has Ginger) enrols; a second enrolment while one is pending or approved is refused",
+  "pass": true,
+  "detail": "first 400 You already have a pending or approved enrollment | second 400 You already have a pending or approved enrollment"
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 2 cannot see Farmer 1's enrolment",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "linking",
+  "name": "a Farmer and a view-only Officer cannot approve an enrolment",
+  "pass": true,
+  "detail": "400/403"
+ },
+ {
+  "area": "linking",
+  "name": "Manager approves the enrolment",
+  "pass": true,
+  "detail": "{\"id\":\"9678e792-61ff-4a7e-9cd8-2a3e3df0f624\",\"status\":\"approved\"}"
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 1 acknowledges the approval; another Farmer cannot",
+  "pass": true,
+  "detail": "other 204 (stored after: unchanged) own 204 stored: yes"
+ },
+ {
+  "area": "linking",
+  "name": "a Ginger batch cannot be offered to the cooperative (Ginger sells only through DA-AMAD)",
+  "pass": true,
+  "detail": "Ginger can only be sold through DA-AMAD Market Linking — it cannot be sold through Offer to Cooperative."
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 1 submits 12 kg of the Ginger batch for sale (the current path: submit_ginger_for_sale)",
+  "pass": true,
+  "detail": "200 40474858-b869-4f3e-8925-6260de2988d9 status=submitted volume=12 reserved=12"
+ },
+ {
+  "area": "linking",
+  "name": "submitting more kg than the batch holds, zero, or a negative amount is refused",
+  "pass": true,
+  "detail": "x,x,x"
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 2 cannot submit Farmer 1's batch",
+  "pass": true,
+  "detail": "400 An approved Market Linking enrollment is required to submit a Ginger harvest"
+ },
+ {
+  "area": "linking",
+  "name": "the same batch can be submitted again only for what is still available (partial sales): 1 kg is accepted, 100 kg is refused",
+  "pass": true,
+  "detail": "first 200 | over 400 That is more than this batch has available (17.00 left)."
+ },
+ {
+  "area": "linking",
+  "name": "the kilograms are reserved from the batch at submission (30 kg batch: 12 + 1 reserved leaves 17)",
+  "pass": true,
+  "detail": "available 17, reserved 12"
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 2 cannot see Farmer 1's submission; a Buyer cannot either",
+  "pass": true,
+  "detail": "0/0"
+ },
+ {
+  "area": "linking",
+  "name": "the retired direct-insert request path now refuses 0, negative and oversized volumes (found by this test; fixed by supabase_schema_security_02)",
+  "pass": true,
+  "detail": "x,x,x"
+ },
+ {
+  "area": "linking",
+  "name": "a sale cannot be recorded before the buyer's details are saved; a Farmer cannot save them",
+  "pass": true,
+  "detail": "sale 400 Save the buyer's details before completing the sale. | farmer saves 400"
+ },
+ {
+  "area": "linking",
+  "name": "Manager saves the buyer details",
+  "pass": true,
+  "detail": "204 "
+ },
+ {
+  "area": "linking",
+  "name": "a Farmer cannot record a sale; nor can a view-only Officer",
+  "pass": true,
+  "detail": "400/403"
+ },
+ {
+  "area": "linking",
+  "name": "a sale of more than the reserved kg, zero, negative, or at a negative price is refused",
+  "pass": true,
+  "detail": "x,x,x,x"
+ },
+ {
+  "area": "linking",
+  "name": "Manager records a sale of 5 kg at ₱100; total is ₱500; sold kg goes up by 5",
+  "pass": true,
+  "detail": "64333fa0-60b4-41be-89fb-3f89ecce88f6 [{\"confirmed_volume_kg\":5,\"price_per_kg\":100,\"total_amount\":500}] sold=5"
+ },
+ {
+  "area": "linking",
+  "name": "a second sale cannot exceed what is left (12 - 5 = 7): 8 kg is refused, 7 kg is accepted",
+  "pass": true,
+  "detail": "over 400 That is more than this request has left (7.00 remaining). | exact 200 "
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 2 and a Buyer cannot read Farmer 1's sales",
+  "pass": true,
+  "detail": "0/0"
+ },
+ {
+  "area": "linking",
+  "name": "sales rows cannot be edited or deleted through the API by a Farmer",
+  "pass": true,
+  "detail": "patch 200 delete 200 rows 2"
+ },
+ {
+  "area": "linking",
+  "name": "Farmer 2 cannot request cancellation of Farmer 1's request",
+  "pass": true,
+  "detail": "400 Market linking request not found"
+ },
+ {
+  "area": "linking",
+  "name": "a Farmer cannot close a request on the cooperative side",
+  "pass": true,
+  "detail": "403 permission denied for function close_market_linking_request"
+ },
+ {
+  "area": "delivery",
+  "name": "delivery status can be read by a signed-in Buyer; a signed-out caller is refused",
+  "pass": true,
+  "detail": "buyer 200 {\"ready\":false,\"enabled\":false,\"missing\":[],\"pickup_enabled\":true,\"allowed_baran | anon 200"
+ },
+ {
+  "area": "delivery",
+  "name": "a Farmer, Buyer and view-only Officer cannot switch delivery on or off",
+  "pass": true,
+  "detail": "x,x,x"
+ },
+ {
+  "area": "delivery",
+  "name": "a Farmer and a Buyer cannot replace the delivery fee bands",
+  "pass": true,
+  "detail": "400/400"
+ },
+ {
+  "area": "delivery",
+  "name": "a Farmer and a Buyer cannot write the delivery settings or fee bands tables directly",
+  "pass": true,
+  "detail": "settings patch 403 rows -1 | bands insert 403 | enabled now [{\"delivery_enabled\":false}]"
+ },
+ {
+  "area": "delivery",
+  "name": "fee bands with a negative fee, or where the km ranges overlap or run backwards, are refused",
+  "pass": true,
+  "detail": "x | x | x"
+ },
+ {
+  "area": "delivery",
+  "name": "Buyer saves a delivery address",
+  "pass": true,
+  "detail": "201 [{\"id\":\"c7397f86-74f6-4210-9ff6-614033834efd\",\"user_id\":\"71703e1b-2d42-4d15-9376-1474daf79eb4\",\"label\":\"Home\",\"recipient_name\":\"Test Buyer\","
+ },
+ {
+  "area": "delivery",
+  "name": "another user cannot get a delivery quote for the Buyer's address, nor read or change it",
+  "pass": true,
+  "detail": "quote 400 ADDRESS_NOT_FOUND: Choose one of your saved addresses. read 0 patch 200 stored: Payanas, Torrijos, Marinduque, MIMAROPA Region, 4903"
+ },
+ {
+  "area": "delivery",
+  "name": "the Buyer gets an answer for their own address (a price, or a clear reason delivery is unavailable)",
+  "pass": true,
+  "detail": "400 {\"code\":\"P0001\",\"details\":null,\"hint\":null,\"message\":\"DELIVERY_OFF: Delivery is not available right now. Please choose Pickup.\"}"
+ },
+ {
+  "area": "delivery",
+  "name": "ordering for delivery while delivery is off is refused (only pickup works)",
+  "pass": true,
+  "detail": "delivery_enabled=false order 400 DELIVERY_OFF: Delivery is not available right now. Please choose Pickup."
+ },
+ {
+  "area": "delivery",
+  "name": "a pickup order still works while delivery is off",
+  "pass": true,
+  "detail": "200 f3284302-b54b-4ef5-ac46-9b877e01e654"
+ },
+ {
+  "area": "notifications",
+  "name": "the Manager and Farmer 1 each have notifications; Farmer 2 sees only their own",
+  "pass": true,
+  "detail": "rows=46"
+ },
+ {
+  "area": "notifications",
+  "name": "a signed-out caller reads no notifications",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "notifications",
+  "name": "a Farmer cannot create a notification in another user's inbox (directly or through helper functions)",
+  "pass": true,
+  "detail": "insert 403 notify_user 403 notify_staff 403 delivered 0"
+ },
+ {
+  "area": "notifications",
+  "name": "a Farmer can mark their own notification read, and cannot change another user's",
+  "pass": true,
+  "detail": "own 200 read=true; other 200 stored is_read=false"
+ },
+ {
+  "area": "notifications",
+  "name": "a Farmer cannot rewrite the text of their own notification, nor delete someone else's",
+  "pass": true,
+  "detail": "edit 400 title now \"for f1 1795075411741\"; delete 200 still exists 1"
+ },
+ {
+  "area": "notifications",
+  "name": "a new order notifies staff; the Buyer is not notified of their own action (by design)",
+  "pass": true,
+  "detail": "order 200 ; manager 0->1, buyer 0->0 (the Buyer is not notified of their own action; it shows in their Recent Activity)"
+ },
+ {
+  "area": "broadcast",
+  "name": "a Farmer and a Buyer cannot send a broadcast (Officers may, at either access level, by design: officer_permissions_11_broadcast_open)",
+  "pass": true,
+  "detail": "x,x"
+ },
+ {
+  "area": "broadcast",
+  "name": "a Farmer cannot preview recipients or read the broadcast log",
+  "pass": true,
+  "detail": "preview 400 log rows 0"
+ },
+ {
+  "area": "broadcast",
+  "name": "Manager sends a broadcast to all Farmers; Farmer 1 and Farmer 2 each receive exactly one; sending the same request again adds nothing",
+  "pass": true,
+  "detail": "first 200 , repeat 200, farmer1 1, farmer2 1, buyer 0"
+ },
+ {
+  "area": "broadcast",
+  "name": "an unknown audience is refused instead of reaching nobody silently",
+  "pass": true,
+  "detail": "400 NO_RECIPIENTS"
+ },
+ {
+  "area": "broadcast",
+  "name": "a broadcast to one specific Buyer reaches only that Buyer",
+  "pass": true,
+  "detail": "send 200  buyer 1 farmer 0"
+ },
+ {
+  "area": "broadcast",
+  "name": "an empty title or an empty body is refused",
+  "pass": true,
+  "detail": "400/400"
+ },
+ {
+  "area": "replay",
+  "name": "the same expense (same client id) sent twice is stored once; the second send is refused as a duplicate",
+  "pass": true,
+  "detail": "first 201 second 409 rows 1"
+ },
+ {
+  "area": "replay",
+  "name": "a Farmer cannot save an expense in another Farmer's name",
+  "pass": true,
+  "detail": "403 new row violates row-level security policy for table \"farmer_expenses\""
+ }
+]

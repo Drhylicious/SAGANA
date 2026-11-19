@@ -27,7 +27,7 @@ void main() {
     test('Cooperative Stock shows the search bar before the filter chips', () {
       final src = _read('lib/presentation/screens/admin/cooperative_stock_report_screen.dart');
       final search = src.indexOf('hintText: l10n.reportsSearchItems');
-      final chips = src.indexOf('label: l10n.reportsAll');
+      final chips = src.indexOf(r'${l10n.reportsAll}');
       expect(search, greaterThan(0));
       expect(chips, greaterThan(search));
     });

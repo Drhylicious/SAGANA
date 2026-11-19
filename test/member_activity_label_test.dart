@@ -178,7 +178,7 @@ void main() {
       );
       expect(
         headline(row(table: 'officer_permissions', operation: 'updated', reference: 'Omar Two', after: {'module': 'loans', 'access_level': 'view'}), tl),
-        'Pinalitan ang Mga Utang access ni Omar Two sa View Only',
+        'Pinalitan ang Mga Utang access ni Omar Two sa Tingin lamang',
       );
     });
   });

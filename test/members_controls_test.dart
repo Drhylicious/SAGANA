@@ -190,7 +190,7 @@ void main() {
 
   testWidgets('only the tapped chip is selected', (tester) async {
     await runIgnoringFontErrors(() async {
-      await _pump(tester, const _Host(events: []));
+      await _pump(tester, _Host(events: <String>[]));
       Color border(String label) {
         final box = tester.widget<Container>(
           find
@@ -317,10 +317,11 @@ void main() {
       () {
         final row = src.indexOf('MemberTitleRow(');
         final name = src.indexOf('name: farmer.fullName', row);
-        final badge = src.indexOf(
-          'badge: _StatusBadge(status: farmer.memberStatus',
-          row,
-        );
+        // (the formatter may put the arguments on separate lines)
+        final badgeMatch = RegExp(
+          r'badge:\s*_StatusBadge\(\s*status:\s*farmer\.memberStatus',
+        ).firstMatch(src.substring(row));
+        final badge = badgeMatch == null ? -1 : row + badgeMatch.start;
         final menu = src.indexOf('menu: SizedBox(', row);
         final contact = src.indexOf('farmer.contactLines', row);
         expect(row, isNonNegative);

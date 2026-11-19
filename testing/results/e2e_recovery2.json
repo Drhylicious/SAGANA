@@ -1,0 +1,74 @@
+[
+ {
+  "area": "recovery",
+  "step": "offline: an expense added with no connection is accepted and shown on screen",
+  "pass": true,
+  "detail": "You're Offline Close You're viewing saved data. New records are saved locally and sync when you're back online. Some features require intern"
+ },
+ {
+  "area": "recovery",
+  "step": "offline: nothing has reached the server yet (it waits on the device)",
+  "pass": true,
+  "detail": "server rows=0"
+ },
+ {
+  "area": "recovery",
+  "step": "back online: the saved expense is sent by itself, exactly once",
+  "pass": true,
+  "detail": "server rows=1"
+ },
+ {
+  "area": "recovery",
+  "step": "a few seconds later it is still exactly one record (no duplicate replay)",
+  "pass": true,
+  "detail": "server rows=1"
+ },
+ {
+  "area": "recovery",
+  "step": "the saved amount is exactly what was typed (150.50)",
+  "pass": true,
+  "detail": "amount=150.50"
+ },
+ {
+  "area": "recovery",
+  "step": "restart: the waiting write is still not on the server (nothing lost, nothing sent early)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "recovery",
+  "step": "after the restart the waiting expense is sent once the server is reachable",
+  "pass": true,
+  "detail": "server rows=1"
+ },
+ {
+  "area": "recovery",
+  "step": "and it is still exactly one record",
+  "pass": true,
+  "detail": "server rows=1"
+ },
+ {
+  "area": "recovery",
+  "step": "the record belongs to the same signed-in Farmer (the session survived the restart)",
+  "pass": true,
+  "detail": "owner=t_farmer1"
+ },
+ {
+  "area": "recovery",
+  "step": "database down while saving: nothing is saved, the form stays open with what was typed (a \"Failed to save. Please try again.\" message shows; see shots/rec_db_down_save.png)",
+  "pass": true,
+  "detail": "dialog open=true"
+ },
+ {
+  "area": "recovery",
+  "step": "database back: pressing Save again saves the expense exactly once (nothing lost, nothing doubled)",
+  "pass": true,
+  "detail": "server rows=1"
+ },
+ {
+  "area": "recovery",
+  "step": "database back: the Expenses screen works again without restarting the app",
+  "pass": true,
+  "detail": "My Expenses Total Spent This Month ₱1,010.75 Entries 9 Top Category Other Expenses 9 entries OfflineA1795067793378 Recov"
+ }
+]

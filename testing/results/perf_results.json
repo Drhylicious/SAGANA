@@ -1,0 +1,543 @@
+{
+ "when": "2026-11-19T00:39:31.085Z",
+ "results": [
+  {
+   "phase": "baseline (1 user)",
+   "users": 1,
+   "seconds": 20,
+   "requests": 1033,
+   "rps": 51.6,
+   "errorPct": 0,
+   "p50": 17,
+   "p95": 62,
+   "p99": 77,
+   "max": 93,
+   "errorStatuses": {},
+   "db": "supabase_db_sagana-test cpu=3.80% mem=233.5MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.21% mem=33.22MiB / 4.313GiB | supabase_kong_sagana-test cpu=10.40% mem=117.1MiB / 4.313GiB",
+   "byOp": {
+    "farmer: notifications": {
+     "n": 42,
+     "p50": 15,
+     "p95": 17
+    },
+    "farmer: my batches": {
+     "n": 90,
+     "p50": 16,
+     "p95": 19
+    },
+    "buyer: place order (write)": {
+     "n": 148,
+     "p50": 19,
+     "p95": 23
+    },
+    "buyer: my orders": {
+     "n": 139,
+     "p50": 15,
+     "p95": 18
+    },
+    "manager: pending orders": {
+     "n": 53,
+     "p50": 73,
+     "p95": 84
+    },
+    "buyer: public listings RPC": {
+     "n": 126,
+     "p50": 18,
+     "p95": 23
+    },
+    "buyer: browse listings": {
+     "n": 208,
+     "p50": 16,
+     "p95": 20
+    },
+    "farmer: orders on my listings": {
+     "n": 53,
+     "p50": 16,
+     "p95": 19
+    },
+    "manager: members list": {
+     "n": 43,
+     "p50": 16,
+     "p95": 20
+    },
+    "farmer: my harvests": {
+     "n": 68,
+     "p50": 15,
+     "p95": 18
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 34,
+     "p50": 44,
+     "p95": 53
+    },
+    "manager: overdue loans": {
+     "n": 29,
+     "p50": 18,
+     "p95": 24
+    }
+   }
+  },
+  {
+   "phase": "normal load",
+   "users": 25,
+   "seconds": 30.2,
+   "requests": 3301,
+   "rps": 109.2,
+   "errorPct": 0,
+   "p50": 16,
+   "p95": 91,
+   "p99": 145,
+   "max": 238,
+   "errorStatuses": {},
+   "db": "supabase_db_sagana-test cpu=0.12% mem=294.1MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.15% mem=39.64MiB / 4.313GiB | supabase_kong_sagana-test cpu=0.05% mem=146.5MiB / 4.313GiB",
+   "byOp": {
+    "buyer: browse listings": {
+     "n": 661,
+     "p50": 15,
+     "p95": 35
+    },
+    "buyer: my orders": {
+     "n": 371,
+     "p50": 14,
+     "p95": 36
+    },
+    "farmer: notifications": {
+     "n": 186,
+     "p50": 11,
+     "p95": 28
+    },
+    "farmer: my batches": {
+     "n": 286,
+     "p50": 13,
+     "p95": 30
+    },
+    "buyer: place order (write)": {
+     "n": 501,
+     "p50": 19,
+     "p95": 44
+    },
+    "buyer: public listings RPC": {
+     "n": 404,
+     "p50": 18,
+     "p95": 42
+    },
+    "farmer: my harvests": {
+     "n": 233,
+     "p50": 13,
+     "p95": 34
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 122,
+     "p50": 57,
+     "p95": 97
+    },
+    "farmer: orders on my listings": {
+     "n": 153,
+     "p50": 13,
+     "p95": 32
+    },
+    "manager: pending orders": {
+     "n": 155,
+     "p50": 116,
+     "p95": 174
+    },
+    "manager: overdue loans": {
+     "n": 109,
+     "p50": 17,
+     "p95": 41
+    },
+    "manager: members list": {
+     "n": 120,
+     "p50": 16,
+     "p95": 40
+    }
+   }
+  },
+  {
+   "phase": "heavy load",
+   "users": 50,
+   "seconds": 30.3,
+   "requests": 4854,
+   "rps": 160,
+   "errorPct": 0,
+   "p50": 133,
+   "p95": 623,
+   "p99": 958,
+   "max": 2212,
+   "errorStatuses": {},
+   "db": "supabase_db_sagana-test cpu=0.05% mem=296.2MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.43% mem=43.71MiB / 4.313GiB | supabase_kong_sagana-test cpu=0.03% mem=185.3MiB / 4.313GiB",
+   "byOp": {
+    "manager: members list": {
+     "n": 189,
+     "p50": 116,
+     "p95": 541
+    },
+    "farmer: my harvests": {
+     "n": 308,
+     "p50": 100,
+     "p95": 510
+    },
+    "buyer: browse listings": {
+     "n": 978,
+     "p50": 116,
+     "p95": 502
+    },
+    "buyer: place order (write)": {
+     "n": 803,
+     "p50": 140,
+     "p95": 576
+    },
+    "farmer: my batches": {
+     "n": 370,
+     "p50": 103,
+     "p95": 526
+    },
+    "buyer: my orders": {
+     "n": 580,
+     "p50": 116,
+     "p95": 568
+    },
+    "farmer: orders on my listings": {
+     "n": 240,
+     "p50": 134,
+     "p95": 506
+    },
+    "manager: overdue loans": {
+     "n": 144,
+     "p50": 107,
+     "p95": 383
+    },
+    "farmer: notifications": {
+     "n": 263,
+     "p50": 115,
+     "p95": 528
+    },
+    "buyer: public listings RPC": {
+     "n": 559,
+     "p50": 122,
+     "p95": 519
+    },
+    "manager: pending orders": {
+     "n": 264,
+     "p50": 593,
+     "p95": 1015
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 156,
+     "p50": 284,
+     "p95": 720
+    }
+   }
+  },
+  {
+   "phase": "stress 100 users",
+   "users": 100,
+   "seconds": 20.5,
+   "requests": 3315,
+   "rps": 162,
+   "errorPct": 0,
+   "p50": 438,
+   "p95": 1715,
+   "p99": 2785,
+   "max": 5365,
+   "errorStatuses": {},
+   "db": "supabase_db_sagana-test cpu=0.12% mem=297.3MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.82% mem=52.8MiB / 4.313GiB | supabase_kong_sagana-test cpu=0.03% mem=185.7MiB / 4.313GiB",
+   "byOp": {
+    "farmer: notifications": {
+     "n": 178,
+     "p50": 369,
+     "p95": 1915
+    },
+    "farmer: my batches": {
+     "n": 261,
+     "p50": 370,
+     "p95": 1679
+    },
+    "buyer: browse listings": {
+     "n": 666,
+     "p50": 385,
+     "p95": 1603
+    },
+    "farmer: my harvests": {
+     "n": 234,
+     "p50": 421,
+     "p95": 1775
+    },
+    "buyer: my orders": {
+     "n": 406,
+     "p50": 429,
+     "p95": 1855
+    },
+    "manager: overdue loans": {
+     "n": 93,
+     "p50": 387,
+     "p95": 2143
+    },
+    "farmer: orders on my listings": {
+     "n": 148,
+     "p50": 424,
+     "p95": 1454
+    },
+    "buyer: public listings RPC": {
+     "n": 397,
+     "p50": 404,
+     "p95": 1764
+    },
+    "buyer: place order (write)": {
+     "n": 517,
+     "p50": 388,
+     "p95": 1596
+    },
+    "manager: members list": {
+     "n": 146,
+     "p50": 457,
+     "p95": 1600
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 100,
+     "p50": 637,
+     "p95": 1557
+    },
+    "manager: pending orders": {
+     "n": 169,
+     "p50": 931,
+     "p95": 2191
+    }
+   }
+  },
+  {
+   "phase": "stress 200 users",
+   "users": 200,
+   "seconds": 21.3,
+   "requests": 2907,
+   "rps": 136.6,
+   "errorPct": 0.24,
+   "p50": 1004,
+   "p95": 3965,
+   "p99": 6074,
+   "max": 8810,
+   "errorStatuses": {
+    "504": 7
+   },
+   "db": "supabase_db_sagana-test cpu=3.90% mem=297.6MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.15% mem=65.29MiB / 4.313GiB | supabase_kong_sagana-test cpu=0.02% mem=185.8MiB / 4.313GiB",
+   "byOp": {
+    "farmer: my harvests": {
+     "n": 197,
+     "p50": 1053,
+     "p95": 4033
+    },
+    "buyer: browse listings": {
+     "n": 591,
+     "p50": 1017,
+     "p95": 4086
+    },
+    "buyer: my orders": {
+     "n": 337,
+     "p50": 1074,
+     "p95": 3996
+    },
+    "farmer: orders on my listings": {
+     "n": 175,
+     "p50": 973,
+     "p95": 3889
+    },
+    "farmer: my batches": {
+     "n": 232,
+     "p50": 988,
+     "p95": 4497
+    },
+    "farmer: notifications": {
+     "n": 126,
+     "p50": 1054,
+     "p95": 3280
+    },
+    "manager: overdue loans": {
+     "n": 84,
+     "p50": 842,
+     "p95": 3249
+    },
+    "buyer: place order (write)": {
+     "n": 480,
+     "p50": 984,
+     "p95": 3920
+    },
+    "buyer: public listings RPC": {
+     "n": 337,
+     "p50": 865,
+     "p95": 4282
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 87,
+     "p50": 941,
+     "p95": 4496
+    },
+    "manager: members list": {
+     "n": 101,
+     "p50": 717,
+     "p95": 3581
+    },
+    "manager: pending orders": {
+     "n": 160,
+     "p50": 1250,
+     "p95": 4888
+    }
+   }
+  },
+  {
+   "phase": "stress 400 users",
+   "users": 400,
+   "seconds": 21.9,
+   "requests": 10640,
+   "rps": 486.4,
+   "errorPct": 84.49,
+   "p50": 2416,
+   "p95": 8007,
+   "p99": 9924,
+   "max": 11369,
+   "errorStatuses": {
+    "0": 8504,
+    "500": 428,
+    "504": 58
+   },
+   "db": "supabase_db_sagana-test cpu=0.12% mem=298.3MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.19% mem=71.06MiB / 4.313GiB | supabase_kong_sagana-test cpu=9.21% mem=186.6MiB / 4.313GiB",
+   "byOp": {
+    "buyer: browse listings": {
+     "n": 2141,
+     "p50": 306,
+     "p95": 4125
+    },
+    "farmer: my batches": {
+     "n": 867,
+     "p50": 309,
+     "p95": 3693
+    },
+    "buyer: my orders": {
+     "n": 1271,
+     "p50": 303,
+     "p95": 4449
+    },
+    "farmer: notifications": {
+     "n": 541,
+     "p50": 303,
+     "p95": 2638
+    },
+    "farmer: my harvests": {
+     "n": 722,
+     "p50": 308,
+     "p95": 4719
+    },
+    "farmer: orders on my listings": {
+     "n": 535,
+     "p50": 304,
+     "p95": 4566
+    },
+    "manager: members list": {
+     "n": 422,
+     "p50": 307,
+     "p95": 4020
+    },
+    "manager: overdue loans": {
+     "n": 327,
+     "p50": 305,
+     "p95": 5127
+    },
+    "buyer: public listings RPC": {
+     "n": 1289,
+     "p50": 305,
+     "p95": 3219
+    },
+    "manager: pending orders": {
+     "n": 502,
+     "p50": 303,
+     "p95": 4372
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 332,
+     "p50": 303,
+     "p95": 3899
+    },
+    "buyer: place order (write)": {
+     "n": 1691,
+     "p50": 306,
+     "p95": 4430
+    }
+   }
+  },
+  {
+   "phase": "recovery (1 user)",
+   "users": 1,
+   "seconds": 15.1,
+   "requests": 865,
+   "rps": 57.3,
+   "errorPct": 0,
+   "p50": 9,
+   "p95": 133,
+   "p99": 144,
+   "max": 154,
+   "errorStatuses": {},
+   "db": "supabase_db_sagana-test cpu=0.29% mem=298.4MiB / 4.313GiB | supabase_rest_sagana-test cpu=1.33% mem=71.39MiB / 4.313GiB | supabase_kong_sagana-test cpu=0.03% mem=186.5MiB / 4.313GiB",
+   "byOp": {
+    "buyer: browse listings": {
+     "n": 178,
+     "p50": 8,
+     "p95": 18
+    },
+    "manager: supply chain totals (RPC)": {
+     "n": 18,
+     "p50": 50,
+     "p95": 60
+    },
+    "farmer: notifications": {
+     "n": 50,
+     "p50": 7,
+     "p95": 16
+    },
+    "buyer: my orders": {
+     "n": 107,
+     "p50": 8,
+     "p95": 17
+    },
+    "farmer: my harvests": {
+     "n": 53,
+     "p50": 7,
+     "p95": 16
+    },
+    "farmer: orders on my listings": {
+     "n": 39,
+     "p50": 8,
+     "p95": 18
+    },
+    "buyer: place order (write)": {
+     "n": 133,
+     "p50": 11,
+     "p95": 20
+    },
+    "buyer: public listings RPC": {
+     "n": 98,
+     "p50": 9,
+     "p95": 18
+    },
+    "manager: pending orders": {
+     "n": 44,
+     "p50": 138,
+     "p95": 151
+    },
+    "farmer: my batches": {
+     "n": 90,
+     "p50": 7,
+     "p95": 16
+    },
+    "manager: overdue loans": {
+     "n": 17,
+     "p50": 10,
+     "p95": 19
+    },
+    "manager: members list": {
+     "n": 38,
+     "p50": 9,
+     "p95": 16
+    }
+   }
+  }
+ ]
+}

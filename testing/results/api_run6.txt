@@ -1,0 +1,144 @@
+Stopped services: [supabase_imgproxy_sagana-test supabase_pg_meta_sagana-test supabase_studio_sagana-test supabase_edge_runtime_sagana-test supabase_analytics_sagana-test supabase_vector_sagana-test supabase_pooler_sagana-test]
+PASS [auth] wrong password is refused
+PASS [auth] garbage JWT is refused
+PASS [rls-anon] anon cannot read user_information
+PASS [rls-anon] anon cannot read user_roles
+PASS [rls-anon] anon cannot read orders
+PASS [rls-anon] anon cannot read farmer_loans
+PASS [rls-anon] anon cannot read notifications
+PASS [rls-anon] anon cannot read harvest_records
+PASS [rls-anon] anon cannot read inventory_batches
+PASS [rls-anon] anon cannot read farmer_expenses
+PASS [rls-anon] anon cannot read member_capital_shares
+PASS [rls-anon] anon cannot read buyer_addresses
+PASS [rls-anon] anon cannot read admin_activity_log
+PASS [rls-anon] anon cannot read cooperative_inventory
+PASS [farmer] farmer records a harvest + batch (decimal qty 12.5)
+PASS [farmer] batch number follows BATCH-CROP-YYMMDD-X0001
+PASS [farmer] zero quantity harvest is refused
+PASS [farmer] negative quantity harvest is refused
+PASS [farmer] unknown unit is refused
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in harvest_records
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in inventory_batches
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in farmer_crops
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in farmer_expenses
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in member_capital_shares
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in buyer_addresses
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in notifications
+PASS [rls-farmer] farmer1 cannot see farmer2 rows in farmer_loans
+PASS [rls-buyer] buyer cannot read farmers' harvest_records
+PASS [rls-buyer] buyer cannot read other users' user_information
+PASS [rls-buyer] buyer cannot read a batch that is not on an approved listing (status=available policy)
+PASS [escalation] pending farmer cannot approve themselves (user_roles.status)
+PASS [escalation] farmer cannot make themselves admin
+PASS [escalation] farmer cannot self-verify farmer_profiles.is_verified
+PASS [escalation] farmer cannot insert capital contribution for self
+PASS [escalation] farmer cannot edit member_capital_shares total
+PASS [escalation] farmer cannot write price_records
+PASS [escalation] farmer cannot write cooperative_inventory
+PASS [escalation] farmer cannot change loan policy
+PASS [escalation] buyer cannot edit an order status directly
+PASS [rpc-authz] farmer cannot call staff RPC approve_listing
+PASS [rpc-authz] buyer cannot call staff RPC approve_listing
+PASS [rpc-authz] anon cannot call staff RPC approve_listing
+PASS [rpc-authz] farmer cannot call staff RPC issue_loan
+PASS [rpc-authz] buyer cannot call staff RPC issue_loan
+PASS [rpc-authz] anon cannot call staff RPC issue_loan
+PASS [rpc-authz] farmer cannot call staff RPC approve_member
+PASS [rpc-authz] buyer cannot call staff RPC approve_member
+PASS [rpc-authz] anon cannot call staff RPC approve_member
+PASS [rpc-authz] farmer cannot call staff RPC admin_reset_user_password
+PASS [rpc-authz] buyer cannot call staff RPC admin_reset_user_password
+PASS [rpc-authz] anon cannot call staff RPC admin_reset_user_password
+PASS [rpc-authz] farmer cannot call staff RPC create_officer_account
+PASS [rpc-authz] buyer cannot call staff RPC create_officer_account
+PASS [rpc-authz] anon cannot call staff RPC create_officer_account
+PASS [rpc-authz] farmer cannot call staff RPC suspend_member
+PASS [rpc-authz] buyer cannot call staff RPC suspend_member
+PASS [rpc-authz] anon cannot call staff RPC suspend_member
+PASS [rpc-authz] farmer cannot call staff RPC adjust_cooperative_stock
+PASS [rpc-authz] buyer cannot call staff RPC adjust_cooperative_stock
+PASS [rpc-authz] anon cannot call staff RPC adjust_cooperative_stock
+PASS [rpc-authz] farmer cannot call staff RPC send_broadcast
+PASS [rpc-authz] buyer cannot call staff RPC send_broadcast
+PASS [rpc-authz] anon cannot call staff RPC send_broadcast
+PASS [rpc-authz] anon cannot forge a notification (notify_user)
+PASS [rpc-authz] buyer cannot forge a notification to another user (notify_user)
+PASS [rpc-authz] anon cannot reduce another farmer's stock (_apply_batch_reservation)
+PASS [rpc-authz] farmer cannot change another farmer's stock (_release_batch_reservation)
+PASS [rpc-authz] anon cannot run loan maintenance (run_daily_loan_maintenance)
+PASS [rpc-authz] anon cannot run notify_overdue_farmers
+PASS [rpc-authz] anon cannot enumerate usernames (suggest_next_username)
+PASS [officer-gate] view-only officer can READ crop_master
+PASS [officer-gate] view-only officer is refused a write (units insert)
+PASS [officer-gate] manage officer may write (units insert)
+PASS [officer-gate] view-only officer is refused RPC approve_crop_request
+PASS [officer-gate] manage officer passes the gate on RPC approve_crop_request
+PASS [officer-gate] view-only officer cannot restrict a member (restrict_member)
+PASS [officer-gate] manage officer may restrict and lift (restrict_member / lift_member_restriction)
+PASS [officer-gate] view-only officer cannot record a monthly contribution payment
+PASS [officer-gate] view-only officer cannot change Capital Share rates
+PASS [officer-gate] farmer cannot change Capital Share rates
+PASS [officer-gate] manager can change Capital Share rates (and it is versioned)
+PASS [marketplace] farmer lists 10 kg (pending approval)
+PASS [marketplace] batch available drops by reserved qty
+PASS [marketplace] cannot list more than available (5 kg > 2.5 left)
+PASS [marketplace] cannot list another farmer's batch
+PASS [marketplace] listing without description is refused
+PASS [marketplace] listing with 3-decimal quantity is refused
+PASS [marketplace] Ginger cannot be put on the marketplace (DA-AMAD only)
+PASS [marketplace] buyer cannot see the listing before approval
+PASS [marketplace] view-only officer cannot approve a listing
+PASS [marketplace] farmer cannot approve own listing
+PASS [marketplace] manager approves the listing
+PASS [marketplace] manager cannot approve twice
+PASS [marketplace] buyer now sees the listing
+PASS [orders] buyer cannot order more than remaining (11 kg)
+PASS [orders] buyer cannot order 0 or negative
+PASS [orders] buyer cannot order 3 decimals
+PASS [orders] farmer cannot order own listing
+PASS [orders] pending (unapproved) farmer cannot order
+PASS [orders] buyer places order of 2.5 kg
+PASS [orders] same request id returns the same order (idempotent)
+PASS [orders] order number format ORD-YYYYMMDD-A001
+PASS [orders] other buyer/farmer cannot read the order
+PASS [orders] cannot skip: buyer cannot confirm receipt while pending
+PASS [orders] cannot mark ready before approval
+PASS [orders] view-only officer cannot approve order
+PASS [orders] manager approves order
+PASS [orders] approve again is a harmless no-op
+PASS [orders] buyer can no longer cancel an approved order
+PASS [orders] manager marks ready for pickup
+PASS [orders] payment with wrong amount is refused
+PASS [orders] buyer cannot confirm receipt before payment is recorded
+PASS [orders] manager records correct payment (2.5 x 50 = 125)
+PASS [orders] payment cannot be recorded twice
+PASS [orders] buyer confirms receipt -> completed
+PASS [orders] sold_kg of the batch is reconciled to 2.5
+PASS [orders] staff cannot completed-order directly through the table
+PASS [orders] recorded payment cannot be rewritten
+PASS [concurrency] 20 parallel 1 kg orders on 7.5 kg: exactly 7 succeed, never oversell
+PASS [restrictions] manager restricts farmer2 checkout; place_order is refused with a reason
+PASS [restrictions] view-only officer cannot restrict a member
+PASS [restrictions] manager lifts restriction
+PASS [loans] pending farmer cannot request a loan
+PASS [loans] loan request with empty items refused
+PASS [loans] view-only officer cannot issue a loan
+PASS [loans] manager issues loan of 1,500 (within 5,000 capital share)
+PASS [loans] loan item above capital share (6,000 > 5,000) is refused
+PASS [loans] cannot loan to a pending (non-active) farmer
+PASS [loans] farmer sees own loan, farmer2 does not
+PASS [loans] payment larger than balance is refused
+PASS [loans] zero/negative payment refused
+PASS [loans] payment 500 recorded; same idempotency key replays without double charge
+PASS [loans] farmer cannot write a loan payment directly
+PASS [loans] farmer cannot edit own loan balance
+PASS [loans] loan reference cannot be changed
+PASS [misc] public price/market RPCs work for anon (guest mode)
+PASS [misc] anon public_marketplace_listings exposes no farmer identity
+PASS [misc] username check rejects bad format
+PASS [misc] phone normalisation 63917… equals 0917…
+PASS [misc] SQL-injection-style username is handled safely
+PASS [misc] PostgREST filter injection via text param returns no extra rows
+
+141/141 passed, 0 failed

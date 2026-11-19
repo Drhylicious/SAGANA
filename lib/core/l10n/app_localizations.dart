@@ -17302,6 +17302,12 @@ abstract class AppLocalizations {
   /// **'Try again'**
   String get farmerAnalyticsRetry;
 
+  /// No description provided for @analyticsKgOnlyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Totals count harvests recorded in kg only.'**
+  String get analyticsKgOnlyNote;
+
   /// No description provided for @farmerAnalyticsOtherUnitsNote.
   ///
   /// In en, this message translates to:
@@ -33820,7 +33826,7 @@ abstract class AppLocalizations {
   /// No description provided for @capSettingsPurchaseHint.
   ///
   /// In en, this message translates to:
-  /// **'The percentage of a completed Cooperative Product order that is added to the Capital Share of a member enrolled in the Product Sales program. Members who are not enrolled add nothing.'**
+  /// **'The percentage of a completed Cooperative Product order that is added to the Capital Share of a member who joined the Product Sales program. Members who did not join add nothing.'**
   String get capSettingsPurchaseHint;
 
   /// No description provided for @capSettingsOfferLabel.

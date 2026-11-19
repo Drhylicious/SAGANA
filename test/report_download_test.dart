@@ -156,7 +156,9 @@ void main() {
       expect(src, contains('ViewOnlyStrip(module: StaffModule.reports)'));
       // Nothing is Manager-only: access comes from the shared permission check.
       expect(src, isNot(contains("getUserRole() == 'admin'")));
-      expect(src, isNot(contains('isOfficer')));
+      // The only mention left is the argument to exportableModules, which returns every report.
+      expect(src.replaceAll('exportableModules(isOfficer: HiveService.isOfficer)', ''), isNot(contains('isOfficer')));
+      expect(File('lib/data/models/export_model.dart').readAsStringSync(), contains('List.unmodifiable(ReportModuleType.values)'));
     });
   });
 

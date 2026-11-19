@@ -85,21 +85,21 @@ void main() {
   ) async {
     await runIgnoringFontErrors(() async {
       await open(tester);
-      expect(find.text('Source / Reference Document *'), findsOneWidget);
+      expect(find.text('Source *'), findsOneWidget);
       expect(find.text('New Price (₱/kg) *'), findsOneWidget);
       expect(find.text('Effective Date *'), findsOneWidget);
 
       // Empty.
       await tester.tap(saveButton());
       await tester.pump();
-      expect(find.text('Source / reference is required'), findsOneWidget);
+      expect(find.text('Source is required'), findsOneWidget);
       expect(find.byType(SnackBar), findsNothing);
 
       // Whitespace only counts as empty.
       final source = find.byType(TextFormField).last;
       await tester.enterText(source, '     ');
       await tester.pump();
-      expect(find.text('Source / reference is required'), findsOneWidget);
+      expect(find.text('Source is required'), findsOneWidget);
     });
   });
 

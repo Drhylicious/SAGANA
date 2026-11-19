@@ -1,0 +1,52 @@
+PASS [t_farmer1] signs in and lands on a home screen -> Simula Magandang umaga, Fidel! Huwebes, Nobyembre 19, 2026 Maayos ang Lahat Wala
+PASS [t_farmer1] tab "Simula" opens without an error
+PASS [t_farmer1] tab "Ani" opens without an error
+PASS [t_farmer1] tab "Mga Alok" opens without an error
+PASS [t_farmer1] tab "Pagsusuri" opens without an error
+PASS [t_farmer1] tab "Detalye" opens without an error
+PASS [t_farmer1] no unexpected console errors
+PASS [t_farmer1] no failed (5xx / unexpected 4xx) network calls
+PASS [t_manager] signs in and lands on a home screen -> Buod MM Magandang umaga, Mara! Huwebes, Nobyembre 19, 2026 100 Overdue Loans Imm
+PASS [t_manager] tab "Buod" opens without an error
+PASS [t_manager] tab "Ipadala ngayon" opens without an error
+PASS [t_manager] tab "Mga Miyembro" opens without an error
+PASS [t_manager] tab "Pamilihan" opens without an error
+PASS [t_manager] tab "Mga Utang" opens without an error
+PASS [t_manager] tab "Mga Ulat" opens without an error
+PASS [t_manager] no unexpected console errors
+PASS [t_manager] no failed (5xx / unexpected 4xx) network calls
+PASS [t_officer_view] signs in and lands on a home screen -> Buod OV Magandang umaga, Olivia! Huwebes, Nobyembre 19, 2026 100 Overdue Loans I
+PASS [t_officer_view] tab "Buod · Tingin lamang" opens without an error
+PASS [t_officer_view] tab "Buod" opens without an error
+PASS [t_officer_view] tab "Ipadala ngayon" opens without an error
+PASS [t_officer_view] tab "Mga Miyembro" opens without an error
+PASS [t_officer_view] tab "Pamilihan" opens without an error
+PASS [t_officer_view] tab "Mga Utang" opens without an error
+PASS [t_officer_view] tab "Mga Ulat" opens without an error
+PASS [t_officer_view] no unexpected console errors
+PASS [t_officer_view] no failed (5xx / unexpected 4xx) network calls
+PASS [t_officer_manage] signs in and lands on a home screen -> Buod OM Magandang umaga, Oscar! Huwebes, Nobyembre 19, 2026 100 Overdue Loans Im
+PASS [t_officer_manage] tab "Buod" opens without an error
+PASS [t_officer_manage] tab "Ipadala ngayon" opens without an error
+PASS [t_officer_manage] tab "Mga Miyembro" opens without an error
+PASS [t_officer_manage] tab "Pamilihan" opens without an error
+PASS [t_officer_manage] tab "Mga Utang" opens without an error
+PASS [t_officer_manage] tab "Mga Ulat" opens without an error
+PASS [t_officer_manage] no unexpected console errors
+PASS [t_officer_manage] no failed (5xx / unexpected 4xx) network calls
+PASS [t_buyer1] signs in and lands on a home screen -> Palengke Lahat (20) Vegetables (20) Tomato ₱50.00/kg 1 mamimili Wala pang nakata
+PASS [t_buyer1] tab "Mamili" opens without an error
+PASS [t_buyer1] tab "Lahat (20)" opens without an error
+PASS [t_buyer1] tab "Mga Order" opens without an error
+PASS [t_buyer1] tab "Presyo" opens without an error
+PASS [t_buyer1] tab "Detalye" opens without an error
+PASS [t_buyer1] no unexpected console errors
+PASS [t_buyer1] no failed (5xx / unexpected 4xx) network calls
+PASS [t_pending] signs in and lands on a home screen -> Home Welcome, Pam! SP3 Agriculture Cooperative Your application has been receive
+PASS [t_pending] tab "Home" opens without an error
+PASS [t_pending] tab "Notifications" opens without an error
+PASS [t_pending] tab "Profile" opens without an error
+PASS [t_pending] no unexpected console errors
+PASS [t_pending] no failed (5xx / unexpected 4xx) network calls
+
+50/50 passed

@@ -1,0 +1,12 @@
+import { serve, launch, boot, loginAs, text } from './lib.mjs';
+const [, , user = 't_manager'] = process.argv;
+const srv = await serve(); const { browser, page } = await launch(); await boot(page); await loginAs(page, user);
+await page.getByText('Marketplace', { exact: true }).last().click(); await page.waitForTimeout(3000);
+await page.getByText(/Order Management/).first().click(); const t0 = Date.now(); for (let i = 0; i < 80; i++) { await page.waitForTimeout(500); if (!/All (0)/.test(await text(page)) && /All (d+)/.test(await text(page))) break; } console.log('list ready after', Date.now() - t0, 'ms');
+console.log('ORDERS:', (await text(page)).slice(0, 500)); await page.screenshot({ path: '../results/shots/probe_orders_' + user + '.png' });
+await page.mouse.click(195, 420); await page.waitForTimeout(3500);
+console.log('DETAIL:', (await text(page)).slice(0, 700));
+const btns = await page.locator('flt-semantics-host [role=button]').evaluateAll(els => els.map(e => (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40)).filter(Boolean));
+console.log('BUTTONS:', btns.join(' | '));
+await page.screenshot({ path: '../results/shots/probe_order_detail_' + user + '.png' });
+await browser.close(); srv.close();

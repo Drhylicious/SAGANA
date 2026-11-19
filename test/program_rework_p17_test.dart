@@ -166,6 +166,9 @@ void main() {
       final bad = <String>[];
       en.forEach((k, v) {
         if (k.startsWith('@') || v is! String) return;
+        // systemNotice* are lookup keys for old stored notification titles (shown only in Tagalog,
+        // translated); the English value is never displayed, so it may keep the stored wording.
+        if (k.startsWith('systemNotice') || RegExp(r'^sn[A-Z]').hasMatch(k)) return;
         final text = v.replaceAll(RegExp(r'\{[^}]*\}'), '');
         if (RegExp('enrol', caseSensitive: false).hasMatch(text)) bad.add('$k: $v');
       });
@@ -221,7 +224,11 @@ void main() {
     });
 
     test('the form has no helper text under a field (the standing rule)', () {
-      expect(_read('lib/presentation/screens/admin/program_management_screen.dart').contains('helperText'), isFalse);
+      // The only helper text is the "Returns: <item>" line under the return quantity in the Distribute
+      // panel (it says which item comes back). The create / edit form has none.
+      final src = _read('lib/presentation/screens/admin/program_management_screen.dart');
+      expect('helperText'.allMatches(src).length, lessThanOrEqualTo(1));
+      expect(src.indexOf('helperText'), greaterThan(src.indexOf("Key('distReturnQuantityField')")));
     });
   });
 
@@ -525,7 +532,9 @@ void main() {
     });
 
     test('the Harvest Return after a Successful outcome is also locked to the item\'s unit', () {
-      expect(src, contains('unitLocked: _r.itemUnit != null'));
+      // The unit is taken from the item itself and there is no unit picker on this screen.
+      expect(src, contains('_r.itemUnit ?? _r.quantityUnit'));
+      expect(src, isNot(contains('QuantityUnitField(')));
     });
 
     test('the Farmer\'s report also starts from the item\'s unit, not kg', () {
@@ -538,8 +547,9 @@ void main() {
     test('the return and the received line use the Inventory item\'s unit', () {
       expect(_read('lib/presentation/screens/farmer/my_programs_screen.dart'), contains('entry.itemUnit'));
       final details = _read('lib/presentation/screens/farmer/program_details_screen.dart');
-      expect(details.contains('entry.returnUnit'), isFalse);
-      expect(details, contains('entry.itemUnit'));
+      // returnUnitShown = the return item's unit, else the given item's unit (never the old program-level unit).
+      expect(RegExp(r'entry\.returnUnit\b').hasMatch(details), isFalse);
+      expect(details, anyOf(contains('entry.itemUnit'), contains('entry.returnUnitShown')));
     });
   });
 }

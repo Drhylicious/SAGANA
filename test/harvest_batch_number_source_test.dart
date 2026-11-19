@@ -149,11 +149,11 @@ void main() {
       expect(form.contains('Quantity (kg)'), isFalse);
       expect(form, contains('QuantityUnitField('));
       expect(form, contains('UnitRepository'));
-      expect(form, contains("'Assigned when you submit'"));
+      expect(form, contains('enhAssignedWhenYouSubmit')); // 'Assigned when you submit'
       final widget = read('lib/presentation/widgets/quantity_unit_field.dart');
       expect(widget, contains("'Quantity*'"));
       expect(widget, contains("'Unit*'"));
-      expect(widget, contains('Unit is required'));
+      expect(widget, contains('adminInvUnitRequired')); // 'Unit is required'
     });
 
     test('no whole-number rounding of a quantity is left in the harvest chain', () {

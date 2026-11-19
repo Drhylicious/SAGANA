@@ -1,4 +1,5 @@
 import '../../core/l10n/localized_labels.dart';
+import '../../core/utils/chunked_in.dart';
 import 'coop_shelf_life_repository.dart';
 import '../services/offline_actions.dart'
     show isOfflineConnectionFailure, OfflineActionBlocked;
@@ -483,18 +484,12 @@ class AdminLoanRepository {
           .toList();
       if (activeIds.isEmpty) return [];
 
-      final profileRows = await _client
-          .from('farmer_profiles')
-          .select('user_id')
-          .inFilter('user_id', activeIds);
+      final profileRows = await chunkedIn(activeIds, (slice) => _client.from('farmer_profiles').select('user_id').inFilter('user_id', slice));
 
       if (profileRows.isEmpty) return [];
 
       final ids = profileRows.map((r) => r['user_id'] as String).toList();
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name, profile_photo_url')
-          .inFilter('user_id', ids);
+      final infoRows = await chunkedIn(ids, (slice) => _client.from('user_information').select('user_id, full_name, profile_photo_url').inFilter('user_id', slice));
 
       final names = {
         for (final r in infoRows)
@@ -719,10 +714,7 @@ class AdminLoanRepository {
     }.toList();
     final people = <String, ({String name, String? phone})>{};
     try {
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name, phone_number')
-          .inFilter('user_id', peopleIds);
+      final infoRows = await chunkedIn(peopleIds, (slice) => _client.from('user_information').select('user_id, full_name, phone_number').inFilter('user_id', slice));
       for (final r in infoRows) {
         people[r['user_id'] as String] = (
           name: (r['full_name'] as String? ?? '').trim(),
@@ -738,10 +730,7 @@ class AdminLoanRepository {
     final loanRefs = <String, String>{};
     if (loanIds.isNotEmpty) {
       try {
-        final loanRows = await _client
-            .from('farmer_loans')
-            .select('id, reference_no')
-            .inFilter('id', loanIds);
+        final loanRows = await chunkedIn(loanIds, (slice) => _client.from('farmer_loans').select('id, reference_no').inFilter('id', slice));
         for (final l in loanRows) {
           loanRefs[l['id'] as String] = l['reference_no'] as String;
         }
@@ -759,10 +748,7 @@ class AdminLoanRepository {
     final stock = <String, double>{};
     if (stockIds.isNotEmpty) {
       try {
-        final stockRows = await _client
-            .from('cooperative_inventory')
-            .select('id, quantity_on_hand')
-            .inFilter('id', stockIds);
+        final stockRows = await chunkedIn(stockIds, (slice) => _client.from('cooperative_inventory').select('id, quantity_on_hand').inFilter('id', slice));
         for (final s in stockRows) {
           stock[s['id'] as String] = (s['quantity_on_hand'] as num).toDouble();
         }
@@ -1133,10 +1119,7 @@ class AdminLoanRepository {
   Future<Map<String, String>> fetchAdminNames(List<String> adminIds) async {
     if (adminIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', adminIds);
+      final rows = await chunkedIn(adminIds, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       return {
         for (final r in rows)
           r['user_id'] as String: r['full_name'] as String? ?? 'Manager',

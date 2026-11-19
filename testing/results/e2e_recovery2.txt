@@ -1,0 +1,15 @@
+PASS [recovery] offline: an expense added with no connection is accepted and shown on screen -> You're Offline Close You're viewing saved data. New records are saved locally and sync when you're back online. Some features require intern
+PASS [recovery] offline: nothing has reached the server yet (it waits on the device) -> server rows=0
+PASS [recovery] back online: the saved expense is sent by itself, exactly once -> server rows=1
+PASS [recovery] a few seconds later it is still exactly one record (no duplicate replay) -> server rows=1
+PASS [recovery] the saved amount is exactly what was typed (150.50) -> amount=150.50
+PASS [recovery] restart: the waiting write is still not on the server (nothing lost, nothing sent early)
+PASS [recovery] after the restart the waiting expense is sent once the server is reachable -> server rows=1
+PASS [recovery] and it is still exactly one record -> server rows=1
+PASS [recovery] the record belongs to the same signed-in Farmer (the session survived the restart) -> owner=t_farmer1
+PASS [recovery] database down while saving: nothing is saved, the form stays open with what was typed (a "Failed to save. Please try again." message shows; see shots/rec_db_down_save.png) -> dialog open=true
+psql: error: connection to server on socket "/run/postgresql/.s.PGSQL.5432" failed: FATAL:  the database system is starting up
+PASS [recovery] database back: pressing Save again saves the expense exactly once (nothing lost, nothing doubled) -> server rows=1
+PASS [recovery] database back: the Expenses screen works again without restarting the app -> My Expenses Total Spent This Month ₱1,010.75 Entries 9 Top Category Other Expenses 9 entries OfflineA1795067793378 Recov
+
+12/12 passed

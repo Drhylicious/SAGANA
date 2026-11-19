@@ -1,0 +1,86 @@
+[
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "(home)",
+  "pass": false,
+  "detail": "\"Programs\n40\nprograms\" 313..441 | \"Revenue\n₱875\nincl. products\" 451..573"
+ },
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "Dashboard",
+  "pass": false,
+  "detail": "\"Programs\n40\nprograms\" 313..441 | \"Revenue\n₱875\nincl. products\" 451..573"
+ },
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "Sync now",
+  "pass": false,
+  "detail": "\"Programs\n40\nprograms\" 313..441 | \"Revenue\n₱875\nincl. products\" 451..573"
+ },
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "Members",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "Marketplace",
+  "pass": false,
+  "detail": "\"Orders\n6963\nall orders\" 451..573"
+ },
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "Loans",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "scale": 1.5,
+  "tab": "Reports",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "scale": 1.5,
+  "tab": "(home)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "scale": 1.5,
+  "tab": "Browse",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "scale": 1.5,
+  "tab": "Orders",
+  "pass": false,
+  "detail": "\"Ready for Pickup (0)\" 491..610"
+ },
+ {
+  "role": "t_buyer1",
+  "scale": 1.5,
+  "tab": "Prices",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "scale": 1.5,
+  "tab": "Profile",
+  "pass": true,
+  "detail": ""
+ }
+]

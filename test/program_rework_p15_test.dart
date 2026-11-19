@@ -82,14 +82,15 @@ void main() {
       expect(screen.contains('_cropOptions'), isFalse);
       expect(screen.contains('QuantityUnitField('), isFalse);
       expect(screen.contains('selectedUnit'), isFalse);
-      expect(screen, contains("Key('returnQuantityField')"));
+      // The quantity to return is decided on the outcome screen after the field check, not in this form.
+      expect(screen.contains("Key('returnQuantityField')"), isFalse);
     });
 
     test('Farmer and staff screens name the item that was given, not a crop', () {
       expect(_read('lib/presentation/screens/farmer/my_programs_screen.dart'), contains('entry.itemName'));
       final detail = _read('lib/presentation/screens/admin/program_outcome_detail_screen.dart');
       expect(detail, contains('_r.returnItemName'));
-      expect(detail, contains('unitLocked: _r.itemUnit != null'));
+      expect(detail, contains('_returnUnit = _r.itemUnit'));
     });
   });
 

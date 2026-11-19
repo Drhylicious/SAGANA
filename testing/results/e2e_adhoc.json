@@ -1,0 +1,56 @@
+[
+ {
+  "charter": "Buyer odd taps",
+  "what": "checkout opens after Buy Now",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "charter": "Buyer odd taps",
+  "what": "browser Back from checkout does not crash and does not place an order",
+  "pass": true,
+  "detail": "orders 73->73 screen: Not yet assigned ₱50.00 /kg 2.50 kg sold Tomato Vegetables S"
+ },
+ {
+  "charter": "Buyer odd taps",
+  "what": "pressing Place Order three times in a row creates exactly one order",
+  "pass": true,
+  "detail": "orders 73->74"
+ },
+ {
+  "charter": "Buyer odd taps",
+  "what": "shrinking the window to 320 px on the result screen: no crash",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "charter": "Buyer odd taps",
+  "what": "widening to 1024 px: no crash",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "charter": "Farmer odd taps",
+  "what": "60 rapid tab switches: still responsive, no error",
+  "pass": true,
+  "detail": "Home Good afternoon, Fidel! Thursday, November 19,"
+ },
+ {
+  "charter": "Farmer odd taps",
+  "what": "resizing the window with a form open keeps what was typed",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "charter": "Farmer odd taps",
+  "what": "pressing Save Expense three times in a row saves exactly one record",
+  "pass": true,
+  "detail": "rows=1"
+ },
+ {
+  "charter": "Farmer odd taps",
+  "what": "browser Back from Expenses: no crash",
+  "pass": true,
+  "detail": "Profile ACTIVE FF Fidel Farmer Farmer Member 09170"
+ }
+]

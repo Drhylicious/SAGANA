@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import '../services/guest_mode_service.dart';
 import '../services/market_types_service.dart';
 import '../services/offline_cache.dart';
@@ -89,10 +90,7 @@ class BuyerMarketplaceRepository {
   ) async {
     if (listingIds.isEmpty) return {};
     Future<Map<String, Map<String, dynamic>>> load(String columns) async {
-      final rows = await _client
-          .from('marketplace_listing_units_sold')
-          .select(columns)
-          .inFilter('listing_id', listingIds);
+      final rows = await chunkedIn(listingIds, (slice) => _client.from('marketplace_listing_units_sold').select(columns).inFilter('listing_id', slice));
       return {
         for (final s in rows)
           s['listing_id'] as String: Map<String, dynamic>.from(s),
@@ -216,10 +214,7 @@ class BuyerMarketplaceRepository {
       final batchMap = <String, Map<String, dynamic>>{};
       if (batchIds.isNotEmpty) {
         try {
-          final batchRows = await _client
-              .from('inventory_batches')
-              .select('id, available_kg, status, crop_type')
-              .inFilter('id', batchIds);
+          final batchRows = await chunkedIn(batchIds, (slice) => _client.from('inventory_batches').select('id, available_kg, status, crop_type').inFilter('id', slice));
           for (final b in batchRows) {
             batchMap[b['id'] as String] = b;
           }
@@ -462,10 +457,7 @@ class BuyerMarketplaceRepository {
   ) async {
     if (listingIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('marketplace_listings')
-          .select('id, remaining_kg')
-          .inFilter('id', listingIds);
+      final rows = await chunkedIn(listingIds, (slice) => _client.from('marketplace_listings').select('id, remaining_kg').inFilter('id', slice));
       return {
         for (final r in rows)
           r['id'] as String: (r['remaining_kg'] as num).toDouble(),
@@ -488,10 +480,7 @@ class BuyerMarketplaceRepository {
   ) async {
     if (listingIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('marketplace_listings')
-          .select('id, status, remaining_kg, crop_type, farmer_id')
-          .inFilter('id', listingIds);
+      final rows = await chunkedIn(listingIds, (slice) => _client.from('marketplace_listings').select('id, status, remaining_kg, crop_type, farmer_id').inFilter('id', slice));
       return {for (final r in rows) r['id'] as String: r};
     } catch (e) {
       debugPrint('BuyerMarketplaceRepository.fetchCartListingRows failed: $e');

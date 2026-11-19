@@ -161,8 +161,9 @@ void main() {
         expect(src, isNot(contains('ImageSource.gallery')), reason: f);
         expect(src, isNot(contains('Upload Photo')), reason: f);
       }
+      // (the formatter may break the line between `ImageSource` and `.camera`)
       expect(read('lib/presentation/widgets/crop_photo_capture.dart'),
-          contains('ImageSource.camera'));
+          matches(RegExp(r'ImageSource\s*\.camera')));
     });
 
     test('Edit Crop opens the camera directly (no source choice)', () {
@@ -174,10 +175,7 @@ void main() {
 
     testWidgets('the red "Photo Required" mark reads Photo Required', (tester) async {
       await runIgnoringFontErrors(() async {
-        await tester.pumpWidget(MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: const Scaffold(body: Center(child: PhotoRequiredBadge())),
-        ));
+        await tester.pumpWidget(localized(const PhotoRequiredBadge()));
         expect(find.text('Photo Required'), findsOneWidget);
       });
     });
@@ -220,9 +218,10 @@ void main() {
   group('Selling needs the actual photo (Flutter and database)', () {
     test('Marketplace, Offer to Cooperative and Market Linking ask for it; Informal Sale does not', () {
       final inv = read('lib/presentation/screens/farmer/manage_inventory_screen.dart');
-      expect(inv, contains('list this on the Marketplace'));
-      expect(inv, contains('offer this to the Cooperative'));
-      expect(inv, contains('submit this batch for Market Linking'));
+      // The sentence now lives in the language files (English + Tagalog), used by key.
+      expect(inv, contains('enhListThisOnTheMarketplace'));
+      expect(inv, contains('enhOfferThisToTheCooperative'));
+      expect(inv, contains('enhSubmitThisBatchForMarketLinking'));
       final informal = inv.substring(inv.indexOf('class _RecordInformalSaleDialogState'));
       expect(informal, isNot(contains('requireCropPhotoToSell')));
       expect(informal, isNot(contains('_withSellingPhoto')));

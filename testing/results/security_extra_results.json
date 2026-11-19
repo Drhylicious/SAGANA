@@ -1,0 +1,110 @@
+[
+ {
+  "area": "security",
+  "name": "server refuses a 1-character and a 5-character password at sign-up",
+  "pass": true,
+  "detail": "422/422 Password should be at least 8 characters."
+ },
+ {
+  "area": "security",
+  "name": "server password minimum is at least the app minimum of 8 characters (a 6- and 7-character password are refused)",
+  "pass": true,
+  "detail": "6 chars: 422, 7 chars: 422 (the app screens refuse under 8, so a call made straight to the API is held to a weaker rule)"
+ },
+ {
+  "area": "security",
+  "name": "a normal 10-character password is accepted",
+  "pass": true,
+  "detail": "200 {\"access_token\":\"<local test token removed>"
+ },
+ {
+  "area": "security",
+  "name": "the same e-mail cannot be registered twice (no duplicate account)",
+  "pass": true,
+  "detail": "second signup 422 User already registered | original still signs in: 200"
+ },
+ {
+  "area": "security",
+  "name": "a new self-registered account has no staff or farmer rights until approved",
+  "pass": true,
+  "detail": "roles []; program insert 400; other people visible 0"
+ },
+ {
+  "area": "security",
+  "name": "an expired token is refused",
+  "pass": true,
+  "detail": "401 JWT expired"
+ },
+ {
+  "area": "security",
+  "name": "a token signed with the wrong secret, claiming to be service_role, is refused",
+  "pass": true,
+  "detail": "401 No suitable key or wrong key type"
+ },
+ {
+  "area": "security",
+  "name": "a token with algorithm \"none\" is refused",
+  "pass": true,
+  "detail": "401 Wrong or unsupported encoding algorithm"
+ },
+ {
+  "area": "security",
+  "name": "a signed-in user cannot change their own role claim by updating their auth metadata",
+  "pass": true,
+  "detail": "metadata edit then program insert 400"
+ },
+ {
+  "area": "security",
+  "name": "a wrong password and an unknown account give the same answer at sign-in (no account enumeration)",
+  "pass": true,
+  "detail": "400 \"Invalid login credentials\" vs 400 \"Invalid login credentials\""
+ },
+ {
+  "area": "security",
+  "name": "password-reset request answers the same for a known and an unknown e-mail",
+  "pass": true,
+  "detail": "200 vs 200"
+ },
+ {
+  "area": "security",
+  "name": "a signed-in Farmer changing their password through the API is possible only with their own session (not for someone else)",
+  "pass": true,
+  "detail": "admin endpoint with a user token: 403; original password still works: 200"
+ },
+ {
+  "area": "security",
+  "name": "10 wrong passwords in a row lock the account; the 11th attempt with the CORRECT password is refused with a clear message",
+  "pass": true,
+  "detail": "wrong x10: 400 | correct password now: 400 \"Too many failed sign-in attempts. Please wait 15 minutes and try again.\""
+ },
+ {
+  "area": "security",
+  "name": "another account is not affected by the lock",
+  "pass": true,
+  "detail": "200"
+ },
+ {
+  "area": "security",
+  "name": "a correct sign-in before the limit clears the count (9 wrong, 1 right, then 9 more wrong does not lock)",
+  "pass": true,
+  "detail": "right after 9 wrong: 200, right after 9 more wrong: 200"
+ },
+ {
+  "area": "security",
+  "name": "the failure log cannot be read or written through the public API (no one can unlock or lock an account from outside)",
+  "pass": true,
+  "detail": "read 403 delete 403 anon read 401"
+ },
+ {
+  "area": "security",
+  "name": "the hook function cannot be called by a signed-in user or by anyone signed out",
+  "pass": true,
+  "detail": "403/401"
+ },
+ {
+  "area": "security",
+  "name": "a Manager (service) clearing the rows unlocks the account at once",
+  "pass": true,
+  "detail": "clear 204, sign-in 200"
+ }
+]

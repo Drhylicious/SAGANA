@@ -350,15 +350,15 @@ void main() {
     // to have all four chips on show; the narrow-screen test below covers scrolling.
     const wide = Size(1000, 900);
 
-    ftest('shows the four status chips and a Filter button', (tester) async {
+    ftest('shows the five status chips and a Filter button', (tester) async {
       await show(tester, const LoanHistoryScreen(), size: wide);
 
-      for (final label in ['All (0)', 'Active Loans (0)', 'Overdue Loans (0)', 'Paid (0)']) {
+      for (final label in ['All (0)', 'Active Loans (0)', 'Overdue Loans (0)', 'Paid (0)', 'Assistance (0)']) {
         expect(find.widgetWithText(ChoiceChip, label), findsOneWidget, reason: label);
       }
       expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
-      // Four chips: the Filter button is not one of them.
-      expect(find.byType(ChoiceChip), findsNWidgets(4));
+      // Five chips: the Filter button is not one of them.
+      expect(find.byType(ChoiceChip), findsNWidgets(5));
       expect(isSelected(tester, 'All (0)'), isTrue);
 
       // Row 1: the search box with the Filter button beside it. Row 2: the chips.

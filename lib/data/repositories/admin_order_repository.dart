@@ -1,4 +1,6 @@
 import '../../core/l10n/localized_labels.dart';
+import '../../core/utils/chunked_in.dart';
+import '../../core/utils/fetch_all_rows.dart';
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
@@ -355,7 +357,13 @@ class AdminOrderRepository {
           if (statusFilter != null) query = query.eq('status', statusFilter);
           if (buyerId != null) query = query.eq('buyer_id', buyerId);
 
-          final rows = await query.order('created_at', ascending: false);
+          // Every page, not just the first 1,000 (see fetch_all_rows.dart).
+          final rows = await fetchAllRows(
+            (from, to) => query
+                .order('created_at', ascending: false)
+                .order('id')
+                .range(from, to),
+          );
           if (rows.isEmpty) return <Map<String, dynamic>>[];
 
           final buyerIds = rows
@@ -369,10 +377,7 @@ class AdminOrderRepository {
 
           final buyerMap = <String, Map<String, dynamic>>{};
           try {
-            final buyers = await _client
-                .from('user_information')
-                .select('user_id, full_name, phone_number, profile_photo_url')
-                .inFilter('user_id', buyerIds);
+            final buyers = await chunkedIn(buyerIds, (slice) => _client.from('user_information').select('user_id, full_name, phone_number, profile_photo_url').inFilter('user_id', slice));
             for (final b in buyers) {
               buyerMap[b['user_id'] as String] = b;
             }
@@ -380,10 +385,7 @@ class AdminOrderRepository {
 
           final listingMap = <String, Map<String, dynamic>>{};
           try {
-            final listings = await _client
-                .from('marketplace_listings')
-                .select('id, crop_name, crop_id, variety, photo_url')
-                .inFilter('id', listingIds);
+            final listings = await chunkedIn(listingIds, (slice) => _client.from('marketplace_listings').select('id, crop_name, crop_id, variety, photo_url').inFilter('id', slice));
             for (final l in listings) {
               listingMap[l['id'] as String] = l;
             }

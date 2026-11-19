@@ -71,10 +71,10 @@ void main() {
       expect(p.canDistribute, isTrue);
     });
 
-    test('Harvest Return needs a quantity only: the unit is the unit of the item that was given', () {
+    test('Harvest Return asks for nothing extra: the quantity is recorded with the outcome', () {
       final p = _program(benefit: 'revenue_share');
       expect(p.isHarvestReturn, isTrue);
-      expect(p.missingFields, ['return_quantity']);
+      expect(p.missingFields, isEmpty);
       final done = _program(
         benefit: 'revenue_share',
         returnCrop: 'crop-1',
@@ -84,7 +84,7 @@ void main() {
       expect(done.missingFields, isEmpty);
     });
 
-    test('a zero budget or zero return quantity counts as missing', () {
+    test('a zero budget counts as missing; a zero return quantity does not', () {
       expect(_program(budget: 0).missingFields, ['budget']);
       expect(
         _program(
@@ -93,7 +93,7 @@ void main() {
           returnQty: 0,
           returnUnit: 'kg',
         ).missingFields,
-        ['return_quantity'],
+        isEmpty,
       );
     });
 

@@ -5177,6 +5177,7 @@
   "farmerAnalyticsTopHarvestedCropsTitle": "Pinaka-Inaning Pananim (Buong Kooperatiba, 90 araw)",
   "farmerAnalyticsLoadError": "Hindi na-load ang ilang numero, kaya maaaring kulang ang mga kabuuan sa ibaba.",
   "farmerAnalyticsRetry": "Subukan muli",
+  "analyticsKgOnlyNote": "Ang mga ani na naitala sa kg lamang ang kasama sa kabuuan.",
   "farmerAnalyticsOtherUnitsNote": "{count} ani na naitala sa ibang yunit (gaya ng sako) ay hindi kasama sa kabuuang kg.",
   "@farmerAnalyticsOtherUnitsNote": {
     "placeholders": {
@@ -9274,7 +9275,7 @@
   "@patSharesSummary": { "placeholders": { "shares": {"type": "int"}, "remaining": {"type": "String"}, "value": {"type": "String"} } },
   "capSettingsTitle": "Mga Setting ng Capital Share",
   "capSettingsPurchaseLabel": "Pagbili sa Kooperatiba",
-  "capSettingsPurchaseHint": "Ang porsyento ng natapos na order ng Cooperative Product na idinadagdag sa Capital Share ng miyembrong naka-enroll sa Product Sales program. Walang naidaragdag ang hindi naka-enroll.",
+  "capSettingsPurchaseHint": "Ang porsyento ng natapos na order ng Cooperative Product na idinadagdag sa Capital Share ng miyembrong sumali sa Product Sales program. Walang naidaragdag ang hindi sumali.",
   "capSettingsOfferLabel": "Alok sa Kooperatiba",
   "capSettingsOfferHint": "Ang porsyento ng halaga ng benta ng matagumpay at natapos na alok na idinadagdag sa Capital Share ng magsasaka. Walang naidaragdag ang nakabinbin, tinanggihan at kinanselang alok.",
   "capSettingsMonthlyLabel": "Buwanang Kontribusyon",

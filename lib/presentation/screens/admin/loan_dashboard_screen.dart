@@ -386,7 +386,15 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       // FittedBox(fit: scaleDown) to shrink it back down regardless of
       // fontSize — 1.5 (vs. an earlier 1.35) keeps that room without the
       // card reading as oversized.
-      childAspectRatio: 1.5,
+      // The card gets taller as the phone's text size grows, so the number keeps its size
+      // (found by the text-size test: at 150% the numbers shrank to a few pixels while the
+      // labels stayed large).
+      childAspectRatio:
+          1.5 /
+          (() {
+            final s = MediaQuery.textScalerOf(context).scale(1.0);
+            return s > 1.0 ? 1.0 + (s - 1.0) * 0.8 : 1.0;
+          })(),
       children: [
         _kpiCard(
           l10n.loanDashActiveLoans,
@@ -611,29 +619,38 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     // visible for everyone who reaches this screen.
     const canIssueLoans = true;
 
+    // With enlarged text the two buttons no longer fit side by side (the labels were cut to
+    // "Issue Ne..." / "Record P..."), so they stack and show their full names.
+    final stacked = MediaQuery.textScalerOf(context).scale(1.0) > 1.2;
+    final issueButton = _quickActionButton(
+      icon: Icons.add_card_rounded,
+      label: l10n.loanDashActionIssue,
+      onTap: _goToIssueLoan,
+    );
+    final paymentButton = _quickActionButton(
+      icon: Icons.payments_outlined,
+      label: l10n.loanDashActionPayments,
+      onTap: () => _goToPayment(),
+    );
+
     return Column(
       children: [
-        Row(
-          children: [
-            if (canIssueLoans) ...[
-              Expanded(
-                child: _quickActionButton(
-                  icon: Icons.add_card_rounded,
-                  label: l10n.loanDashActionIssue,
-                  onTap: _goToIssueLoan,
-                ),
-              ),
-              const SizedBox(width: AppConstants.spacingSm),
-            ],
-            Expanded(
-              child: _quickActionButton(
-                icon: Icons.payments_outlined,
-                label: l10n.loanDashActionPayments,
-                onTap: () => _goToPayment(),
-              ),
-            ),
+        if (stacked) ...[
+          if (canIssueLoans) ...[
+            issueButton,
+            const SizedBox(height: AppConstants.spacingSm),
           ],
-        ),
+          paymentButton,
+        ] else
+          Row(
+            children: [
+              if (canIssueLoans) ...[
+                Expanded(child: issueButton),
+                const SizedBox(width: AppConstants.spacingSm),
+              ],
+              Expanded(child: paymentButton),
+            ],
+          ),
         const SizedBox(height: AppConstants.spacingSm),
         // Farmers' loan requests waiting for a decision; the count is the
         // number still Pending.

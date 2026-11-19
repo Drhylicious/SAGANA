@@ -1,4 +1,6 @@
 import 'admin_activity_repository.dart';
+import '../../core/utils/chunked_in.dart';
+import '../../core/utils/fetch_all_rows.dart';
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/program_model.dart';
@@ -72,10 +74,7 @@ class CooperativeOrderRepository {
     final ids = rows.map((r) => r['farmer_id'] as String).toSet().toList();
     if (ids.isEmpty) return {};
     try {
-      final info = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', ids);
+      final info = await chunkedIn(ids, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       return {
         for (final r in info)
           r['user_id'] as String: (r['full_name'] as String?) ?? 'Unknown',
@@ -88,10 +87,14 @@ class CooperativeOrderRepository {
   /// Every Cooperative order, newest first. Staff only (the database hides them from others).
   Future<List<ProgramPurchase>> fetchAllOrders() async {
     try {
-      final rows = await _client
-          .from('program_product_purchases')
-          .select(_select)
-          .order('requested_at', ascending: false);
+      final rows = await fetchAllRows(
+        (from, to) => _client
+            .from('program_product_purchases')
+            .select(_select)
+            .order('requested_at', ascending: false)
+            .order('id')
+            .range(from, to),
+      );
       return _toOrders(rows, await _names(rows));
     } catch (_) {
       return [];
@@ -115,10 +118,7 @@ class CooperativeOrderRepository {
   Future<Map<String, String>> fetchOrderNumbers(List<String> orderIds) async {
     if (orderIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('program_product_purchases')
-          .select('id, order_number')
-          .inFilter('id', orderIds);
+      final rows = await chunkedIn(orderIds, (slice) => _client.from('program_product_purchases').select('id, order_number').inFilter('id', slice));
       return {
         for (final r in rows)
           if (r['order_number'] != null)

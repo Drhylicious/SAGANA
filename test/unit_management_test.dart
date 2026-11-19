@@ -159,7 +159,13 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pump(const Duration(milliseconds: 500));
-      // Open the Unit dropdown (shows its current value, kg).
+      // Open the Unit dropdown (shows its current value, kg). The sheet's buttons are a fixed footer,
+      // so scroll the field clear of it first, as a person would.
+      await tester.ensureVisible(find.text('kg'));
+      await tester.pump(const Duration(milliseconds: 300));
+      final sheetScroll = Scrollable.of(tester.element(find.text('kg')));
+      sheetScroll.position.jumpTo((sheetScroll.position.pixels + 200).clamp(0, sheetScroll.position.maxScrollExtent));
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('kg'));
       await tester.pump(const Duration(milliseconds: 300));
     }

@@ -199,7 +199,7 @@ void main() {
     test('Edit is offered for Pending Approval and for Available listings, never for the others', () {
       final pending = detail.substring(detail.indexOf('if (listing.isPending)'), detail.indexOf('if (listing.isAvailable)'));
       expect(pending, contains('_openEdit'));
-      expect(pending, contains('Withdraw Listing'));
+      expect(pending, contains('enhWithdrawListing244')); // 'Withdraw Listing'
       final available = detail.substring(detail.indexOf('if (listing.isAvailable)'), detail.indexOf('if (listing.isRejected)'));
       expect(available, contains('_openEdit'));
       expect(available, isNot(contains('_confirmWithdraw')), reason: 'an approved listing cannot be withdrawn');

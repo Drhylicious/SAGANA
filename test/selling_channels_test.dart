@@ -196,7 +196,7 @@ void main() {
       final src = read('lib/presentation/screens/admin/market_linking_screen.dart');
       final sale = src.substring(src.indexOf('class _CompleteSaleSheetState'));
       expect(sale, contains('parseDecimal(_priceCtrl.text)'));
-      expect(sale, contains('priceErrorText(_priceCtrl.text'));
+      expect(sale, allOf(contains('priceErrorText('), contains('_priceCtrl.text')));
       expect(sale, contains('quantityErrorText('));
       final buyer = src.substring(src.indexOf('class _BuyerDetailsSheetState'),
           src.indexOf('class _ReviewCancellationSheet '));

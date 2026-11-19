@@ -1,0 +1,11 @@
+import { serve, launch, boot, loginAs, text } from './lib.mjs';
+const srv = await serve(); const { browser, page } = await launch(); await boot(page); await loginAs(page, 't_manager');
+await page.getByText('Members', { exact: true }).last().click(); await page.waitForTimeout(5000);
+console.log('MEMBERS:', (await text(page)).slice(0, 400));
+const btns = await page.locator('flt-semantics-host [role=button]').evaluateAll(els => els.map(e => (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40)).filter(Boolean));
+console.log('BUTTONS:', btns.slice(0, 20).join(' | '));
+await page.screenshot({ path: '../results/shots/probe_members.png' });
+await page.locator('flt-semantics-host input').first().click(); await page.keyboard.type('Pam', { delay: 40 }); await page.waitForTimeout(2500); console.log('SEARCH:', (await text(page)).slice(0, 250));
+await page.getByText('Show menu').first().click(); await page.waitForTimeout(1500);
+console.log('MENU:', (await text(page)).slice(0, 300)); await page.screenshot({ path: '../results/shots/probe_members_menu.png' });
+await browser.close(); srv.close();

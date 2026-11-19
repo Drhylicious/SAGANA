@@ -9,6 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sagana/core/constants/app_constants.dart';
 import 'package:sagana/core/l10n/app_localizations.dart';
 import 'package:sagana/core/theme/app_theme.dart';
+import 'package:sagana/presentation/widgets/labeled_text_field.dart';
+import 'package:sagana/presentation/widgets/labeled_text_field.dart';
 import 'package:sagana/data/services/hive_service.dart';
 import 'package:sagana/data/services/staff_permission_service.dart';
 import 'package:sagana/presentation/screens/admin/program_management_screen.dart';
@@ -131,8 +133,9 @@ void main() {
     return (border as OutlineInputBorder?)?.borderSide.color;
   }
 
-  Finder fieldWithLabel(String label) => find.ancestor(
-    of: find.text(label),
+  // The label sits above the field inside a LabeledTextField column (it is not a parent of the field).
+  Finder fieldWithLabel(String label) => find.descendant(
+    of: find.ancestor(of: find.text(label), matching: find.byType(LabeledTextField)),
     matching: find.byType(TextFormField),
   );
 
@@ -233,8 +236,11 @@ void main() {
     await tester.enterText(fieldWithLabel(l10n.programMgmtDescriptionLabel), 'Cookies for members');
     await tester.ensureVisible(find.text('Select categories'));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Select categories'));
-    await tester.pump(const Duration(milliseconds: 300));
+    // The first tap can land on a dropdown barrier that is still closing; tap again if the list is not open.
+    for (var attempt = 0; attempt < 3 && find.text('Seeds').evaluate().isEmpty; attempt++) {
+      await tester.tap(find.text('Select categories'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 600));
+    }
     await tester.tap(find.text('Seeds').last);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tapAt(const Offset(5, 5)); // close the list
@@ -272,8 +278,10 @@ void main() {
 
     // The item returned is the one that was given, in its own unit: nothing to choose.
     expect(find.textContaining('Return Crop'), findsNothing);
-    expect(find.byKey(const Key('returnQuantityField')), findsOneWidget);
-    expect(find.text(l10n.programMgmtReturnQtyLabel), findsOneWidget);
+    // The quantity to return is decided after the field verification (on the outcome screen),
+    // so the create form no longer asks for it.
+    expect(find.byKey(const Key('returnQuantityField')), findsNothing);
+    expect(find.text(l10n.programMgmtReturnQtyLabel), findsNothing);
     expect(find.byKey(const Key('unitField')), findsNothing);
     expect(find.text('Unit*'), findsNothing);
     expect(find.text(l10n.unitAddCompact), findsNothing);

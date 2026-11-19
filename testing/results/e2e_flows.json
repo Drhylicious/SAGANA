@@ -1,0 +1,146 @@
+[
+ {
+  "area": "black-box",
+  "step": "empty sign-in shows field errors and does not sign in",
+  "pass": true,
+  "detail": "SAGANA Empowering the Future of Farming Username / Email Username or email is required Password Password is required Forgot Password? Sign In New to SAGANA? Cre"
+ },
+ {
+  "area": "black-box",
+  "step": "wrong password is refused with a clear message",
+  "pass": true,
+  "detail": "SAGANA Empowering the Future of Farming Username / Email Password Forgot Password? Incorrect username or password. Please try again. Sign In New to SAGANA? Create an Account Manager access is managed "
+ },
+ {
+  "area": "black-box",
+  "step": "unknown username is refused (no account details leaked)",
+  "pass": true,
+  "detail": "SAGANA Empowering the Future of Farming Username / Email Password Forgot Password? Incorrect username or password. Please try again. Sign In New to SAGANA? Create an Account Manager access is managed "
+ },
+ {
+  "area": "black-box",
+  "step": "SQL-injection style input is just a failed sign-in",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "session",
+  "step": "Sign Out returns to the welcome/login screen",
+  "pass": true,
+  "detail": "SAGANA Welcome to SAGANA! How would you like to explore? Explore as Buyer Browse the marketplace and"
+ },
+ {
+  "area": "session",
+  "step": "after Sign Out a browser refresh does not bring the account back",
+  "pass": true,
+  "detail": "SAGANA Welcome to SAGANA! How would you like to explore? Explore as Buyer Browse the marketplace and"
+ },
+ {
+  "area": "session",
+  "step": "a corrupted/expired access token does not crash the app (signs out or refreshes it)",
+  "pass": true,
+  "detail": "You're Offline Close Some information on this screen is not saved on this device. To see it and retrieve the l"
+ },
+ {
+  "area": "buyer",
+  "step": "marketplace lists approved crops with price and stock",
+  "pass": true,
+  "detail": "Marketplace All (20) Vegetables (20) Tomato ₱50.00/kg 0 buyers Not yet assigned 59.98 kg a"
+ },
+ {
+  "area": "buyer",
+  "step": "searching for a crop that does not exist shows an empty result, not an error",
+  "pass": true,
+  "detail": "Marketplace All (20) Vegetables (20) No listings match your filters Try a different search term or category. Browse Orde"
+ },
+ {
+  "area": "buyer",
+  "step": "searching \"Tom\" finds Tomato",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "buyer",
+  "step": "tapping a listing opens its details with Buy Now (1,500 listings in the system)",
+  "pass": true,
+  "detail": "Not yet assigned ₱50.00 /kg 0 kg sold Tomato Vegetables SP3 Agriculture Cooperative Barangay Payanas, Torrijos, Marinduq"
+ },
+ {
+  "area": "buyer",
+  "step": "the quantity box will not accept more than the 60 kg in stock (typed 999)",
+  "pass": true,
+  "detail": "field holds 9"
+ },
+ {
+  "area": "buyer",
+  "step": "checkout shows the right total (2.50 kg x ₱50.00 = ₱125.00)",
+  "pass": true,
+  "detail": "Checkout How would you like to receive this? Pickup Delivery Delivery is not available right now. Please choose Pickup. "
+ },
+ {
+  "area": "buyer",
+  "step": "Place Order confirms the order",
+  "pass": true,
+  "detail": "Order Placed! SP3 Agriculture Cooperative will review your order shortly. Pickup SP3 Agriculture Coo"
+ },
+ {
+  "area": "buyer",
+  "step": "the order is saved as pending, 2.50 kg, ₱125.00",
+  "pass": true,
+  "detail": "pending|2.50|125.00"
+ },
+ {
+  "area": "recovery",
+  "step": "going offline shows the Offline state on Home",
+  "pass": true,
+  "detail": "You're Offline Close You're viewing saved data. New records are saved locally and sync when you're back online. Some fea"
+ },
+ {
+  "area": "recovery",
+  "step": "offline: \"Harvest\" still opens with saved data (no crash / blank)",
+  "pass": true,
+  "detail": "You're Offline Close Some information on this screen is not saved on this device"
+ },
+ {
+  "area": "recovery",
+  "step": "offline: \"Listings\" still opens with saved data (no crash / blank)",
+  "pass": true,
+  "detail": "You're Offline Close Some information on this screen is not saved on this device"
+ },
+ {
+  "area": "recovery",
+  "step": "offline: \"Analytics\" still opens with saved data (no crash / blank)",
+  "pass": true,
+  "detail": "You're Offline Close Some information on this screen is not saved on this device"
+ },
+ {
+  "area": "recovery",
+  "step": "offline: \"Profile\" still opens with saved data (no crash / blank)",
+  "pass": true,
+  "detail": "You're Offline Close Some information on this screen is not saved on this device"
+ },
+ {
+  "area": "recovery",
+  "step": "coming back online shows Online again",
+  "pass": true,
+  "detail": "You're Back Online Close Your connection is restored. Your offline records are now syncing. Home Good morning, Farmer! T"
+ },
+ {
+  "area": "recovery",
+  "step": "database down: the app stays up, no crash",
+  "pass": true,
+  "detail": "My Orders All (11) Pending Order (10) Approved (0) Ready for Pickup (0) Out for Delivery (0) Tomato Pending Order ORD-20261119-G911 · Nov 19"
+ },
+ {
+  "area": "recovery",
+  "step": "database down: Orders already opened before still show the saved list (not an empty list)",
+  "pass": true,
+  "detail": "warm: My Orders All (11) Pending Order (10) Approved (0) Ready for | now: My Orders All (11) Pending Order (10) Approved (0) Ready for Pickup (0) Out for Delivery (0) Tomato Pending Order ORD-20"
+ },
+ {
+  "area": "recovery",
+  "step": "database back: the Marketplace loads again without restarting the app",
+  "pass": true,
+  "detail": "Marketplace All (20) Vegetables (20) Tomato ₱50.00/kg 0 buyers Not yet assigned 59.99 kg available 0"
+ }
+]

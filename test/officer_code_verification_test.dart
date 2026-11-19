@@ -648,7 +648,7 @@ void main() {
         ],
         'lib/presentation/screens/admin/crop_management_screen.dart': [
           '_showCropSheet',
-          '_confirmDelete',
+          '_editExpiryDiscount',
           '_archiveWithConfirm',
         ],
         'lib/presentation/screens/admin/crop_request_approval_screen.dart': [
@@ -674,7 +674,6 @@ void main() {
         'lib/presentation/screens/admin/loan_item_management_screen.dart': [
           '_archiveWithConfirm',
           '_restore',
-          '_showLoanSettingsSheet',
         ],
         'lib/presentation/screens/admin/farmer_management_screen.dart': [
           '_showAddMemberTypeSheet',
@@ -1119,11 +1118,14 @@ void main() {
         );
         expect(src, contains('status.listActionsFor('));
         expect(src, contains('officerCreated: source != null'));
-        for (final guard in [
-          "case 'approve':\n        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;",
-          "case 'reject':\n        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;",
-        ]) {
-          expect(src, contains(guard));
+        // Whatever the formatting, an Officer's approve/reject on an Officer-created Farmer is dropped.
+        final flat = src.replaceAll(RegExp(r'\s+'), ' ');
+        for (final action in ['approve', 'reject']) {
+          expect(
+            RegExp("case '$action': " r'if \(HiveService\.isOfficer && _sources\.containsKey\(farmer\.userId\)\) \{ return; \}').hasMatch(flat),
+            isTrue,
+            reason: action,
+          );
         }
       },
     );
@@ -1502,7 +1504,7 @@ void main() {
 
   // ─────────────────────────────── T19 ───────────────────────────────
   group('T19 Buyers', () {
-    ftest('Buyer Management filters are All / Active / Inactive only', (
+    ftest('Buyer Management groups buyers as Active / Inactive only (no filter chips, no Suspended)', (
       t,
     ) async {
       await setRole(t, 'admin');
@@ -1511,10 +1513,14 @@ void main() {
         () => Future.delayed(const Duration(milliseconds: 400)),
       ); // Hive cache read is real IO
       await settle(t);
-      expect(find.textContaining('All ('), findsOneWidget);
-      expect(find.textContaining('Active ('), findsOneWidget);
-      expect(find.textContaining('Inactive ('), findsOneWidget);
+      // Buyers sit under Active / Inactive section headers; a header appears only when it has buyers.
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.textContaining('All ('), findsNothing);
       expect(find.textContaining('Suspended'), findsNothing);
+      final src = File('lib/presentation/screens/admin/buyer_management_screen.dart').readAsStringSync();
+      expect(src, contains('l10n.farmerMgmtStatusActiveLabel'));
+      expect(src, contains('l10n.analyticsInactive'));
+      expect(src, contains('if (inactive.isNotEmpty)'));
     });
   });
 
@@ -1811,10 +1817,9 @@ void main() {
         );
         expect(last()['table_name'], isNot(contains('loan_items_master')));
 
-        // Reports: only the exports the app wrote.
+        // Reports: the Capital Share settings changes (database) plus the exports the app wrote.
         await tap('log-chip-reports');
-        expect(last()['source'], 'eq.app');
-        expect(last()['action_type'], 'eq.exported');
+        expect(last()['or'], allOf(contains('capital_share_rates'), contains('action_type.eq.exported')));
         await tap('log-feature-exports');
         expect(last()['source'], 'eq.app');
         expect(last()['module'], 'eq.reports');
@@ -1943,8 +1948,8 @@ void main() {
             locale: const Locale('tl'),
           ),
         );
-        expect(find.textContaining('View Only'), findsOneWidget);
-        expect(find.text('Mga Utang · View Only'), findsOneWidget);
+        expect(find.textContaining('Tingin lamang'), findsOneWidget);
+        expect(find.text('Mga Utang · Tingin lamang'), findsOneWidget);
 
         await setRole(t, 'admin');
         fake.on('GET /rest/v1/admin_activity_log', (_) => <Object?>[]);

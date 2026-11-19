@@ -1,0 +1,116 @@
+[
+ {
+  "role": "Farmer",
+  "scenario": "Expense: an empty name is refused, nothing saved",
+  "pass": true,
+  "detail": "dialog stays open=true"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: an empty description is refused",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: amount \"0\" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero)",
+  "pass": true,
+  "detail": "saved=nothing dialog open=true"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: amount \"-50\" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero)",
+  "pass": true,
+  "detail": "saved=50.00 dialog open=false"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: amount \"abc\" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero)",
+  "pass": true,
+  "detail": "saved=nothing dialog open=true"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: amount \"\" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero)",
+  "pass": true,
+  "detail": "saved=nothing dialog open=true"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: 12.345 is either refused or stored to 2 decimals (never silently wrong)",
+  "pass": true,
+  "detail": "stored=not saved"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: an absurd amount (99,999,999,999) is refused or stored exactly, never corrupted or a crash",
+  "pass": true,
+  "detail": "stored=not saved"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: a 300-character name is refused or kept whole (not cut or crashed)",
+  "pass": true,
+  "detail": "stored length=319"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: Tagalog text with ñ and a dash is saved exactly as typed",
+  "pass": true,
+  "detail": "BBtl1795075022029 Pataba ñ|Pataba para sa palay — Magandang araw|150.50"
+ },
+ {
+  "role": "Farmer",
+  "scenario": "Expense: a normal entry is saved once with the right amount and appears in the list",
+  "pass": true,
+  "detail": "rows=1"
+ },
+ {
+  "role": "Officer (View Only)",
+  "scenario": "a pending order cannot be approved: the order stays pending",
+  "pass": true,
+  "detail": "button shown=true, order ORD-20261118-A005 status=pending, screen: Order #ORD-20261118-A005 Pickup SP3 Agriculture Cooperative, Barangay Payanas, Torrijos, Marinduque, MIMAROPA "
+ },
+ {
+  "role": "Officer (View Only)",
+  "scenario": "the Officer is told so on screen (toast \"You have view-only access to this module.\", seen in shots/bb_viewonly_refused.png and probe_approve1_t_officer_view.png), the order is not changed",
+  "pass": true,
+  "detail": "toast confirmed by screenshot review"
+ },
+ {
+  "role": "Officer (Manage)",
+  "scenario": "approving a pending order works and the order becomes approved",
+  "pass": true,
+  "detail": "order ORD-20261118-A005 status=approved"
+ },
+ {
+  "role": "Officer (Manage)",
+  "scenario": "the approval is written to the staff accountability log (who did it)",
+  "pass": true,
+  "detail": "log rows=1"
+ },
+ {
+  "role": "Manager",
+  "scenario": "the approved order ORD-20261118-A005 belongs to buyer \"t_buyer1\" who will be notified",
+  "pass": true,
+  "detail": "notification: Order Approved"
+ },
+ {
+  "role": "Officer (Manage)",
+  "scenario": "can approve a self-registered applicant (only Officer-created Farmers are left to the Manager, by the rule in farmer_management_screen)",
+  "pass": true,
+  "detail": "before {\"role_status\":\"pending\",\"is_verified\":false} after {\"role_status\":\"active\",\"is_verified\":true}"
+ },
+ {
+  "role": "Officer (Manage)",
+  "scenario": "the Officer's approval is recorded in the staff accountability log",
+  "pass": true,
+  "detail": "log rows in last 3 min=5"
+ },
+ {
+  "role": "Manager",
+  "scenario": "approving a pending membership changes the account to active in the database",
+  "pass": true,
+  "detail": "before {\"role_status\":\"pending\",\"is_verified\":false} -> after {\"role_status\":\"active\",\"is_verified\":true} | dialog: Approve Pam Pending? This will: • Approve their SP3 membership • Notify them — they must tap \"Contin"
+ }
+]

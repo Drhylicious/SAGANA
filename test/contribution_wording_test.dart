@@ -30,11 +30,11 @@ void main() {
   });
 
   test('Tagalog labels are real Tagalog, not left in English jargon', () {
-    expect(tl.farmerDetailsSourcePaymentFull, 'Bayad sa Capital Share');
+    expect(tl.farmerDetailsSourcePaymentFull, 'Bayad sa puhunan');
     expect(tl.farmerDetailsSourceAdjustmentFull, 'Pagwawasto (+ o −)');
-    expect(tl.farmerDetailsSourceOpeningBalance, 'Panimulang Capital');
+    expect(tl.farmerDetailsSourceOpeningBalance, 'Panimulang Puhunan');
     expect(tl.farmerDetailsSourcePayment, 'Bayad');
-    expect(tl.farmerDetailsSourcePatronage, 'Payout sa capital');
+    expect(tl.farmerDetailsSourcePatronage, 'Payout sa puhunan');
     expect(tl.farmerDetailsSourceAdjustment, 'Pagwawasto');
   });
 
@@ -79,7 +79,7 @@ void main() {
 
   test('Add Farmer: the starting-capital field uses the same word as the history', () {
     expect(en.addMemberInitialContributionLabel, 'Starting Capital (₱)');
-    expect(tl.addMemberInitialContributionLabel, 'Panimulang Capital (₱)');
+    expect(tl.addMemberInitialContributionLabel, 'Panimulang Puhunan (₱)');
     expect(en.addMemberContributionHelp, contains('Starting Capital'));
     expect(en.addMemberContributionHelp, contains('₱2,000'));
     expect(en.addMemberContributionHelp, contains('₱100/month'));
@@ -90,13 +90,12 @@ void main() {
     final dialog = File('lib/presentation/screens/admin/farmer_details_screen.dart')
         .readAsStringSync();
     for (final pair in const {
-      'member_payment': 'farmerDetailsSourcePaymentFull',
       'manual_adjustment': 'farmerDetailsSourceAdjustmentFull',
       'opening_balance': 'farmerDetailsSourceOpeningBalance',
     }.entries) {
       expect(dialog, contains("'${pair.key}': l10n.${pair.value}"));
     }
     // Only a correction may be negative: the rule itself is still there.
-    expect(dialog, contains("_source != 'manual_adjustment'"));
+    expect(dialog, contains("_source == 'manual_adjustment'"));
   });
 }

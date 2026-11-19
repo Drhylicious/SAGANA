@@ -1,0 +1,28 @@
+ok     194 ms  [Farmer] tab Harvest
+ok    1089 ms  [Farmer] tab Listings
+ok    2222 ms  [Farmer] tab Analytics
+ok    1094 ms  [Farmer] tab Profile
+ok      38 ms  [Farmer] tab Home
+ok     230 ms  [Buyer] Browse (1,501 listings)
+ok     114 ms  [Buyer] Orders
+ok     246 ms  [Buyer] Prices
+ok    1932 ms  [Buyer] search "Tom" in Browse
+SLOW 12234 ms  [Manager] Dashboard (cold)
+ok    2713 ms  [Manager] tab Members
+ok    2911 ms  [Manager] tab Marketplace
+ok    1181 ms  [Manager] tab Loans
+SLOW  8691 ms  [Manager] tab Reports
+ok     229 ms  [Manager] tab Dashboard
+ok    2346 ms  [Manager] Order Management (4,000+ orders)
+ok    2448 ms  [Manager] All Listings (1,501)
+ok      34 ms  [Manager] search a member in Members (160 farmers)
+SLOW  3828 ms  [Manager] Sales Report
+SLOW 10882 ms  [Manager] Harvest Report
+ok    1064 ms  [Manager] Cooperative Stock Report
+ok    1346 ms  [Manager] Loan Report
+ok    1365 ms  [Manager] Expense Report
+ok    1583 ms  [Manager] Member Contribution Report
+ok    1776 ms  [Manager] Analytics Dashboard
+ok    1179 ms  [Manager] Export Center
+
+22/26 within 3000 ms

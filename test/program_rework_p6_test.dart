@@ -231,7 +231,7 @@ void main() {
           ),
         );
         expect(find.text('Partially received'), findsOneWidget);
-        expect(find.textContaining('4 of 10 kg Peanut'), findsOneWidget);
+        expect(find.textContaining('4 of 10 kg received'), findsOneWidget);
         await tester.tap(find.text('Manage return'));
         expect(opened, isTrue);
         expect(tester.takeException(), isNull);

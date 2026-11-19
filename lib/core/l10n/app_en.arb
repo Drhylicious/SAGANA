@@ -5927,6 +5927,7 @@
   "farmerAnalyticsTopHarvestedCropsTitle": "Top Harvested Crops (Coop-wide, 90 days)",
   "farmerAnalyticsLoadError": "Some figures could not be loaded, so the totals below may be incomplete.",
   "farmerAnalyticsRetry": "Try again",
+  "analyticsKgOnlyNote": "Totals count harvests recorded in kg only.",
   "farmerAnalyticsOtherUnitsNote": "{count} harvest(s) recorded in other units (such as sacks) are not counted in the kg totals.",
   "@farmerAnalyticsOtherUnitsNote": {
     "placeholders": {
@@ -11882,7 +11883,7 @@
   "@patSharesSummary": { "placeholders": { "shares": {"type": "int"}, "remaining": {"type": "String"}, "value": {"type": "String"} } },
   "capSettingsTitle": "Capital Share Settings",
   "capSettingsPurchaseLabel": "Cooperative Purchase",
-  "capSettingsPurchaseHint": "The percentage of a completed Cooperative Product order that is added to the Capital Share of a member enrolled in the Product Sales program. Members who are not enrolled add nothing.",
+  "capSettingsPurchaseHint": "The percentage of a completed Cooperative Product order that is added to the Capital Share of a member who joined the Product Sales program. Members who did not join add nothing.",
   "capSettingsOfferLabel": "Offer to Cooperative",
   "capSettingsOfferHint": "The percentage of the sale value of a successful, completed offer that is added to the farmer's Capital Share. Pending, rejected and cancelled offers add nothing.",
   "capSettingsMonthlyLabel": "Monthly Contribution",

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show debugPrint;
+import '../../core/utils/chunked_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/activity_text.dart';
 import '../models/admin_dashboard_model.dart';
@@ -47,7 +48,9 @@ class AdminActivityRepository {
 
   /// The accountability trail: every change a Manager or Officer made to an
   /// audited table, newest first. Written by the database, not the app, so it
-  /// is complete whichever screen made the change. Readable by any staff member.
+  /// is complete whichever screen made the change. Only the Manager can read it:
+  /// the Staff Accountability screen is Manager-only and so is the table's read
+  /// policy (supabase_schema_accountability_log_manager_only.sql).
   ///
   /// [scope] narrows it to one tab, one feature of a tab, Broadcast or System
   /// (see staff_log_filters.dart). Everything the database wrote is included,
@@ -95,10 +98,7 @@ class AdminActivityRepository {
         .inFilter('role', ['admin', 'officer']);
     if (roles.isEmpty) return [];
     final ids = roles.map((r) => r['user_id'] as String).toList();
-    final info = await _client
-        .from('user_information')
-        .select('user_id, full_name')
-        .inFilter('user_id', ids);
+    final info = await chunkedIn(ids, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
     final names = {
       for (final r in info) r['user_id'] as String: r['full_name'] as String?,
     };
@@ -122,8 +122,8 @@ class AdminActivityRepository {
     if (uid == null) return [];
     try {
       // Recent Activity shows only this user's own actions. The table's RLS
-      // lets every staff member read the whole log, so the scope is applied
-      // here rather than relied on implicitly.
+      // lets an Officer read only their own app-written rows (the Manager reads
+      // everything); the same scope is applied here so it never depends on that.
       var query = _client
           .from('admin_activity_log')
           .select(

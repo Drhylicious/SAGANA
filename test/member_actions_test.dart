@@ -105,7 +105,6 @@ void main() {
     final src = File('lib/presentation/screens/admin/farmer_details_screen.dart')
         .readAsStringSync();
     for (final gone in [
-      'more_vert',
       '_BottomActionBar',
       '_ActionsMenu',
       '_showActionsMenu',
@@ -116,8 +115,12 @@ void main() {
     ]) {
       expect(src, isNot(contains(gone)), reason: gone);
     }
+    // The only menu left is the small Capital Share "Adjust" one (opening balance and corrections), not an actions menu.
+    expect('PopupMenuButton<'.allMatches(src).length, 1);
+    expect(src, contains('l10n.contribAdjustCapital'));
     // Capital is recorded for members only.
-    expect(src, contains('canRecordContribution: !profile.memberStatus.isApplicant'));
+    expect(src, contains('canRecordContribution:'));
+    expect(src, contains('!profile.memberStatus.isApplicant'));
   });
 
   test('the Members list is where the actions live, including Issue Loan', () {

@@ -1,0 +1,11 @@
+import { serve, launch, boot, bodyText } from './lib.mjs';
+const srv = await serve();
+const { browser, page, logs } = await launch();
+await boot(page);
+await page.getByLabel(/Login/).first().click().catch(async e => { console.log('getByLabel failed', String(e).slice(0, 100)); await page.locator('flt-semantics', { hasText: 'Login' }).last().click(); });
+await page.waitForTimeout(2500);
+console.log('LOGIN TEXT:', (await bodyText(page)).replace(/\s+/g, ' ').slice(0, 500));
+const html = await page.locator('flt-semantics-host').evaluate(e => e.innerHTML.slice(0, 1800));
+console.log(html);
+await page.screenshot({ path: '../results/shots/probe_login.png' });
+await browser.close(); srv.close();

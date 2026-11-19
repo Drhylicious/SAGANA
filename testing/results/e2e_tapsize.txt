@@ -1,0 +1,26 @@
+SMALL [t_farmer1] (home) -> "" 38x38, "" 26x26, "Sync now" 316x32, "View Market" 81x19, "View All" 55x7
+SMALL [t_farmer1] Home -> "" 38x38, "" 26x26, "Sync now" 316x32, "View Market" 81x19, "View All" 55x7
+SMALL [t_farmer1] Harvest -> "" 38x38, "" 26x26, "View All" 55x19
+SMALL [t_farmer1] Listings -> "" 38x38, "" 26x26, "Marketplace" 171x39, "Listing" 171x39, "All (0)" 68x34, "Pending Approval (0)" 156x34, "Available (0)" 105x34, "Unavailable (0)" 120x34
+SMALL [t_farmer1] Analytics -> "" 38x38, "" 26x26
+SMALL [t_farmer1] Profile -> "" 38x38, "" 26x26
+SMALL [t_buyer1] (home) -> "Forgot Password?" 111x17, "New to SAGANA? Create an Acc" 251x20
+SMALL [t_manager] (home) -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Sync now" 316x32, "Cooperative Calendar View Fu" 350x21
+SMALL [t_manager] Dashboard -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Sync now" 316x32, "Cooperative Calendar View Fu" 350x21
+SMALL [t_manager] Members -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34
+SMALL [t_manager] Marketplace -> "" 38x38, "" 42x26, "" 26x26, "MM" 34x34
+SMALL [t_manager] Loans -> "" 38x38, "" 42x26, "" 26x26, "MM" 34x34
+SMALL [t_manager] Reports -> "" 38x38, "" 42x26, "" 26x26, "MM" 34x34, "₱0 Expense Report Farmer exp" 169x31, "0% active Member Contributio" 169x31
+SMALL [t_officer_view] (home) -> "Forgot Password?" 111x17, "New to SAGANA? Create an Acc" 251x20
+SMALL [t_buyer1] (home) -> "" 38x38, "All (20)" 76x34, "Vegetables (20)" 126x34
+SMALL [t_buyer1] Browse -> "" 38x38, "All (20)" 76x34, "Vegetables (20)" 126x34
+SMALL [t_buyer1] Orders -> "" 38x38, "All (73)" 74x34, "Pending Order (62)" 148x34, "Approved (4)" 109x34, "Ready for Pickup (0)" 15x34
+SMALL [t_buyer1] Prices -> "" 38x38, "All (1)" 68x34, "Vegetables (1)" 118x34
+SMALL [t_buyer1] Profile -> "" 38x38, "View All" 55x19, "Order Placed 8:03 AM Tomato " 350x16
+SMALL [t_officer_view] (home) -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Sync now" 316x32, "Cooperative Calendar View Fu" 350x10, "Dashboard · View Only" 390x28
+SMALL [t_officer_view] Dashboard · View Only -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Sync now" 316x32, "Cooperative Calendar View Fu" 350x10, "Dashboard · View Only" 390x28
+SMALL [t_officer_view] Dashboard -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Sync now" 316x32, "Cooperative Calendar View Fu" 350x10, "Dashboard · View Only" 390x28
+SMALL [t_officer_view] Members -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Members · View Only" 390x28
+SMALL [t_officer_view] Marketplace -> "" 38x38, "" 42x26, "" 26x26, "M" 34x34, "Marketplace · View Only" 390x28
+SMALL [t_officer_view] Loans -> "" 38x38, "" 42x26, "" 26x26, "OV" 34x34, "Loans · View Only" 390x28
+SMALL [t_officer_view] Reports -> "" 38x38, "" 42x26, "" 26x26, "OV" 34x34, "₱0 Expense Report Farmer exp" 169x3, "0% active Member Contributio" 169x3, "Reports · View Only" 390x28

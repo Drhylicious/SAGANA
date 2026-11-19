@@ -1,0 +1,10 @@
+# Local copies and build output (large, recreated on demand)
+backup/
+web_build/
+results/shots/
+results/dart_tests*.json
+results/rem*.json
+results/*.csv
+results/*.err
+results/*.done
+results/web_build*.txt

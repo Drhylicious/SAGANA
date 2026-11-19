@@ -1,0 +1,10 @@
+import { serve, launch, boot, loginAs, text } from './lib.mjs';
+const srv = await serve(); const { browser, page } = await launch(); await boot(page);
+await loginAs(page, 't_buyer1');
+await page.mouse.click(100, 320); await page.waitForTimeout(5000);
+await page.getByText('Buy Now', { exact: true }).last().click(); await page.waitForTimeout(2500);
+console.log('SHEET:', (await text(page)).slice(0, 500)); await page.screenshot({ path: '../results/shots/probe_buynow.png' });
+const btns = await page.locator('flt-semantics-host [role=button]').evaluateAll(els => els.map(e => (e.textContent || '').trim().slice(0, 30)).filter(Boolean));
+console.log('BUTTONS:', btns.join(' | '));
+console.log('INPUTS:', await page.locator('flt-semantics-host input').count());
+await browser.close(); srv.close();

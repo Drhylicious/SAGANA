@@ -162,7 +162,7 @@ void main() {
   group('Successful', () {
     testWidgets('Free Distribution: the result, its date and the harvest the field check measured', (tester) async {
       await runIgnoringFontErrors(() async {
-        await pump(tester, program(), tab: 2, members: [
+        await pump(tester, program(), tab: 1, members: [
           member('m1', 'f1', givenDaysAgo: 60, outcome: 'thriving', outcomeDaysAgo: 3),
         ], reports: [finalReport('m1', 'f1', success: true, verified: 20)]);
         expect(find.byKey(const Key('finalLine_m1')), findsOneWidget);
@@ -196,7 +196,7 @@ void main() {
         final l10n = l10nOf(tester);
         expect(find.textContaining('Successful ·'), findsOneWidget);
         expect(find.textContaining('verified harvest'), findsNothing);
-        expect(find.text(l10n.retDueLine('3', '5', 'head', 'Pig')), findsOneWidget);
+        expect(find.text(l10n.retProgressLine('3', '5', 'head')), findsOneWidget);
         expect(find.byType(LinearProgressIndicator), findsOneWidget);
         expect(find.text(l10n.retManage), findsOneWidget);
         expect(tester.takeException(), isNull);
@@ -205,7 +205,7 @@ void main() {
 
     testWidgets('an outcome recorded before reports shows its result as plain text', (tester) async {
       await runIgnoringFontErrors(() async {
-        await pump(tester, program(), tab: 2, members: [
+        await pump(tester, program(harvestReturn: true), tab: 2, members: [
           member('m1', 'f1', givenDaysAgo: 90, outcome: 'thriving', outcomeDaysAgo: 40),
         ]);
         expect(find.byKey(const Key('finalLine_m1')), findsOneWidget);
@@ -218,7 +218,7 @@ void main() {
   group('Failed', () {
     testWidgets('the result, its date and the cause the Farmer gave', (tester) async {
       await runIgnoringFontErrors(() async {
-        await pump(tester, program(), tab: 3, members: [
+        await pump(tester, program(harvestReturn: true), tab: 3, members: [
           member('m1', 'f1', givenDaysAgo: 60, outcome: 'failed', outcomeDaysAgo: 3),
         ], reports: [finalReport('m1', 'f1', success: false, cause: 'Pest damage')]);
         expect(find.byKey(const Key('finalLine_m1')), findsOneWidget);
@@ -240,7 +240,7 @@ void main() {
 
     testWidgets('a long cause stays inside the card (at most three lines)', (tester) async {
       await runIgnoringFontErrors(() async {
-        await pump(tester, program(), tab: 3, size: const Size(320, 1400), members: [
+        await pump(tester, program(harvestReturn: true), tab: 3, size: const Size(320, 1400), members: [
           member('m1', 'f1', givenDaysAgo: 60, outcome: 'failed', outcomeDaysAgo: 3),
         ], reports: [finalReport('m1', 'f1', success: false, cause: 'A long period of heavy rain flooded the whole field and the seedlings rotted before they could take root, so nothing was harvested at all.')]);
         expect(tester.takeException(), isNull);

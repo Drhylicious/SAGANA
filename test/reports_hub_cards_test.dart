@@ -190,13 +190,11 @@ void main() {
 
     test('both sections use the shared Dashboard/Marketplace card', () {
       // Detailed Reports and the Officer's two tools use the same grid; the
-      // Manager's three tools are the same cards in a sideways-scrolling row.
+      // Manager's two tools (Analytics Dashboard, Export Center) use it too.
       expect(RegExp('DashboardModuleGrid\\(').allMatches(src).length, 2);
-      expect(src, contains('DashboardModuleStrip(items: items)'));
-      expect(
-        src,
-        contains('HiveService.isOfficer\n        ? DashboardModuleGrid(items: items)'),
-      );
+      expect(src.contains('DashboardModuleStrip'), isFalse, reason: 'the Manager tools are now the same fixed two-column grid');
+      // One grid for everyone: there is no longer a separate Officer branch.
+      expect(src, contains('return DashboardModuleGrid(items: items);'));
       expect(src, isNot(contains('_reportCard(')));
       expect(src, isNot(contains('_ReportCardData')));
     });

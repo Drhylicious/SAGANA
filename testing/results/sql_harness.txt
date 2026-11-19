@@ -1,0 +1,325 @@
+PASS  T1    exactly one create_officer_account, takes p_permissions, no p_position
+PASS  T1    Manager creates an Officer with Loans = view
+PASS  T1    stored: loans=view, the other four default to manage (5 rows)
+PASS  T1    no permissions sent -> all five default to manage
+PASS  T1    Manager-created Officer is active at once, must change password, position left empty
+PASS  T10   Manager-created accounts: no approval request and not blocked
+PASS  T1    unknown module rejected
+PASS  T1    invalid level rejected
+PASS  T1    non-object permissions rejected
+PASS  T1    a Farmer cannot create an Officer
+PASS  T2    View Only Officer: issue_loan refused with the view-only message
+PASS  T2    View Only Officer: record_loan_payment refused
+PASS  T2    View Only Officer: marking a loan paid (PATCH farmer_loans) refused
+PASS  T2    Dashboard View Only: crop price edit (PATCH crop_master) refused
+PASS  T2    Dashboard Manage: crop price edit passes the gate
+PASS  T2    View Only Officer can still READ
+PASS  T2    ungoverned call (touch_last_active) is unaffected
+PASS  T21   Manager is never gated
+PASS  T21   Farmer is never gated by it
+PASS  T21   anonymous caller passes through the gate untouched
+PASS  T4    Dashboard View Only: DELETE /price_records refused (HTTP 403 = SQLSTATE 42501)
+PASS  T4    Dashboard Manage: the same call passes the gate
+PASS  T4    if PostgREST gave no request.method, a View Only write is still refused (fails closed)
+PASS  T14   Members View Only: create_farmer_account refused
+PASS  T14   Members View Only: create_officer_account refused
+PASS  T14   Members View Only: suspend_member refused
+PASS  T14   Members View Only: reset password refused
+PASS  T14   Members Manage: suspend_member passes
+PASS  T3    get_my_staff_permissions returns the Officer's five levels
+PASS  T3    Manager reads Manage for every module
+PASS  T3    a Farmer gets no staff permissions ({})
+PASS  T3    Manager sets Loans = manage; the stored level changes
+PASS  T3    the same Officer's next issue_loan now passes the gate
+PASS  T3    the change is logged with the Manager as actor, old and new level
+PASS  T13   nobody edits their own access
+PASS  T13   an Officer with Members = Manage can raise another Officer (no ceiling)
+PASS  T13   an Officer with Members = View cannot assign access (gate)
+PASS  T13   access can only be set on an Officer account
+PASS  T13   Members Manage Officer suspends a Farmer (row updated)
+PASS  T13   ... and another Officer (no automatic guard)
+PASS  T13   accepted risk: ... and the Manager account (Decision 3)
+PASS  T13   but no role can be changed from the app
+PASS  T13   without the Members request marker (gate not run) row security updates nothing
+PASS  T13   a Farmer cannot update another user's role row
+PASS  T10   Manager-created Farmer: active at once, verified, must change the password, not blocked
+PASS  T10   ... with no approval request
+PASS  T5    the address is stored with the fixed service area (as registration does)
+PASS  T10   the "Account Created" notice is sent for a Manager-created account
+PASS  T5    Officer-created Farmer is a PENDING applicant, unverified, and must change the password
+PASS  T5    ... it can sign in (no ban) and the request names who created it
+PASS  T5    the status history records it as created by the Officer
+PASS  T5    the Manager is notified, naming the Officer
+PASS  T5    no "created by the Manager" notice for an Officer-created account
+PASS  T9    an Officer (even with Members = Manage) cannot create an Officer account
+PASS  T10   the Manager creates an Officer: active at once, no request
+PASS  T7    the Officer who created the account cannot approve it
+PASS  T7    another Officer with Members = Manage cannot approve it either
+PASS  T8    nor disapprove it
+PASS  T7    an Officer with Members = View Only is stopped by the gate
+PASS  T12   self-registration is untouched: pending, no request row, not blocked
+PASS  T12   an Officer with Members = Manage still approves a self-registered applicant
+PASS  T7    Manager approves: active, the Continue step is on, verified, request closed with who and when
+PASS  T7    the Farmer is told the membership was approved
+PASS  T7    the creating Officer is told it was approved
+PASS  T7    approving again is refused (no duplicate decision)
+PASS  T8    a reason is required to disapprove
+PASS  T8    disapproval: status rejected with the reason, request closed, still not banned (the Pending screen shows why)
+PASS  T8    the Farmer sees the disapproval notice; the creating Officer is told too
+PASS  T8    after a resubmission an Officer still cannot approve an Officer-created account
+PASS  T8    ... the Manager can
+PASS  T7    decision details (the request table) are readable by the Manager only
+PASS  T5    staff read WHO CREATED an applicant (a narrow view); a Farmer reads nothing
+PASS  T7    the view exposes no decision details
+PASS  T7    the old approve/disapprove_account_creation functions are gone
+PASS  T6    nothing is banned any more: pending and disapproved Farmers can sign in to the Pending screen
+PASS  T5    a Farmer account needs a street
+PASS  T5    and a house number
+PASS  T5    the membership parameters are still honoured when sent (the form just does not send them)
+PASS  T12   each approve/disapprove event stores the staff member's name and role
+PASS  T12   Manager reads the history; Officers read none
+PASS  T12   no staff-read policy was added to member_status_events
+PASS  T15   BEFORE script 10: a Farmer reads their own status event, including the staff name
+PASS  T15   AFTER script 10: a Farmer reads no status history at all
+PASS  T15   ... the Manager still reads it, and the staff name is intact for the Manager
+PASS  T15   only the Manager policy remains
+PASS  T15   a Farmer still reads their own status (the Pending screen reads user_roles, not the history)
+PASS  T9    an Officer with Members = Manage cannot delete a disapproved account (Officer-created)
+PASS  T9    ... nor a self-registered one
+PASS  T9    ... not even the Officer who created it
+PASS  T9    an approved (active) account cannot be deleted
+PASS  T9    the Manager cannot delete their own account
+PASS  T9    an Officer account is not deletable here
+PASS  T9    an account with transaction history is refused, naming what must be kept
+PASS  T9    a capital balance above zero is refused
+PASS  T9    ... and nothing was deleted
+PASS  T9    the Manager deletes an Officer-created disapproved Farmer (zero-balance capital row does not block)
+PASS  T9    the accountability entry says who created it, who disapproved it and why, and who deleted it
+PASS  T9    the Manager deletes a self-registered disapproved applicant; the log says it was self-registered
+PASS  T9    the entry is part of the trail the Manager reads in Staff Accountability (source db)
+PASS  T15   BEFORE script 03: an Officer with Dashboard = Manage cannot schedule (row security refuses)
+PASS  T15   BEFORE script 03: the Manager can
+PASS  T15   AFTER script 03: Dashboard = Manage Officer schedules a broadcast
+PASS  T15   AFTER 03, before 11: Dashboard = View Only Officer is refused by the gate (the original design)
+PASS  T15   AFTER: a Farmer cannot write broadcast_logs
+PASS  T15   AFTER: Manage Officer can edit a broadcast
+PASS  T15   AFTER: Manage Officer can delete a broadcast
+PASS  T15   AFTER 03, before 11: View Only Officer cannot delete
+PASS  T15   AFTER: Manage Officer can insert a notice for a Farmer (broadcast delivery)
+PASS  T15   AFTER: a Farmer still cannot insert a notice for someone else
+PASS  T15   before 11: send_broadcast and broadcast_logs are governed by the Dashboard module
+PASS  T15   AFTER script 11: Broadcast is no longer governed by any module
+PASS  T15   ... price announcements still belong to Dashboard (only Broadcast was opened)
+PASS  T15   AFTER 11: the gate lets a View Only Officer call send_broadcast
+PASS  T15   AFTER 11: an Officer with every module on View Only schedules a broadcast
+PASS  T15   ... and the audit trail records who made it (name, role, module broadcast)
+PASS  T15   AFTER 11: the same Officer can edit it, and the edit is attributed too
+PASS  T15   AFTER 11: a Farmer still cannot write broadcast_logs
+PASS  T15   BEFORE script 07: even a View Only Officer can post a notification to any user through the API (the hole)
+PASS  T15   AFTER script 07: a Manage Officer cannot insert a notification directly
+PASS  T15   AFTER script 07: a View Only Officer cannot insert a notification directly
+PASS  T15   AFTER script 07: the Manager cannot insert a notification directly
+PASS  T15   AFTER script 07: a Farmer cannot insert a notification directly
+PASS  T15   reading one's own notifications is unaffected
+PASS  T15   no INSERT policy remains on notifications
+PASS  T16   Officer (all Manage, even Members) cannot write Balik year totals
+PASS  T16   inside a Members request (is_platform_admin true) Balik writes are STILL refused
+PASS  T16   Manager can write Balik year totals
+PASS  T16   no Balik table or RPC is mapped to an Officer-assignable module
+PASS  T20   an Officer's crop price edit is logged: name, role, module, operation
+PASS  T20   only the changed columns are recorded, old and new side by side (updated_at ignored)
+PASS  T20   the record id and a human reference are stored
+PASS  T20   the Manager's price record is attributed to the Manager
+PASS  T20   a status change by an Officer is recorded: who, module members, status old -> new
+PASS  T20   loan and inventory writes are audited too
+PASS  T20   a no-change update writes no log row
+PASS  T20   a Farmer's change to an audited table is not logged as staff
+PASS  T20   an Officer cannot insert a database-written (source=db) row from the client
+PASS  T20   the app's own message rows still insert, and the database stamps the real name and role
+PASS  T20   an Officer cannot log an action under another staff member's name
+PASS  T20   Manager reads the database trail; an Officer reads none of it
+PASS  T20   nobody (not even the Manager) can edit or delete log rows through the API
+PASS  T20   audit triggers attach to the audited tables that exist
+PASS  T19   suspended Buyers were set back to Active, reason and end date cleared
+PASS  T19   one history row per reactivated Buyer
+PASS  T19   a suspended Farmer is left suspended (Farmer suspension untouched)
+PASS  T19   suspending a Buyer is now refused by the database (even by a Manage Officer)
+PASS  T19   ... and by the Manager
+PASS  T19   Farmer suspension still works
+PASS  T19   the script is safe to re-run
+PASS  T4    script 06 stores pgrst.db_pre_request = public.staff_permission_gate on the authenticator role
+PASS  T4    the gate is executable by anon and authenticated (so no request fails before it runs)
+PASS  N5    BEFORE script 12: an Officer with Members = Manage can delete a status-history row (the hole)
+PASS  N5    AFTER script 12: member_status_events is no longer a Members-gated table
+PASS  N5    an Officer with Members = Manage cannot delete a status-history row through the API
+PASS  N5    an Officer with Members = Manage cannot edit one
+PASS  N5    the Manager cannot delete a status-history row through the API
+PASS  N5    the Manager cannot edit one
+PASS  N5    a Farmer cannot delete a status-history row through the API
+PASS  N5    a Farmer cannot edit one
+PASS  N5    an Officer cannot forge a status-history row
+PASS  N5    the Manager reads the history; Officers and Farmers read none
+PASS  N5    approve_member still writes the history (with the staff name)
+PASS  N5    an Officer cannot rewrite a logbook entry
+PASS  N5    an Officer cannot delete one
+PASS  N5    the Manager cannot rewrite a logbook entry
+PASS  N5    the Manager cannot delete one
+PASS  N5    ... and the logbook is intact
+PASS  N5    Suspend: who, which member, status before and after, and the reason
+PASS  N5    Reactivate is recorded
+PASS  N5    Add a contribution: who, which member, amount, source and note
+PASS  N5    Edit member information: who, which member, the field before and after
+PASS  N5    ... farmer profile edits are recorded too
+PASS  N5    a staff member editing their OWN profile, and a Farmer editing theirs, are not logged
+PASS  N5    Change an Officer's access: who, which Officer, the module and level
+PASS  N5    Reset a member's password: recorded against that member
+PASS  Item3 BEFORE script 13: a Buyer can read the cooperative yearly totals (the gap)
+PASS  Item3 AFTER script 13: a Buyer reads nothing
+PASS  Item3 ... Farmers read as before (My Contribution)
+PASS  Item3 ... Officers and the Manager read as before
+PASS  Item3 ... and a signed-out visitor still reads nothing
+PASS  Item3 writes are unchanged: a Buyer still cannot write
+PASS  Item3 the old "authenticated reads" rule is replaced, the staff read rule is untouched
+PASS  Storage BEFORE script 14: a Buyer can upload into the inventory photo folder (the gap)
+PASS  Storage BEFORE: so can an Officer with Dashboard = View Only
+PASS  Storage Manager uploads an inventory photo to their own folder
+PASS  Storage ... and a program image (the nested folder the app uses)
+PASS  Storage Officer with Dashboard = Manage uploads
+PASS  Storage ... but only into their own folder
+PASS  Storage Officer with Dashboard = Manage can replace a photo the Manager uploaded
+PASS  Storage ... and the Manager one an Officer uploaded
+PASS  Storage Officer with Dashboard = View Only cannot upload
+PASS  Storage ... cannot replace
+PASS  Storage ... cannot delete
+PASS  Storage ... and the photo is still there
+PASS  Storage a Farmer cannot upload
+PASS  Storage ... or delete (a Farmer)
+PASS  Storage a Buyer cannot upload
+PASS  Storage ... or delete (a Buyer)
+PASS  Storage viewing is unchanged: View Only Officer, Farmer, Buyer and a visitor all see the photos
+PASS  Storage Officer with Dashboard = Manage can delete a photo
+PASS  Storage ... and so can the Manager
+PASS  Storage crop photos are unchanged: a Farmer still uploads to their own folder
+PASS  Storage ... and still only to their own
+PASS  Storage only the three inventory write policies were replaced; public read kept
+PASS  Storage ... crop image policies are untouched
+PASS  Storage script 15 fills a missing size limit (10 MB)
+PASS  Storage ... never changes a limit that is already set
+PASS  Storage ... and never touches the allowed file types
+PASS  Item3 script 16: a Farmer gets their own selling and buying share (250/1000 and 100/400 = 25%)
+PASS  Item3 ... and the answer holds only those two numbers, never a cooperative total
+PASS  Item3 a Farmer with no activity gets 0 and 0
+PASS  Item3 a year with no cooperative totals gives 0 (no division error)
+PASS  Item3 a signed-out visitor cannot call it at all
+PASS  Item3 a Buyer gets only zeros (nothing about anyone else)
+PASS  Item3 BEFORE script 17: a Farmer can still read the table directly (what the update stops needing)
+PASS  Item3 AFTER script 17: a Farmer and a Buyer read nothing directly
+PASS  Item3 ... the Manager and every Officer read it (the new Reports view)
+PASS  Item3 ... and the Farmer still gets their share through the function
+PASS  Item3 only the Manager can change the totals (an Officer is refused, the Manager is not)
+PASS  Item3 what is left to read it: the staff rule only
+PASS  Ledger setup: the member total follows the ledger
+PASS  Ledger BEFORE script 18: an Officer with Members = Manage can change a contribution amount (the hole)
+PASS  Ledger ... and delete a contribution
+PASS  Ledger AFTER script 18: an Officer with Members = Manage can still ADD a contribution
+PASS  Ledger ... it is in the logbook with the Officer's name
+PASS  Ledger ... but not in the Manager's name
+PASS  Ledger an Officer with Members = View Only still cannot add (the gate)
+PASS  Ledger a Farmer cannot add one
+PASS  Ledger an Officer cannot change an existing contribution: the API changes 0 rows and the amount stays
+PASS  Ledger ... nor delete one
+PASS  Ledger ... not even in bulk
+PASS  Ledger a function running with owner rights cannot change one for an Officer either (clear message)
+PASS  Ledger ... or delete one
+PASS  Ledger an Officer cannot set a member's total directly
+PASS  Ledger ... or delete it
+PASS  Ledger the Manager can still correct a record, and the logbook keeps the original amount
+PASS  Ledger ... and the member total follows (the trigger is unaffected)
+PASS  Ledger database maintenance (no signed-in user) is not blocked
+PASS  Ledger reading is unchanged: the Farmer reads their own ledger, a stranger does not
+PASS  N7    "admins" in a message becomes "Managers"
+PASS  N7    ... the function keeps its rights and its role check
+PASS  N7    "only admins or officers" -> "only Managers or officers"
+PASS  N7    "an Manager" is fixed to "a Manager"
+PASS  N7    "an Administrator", "An admin" and "Administrators" read correctly
+PASS  N7    "database administrator" is left alone (it is not the Manager)
+PASS  N7    the role literal and comments are not touched
+PASS  N7    a function that already says Manager is not re-created
+PASS  N7    and the user sees the new wording when it fires
+PASS  N7    the script is safe to re-run (nothing more changes)
+PASS  Mgr19 script 19: the Manager sees their own sign-in e-mail (lower-cased)
+PASS  Mgr19 ... an Officer sees the same single row
+PASS  Mgr19 ... only Manager accounts are returned: never an Officer, Farmer or Buyer
+PASS  Mgr19 a Farmer gets nothing
+PASS  Mgr19 a Buyer gets nothing
+PASS  Mgr19 a signed-out visitor cannot call it
+PASS  Mgr19 an internal @sagana.local sign-in address is never returned
+PASS  Own20 BEFORE script 20: an Officer with Members = Manage can change another Officer (the gap)
+PASS  Own20 AFTER: the same Officer is refused, with a clear message
+PASS  Own20 ... and nothing changed
+PASS  Own20 the Manager still can
+PASS  Own20 ... only on an Officer account
+PASS  Own20 ... and an Officer account, never the Manager themselves (not an Officer)
+PASS  Own20 a Farmer cannot call it
+PASS  Own20 the Manager's change is still written to the accountability log
+PASS  Rev21 BEFORE script 21: a Farmer could still add capital for themselves through the old function (the gap)
+PASS  Rev21 AFTER: the old self-service function is locked for a Farmer
+PASS  Rev21 ... and for everyone else signed in, the Manager included (the app never calls it)
+PASS  Rev21 an Officer (Members = Manage) records a contribution; the recorder is saved
+PASS  Rev21 the Manager records one too
+PASS  Rev21 a record with no recorder is refused (it can no longer be anonymous)
+PASS  Rev21 ... and so is one in somebody else's name
+PASS  Rev21 a reversal cannot be created directly through the API
+PASS  Rev21 an Officer (Members = Manage) can reverse an entry recorded by the Manager
+PASS  Rev21 ... the original is untouched (still recorded by the Manager, same amount)
+PASS  Rev21 ... the member total follows the ledger
+PASS  Rev21 the Manager can reverse an entry recorded by an Officer; the reason is trimmed
+PASS  Rev21 ... the total returns to nothing
+PASS  Rev21 the original keeps its own time; the reversal has its own
+PASS  Rev21 an entry can be reversed only once
+PASS  Rev21 a cancellation cannot be cancelled
+PASS  Rev21 a reason is required
+PASS  Rev21 ... and not an essay
+PASS  Rev21 an Officer with Members = View Only cannot reverse (the gate)
+PASS  Rev21 a Farmer cannot cancel a contribution
+PASS  Rev21 ... not even for their own entry
+PASS  Rev21 a Farmer cannot record a contribution for themselves through the API
+PASS  Rev21 ... nor anonymously
+PASS  Rev21 a signed-out visitor cannot call it
+PASS  Rev21 an unknown entry is refused
+PASS  Rev21 a payout added to capital is not reversed here (it belongs to Balik-Tangkilik)
+PASS  Rev21 a negative adjustment can be reversed too (it becomes positive)
+PASS  Rev21 the member is told "recorded" for each normal payment entry (3), with a positive amount
+PASS  Rev21 ... and "cancelled" for each cancellation (2), with the amount and no minus sign, no staff name, no reason
+PASS  Rev21 the Manager can no longer edit an entry through the API (0 rows)
+PASS  Rev21 ... or delete one
+PASS  Rev21 ... and a function running with owner rights cannot either, even for the Manager (clear message)
+PASS  Rev21 ... nor can a reason be rewritten
+PASS  Rev21 database maintenance (no signed-in user) is not blocked
+PASS  Rev21 the database itself allows only one reversal per entry (even for maintenance)
+PASS  Rev21 ... and a reversal without a reason
+PASS  Rev21 the logbook records the reversal: the Officer's name, the time, the reason and which entry
+PASS  Rev21 ... and the original entry is still logged against whoever recorded it
+PASS  Rev21 the gate governs the function under Members
+PASS  Rev21 no API rule to edit or delete a ledger entry is left
+PASS  Rev21 the script is safe to re-run
+PASS  Cov22 BEFORE script 22: a staff change to a listing leaves no accountability line (the gap)
+PASS  Cov22 AFTER: an Officer adding a listing is recorded: who, what, which record, under Marketplace
+PASS  Cov22 ... the Manager approving it records what changed, before and after
+PASS  Cov22 ... and a delete is recorded with the values that were removed
+PASS  Cov22 a Farmer's own listing is NOT recorded (only staff are)
+PASS  Cov22 an Officer moving an order along is recorded under Marketplace with the order number
+PASS  Cov22 ... a Buyer confirming receipt is not
+PASS  Cov22 the Manager saving the Balik-Tangkilik year settings is recorded under Reports
+PASS  Cov22 refreshing a member's estimate is routine and is NOT recorded
+PASS  Cov22 finalising a member's payout IS recorded, with the member's name and the result
+PASS  Cov22 ... a Farmer choosing cash or capital is not a staff action and is not recorded
+PASS  Cov22 the BOD reminder still goes out three days before the first Saturday (Dec 5, 2026), to Farmers and staff
+PASS  Cov22 ... and leaves ONE line: module System, actor "System", with the counts, no staff name
+PASS  Cov22 ... on any other day nothing is sent and nothing is logged
+PASS  Cov22 the Manager sees them; an Officer does not (script 05 rule)
+PASS  Cov22 ... and a Farmer does not
+PASS  Cov22 the script is safe to re-run (one audit trigger per table, the BOD job keeps its log line)
+
+322 passed, 0 failed of 322
+EXIT 0

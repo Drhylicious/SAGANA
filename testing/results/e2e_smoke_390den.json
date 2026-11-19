@@ -1,0 +1,308 @@
+[
+ {
+  "role": "t_farmer1",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Home Good morning, Fidel! Thursday, November 19, 2026 All Clear No urgent items "
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Home\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Harvest\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Listings\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Analytics\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Profile\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Dashboard MM Good morning, Mara! Thursday, November 19, 2026 100 Overdue Loans I"
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Dashboard\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Sync now\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Members\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Marketplace\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Loans\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Reports\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Dashboard OV Good morning, Olivia! Thursday, November 19, 2026 100 Overdue Loans"
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Dashboard · View Only\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Dashboard\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Sync now\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Members\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Marketplace\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Loans\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Reports\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Dashboard OM Good morning, Oscar! Thursday, November 19, 2026 100 Overdue Loans "
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Dashboard\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Sync now\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Members\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Marketplace\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Loans\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Reports\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Marketplace All (20) Vegetables (20) Tomato ₱50.00/kg 0 buyers Not yet assigned "
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Browse\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"All (20)\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Orders\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Vegetables (20)\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Prices\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Profile\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Home Welcome, Pam! SP3 Agriculture Cooperative Your application has been receive"
+ },
+ {
+  "role": "t_pending",
+  "step": "tab \"Home\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "tab \"Notifications\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "tab \"Profile\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ }
+]

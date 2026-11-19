@@ -820,14 +820,20 @@ class _ListingTabs extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppConstants.radiusFull),
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isActive
-                ? Theme.of(context).colorScheme.onPrimary
-                : Theme.of(context).colorScheme.outline,
+        // One line that shrinks to fit: with enlarged text "Marketplace" used to break in the
+        // middle of the word ("Marketplac / e"). Found by the text-size test.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isActive
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.outline,
+            ),
           ),
         ),
       ),

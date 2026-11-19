@@ -138,7 +138,8 @@ void main() {
         id: 'p1',
         programName: 'Peanut Seed Distribution',
         programType: 'Crop',
-        benefitType: 'grant',
+        // Only a Harvest Return program waits for an outcome report, so only it has a reminder.
+        benefitType: 'revenue_share',
         programPurpose: purpose,
         seasonYear: 2026,
         status: 'active',
@@ -354,7 +355,7 @@ void main() {
         'distribution_outcome': outcome,
         'cooperative_programs': {
           'program_name': 'Livestock Dispersal Program',
-          'benefit_type': 'grant',
+          'benefit_type': 'revenue_share', // only a Harvest Return program waits for a report
           'program_purpose': 'distribution',
           'status': 'active',
         },

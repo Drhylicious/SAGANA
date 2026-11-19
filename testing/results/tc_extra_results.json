@@ -1,0 +1,155 @@
+{
+ "ran": "2026-11-19T02:47:54.670Z",
+ "results": [
+  {
+   "tc": "20",
+   "name": "Manager creates a Farmer account",
+   "pass": true,
+   "detail": "200 status after creation: active"
+  },
+  {
+   "tc": "20.1",
+   "name": "Officer (Members Manage) creates a Farmer account",
+   "pass": true,
+   "detail": "200 status after creation: pending"
+  },
+  {
+   "tc": "20.2",
+   "name": "Officer with View Only cannot create a Farmer account",
+   "pass": true,
+   "detail": "403 Your Officer account has view-only access to the members module. Ask the Manager to give you Manage access."
+  },
+  {
+   "tc": "20.3",
+   "name": "Existing username, under-18 date of birth and invalid phone are each refused",
+   "pass": true,
+   "detail": "existing username: 400 This username is already taken. | under 18: 400 Member must be at least 18 years old | phone 12345: 400 Please enter a valid Philippine mobile number."
+  },
+  {
+   "tc": "OBS-20",
+   "name": "Observation: server-side password length for a staff-created Farmer (3-character password)",
+   "pass": false,
+   "detail": "status 200 6c7b2b76-b3da-4ef7-99ef-126b5ce253c9 (a pass here means the server refuses short passwords)"
+  },
+  {
+   "tc": "21.3",
+   "name": "Officer cannot decide an Officer-created Farmer account",
+   "pass": true,
+   "detail": "400 Only the Manager can approve an account created by an Officer."
+  },
+  {
+   "tc": "21",
+   "name": "Manager approves a pending Farmer",
+   "pass": true,
+   "detail": "204 "
+  },
+  {
+   "tc": "24.1",
+   "name": "Suspending without a reason is refused",
+   "pass": true,
+   "detail": "400 A suspension reason is required"
+  },
+  {
+   "tc": "24",
+   "name": "Manager suspends a member with a reason",
+   "pass": true,
+   "detail": "204  | role status: [{\"status\":\"suspended\"}]"
+  },
+  {
+   "tc": "24.2",
+   "name": "Manager reactivates the suspended member",
+   "pass": true,
+   "detail": "204  | role status: [{\"status\":\"active\"}]"
+  },
+  {
+   "tc": "6",
+   "name": "Manager creates an Officer with module access",
+   "pass": true,
+   "detail": "200 stored access: {\"loans\":\"view\",\"members\":\"manage\",\"reports\":\"manage\",\"dashboard\":\"manage\",\"marketplace\":\"manage\"}"
+  },
+  {
+   "tc": "6.1",
+   "name": "Officer with a duplicate username or under 18 is refused",
+   "pass": true,
+   "detail": "duplicate: 400 This username is already taken. | under 18: 400 Officer must be at least 18 years old"
+  },
+  {
+   "tc": "6.2",
+   "name": "An Officer cannot create Officer accounts",
+   "pass": true,
+   "detail": "400 Only the Manager can create an Officer account."
+  },
+  {
+   "tc": "7",
+   "name": "Manager changes an Officer's module access",
+   "pass": true,
+   "detail": "200 {\"loans\":\"manage\",\"members\":\"view\",\"reports\":\"manage\",\"dashboard\":\"manage\",\"marketplace\":\"manage\"} | now: {\"loans\":\"manage\",\"members\":\"view\",\"reports\":\"manage\",\"dashboard\":\"manage\",\"marketplace\":\"manage\"}"
+  },
+  {
+   "tc": "7.1",
+   "name": "An Officer cannot change Officer access",
+   "pass": true,
+   "detail": "400 Only the Manager can change an Officer's access."
+  },
+  {
+   "tc": "27.1-zero",
+   "name": "A zero contribution amount is refused",
+   "pass": true,
+   "detail": "400 Enter an amount greater than zero."
+  },
+  {
+   "tc": "21-status",
+   "name": "After approval the pending Farmer is Active and has been notified",
+   "pass": true,
+   "detail": "status pending -> active, notifications for the Farmer: 1"
+  },
+  {
+   "tc": "21.2",
+   "name": "Disapproving without a reason is refused",
+   "pass": true,
+   "detail": "400 A reason for disapproval is required"
+  },
+  {
+   "tc": "21.1",
+   "name": "Disapproving with a reason records the decision",
+   "pass": true,
+   "detail": "status now rejected; notifications: 1 "
+  },
+  {
+   "tc": "23.1",
+   "name": "An active member cannot be deleted as a disapproved applicant",
+   "pass": true,
+   "detail": "400 Only disapproved farmer accounts can be deleted | member status still active"
+  },
+  {
+   "tc": "23",
+   "name": "A disapproved applicant's account can be deleted",
+   "pass": true,
+   "detail": "204  | rows left: 0"
+  },
+  {
+   "tc": "28",
+   "name": "Manager issues a temporary password for a member",
+   "pass": true,
+   "detail": "200 returned a value of length 12"
+  },
+  {
+   "tc": "28.1",
+   "name": "An Officer with Members View Only cannot issue a temporary password",
+   "pass": true,
+   "detail": "403 Your Officer account has view-only access to the members module. Ask the Manager to give you Manage access."
+  },
+  {
+   "tc": "14",
+   "name": "The Manager can read the staff accountability records",
+   "pass": true,
+   "detail": "status 200, rows returned: 5"
+  },
+  {
+   "tc": "14.1",
+   "name": "An Officer cannot read the database accountability trail directly",
+   "pass": true,
+   "detail": "database-trail rows visible to the Officer: 0; export rows: 0"
+  }
+ ]
+}

@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
+import '../../core/utils/fetch_all_rows.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import 'admin_activity_repository.dart';
@@ -407,10 +409,15 @@ class AdminListingRepository {
             query = query.inFilter('crop_name', namesInCategory);
           }
 
-          final ordered = query.order('created_at', ascending: false);
           final rows = limit != null
-              ? await ordered.limit(limit)
-              : await ordered;
+              ? await query.order('created_at', ascending: false).limit(limit)
+              // No limit asked for: read every page, not just the first 1,000 (fetch_all_rows.dart).
+              : await fetchAllRows(
+                  (from, to) => query
+                      .order('created_at', ascending: false)
+                      .order('id')
+                      .range(from, to),
+                );
 
           if (rows.isEmpty) return <Map<String, dynamic>>[];
 
@@ -449,18 +456,12 @@ class AdminListingRepository {
           final priceUpdates = await ShelfLifeRepository()
               .fetchPriceUpdateRequired();
 
-          final infoRows = await _client
-              .from('user_information')
-              .select('user_id, full_name, profile_photo_url')
-              .inFilter('user_id', farmerIds);
+          final infoRows = await chunkedIn(farmerIds, (slice) => _client.from('user_information').select('user_id, full_name, profile_photo_url').inFilter('user_id', slice));
           final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
           final batchMap = <String, double>{};
           if (batchIds.isNotEmpty) {
-            final batchRows = await _client
-                .from('inventory_batches')
-                .select('id, available_kg')
-                .inFilter('id', batchIds);
+            final batchRows = await chunkedIn(batchIds, (slice) => _client.from('inventory_batches').select('id, available_kg').inFilter('id', slice));
             for (final r in batchRows) {
               batchMap[r['id'] as String] = (r['available_kg'] as num)
                   .toDouble();
@@ -484,10 +485,7 @@ class AdminListingRepository {
             }
           } catch (_) {}
 
-          final historyRows = await _client
-              .from('marketplace_listings')
-              .select('farmer_id, status')
-              .inFilter('farmer_id', farmerIds);
+          final historyRows = await chunkedIn(farmerIds, (slice) => _client.from('marketplace_listings').select('farmer_id, status').inFilter('farmer_id', slice));
           final historyMap = <String, Map<String, int>>{};
           for (final r in historyRows) {
             final fid = r['farmer_id'] as String;
@@ -713,10 +711,7 @@ class AdminListingRepository {
     }.toList();
     final names = <String, String>{};
     try {
-      final info = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', people);
+      final info = await chunkedIn(people, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       for (final i in info) {
         names[i['user_id'] as String] = (i['full_name'] as String? ?? '').trim();
       }
@@ -732,10 +727,7 @@ class AdminListingRepository {
     final available = <String, double>{};
     if (batchIds.isNotEmpty) {
       try {
-        final b = await _client
-            .from('inventory_batches')
-            .select('id, available_kg')
-            .inFilter('id', batchIds);
+        final b = await chunkedIn(batchIds, (slice) => _client.from('inventory_batches').select('id, available_kg').inFilter('id', slice));
         for (final x in b) {
           available[x['id'] as String] = (x['available_kg'] as num).toDouble();
         }

@@ -757,7 +757,8 @@ class AuthService {
       if (msg.contains('password should be at least')) {
         return l.passwordMinLength;
       }
-      if (msg.contains('rate limit')) {
+      if (msg.contains('rate limit') || msg.contains('too many failed sign-in')) {
+        // The second wording is the sign-in lockout (supabase_schema_security_03_signin_lockout.sql).
         return l.dlAuthTooMany;
       }
       // Refusals this app raises itself, shown in the chosen language.

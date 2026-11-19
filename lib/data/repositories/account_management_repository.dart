@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import '../../core/constants/farmer_registration_address.dart';
 import '../../core/utils/person_name.dart';
 import 'admin_activity_repository.dart';
@@ -130,13 +131,10 @@ class AccountManagementRepository {
     if (roles.isEmpty) return [];
 
     final userIds = roles.map((r) => r['user_id'] as String).toList();
-    final infoRows = await _client
-        .from('user_information')
-        .select(
+    final infoRows = await chunkedIn(userIds, (slice) => _client.from('user_information').select(
           'user_id, full_name, username, profile_photo_url, '
           'contact_email, phone_number, last_active_at',
-        )
-        .inFilter('user_id', userIds);
+        ).inFilter('user_id', slice));
     final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
     // The Manager signs in with a real e-mail and has no separate contact
@@ -362,17 +360,11 @@ class AccountManagementRepository {
     if (requests.isEmpty) return [];
 
     final userIds = requests.map((r) => r['user_id'] as String).toList();
-    final infoRows = await _client
-        .from('user_information')
-        .select('user_id, full_name, profile_photo_url')
-        .inFilter('user_id', userIds);
+    final infoRows = await chunkedIn(userIds, (slice) => _client.from('user_information').select('user_id, full_name, profile_photo_url').inFilter('user_id', slice));
     final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
     // Farmers, Officers and Buyers can all ask for assistance, so the role is
     // looked up to tell the Manager who is asking.
-    final roleRows = await _client
-        .from('user_roles')
-        .select('user_id, role')
-        .inFilter('user_id', userIds);
+    final roleRows = await chunkedIn(userIds, (slice) => _client.from('user_roles').select('user_id, role').inFilter('user_id', slice));
     final roleMap = {
       for (final r in roleRows) r['user_id'] as String: r['role'] as String?,
     };

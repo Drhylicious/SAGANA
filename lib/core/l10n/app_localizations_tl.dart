@@ -10085,6 +10085,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get farmerAnalyticsRetry => 'Subukan muli';
 
   @override
+  String get analyticsKgOnlyNote =>
+      'Ang mga ani na naitala sa kg lamang ang kasama sa kabuuan.';
+
+  @override
   String farmerAnalyticsOtherUnitsNote(int count) {
     return '$count ani na naitala sa ibang yunit (gaya ng sako) ay hindi kasama sa kabuuang kg.';
   }
@@ -20303,7 +20307,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get capSettingsPurchaseHint =>
-      'Ang porsyento ng natapos na order ng Cooperative Product na idinadagdag sa Capital Share ng miyembrong naka-enroll sa Product Sales program. Walang naidaragdag ang hindi naka-enroll.';
+      'Ang porsyento ng natapos na order ng Cooperative Product na idinadagdag sa Capital Share ng miyembrong sumali sa Product Sales program. Walang naidaragdag ang hindi sumali.';
 
   @override
   String get capSettingsOfferLabel => 'Alok sa Kooperatiba';

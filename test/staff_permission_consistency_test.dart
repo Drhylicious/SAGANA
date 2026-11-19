@@ -45,7 +45,18 @@ void main() {
     ])
       for (final m in RegExp(r"\('(table|rpc)',\s*'(\w+)',\s*'(\w+)'\)").allMatches(read(script)))
         '${m.group(1)}:${m.group(2)}': m.group(3)!,
-  }..removeWhere((key, _) => {
+  }
+    ..addAll(const {
+      // restrictions_02 registers the feature-restriction actions under Members.
+      'rpc:restrict_member': 'members',
+      'rpc:lift_member_restriction': 'members',
+      // contrib_m01 registers the monthly-contribution payment and waiver under Members.
+      'rpc:record_monthly_contribution_payment': 'members',
+      'rpc:set_monthly_contribution_waiver': 'members',
+      // capital_share_rates registers the Capital Share percentages under Reports.
+      'table:capital_share_rates': 'reports',
+    })
+    ..removeWhere((key, _) => {
       'rpc:send_broadcast',
       'table:broadcast_logs',
     }.contains(key));
@@ -139,6 +150,15 @@ void main() {
     'rpc:process_cooperative_shelf_life',
     'rpc:get_price_update_required_listings', // read: listings priced outside their Reference Price
     'rpc:get_supply_chain_records', 'rpc:get_supply_chain_totals', // reads: the Supply Chain tracking view
+    // Reads (STABLE functions that change nothing), staff or the signed-in person only, checked inside:
+    'rpc:get_loan_capital_standing', // the Capital Share a loan may use
+    'rpc:get_farmer_programs_view', // staff: one Farmer's programs
+    'rpc:get_member_discipline_history', // staff: suspensions and restrictions history
+    'rpc:my_restrictions', // the Farmer's own active restrictions
+    'rpc:get_assistance_capital_check', // staff: does a request fit the Capital Share
+    'rpc:program_completion_warnings', // staff: warnings shown before completing a program
+    // Creates the month's contribution rows when the screen opens; idempotent, staff only inside.
+    'rpc:sync_monthly_contributions',
   };
 
   /// Staff screens that only the Manager can use, refused by the database itself

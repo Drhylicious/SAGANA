@@ -1,0 +1,10 @@
+import { serve, launch, boot, loginAs, text, typeInto } from './lib.mjs';
+const srv = await serve(); const { browser, page } = await launch(); await boot(page);
+await loginAs(page, 't_buyer1');
+await page.mouse.click(100, 320); await page.waitForTimeout(5000);
+await page.getByText('Buy Now', { exact: true }).last().click(); await page.waitForTimeout(2000);
+await typeInto(page, 0, '999'); await page.getByText('Buy Now', { exact: true }).last().click(); await page.waitForTimeout(3000);
+console.log('CHECKOUT:', (await text(page)).slice(0, 600)); await page.screenshot({ path: '../results/shots/probe_over.png' });
+await page.getByText('Place Order', { exact: true }).last().click(); await page.waitForTimeout(4000);
+console.log('AFTER PLACE:', (await text(page)).slice(0, 400)); await page.screenshot({ path: '../results/shots/probe_over2.png' });
+await browser.close(); srv.close();

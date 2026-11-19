@@ -109,7 +109,7 @@ void main() {
 
     test('both pick lists use it', () {
       expect(_read('lib/presentation/screens/admin/program_products_screen.dart'), contains('itemPickerNames(items)'));
-      expect(_read('lib/presentation/screens/admin/program_management_screen.dart'), contains('itemPickerNames(eligible)'));
+      expect(_read('lib/presentation/screens/admin/program_management_screen.dart'), allOf(contains('itemPickerNames('), contains('eligible,')));
     });
   });
 

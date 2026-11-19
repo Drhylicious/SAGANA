@@ -110,51 +110,23 @@ void main() {
     expect(export.right, closeTo(harvest.right, 0.5));
   });
 
-  ftest('Manager: the three tools are one row of cards that scrolls sideways', (tester) async {
+  ftest('Manager: the two tools sit side by side like the Detailed Reports cards', (tester) async {
     await show(tester, 'admin', width: 360);
     expect(find.text('Analytics Dashboard'), findsOneWidget);
-    expect(find.text('Balik-Tangkilik Management'), findsOneWidget);
     expect(find.text('Export Center'), findsOneWidget);
+    // Balik-Tangkilik Management was removed from Reports.
+    expect(find.text('Balik-Tangkilik Management'), findsNothing);
 
     final a = cardOf(tester, 'Analytics Dashboard');
-    final b = cardOf(tester, 'Balik-Tangkilik Management');
     final e = cardOf(tester, 'Export Center');
     final sales = cardOf(tester, 'Sales Report');
 
-    // One row: same top and height, left to right, same height as every card
-    // of Detailed Reports (the strip cards are only a little narrower).
-    expect(a.top, closeTo(b.top, 0.5));
-    expect(b.top, closeTo(e.top, 0.5));
-    expect(a.left, lessThan(b.left));
-    expect(b.left, lessThan(e.left));
+    expect(a.top, closeTo(e.top, 0.5));
+    expect(a.left, lessThan(e.left));
     expect(a.left, closeTo(sales.left, 0.5), reason: 'starts at the page margin');
-    for (final card in [a, b, e]) {
-      expect(card.size.width, closeTo(a.size.width, 0.5));
-      expect(card.size.height, closeTo(sales.size.height, 0.5));
-    }
-    expect(a.size.width, lessThan(sales.size.width));
-    // Two cards fill the content width, and the third starts inside the screen
-    // edge, so the row visibly continues.
-    expect(b.right, lessThan(sales.left + 2 * sales.size.width + 12));
-    expect(e.left, lessThan(360));
-    tester.takeException();
-  });
-
-  ftest('Manager: dragging the row sideways brings Export Center fully into view', (tester) async {
-    await show(tester, 'admin', width: 360);
-    final before = cardOf(tester, 'Export Center');
-    expect(before.right, greaterThan(360), reason: 'cut off before scrolling');
-
-    final drag = find.ancestor(
-      of: find.text('Analytics Dashboard'),
-      matching: find.byType(Scrollable),
-    );
-    // The innermost Scrollable around the tools is the horizontal one.
-    await tester.drag(drag.first, const Offset(-400, 0));
-    await tester.pump(const Duration(milliseconds: 400));
-    final after = cardOf(tester, 'Export Center');
-    expect(after.right, lessThanOrEqualTo(360));
-    expect(after.left, lessThan(before.left));
+    expect(a.size.width, closeTo(e.size.width, 0.5));
+    expect(a.size.height, closeTo(sales.size.height, 0.5));
+    expect(e.right, lessThanOrEqualTo(360), reason: 'both fit on the screen, nothing to scroll');
     tester.takeException();
   });
 

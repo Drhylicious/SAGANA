@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import '../services/hive_service.dart';
 import '../services/offline_cache.dart';
 import '../models/cooperative_product_model.dart';
@@ -68,7 +69,7 @@ class FarmerProgramRepository {
   Future<Map<String, Map<String, dynamic>>?> fetchCooperativeCartRows(List<String> productIds) async {
     if (productIds.isEmpty) return {};
     try {
-      final rows = await _client.from('program_products').select(_productSelect).inFilter('id', productIds);
+      final rows = await chunkedIn(productIds, (slice) => _client.from('program_products').select(_productSelect).inFilter('id', slice));
       return {for (final r in rows) r['id'] as String: Map<String, dynamic>.from(r)};
     } catch (_) {
       return null;

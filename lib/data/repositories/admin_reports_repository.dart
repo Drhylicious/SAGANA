@@ -1,4 +1,5 @@
 import '../../core/l10n/localized_labels.dart';
+import '../../core/utils/chunked_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../../core/utils/order_reference.dart';
@@ -878,10 +879,7 @@ class AdminReportsRepository {
     final ids = batchIds.whereType<String>().toSet().toList();
     if (ids.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('inventory_batches')
-          .select('id, harvest_records(source_type)')
-          .inFilter('id', ids);
+      final rows = await chunkedIn(ids, (slice) => _client.from('inventory_batches').select('id, harvest_records(source_type)').inFilter('id', slice));
       bool fromProgram(Map r) {
         final h = r['harvest_records'];
         final first = h is List ? (h.isEmpty ? null : h.first) : h;
@@ -918,10 +916,7 @@ class AdminReportsRepository {
     final ids = userIds.toSet().toList();
     if (ids.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', ids);
+      final rows = await chunkedIn(ids, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       return {
         for (final r in rows)
           r['user_id'] as String: (r['full_name'] as String? ?? '').trim(),
@@ -974,10 +969,7 @@ class AdminReportsRepository {
         .map((r) => r['listing_id'] as String)
         .toSet()
         .toList();
-    final listingRows = await _client
-        .from('marketplace_listings')
-        .select('id, farmer_id, crop_name, inventory_batch_id')
-        .inFilter('id', listingIds);
+    final listingRows = await chunkedIn(listingIds, (slice) => _client.from('marketplace_listings').select('id, farmer_id, crop_name, inventory_batch_id').inFilter('id', slice));
     final listingMap = {for (final l in listingRows) l['id'] as String: l};
     final listingProgramBatches = await _programOriginBatchIds(
       listingRows.map((l) => l['inventory_batch_id'] as String?),
@@ -1002,10 +994,7 @@ class AdminReportsRepository {
         .toList();
     final buyerNameById = <String, String>{};
     if (buyerIds.isNotEmpty) {
-      final buyerRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', buyerIds);
+      final buyerRows = await chunkedIn(buyerIds, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       for (final b in buyerRows) {
         buyerNameById[b['user_id'] as String] = b['full_name'] as String;
       }
@@ -1900,10 +1889,7 @@ class AdminReportsRepository {
               .toList();
           if (activeIds.isEmpty) return <Map<String, dynamic>>[];
 
-          final rosterRows = await _client
-              .from('farmer_profiles')
-              .select('user_id')
-              .inFilter('user_id', activeIds);
+          final rosterRows = await chunkedIn(activeIds, (slice) => _client.from('farmer_profiles').select('user_id').inFilter('user_id', slice));
           final farmerIds = rosterRows
               .map((r) => r['user_id'] as String)
               .toList();

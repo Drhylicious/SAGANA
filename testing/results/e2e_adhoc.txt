@@ -1,0 +1,11 @@
+PASS [Buyer odd taps] checkout opens after Buy Now
+PASS [Buyer odd taps] browser Back from checkout does not crash and does not place an order -> orders 73->73 screen: Not yet assigned ₱50.00 /kg 2.50 kg sold Tomato Vegetables S
+PASS [Buyer odd taps] pressing Place Order three times in a row creates exactly one order -> orders 73->74
+PASS [Buyer odd taps] shrinking the window to 320 px on the result screen: no crash
+PASS [Buyer odd taps] widening to 1024 px: no crash
+PASS [Farmer odd taps] 60 rapid tab switches: still responsive, no error -> Home Good afternoon, Fidel! Thursday, November 19,
+PASS [Farmer odd taps] resizing the window with a form open keeps what was typed
+PASS [Farmer odd taps] pressing Save Expense three times in a row saves exactly one record -> rows=1
+PASS [Farmer odd taps] browser Back from Expenses: no crash -> Profile ACTIVE FF Fidel Farmer Farmer Member 09170
+
+9/9 passed

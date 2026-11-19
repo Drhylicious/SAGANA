@@ -1,0 +1,16 @@
+import { serve, launch, boot, loginAs, text, typeInto } from './lib.mjs';
+import { execSync } from 'node:child_process';
+const sql = q => execSync(`docker exec supabase_db_sagana-test psql -U postgres -tAc "${q}"`, { encoding: 'utf8' }).trim();
+const srv = await serve(); const { browser, page } = await launch(); await boot(page);
+await loginAs(page, 't_buyer1');
+const before = sql("select count(*) from orders o join user_information u on u.user_id=o.buyer_id where u.username='t_buyer1'");
+await page.mouse.click(100, 320); await page.waitForTimeout(5000);
+await page.getByText('Buy Now', { exact: true }).last().click(); await page.waitForTimeout(2000);
+await typeInto(page, 0, '2.5'); await page.waitForTimeout(500);
+await page.getByText('Buy Now', { exact: true }).last().click(); await page.waitForTimeout(5000);
+await page.getByText('Place Order', { exact: true }).last().click(); await page.waitForTimeout(6000);
+console.log('AFTER:', (await text(page)).slice(0, 500)); await page.screenshot({ path: '../results/shots/probe_afterbuy.png' });
+const btns = await page.locator('flt-semantics-host [role=button]').evaluateAll(els => els.map(e => (e.textContent || '').trim().slice(0, 30)).filter(Boolean));
+console.log('BUTTONS:', btns.join(' | '));
+console.log('orders before/after', before, sql("select count(*) from orders o join user_information u on u.user_id=o.buyer_id where u.username='t_buyer1'"));
+await browser.close(); srv.close();

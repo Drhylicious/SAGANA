@@ -194,8 +194,10 @@ void main() {
 
     test('market chips are one horizontally scrolling row', () {
       final list = read('lib/presentation/screens/farmer/view_market_screen.dart');
-      expect(list, contains('scrollDirection: Axis.horizontal'));
+      // The chips are the shared filter bar, which is one horizontally scrolling row.
+      expect(list, contains('MarketplaceFilterBar'));
       expect(list, isNot(contains('Wrap(')));
+      expect(read('lib/presentation/widgets/listing_filter_modal.dart'), contains('scrollDirection: Axis.horizontal'));
     });
 
     test('Buyer Prices still filters out markets a Buyer cannot see', () {

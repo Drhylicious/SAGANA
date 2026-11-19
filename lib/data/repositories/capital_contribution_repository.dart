@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import '../../core/utils/client_id.dart';
 import '../services/offline_cache.dart';
 import '../models/contribution_model.dart';
@@ -124,10 +125,7 @@ class CapitalContributionRepository {
     }.toList();
     if (ids.isEmpty) return const {};
     try {
-      final people = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', ids);
+      final people = await chunkedIn(ids, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       return {
         for (final p in people)
           if ((p['full_name'] as String?)?.trim().isNotEmpty ?? false)

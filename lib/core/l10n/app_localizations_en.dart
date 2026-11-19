@@ -9974,6 +9974,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerAnalyticsRetry => 'Try again';
 
   @override
+  String get analyticsKgOnlyNote =>
+      'Totals count harvests recorded in kg only.';
+
+  @override
   String farmerAnalyticsOtherUnitsNote(int count) {
     return '$count harvest(s) recorded in other units (such as sacks) are not counted in the kg totals.';
   }
@@ -20114,7 +20118,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get capSettingsPurchaseHint =>
-      'The percentage of a completed Cooperative Product order that is added to the Capital Share of a member enrolled in the Product Sales program. Members who are not enrolled add nothing.';
+      'The percentage of a completed Cooperative Product order that is added to the Capital Share of a member who joined the Product Sales program. Members who did not join add nothing.';
 
   @override
   String get capSettingsOfferLabel => 'Offer to Cooperative';

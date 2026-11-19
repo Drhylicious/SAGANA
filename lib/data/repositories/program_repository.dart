@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../core/utils/chunked_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/server_only.dart';
 import '../models/program_model.dart';
@@ -131,10 +132,7 @@ class ProgramRepository {
       if (rows.isEmpty) return [];
 
       final farmerIds = rows.map((r) => r['farmer_id'] as String).toList();
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', farmerIds);
+      final infoRows = await chunkedIn(farmerIds, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       final nameMap = {
         for (final r in infoRows)
           r['user_id'] as String: r['full_name'] as String? ?? 'Unknown',
@@ -616,10 +614,7 @@ class ProgramRepository {
           .map((r) => r['farmer_id'] as String)
           .toSet()
           .toList();
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', farmerIds);
+      final infoRows = await chunkedIn(farmerIds, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
       // The farmer's CURRENT membership, so an Enrolled request can show

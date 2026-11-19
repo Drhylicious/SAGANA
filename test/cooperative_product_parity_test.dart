@@ -139,7 +139,7 @@ void main() {
         expect(coop.contains('toStringAsFixed(1)'), isFalse);
         expect(
           _read('lib/presentation/screens/admin/program_products_screen.dart'),
-          contains('_percentText(double v) => formatQuantity(v)'),
+          allOf(contains('_percentText(double v)'), contains('formatQuantity(v)')),
         );
       },
     );

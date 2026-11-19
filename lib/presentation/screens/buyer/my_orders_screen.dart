@@ -198,7 +198,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
-                        height: 34,
+                        height: 34 * MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 2.0),
                         child: ListView(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppConstants.spacingSafeH,

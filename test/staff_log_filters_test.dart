@@ -72,6 +72,28 @@ Future<void> main() async {
           .allMatches(m02)
           .map((m) => m.group(1)!),
     );
+    // Later scripts attach the audit trigger one table at a time:
+    // CREATE TRIGGER trg_audit_staff_change AFTER ... ON public.<table>.
+    for (final f in Directory('supabase_schema').listSync().whereType<File>().where((f) => f.path.endsWith('.sql'))) {
+      final text = f.readAsStringSync().replaceAll('\r\n', '\n');
+      for (final m in RegExp(r'CREATE TRIGGER trg_audit_staff_change\s+AFTER[^;]*?\sON\s+public\.(\w+)').allMatches(text)) {
+        out.add(m.group(1)!);
+      }
+    }
+    // Retired: the Balik-Tangkilik screens were removed, so nothing in the app writes these two tables
+    // any more (they are kept for history). No log entry can be made for them, so they need no filter.
+    out.removeAll({'cooperative_annual_totals', 'member_contributions'});
+    // Later scripts attach the audit trigger one table at a time:
+    // CREATE TRIGGER trg_audit_staff_change AFTER ... ON public.<table>.
+    for (final f in Directory('supabase_schema').listSync().whereType<File>().where((f) => f.path.endsWith('.sql'))) {
+      final text = f.readAsStringSync().replaceAll('\r\n', '\n');
+      for (final m in RegExp(r'CREATE TRIGGER trg_audit_staff_change\s+AFTER[^;]*?\sON\s+public\.(\w+)').allMatches(text)) {
+        out.add(m.group(1)!);
+      }
+    }
+    // Retired: the Balik-Tangkilik screens were removed, so nothing in the app writes these two tables
+    // any more (they are kept for history). No log entry can be made for them, so they need no filter.
+    out.removeAll({'cooperative_annual_totals', 'member_contributions'});
     return out;
   }
 
@@ -186,7 +208,7 @@ Future<void> main() async {
     test('the same rows read in Tagalog', () {
       expect(staffActionHeadline(entry(table: 'price_records', operation: 'updated', reference: 'Tomato'), tl), 'Binago ang presyo: Tomato');
       expect(staffActionHeadline(entry(table: 'farmer_loan_payments', reference: 'LRN-1'), tl), 'Nagdagdag ng bayad sa pautang: LRN-1');
-      expect(staffActionHeadline(entry(table: 'orders', operation: 'deleted', reference: 'ORD-9'), tl), 'Binura ang order: ORD-9');
+      expect(staffActionHeadline(entry(table: 'orders', operation: 'deleted', reference: 'ORD-9'), tl), 'Binura ang binili: ORD-9');
     });
 
     test('the Members wording still wins where it exists', () {
@@ -205,7 +227,7 @@ Future<void> main() async {
       final e = entry(table: 'orders', operation: 'updated', reference: 'ORD-1', before: {'status': 'pending'}, after: {'status': 'ready'});
       expect(staffActionDetail(e, en), 'Status: pending → ready');
       expect(staffActionDetail(e, tl), 'Katayuan: pending → ready');
-      expect(staffActionDetail(entry(table: 'orders', operation: 'updated', before: {'note': 'a'}, after: {'note': 'b'}), en), isNull);
+      expect(staffActionDetail(entry(table: 'orders', operation: 'updated', before: {'note': 'a'}, after: {'note': 'b'}), en), 'Changed: Note: a → b');
       expect(staffActionDetail(entry(table: 'orders', operation: 'created', after: {'status': 'pending'}), en), isNull, reason: 'only a change');
     });
 

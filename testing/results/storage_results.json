@@ -1,0 +1,218 @@
+[
+ {
+  "area": "storage",
+  "name": "crop_images: owner uploads into own folder",
+  "pass": true,
+  "detail": "200 {\"Key\":\"crop_images/19364f1a-9537-4eff-a5df-e382f74d49dd/a1795075871724.png\",\"Id\":\"2a87d071-656b-42d"
+ },
+ {
+  "area": "storage",
+  "name": "crop_images: user cannot upload into another user's folder",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "crop_images: signed-out cannot upload",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "crop_images: user cannot delete another user's file",
+  "pass": true,
+  "detail": "delete http 400 then public read 200"
+ },
+ {
+  "area": "storage",
+  "name": "crop_images: user cannot overwrite another user's file",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "crop_images: public read works without sign-in (photos are shown to buyers)",
+  "pass": true,
+  "detail": "http"
+ },
+ {
+  "area": "storage",
+  "name": "crop_images: a pending (unapproved) farmer cannot upload photos",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage-hygiene",
+  "name": "crop_images: only image files are accepted (HTML upload is refused)",
+  "pass": true,
+  "detail": "html upload http 400"
+ },
+ {
+  "area": "storage-hygiene",
+  "name": "crop_images: files over the size limit are refused",
+  "pass": true,
+  "detail": "http 400"
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: owner uploads into own folder",
+  "pass": true,
+  "detail": "200 {\"Key\":\"listing_photos/19364f1a-9537-4eff-a5df-e382f74d49dd/a1795075871724.png\",\"Id\":\"3d284a47-8956-"
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: user cannot upload into another user's folder",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: signed-out cannot upload",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: user cannot delete another user's file",
+  "pass": true,
+  "detail": "delete http 400 then public read 200"
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: user cannot overwrite another user's file",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: public read works without sign-in (photos are shown to buyers)",
+  "pass": true,
+  "detail": "http"
+ },
+ {
+  "area": "storage",
+  "name": "listing_photos: a pending (unapproved) farmer cannot upload photos",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage-hygiene",
+  "name": "listing_photos: only image files are accepted (HTML upload is refused)",
+  "pass": true,
+  "detail": "html upload http 400"
+ },
+ {
+  "area": "storage-hygiene",
+  "name": "listing_photos: files over the size limit are refused",
+  "pass": true,
+  "detail": "http 400"
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: owner uploads into own folder",
+  "pass": true,
+  "detail": "200 {\"Key\":\"profile_photos/19364f1a-9537-4eff-a5df-e382f74d49dd/a1795075871724.png\",\"Id\":\"b29c071d-0bc0-"
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: user cannot upload into another user's folder",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: signed-out cannot upload",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: user cannot delete another user's file",
+  "pass": true,
+  "detail": "delete http 400 then public read 200"
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: user cannot overwrite another user's file",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: public read works without sign-in (photos are shown to buyers)",
+  "pass": true,
+  "detail": "http"
+ },
+ {
+  "area": "storage",
+  "name": "profile_photos: a pending (unapproved) farmer cannot upload photos",
+  "pass": true,
+  "detail": "profile photos are allowed for applicants (by design)"
+ },
+ {
+  "area": "storage-hygiene",
+  "name": "profile_photos: only image files are accepted (HTML upload is refused)",
+  "pass": true,
+  "detail": "html upload http 400"
+ },
+ {
+  "area": "storage-hygiene",
+  "name": "profile_photos: files over the size limit are refused",
+  "pass": true,
+  "detail": "http 400"
+ },
+ {
+  "area": "storage",
+  "name": "inventory images: Farmer cannot upload",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "inventory images: view-only Officer cannot upload",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "inventory images: Manage Officer / Manager can upload",
+  "pass": true,
+  "detail": "officer 200 manager 200"
+ },
+ {
+  "area": "storage",
+  "name": "program evidence: private bucket is not publicly readable",
+  "pass": true,
+  "detail": "public read http 400"
+ },
+ {
+  "area": "storage",
+  "name": "program evidence: another Farmer cannot read it",
+  "pass": true,
+  "detail": "http 400"
+ },
+ {
+  "area": "storage",
+  "name": "program evidence: owner and staff can read it",
+  "pass": true,
+  "detail": "owner 200 manager 200"
+ },
+ {
+  "area": "storage",
+  "name": "program evidence: Buyer cannot upload",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "program evidence: only images are accepted (PDF refused)",
+  "pass": true,
+  "detail": 400
+ },
+ {
+  "area": "storage",
+  "name": "listing an object list is not open to everyone for private bucket",
+  "pass": true,
+  "detail": "other farmer sees 0 files"
+ }
+]

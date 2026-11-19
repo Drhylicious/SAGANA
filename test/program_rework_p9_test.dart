@@ -45,11 +45,9 @@ void main() {
       }
     });
 
-    test('Quantity and Unit use the shared aligned field, with "+ Unit" to add a unit', () {
-      expect(form, contains('QuantityUnitField('));
-      expect(form, contains('onAddUnit: _addUnit'));
-      expect(form, contains('promptAddUnit('));
-      expect(form, contains('addUnitLabel: l10n.unitAddCompact'));
+    test('the Farmer form no longer asks for a quantity or unit (the reviewer records the return)', () {
+      expect(form.contains('QuantityUnitField('), isFalse);
+      expect(form.contains('promptAddUnit('), isFalse);
     });
 
     test('the two outcome cards have the same height', () {
@@ -94,9 +92,11 @@ void main() {
       expect(sql, contains('DROP FUNCTION IF EXISTS public.finalize_program_outcome(UUID, TEXT, TEXT);'));
     });
 
-    test('the screen asks for the quantity and unit, with + Unit, and sends them', () {
+    test("only the Quantity is asked; the unit is the item's own, shown beside the number", () {
       expect(detail, contains('_returnInputs'));
-      expect(detail, contains('QuantityUnitField('));
+      expect(detail, contains("Key('returnQuantityField')"));
+      expect(detail, contains('suffixText: _returnUnit'));
+      expect(detail.contains('QuantityUnitField('), isFalse);
       expect(detail, contains('returnQuantity: successful && _r.isHarvestReturn ? qty : null'));
       expect(detail, contains('outcReturnQtyRequired'));
     });

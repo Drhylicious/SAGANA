@@ -1,0 +1,158 @@
+[
+ {
+  "who": "Farmer",
+  "screen": "tab Harvest",
+  "ms": 194,
+  "slow": false
+ },
+ {
+  "who": "Farmer",
+  "screen": "tab Listings",
+  "ms": 1089,
+  "slow": false
+ },
+ {
+  "who": "Farmer",
+  "screen": "tab Analytics",
+  "ms": 2222,
+  "slow": false
+ },
+ {
+  "who": "Farmer",
+  "screen": "tab Profile",
+  "ms": 1094,
+  "slow": false
+ },
+ {
+  "who": "Farmer",
+  "screen": "tab Home",
+  "ms": 38,
+  "slow": false
+ },
+ {
+  "who": "Buyer",
+  "screen": "Browse (1,501 listings)",
+  "ms": 230,
+  "slow": false
+ },
+ {
+  "who": "Buyer",
+  "screen": "Orders",
+  "ms": 114,
+  "slow": false
+ },
+ {
+  "who": "Buyer",
+  "screen": "Prices",
+  "ms": 246,
+  "slow": false
+ },
+ {
+  "who": "Buyer",
+  "screen": "search \"Tom\" in Browse",
+  "ms": 1932,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Dashboard (cold)",
+  "ms": 12234,
+  "slow": true
+ },
+ {
+  "who": "Manager",
+  "screen": "tab Members",
+  "ms": 2713,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "tab Marketplace",
+  "ms": 2911,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "tab Loans",
+  "ms": 1181,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "tab Reports",
+  "ms": 8691,
+  "slow": true
+ },
+ {
+  "who": "Manager",
+  "screen": "tab Dashboard",
+  "ms": 229,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Order Management (4,000+ orders)",
+  "ms": 2346,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "All Listings (1,501)",
+  "ms": 2448,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "search a member in Members (160 farmers)",
+  "ms": 34,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Sales Report",
+  "ms": 3828,
+  "slow": true
+ },
+ {
+  "who": "Manager",
+  "screen": "Harvest Report",
+  "ms": 10882,
+  "slow": true
+ },
+ {
+  "who": "Manager",
+  "screen": "Cooperative Stock Report",
+  "ms": 1064,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Loan Report",
+  "ms": 1346,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Expense Report",
+  "ms": 1365,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Member Contribution Report",
+  "ms": 1583,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Analytics Dashboard",
+  "ms": 1776,
+  "slow": false
+ },
+ {
+  "who": "Manager",
+  "screen": "Export Center",
+  "ms": 1179,
+  "slow": false
+ }
+]

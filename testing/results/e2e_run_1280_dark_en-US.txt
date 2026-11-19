@@ -1,0 +1,50 @@
+PASS [t_farmer1] signs in and lands on a home screen -> Thursday, November 19, 2026 Monthly Yield Monthly Earnings Goal 0% 0% vs last mo
+PASS [t_farmer1] tab "Home" opens without an error
+PASS [t_farmer1] tab "Harvest" opens without an error
+PASS [t_farmer1] tab "Listings" opens without an error
+PASS [t_farmer1] tab "Analytics" opens without an error
+PASS [t_farmer1] tab "Profile" opens without an error
+PASS [t_farmer1] no unexpected console errors
+PASS [t_farmer1] no failed (5xx / unexpected 4xx) network calls
+PASS [t_manager] signs in and lands on a home screen -> Good morning, Mara! Thursday, November 19, 2026 Inventory 0 items Crops 5 crops 
+PASS [t_manager] tab "Dashboard" opens without an error
+PASS [t_manager] tab "Members" opens without an error
+PASS [t_manager] tab "Marketplace" opens without an error
+PASS [t_manager] tab "Loans" opens without an error
+PASS [t_manager] tab "Reports" opens without an error
+PASS [t_manager] no unexpected console errors
+PASS [t_manager] no failed (5xx / unexpected 4xx) network calls
+PASS [t_officer_view] signs in and lands on a home screen -> Good morning, Olivia! Thursday, November 19, 2026 Inventory 0 items Crops 5 crop
+PASS [t_officer_view] tab "Dashboard · View Only" opens without an error
+PASS [t_officer_view] tab "Dashboard" opens without an error
+PASS [t_officer_view] tab "Members" opens without an error
+PASS [t_officer_view] tab "Marketplace" opens without an error
+PASS [t_officer_view] tab "Loans" opens without an error
+PASS [t_officer_view] tab "Reports" opens without an error
+PASS [t_officer_view] no unexpected console errors
+PASS [t_officer_view] no failed (5xx / unexpected 4xx) network calls
+PASS [t_officer_manage] signs in and lands on a home screen -> Good morning, Oscar! Thursday, November 19, 2026 Inventory 0 items Crops 5 crops
+PASS [t_officer_manage] tab "Dashboard" opens without an error
+PASS [t_officer_manage] tab "Members" opens without an error
+PASS [t_officer_manage] tab "Marketplace" opens without an error
+PASS [t_officer_manage] tab "Loans" opens without an error
+PASS [t_officer_manage] tab "Reports" opens without an error
+PASS [t_officer_manage] no unexpected console errors
+PASS [t_officer_manage] no failed (5xx / unexpected 4xx) network calls
+PASS [t_buyer1] signs in and lands on a home screen -> Marketplace All (20) Vegetables (20) Tomato ₱50.00/kg 0 buyers Not yet assigned 
+PASS [t_buyer1] tab "Browse" opens without an error
+PASS [t_buyer1] tab "All (20)" opens without an error
+PASS [t_buyer1] tab "Vegetables (20)" opens without an error
+PASS [t_buyer1] tab "Orders" opens without an error
+PASS [t_buyer1] tab "Prices" opens without an error
+PASS [t_buyer1] tab "Profile" opens without an error
+PASS [t_buyer1] no unexpected console errors
+PASS [t_buyer1] no failed (5xx / unexpected 4xx) network calls
+PASS [t_pending] signs in and lands on a home screen -> Home Welcome, Pam! SP3 Agriculture Cooperative Your application has been receive
+PASS [t_pending] tab "Home" opens without an error
+PASS [t_pending] tab "Notifications" opens without an error
+PASS [t_pending] tab "Profile" opens without an error
+PASS [t_pending] no unexpected console errors
+PASS [t_pending] no failed (5xx / unexpected 4xx) network calls
+
+48/48 passed

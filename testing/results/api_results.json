@@ -1,0 +1,848 @@
+[
+ {
+  "area": "auth",
+  "name": "wrong password is refused",
+  "pass": true,
+  "detail": "400 Invalid login credentials"
+ },
+ {
+  "area": "auth",
+  "name": "garbage JWT is refused",
+  "pass": true,
+  "detail": 401
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read user_information",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read user_roles",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read orders",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read farmer_loans",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read notifications",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read harvest_records",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read inventory_batches",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read farmer_expenses",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read member_capital_shares",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read buyer_addresses",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read admin_activity_log",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rls-anon",
+  "name": "anon cannot read cooperative_inventory",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "farmer",
+  "name": "farmer records a harvest + batch (decimal qty 12.5)",
+  "pass": true,
+  "detail": "{\"n\":\"BATCH-TOMATO-261119-A1566\",\"a\":12.5,\"s\":\"available\"}"
+ },
+ {
+  "area": "farmer",
+  "name": "batch number follows BATCH-CROP-YYMMDD-X0001",
+  "pass": true,
+  "detail": "BATCH-TOMATO-261119-A1566"
+ },
+ {
+  "area": "farmer",
+  "name": "zero quantity harvest is refused",
+  "pass": true,
+  "detail": "new row for relation \"harvest_records\" violates check constraint \"harvest_records_quantity_kg_check\""
+ },
+ {
+  "area": "farmer",
+  "name": "negative quantity harvest is refused",
+  "pass": true,
+  "detail": "new row for relation \"harvest_records\" violates check constraint \"harvest_records_quantity_kg_check\""
+ },
+ {
+  "area": "farmer",
+  "name": "unknown unit is refused",
+  "pass": true,
+  "detail": "Unknown unit \"parsec\". Choose a unit from the list."
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in harvest_records",
+  "pass": true,
+  "detail": "harvest_records rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in inventory_batches",
+  "pass": true,
+  "detail": "inventory_batches rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in farmer_crops",
+  "pass": true,
+  "detail": "farmer_crops rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in farmer_expenses",
+  "pass": true,
+  "detail": "farmer_expenses rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in member_capital_shares",
+  "pass": true,
+  "detail": "member_capital_shares rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in buyer_addresses",
+  "pass": true,
+  "detail": "buyer_addresses rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in notifications",
+  "pass": true,
+  "detail": "notifications rows=0 "
+ },
+ {
+  "area": "rls-farmer",
+  "name": "farmer1 cannot see farmer2 rows in farmer_loans",
+  "pass": true,
+  "detail": "farmer_loans rows=0 "
+ },
+ {
+  "area": "rls-buyer",
+  "name": "buyer cannot read farmers' harvest_records",
+  "pass": true,
+  "detail": "rows=0 (a harvest of a batch this buyer never ordered; a buyer may read harvests of batches they ordered, by design)"
+ },
+ {
+  "area": "rls-buyer",
+  "name": "buyer cannot read other users' user_information",
+  "pass": true,
+  "detail": "rows=1"
+ },
+ {
+  "area": "rls-buyer",
+  "name": "buyer cannot read a batch that is not on an approved listing (status=available policy)",
+  "pass": true,
+  "detail": "buyer sees 0 rows for an unlisted batch (batches of approved listings are readable, by design)"
+ },
+ {
+  "area": "escalation",
+  "name": "pending farmer cannot approve themselves (user_roles.status)",
+  "pass": true,
+  "detail": "status now pending http 200"
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot make themselves admin",
+  "pass": true,
+  "detail": "role now farmer"
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot self-verify farmer_profiles.is_verified",
+  "pass": true,
+  "detail": "is_verified=false"
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot insert capital contribution for self",
+  "pass": true,
+  "detail": "403 new row violates row-level security policy for table \"capital_contribution_events\""
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot edit member_capital_shares total",
+  "pass": true,
+  "detail": "before=5525 after=5525"
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot write price_records",
+  "pass": true,
+  "detail": 403
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot write cooperative_inventory",
+  "pass": true,
+  "detail": 403
+ },
+ {
+  "area": "escalation",
+  "name": "farmer cannot change loan policy",
+  "pass": true,
+  "detail": "min=2000"
+ },
+ {
+  "area": "escalation",
+  "name": "buyer cannot edit an order status directly",
+  "pass": true,
+  "detail": "200 rows=0"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC approve_listing",
+  "pass": true,
+  "detail": "400 Unauthorized: only the Manager or an Officer with Manage access to Marketplace can approve listings"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC approve_listing",
+  "pass": true,
+  "detail": "400 Unauthorized: only the Manager or an Officer with Manage access to Marketplace can approve listings"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC approve_listing",
+  "pass": true,
+  "detail": "400 Unauthorized: only the Manager or an Officer with Manage access to Marketplace can approve listings"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC issue_loan",
+  "pass": true,
+  "detail": "400 Only admins may issue loans"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC issue_loan",
+  "pass": true,
+  "detail": "400 Only admins may issue loans"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC issue_loan",
+  "pass": true,
+  "detail": "400 Only admins may issue loans"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC approve_member",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC approve_member",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC approve_member",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC admin_reset_user_password",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC admin_reset_user_password",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC admin_reset_user_password",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC create_officer_account",
+  "pass": true,
+  "detail": "400 Unauthorized: only a Manager or an Officer who manages Members can create Officer accounts"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC create_officer_account",
+  "pass": true,
+  "detail": "400 Unauthorized: only a Manager or an Officer who manages Members can create Officer accounts"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC create_officer_account",
+  "pass": true,
+  "detail": "401 permission denied for function create_officer_account"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC suspend_member",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC suspend_member",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC suspend_member",
+  "pass": true,
+  "detail": "400 Unauthorized"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC adjust_cooperative_stock",
+  "pass": true,
+  "detail": "400 Only cooperative staff can adjust stock."
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC adjust_cooperative_stock",
+  "pass": true,
+  "detail": "400 Only cooperative staff can adjust stock."
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC adjust_cooperative_stock",
+  "pass": true,
+  "detail": "401 permission denied for function adjust_cooperative_stock"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot call staff RPC send_broadcast",
+  "pass": true,
+  "detail": "400 Unauthorized: only Managers or officers can send broadcasts"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot call staff RPC send_broadcast",
+  "pass": true,
+  "detail": "400 Unauthorized: only Managers or officers can send broadcasts"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot call staff RPC send_broadcast",
+  "pass": true,
+  "detail": "400 Unauthorized: only Managers or officers can send broadcasts"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot forge a notification (notify_user)",
+  "pass": true,
+  "detail": "http 401 forged rows=0"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "buyer cannot forge a notification to another user (notify_user)",
+  "pass": true,
+  "detail": "http 403 forged rows=0"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot reduce another farmer's stock (_apply_batch_reservation)",
+  "pass": true,
+  "detail": "available now 20 http 401"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "farmer cannot change another farmer's stock (_release_batch_reservation)",
+  "pass": true,
+  "detail": "available now 10 (was 10) http 403"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot run loan maintenance (run_daily_loan_maintenance)",
+  "pass": true,
+  "detail": "401 permission denied for function run_daily_loan_maintenance"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot run notify_overdue_farmers",
+  "pass": true,
+  "detail": "401 permission denied for function notify_overdue_farmers"
+ },
+ {
+  "area": "rpc-authz",
+  "name": "anon cannot enumerate usernames (suggest_next_username)",
+  "pass": true,
+  "detail": "401 permission denied for function suggest_next_username"
+ },
+ {
+  "area": "officer-gate",
+  "name": "view-only officer can READ crop_master",
+  "pass": true,
+  "detail": "rows=1"
+ },
+ {
+  "area": "officer-gate",
+  "name": "view-only officer is refused a write (units insert)",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "officer-gate",
+  "name": "manage officer may write (units insert)",
+  "pass": true,
+  "detail": "201 [{\"id\":\"31cc9c5b-6917-44c8-b776-66edb7f2c64a\",\"name\":\"mgrtest1795075859762\",\"is_active\":true,\"sort_order\":100,\"created_by\":\"e6accc1f-6284-4e"
+ },
+ {
+  "area": "officer-gate",
+  "name": "view-only officer is refused RPC approve_crop_request",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the dashboard module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "officer-gate",
+  "name": "manage officer passes the gate on RPC approve_crop_request",
+  "pass": true,
+  "detail": "400 Crop request not found"
+ },
+ {
+  "area": "officer-gate",
+  "name": "view-only officer cannot restrict a member (restrict_member)",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the members module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "officer-gate",
+  "name": "manage officer may restrict and lift (restrict_member / lift_member_restriction)",
+  "pass": true,
+  "detail": "lift: "
+ },
+ {
+  "area": "officer-gate",
+  "name": "view-only officer cannot record a monthly contribution payment",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the members module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "officer-gate",
+  "name": "view-only officer cannot change Capital Share rates",
+  "pass": true,
+  "detail": "purchase_percent=10"
+ },
+ {
+  "area": "officer-gate",
+  "name": "farmer cannot change Capital Share rates",
+  "pass": true,
+  "detail": "purchase_percent=10"
+ },
+ {
+  "area": "officer-gate",
+  "name": "manager can change Capital Share rates (and it is versioned)",
+  "pass": true,
+  "detail": "http 200 latest version={\"version\":45,\"purchase_percent\":12}"
+ },
+ {
+  "area": "marketplace",
+  "name": "farmer lists 10 kg (pending approval)",
+  "pass": true,
+  "detail": "46b26fa1-5e84-4b19-96c8-93ba1f9e86a8 "
+ },
+ {
+  "area": "marketplace",
+  "name": "batch available drops by reserved qty",
+  "pass": true,
+  "detail": "{\"available_kg\":2.5,\"reserved_kg\":10}"
+ },
+ {
+  "area": "marketplace",
+  "name": "cannot list more than available (5 kg > 2.5 left)",
+  "pass": true,
+  "detail": "Not enough available quantity in this batch."
+ },
+ {
+  "area": "marketplace",
+  "name": "cannot list another farmer's batch",
+  "pass": true,
+  "detail": "This batch was not found in your inventory."
+ },
+ {
+  "area": "marketplace",
+  "name": "listing without description is refused",
+  "pass": true,
+  "detail": "A description is required to create a listing."
+ },
+ {
+  "area": "marketplace",
+  "name": "listing with 3-decimal quantity is refused",
+  "pass": true,
+  "detail": "Use at most 2 decimal places for the quantity."
+ },
+ {
+  "area": "marketplace",
+  "name": "Ginger cannot be put on the marketplace (DA-AMAD only)",
+  "pass": true,
+  "detail": "Ginger can only be sold through DA-AMAD Market Linking — it cannot be listed on the Marketplace."
+ },
+ {
+  "area": "marketplace",
+  "name": "buyer cannot see the listing before approval",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "marketplace",
+  "name": "view-only officer cannot approve a listing",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the marketplace module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "marketplace",
+  "name": "farmer cannot approve own listing",
+  "pass": true,
+  "detail": "Unauthorized: only the Manager or an Officer with Manage access to Marketplace can approve listings"
+ },
+ {
+  "area": "marketplace",
+  "name": "manager approves the listing",
+  "pass": true,
+  "detail": "204 "
+ },
+ {
+  "area": "marketplace",
+  "name": "manager cannot approve twice",
+  "pass": true,
+  "detail": "Only pending_review listings can be approved (current: approved)"
+ },
+ {
+  "area": "marketplace",
+  "name": "buyer now sees the listing",
+  "pass": true,
+  "detail": "rows=1"
+ },
+ {
+  "area": "orders",
+  "name": "buyer cannot order more than remaining (11 kg)",
+  "pass": true,
+  "detail": "Not enough stock available. Only 10.00 kg remaining."
+ },
+ {
+  "area": "orders",
+  "name": "buyer cannot order 0 or negative",
+  "pass": true,
+  "detail": "Quantity must be greater than zero | Quantity must be greater than zero"
+ },
+ {
+  "area": "orders",
+  "name": "buyer cannot order 3 decimals",
+  "pass": true,
+  "detail": "Use at most 2 decimal places for the quantity."
+ },
+ {
+  "area": "orders",
+  "name": "farmer cannot order own listing",
+  "pass": true,
+  "detail": "You cannot place an order on your own listing"
+ },
+ {
+  "area": "orders",
+  "name": "pending (unapproved) farmer cannot order",
+  "pass": true,
+  "detail": "Your account has been suspended by the SP3 Administrator. Please contact the cooperative for assistance."
+ },
+ {
+  "area": "orders",
+  "name": "buyer places order of 2.5 kg",
+  "pass": true,
+  "detail": "ad6235eb-fe13-4479-a492-cfdab165ded6"
+ },
+ {
+  "area": "orders",
+  "name": "same request id returns the same order (idempotent)",
+  "pass": true,
+  "detail": "same=true remaining=7.5"
+ },
+ {
+  "area": "orders",
+  "name": "order number format ORD-YYYYMMDD-A001",
+  "pass": true,
+  "detail": "{\"order_number\":\"ORD-20261119-G975\",\"status\":\"pending\",\"total_price\":125}"
+ },
+ {
+  "area": "orders",
+  "name": "other buyer/farmer cannot read the order",
+  "pass": true,
+  "detail": "rows=0"
+ },
+ {
+  "area": "orders",
+  "name": "cannot skip: buyer cannot confirm receipt while pending",
+  "pass": true,
+  "detail": "You can confirm receipt once the order is Ready for Pickup (current status: pending)."
+ },
+ {
+  "area": "orders",
+  "name": "cannot mark ready before approval",
+  "pass": true,
+  "detail": "Only an approved order can be marked Ready for Pickup (current status: pending)."
+ },
+ {
+  "area": "orders",
+  "name": "view-only officer cannot approve order",
+  "pass": true,
+  "detail": "403 Your Officer account has view-only access to the marketplace module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "orders",
+  "name": "manager approves order",
+  "pass": true,
+  "detail": "true"
+ },
+ {
+  "area": "orders",
+  "name": "approve again is a harmless no-op",
+  "pass": true,
+  "detail": "false"
+ },
+ {
+  "area": "orders",
+  "name": "buyer can no longer cancel an approved order",
+  "pass": true,
+  "detail": "Only a pending order can be cancelled (current: approved)"
+ },
+ {
+  "area": "orders",
+  "name": "manager marks ready for pickup",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "orders",
+  "name": "payment with wrong amount is refused",
+  "pass": true,
+  "detail": "AMOUNT_MISMATCH: The amount to collect is 125.00. Check the cash received."
+ },
+ {
+  "area": "orders",
+  "name": "buyer cannot confirm receipt before payment is recorded",
+  "pass": true,
+  "detail": "PAYMENT_NOT_RECORDED: You can confirm receipt after the cooperative records your payment."
+ },
+ {
+  "area": "orders",
+  "name": "manager records correct payment (2.5 x 50 = 125)",
+  "pass": true,
+  "detail": "{\"delivery_fee\":0,\"amount_collected\":125}"
+ },
+ {
+  "area": "orders",
+  "name": "payment cannot be recorded twice",
+  "pass": true,
+  "detail": "The payment of this order is already recorded."
+ },
+ {
+  "area": "orders",
+  "name": "buyer confirms receipt -> completed",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "orders",
+  "name": "sold_kg of the batch is reconciled to 2.5",
+  "pass": true,
+  "detail": "{\"sold_kg\":2.5,\"available_kg\":2.5,\"reserved_kg\":7.5}"
+ },
+ {
+  "area": "orders",
+  "name": "staff cannot completed-order directly through the table",
+  "pass": true,
+  "detail": "400 An order cannot move from completed to pending (pickup order)."
+ },
+ {
+  "area": "orders",
+  "name": "recorded payment cannot be rewritten",
+  "pass": true,
+  "detail": "400 The payment and completion record of an order can only be changed through the app's order actions."
+ },
+ {
+  "area": "concurrency",
+  "name": "20 parallel 1 kg orders on 7.5 kg: exactly 7 succeed, never oversell",
+  "pass": true,
+  "detail": "succeeded=7 remaining=0.5"
+ },
+ {
+  "area": "restrictions",
+  "name": "manager restricts farmer2 checkout; place_order is refused with a reason",
+  "pass": true,
+  "detail": "1 | Checking out is restricted: Test restriction."
+ },
+ {
+  "area": "restrictions",
+  "name": "view-only officer cannot restrict a member",
+  "pass": true,
+  "detail": "Your Officer account has view-only access to the members module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "restrictions",
+  "name": "manager lifts restriction",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "area": "loans",
+  "name": "pending farmer cannot request a loan",
+  "pass": true,
+  "detail": "Only an active cooperative member can request a loan (status: pending)."
+ },
+ {
+  "area": "loans",
+  "name": "loan request with empty items refused",
+  "pass": true,
+  "detail": "Choose at least one item."
+ },
+ {
+  "area": "loans",
+  "name": "view-only officer cannot issue a loan",
+  "pass": true,
+  "detail": "Your Officer account has view-only access to the loans module. Ask the Manager to give you Manage access."
+ },
+ {
+  "area": "loans",
+  "name": "manager issues loan of 1,500 (within 5,000 capital share)",
+  "pass": true,
+  "detail": "[{\"loan_id\":\"e85d9b1d-1131-4bbf-bc2a-ce83e5fe406b\",\"reference_no\":\"LRN-20261119-A308\"}] {\"loan_id\":\"e85d9b1d-1131-4bbf-bc2a-ce83e5fe406b\",\"reference_no\":\"LRN-20261119-A308\"}"
+ },
+ {
+  "area": "loans",
+  "name": "loan item above capital share (6,000 > 5,000) is refused",
+  "pass": true,
+  "detail": "Loan not allowed: Tractor is worth ₱6,000.00, which is more than the Capital Share of ₱5,525.00. Only items worth up to ₱5,525.00 can be bor"
+ },
+ {
+  "area": "loans",
+  "name": "cannot loan to a pending (non-active) farmer",
+  "pass": true,
+  "detail": "Farmer is not an active cooperative member (status: pending) and is not eligible for a loan"
+ },
+ {
+  "area": "loans",
+  "name": "farmer sees own loan, farmer2 does not",
+  "pass": true,
+  "detail": "f1=8 f2=0"
+ },
+ {
+  "area": "loans",
+  "name": "payment larger than balance is refused",
+  "pass": true,
+  "detail": "Payment of ₱1,600.00 is more than the remaining balance of ₱1,500.00"
+ },
+ {
+  "area": "loans",
+  "name": "zero/negative payment refused",
+  "pass": true,
+  "detail": "Payment amount must be greater than zero | Payment amount must be greater than zero"
+ },
+ {
+  "area": "loans",
+  "name": "payment 500 recorded; same idempotency key replays without double charge",
+  "pass": true,
+  "detail": "{\"amount_paid\":500,\"status\":\"active\"} [{\"is_fully_paid\":false,\"running_balance\":1000}]"
+ },
+ {
+  "area": "loans",
+  "name": "farmer cannot write a loan payment directly",
+  "pass": true,
+  "detail": 403
+ },
+ {
+  "area": "loans",
+  "name": "farmer cannot edit own loan balance",
+  "pass": true,
+  "detail": "{\"amount_paid\":500,\"status\":\"active\"}"
+ },
+ {
+  "area": "loans",
+  "name": "loan reference cannot be changed",
+  "pass": true,
+  "detail": "A loan reference number cannot be changed."
+ },
+ {
+  "area": "misc",
+  "name": "public price/market RPCs work for anon (guest mode)",
+  "pass": true,
+  "detail": "200/200/200"
+ },
+ {
+  "area": "misc",
+  "name": "anon public_marketplace_listings exposes no farmer identity",
+  "pass": true,
+  "detail": "id,unit,buyers,crop_id,sold_kg,variety,category,crop_name,photo_url,volume_kg,created_at,description,market_type,available_kg,batch_number,harvest_date,price_per_kg,remaining_kg,canonical_crop_name"
+ },
+ {
+  "area": "misc",
+  "name": "username check rejects bad format",
+  "pass": true,
+  "detail": "\"invalid\""
+ },
+ {
+  "area": "misc",
+  "name": "phone normalisation 63917… equals 0917…",
+  "pass": true,
+  "detail": "\"09171234567\""
+ },
+ {
+  "area": "misc",
+  "name": "SQL-injection-style username is handled safely",
+  "pass": true,
+  "detail": "\"invalid\""
+ },
+ {
+  "area": "misc",
+  "name": "PostgREST filter injection via text param returns no extra rows",
+  "pass": true,
+  "detail": "rows=0"
+ }
+]

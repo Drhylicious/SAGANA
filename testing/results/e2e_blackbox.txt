@@ -1,0 +1,21 @@
+PASS [Farmer] Expense: an empty name is refused, nothing saved -> dialog stays open=true
+PASS [Farmer] Expense: an empty description is refused
+PASS [Farmer] Expense: amount "0" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero) -> saved=nothing dialog open=true
+PASS [Farmer] Expense: amount "-50" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero) -> saved=50.00 dialog open=false
+PASS [Farmer] Expense: amount "abc" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero) -> saved=nothing dialog open=true
+PASS [Farmer] Expense: amount "" is refused, or the minus sign is dropped and a positive amount is saved (never a negative or zero) -> saved=nothing dialog open=true
+PASS [Farmer] Expense: 12.345 is either refused or stored to 2 decimals (never silently wrong) -> stored=not saved
+PASS [Farmer] Expense: an absurd amount (99,999,999,999) is refused or stored exactly, never corrupted or a crash -> stored=not saved
+PASS [Farmer] Expense: a 300-character name is refused or kept whole (not cut or crashed) -> stored length=319
+PASS [Farmer] Expense: Tagalog text with ñ and a dash is saved exactly as typed -> BBtl1795075022029 Pataba ñ|Pataba para sa palay — Magandang araw|150.50
+PASS [Farmer] Expense: a normal entry is saved once with the right amount and appears in the list -> rows=1
+PASS [Officer (View Only)] a pending order cannot be approved: the order stays pending -> button shown=true, order ORD-20261118-A005 status=pending, screen: Order #ORD-20261118-A005 Pickup SP3 Agriculture Cooperative, Barangay Payanas, Torrijos, Marinduque, MIMAROPA 
+PASS [Officer (View Only)] the Officer is told so on screen (toast "You have view-only access to this module.", seen in shots/bb_viewonly_refused.png and probe_approve1_t_officer_view.png), the order is not changed -> toast confirmed by screenshot review
+PASS [Officer (Manage)] approving a pending order works and the order becomes approved -> order ORD-20261118-A005 status=approved
+PASS [Officer (Manage)] the approval is written to the staff accountability log (who did it) -> log rows=1
+PASS [Manager] the approved order ORD-20261118-A005 belongs to buyer "t_buyer1" who will be notified -> notification: Order Approved
+PASS [Officer (Manage)] can approve a self-registered applicant (only Officer-created Farmers are left to the Manager, by the rule in farmer_management_screen) -> before {"role_status":"pending","is_verified":false} after {"role_status":"active","is_verified":true}
+PASS [Officer (Manage)] the Officer's approval is recorded in the staff accountability log -> log rows in last 3 min=5
+PASS [Manager] approving a pending membership changes the account to active in the database -> before {"role_status":"pending","is_verified":false} -> after {"role_status":"active","is_verified":true} | dialog: Approve Pam Pending? This will: • Approve their SP3 membership • Notify them — they must tap "Contin
+
+19/19 passed

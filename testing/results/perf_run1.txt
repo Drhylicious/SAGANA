@@ -1,0 +1,12 @@
+Stopped services: [supabase_imgproxy_sagana-test supabase_pg_meta_sagana-test supabase_studio_sagana-test supabase_edge_runtime_sagana-test supabase_analytics_sagana-test supabase_vector_sagana-test supabase_pooler_sagana-test]
+warm-up
+warm-up                users=  5 rps=  38.4 err=    0% p50=20ms p95=59ms p99=84ms
+baseline (1 user)      users=  1 rps=  51.6 err=    0% p50=17ms p95=62ms p99=77ms
+normal load            users= 25 rps= 109.2 err=    0% p50=16ms p95=91ms p99=145ms
+heavy load             users= 50 rps=   160 err=    0% p50=133ms p95=623ms p99=958ms
+stress 100 users       users=100 rps=   162 err=    0% p50=438ms p95=1715ms p99=2785ms
+stress 200 users       users=200 rps= 136.6 err= 0.24% p50=1004ms p95=3965ms p99=6074ms
+stress 400 users       users=400 rps= 486.4 err=84.49% p50=2416ms p95=8007ms p99=9924ms
+stopping the ramp: more than 25% errors
+recovery (1 user)      users=  1 rps=  57.3 err=    0% p50=9ms p95=133ms p99=144ms
+saved testing/results/perf_results.json

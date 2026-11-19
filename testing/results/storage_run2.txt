@@ -1,0 +1,47 @@
+﻿node : Stopped services: [supabase_imgproxy_sagana-test supabase_pg_meta_sagana-test supabase_studio_sagana-test 
+supabase_edge_runtime_sagana-test supabase_analytics_sagana-test supabase_vector_sagana-test 
+supabase_pooler_sagana-test]
+At line:1 char:529
++ ... elect-Object -Last 3; node testing/api/storage_tests.mjs 2>&1 | Tee-O ...
++                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Stopped service...er_sagana-test]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+PASS [storage] crop_images: owner uploads into own folder
+PASS [storage] crop_images: user cannot upload into another user's folder
+PASS [storage] crop_images: signed-out cannot upload
+PASS [storage] crop_images: user cannot delete another user's file
+PASS [storage] crop_images: user cannot overwrite another user's file
+PASS [storage] crop_images: public read works without sign-in (photos are shown to buyers)
+PASS [storage] crop_images: a pending (unapproved) farmer cannot upload photos
+PASS [storage-hygiene] crop_images: only image files are accepted (HTML upload is refused)
+PASS [storage-hygiene] crop_images: files over the size limit are refused
+PASS [storage] listing_photos: owner uploads into own folder
+PASS [storage] listing_photos: user cannot upload into another user's folder
+PASS [storage] listing_photos: signed-out cannot upload
+PASS [storage] listing_photos: user cannot delete another user's file
+PASS [storage] listing_photos: user cannot overwrite another user's file
+PASS [storage] listing_photos: public read works without sign-in (photos are shown to buyers)
+PASS [storage] listing_photos: a pending (unapproved) farmer cannot upload photos
+PASS [storage-hygiene] listing_photos: only image files are accepted (HTML upload is refused)
+PASS [storage-hygiene] listing_photos: files over the size limit are refused
+PASS [storage] profile_photos: owner uploads into own folder
+PASS [storage] profile_photos: user cannot upload into another user's folder
+PASS [storage] profile_photos: signed-out cannot upload
+PASS [storage] profile_photos: user cannot delete another user's file
+PASS [storage] profile_photos: user cannot overwrite another user's file
+PASS [storage] profile_photos: public read works without sign-in (photos are shown to buyers)
+PASS [storage] profile_photos: a pending (unapproved) farmer cannot upload photos
+PASS [storage-hygiene] profile_photos: only image files are accepted (HTML upload is refused)
+PASS [storage-hygiene] profile_photos: files over the size limit are refused
+PASS [storage] inventory images: Farmer cannot upload
+PASS [storage] inventory images: view-only Officer cannot upload
+PASS [storage] inventory images: Manage Officer / Manager can upload
+PASS [storage] program evidence: private bucket is not publicly readable
+PASS [storage] program evidence: another Farmer cannot read it
+PASS [storage] program evidence: owner and staff can read it
+PASS [storage] program evidence: Buyer cannot upload
+PASS [storage] program evidence: only images are accepted (PDF refused)
+PASS [storage] listing an object list is not open to everyone for private bucket
+
+36/36 passed, 0 failed

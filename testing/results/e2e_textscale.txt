@@ -1,0 +1,170 @@
+PASS [t_farmer1 x1] (home)
+PASS [t_farmer1 x1] Home
+PASS [t_farmer1 x1] Harvest
+FAIL [t_farmer1 x1] Listings -> "Unavailable (0)" 373..493 | "Sold Out (0)" 501..590
+PASS [t_farmer1 x1] Analytics
+PASS [t_farmer1 x1] Profile
+PASS [t_buyer1 x1] (home)
+PASS [t_buyer1 x1] Browse
+FAIL [t_buyer1 x1] Orders -> "Ready for Pickup (0)" 375..528 | "Out for Delivery (0)" 536..610
+PASS [t_buyer1 x1] Prices
+PASS [t_buyer1 x1] Profile
+FAIL [t_manager x1] (home) -> "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_manager x1] Dashboard -> "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_manager x1] Sync now -> "Revenue
+₱875
+incl. products" 451..573
+PASS [t_manager x1] Members
+FAIL [t_manager x1] Marketplace -> "Orders
+6963
+all orders" 451..573
+PASS [t_manager x1] Loans
+PASS [t_manager x1] Reports
+FAIL [t_officer_view x1] (home) -> "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1] Dashboard · View Only -> "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1] Dashboard -> "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1] Sync now -> "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1] Members -> "Suspended: 
+0" 351..479 | "Pending: 
+1" 487..590
+FAIL [t_officer_view x1] Marketplace -> "Orders
+6963
+all orders" 451..573
+PASS [t_officer_view x1] Loans
+PASS [t_officer_view x1] Reports
+PASS [t_farmer1 x1.3] (home)
+PASS [t_farmer1 x1.3] Home
+PASS [t_farmer1 x1.3] Harvest
+FAIL [t_farmer1 x1.3] Listings -> "Unavailable (0)" 442..588
+PASS [t_farmer1 x1.3] Analytics
+PASS [t_farmer1 x1.3] View All
+PASS [t_farmer1 x1.3] Profile
+PASS [t_buyer1 x1.3] (home)
+PASS [t_buyer1 x1.3] Browse
+FAIL [t_buyer1 x1.3] Orders -> "Ready for Pickup (0)" 445..610
+PASS [t_buyer1 x1.3] Prices
+PASS [t_buyer1 x1.3] Profile
+FAIL [t_manager x1.3] (home) -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_manager x1.3] Dashboard -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_manager x1.3] Members -> "Suspended: 
+0" 399..551 | "Pending: 
+1" 559..590
+FAIL [t_manager x1.3] Marketplace -> "Orders
+6963
+all orders" 451..573
+PASS [t_manager x1.3] Loans
+PASS [t_manager x1.3] Reports
+FAIL [t_officer_view x1.3] (home) -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1.3] Dashboard · View Only -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1.3] Dashboard -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1.3] Members -> "Suspended: 
+0" 399..551 | "Pending: 
+1" 559..590
+PASS [t_officer_view x1.3] Marketplace
+PASS [t_officer_view x1.3] Loans
+PASS [t_officer_view x1.3] Reports
+PASS [t_farmer1 x1.5] (home)
+PASS [t_farmer1 x1.5] Home
+PASS [t_farmer1 x1.5] Harvest
+FAIL [t_farmer1 x1.5] Listings -> "Unavailable (0)" 488..590
+PASS [t_farmer1 x1.5] Analytics
+PASS [t_farmer1 x1.5] View All
+PASS [t_farmer1 x1.5] Profile
+PASS [t_buyer1 x1.5] (home)
+PASS [t_buyer1 x1.5] Browse
+FAIL [t_buyer1 x1.5] Orders -> "Ready for Pickup (0)" 491..610
+PASS [t_buyer1 x1.5] Prices
+PASS [t_buyer1 x1.5] Profile
+FAIL [t_manager x1.5] (home) -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_manager x1.5] Dashboard -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_manager x1.5] Members -> "Suspended: 
+0" 432..590
+PASS [t_manager x1.5] Marketplace
+PASS [t_manager x1.5] Loans
+PASS [t_manager x1.5] Reports
+FAIL [t_officer_view x1.5] (home) -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1.5] Dashboard · View Only -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+FAIL [t_officer_view x1.5] Dashboard -> "Programs
+40
+programs" 313..441 | "Revenue
+₱875
+incl. products" 451..573
+PASS [t_officer_view x1.5] Members
+PASS [t_officer_view x1.5] Marketplace
+PASS [t_officer_view x1.5] Loans
+PASS [t_officer_view x1.5] Reports
+PASS [t_farmer1 x2] (home)
+PASS [t_farmer1 x2] Home
+PASS [t_farmer1 x2] Harvest
+FAIL [t_farmer1 x2] Listings -> "Available (7)" 418..590
+FAIL [t_farmer1 x2] View Market -> "Available (7)" 418..590
+PASS [t_farmer1 x2] Analytics
+PASS [t_farmer1 x2] Profile
+PASS [t_buyer1 x2] (home)
+PASS [t_buyer1 x2] Browse
+FAIL [t_buyer1 x2] Orders -> "Approved (0)" 415..599 | "Ready for Pickup (0)" 607..610
+PASS [t_buyer1 x2] Prices
+PASS [t_buyer1 x2] Profile
+PASS [t_manager x2] (home)
+PASS [t_manager x2] Dashboard
+PASS [t_manager x2] Members
+PASS [t_manager x2] Marketplace
+PASS [t_manager x2] Loans
+PASS [t_manager x2] Reports
+PASS [t_officer_view x2] (home)
+PASS [t_officer_view x2] Dashboard
+FAIL [t_officer_view x2] Members -> "Suspended: 
+0" 512..590
+PASS [t_officer_view x2] Marketplace
+PASS [t_officer_view x2] Loans
+PASS [t_officer_view x2] Reports
+
+66/100 passed

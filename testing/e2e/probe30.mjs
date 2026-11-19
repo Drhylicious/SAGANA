@@ -1,0 +1,14 @@
+import { serve, launch, boot, loginAs, text } from './lib.mjs';
+const srv = await serve(); const { browser, page } = await launch(); await boot(page);
+await loginAs(page, 't_farmer1');
+await page.getByText('Profile', { exact: true }).last().click(); await page.waitForTimeout(2500);
+const cdp = await page.context().newCDPSession(page);
+await cdp.send('Input.synthesizeScrollGesture', { x: 195, y: 600, yDistance: -300, speed: 1500, gestureSourceType: 'touch' }); await page.waitForTimeout(800);
+await page.getByText(/^Expenses/).first().click({ timeout: 6000 }).catch(e => console.log('no expenses', String(e).slice(0, 50)));
+await page.waitForTimeout(3000);
+console.log('EXP:', (await text(page)).slice(0, 300)); await page.screenshot({ path: '../results/shots/probe_exp.png' });
+await page.mouse.click(350, 780); await page.waitForTimeout(2000);
+console.log('ADD:', (await text(page)).slice(0, 400));
+console.log('inputs', await page.locator('flt-semantics-host input').count());
+await page.screenshot({ path: '../results/shots/probe_exp_add.png' });
+await browser.close(); srv.close();

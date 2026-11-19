@@ -1,0 +1,88 @@
+﻿farmer_loans_expenses_redesign | contains 'LoanChoiceChip(' Actual: 'import \'../../../core/l10n/localized_labels.dart\';\n' 'import \'package:flutter/ma
+farmer_loans_expenses_redesign | contains 'class _ExpenseDetailSheet' Actual: 'import \'../../../core/l10n/localized_labels.dart\';\n' 'import \'package:
+farmer_loans_expenses_redesign | a value greater than <-1> Actual: <-1> Which: is not a value greater than <-1> _OutstandingCard( comes after the previou
+farmer_loans_expenses_redesign | <2> Actual: <0>  @ 
+farmer_loans_expenses_redesign | contains 'static const _recentLoans = 3;' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:flutte
+farmer_loans_expenses_redesign | contains '_loans.where((l) => !l.isPaid)' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:flutte
+farmer_loans_expenses_redesign | a value greater than or equal to <0> Actual: <-1> Which: is not a value greater than or equal to <0> class _OutstandingC
+farmer_loans_expenses_redesign | contains 'FarmerLoanCard(loan: visible[i])' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:flut
+farmer_loans_expenses_redesign | contains 'farmer_loan_widgets.dart' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:flutter/serv
+farmer_loans_expenses_redesign | a value greater than <6961> Actual: <-1> Which: is not a value greater than <6961>  @ 
+farmer_loans_expenses_redesign | contains 'item.inStock ? () => _editQuantity(item) : null' Actual: 'import \'dart:async\' show unawaited;\n' 'import \'p
+farmer_loans_expenses_redesign | contains '_searched.where((r) => r.status == status).length' Actual: 'import \'../../widgets/view_only_banner.dart\';\n'
+program_form_validation | Test failed. See exception logs above. The test description was: Create: Save with the discount empty shows th
+program_form_validation | Test failed. See exception logs above. The test description was: Edit: clearing the discount and saving shows 
+program_form_validation | Test failed. See exception logs above. The test description was: Edit: a discount above 100 is shown in red, w
+program_form_validation | Test failed. See exception logs above. The test description was: Edit: 0 (no discount) is valid, so the field 
+program_form_validation | Test failed. See exception logs above. The test description was: Create: after Save, the first field in error 
+member_sections | Test failed. See exception logs above. The test description was: Free Distribution: the result, its date and t
+program_form_validation | Test failed. See exception logs above. The test description was: Harvest Return: no crop and no unit to choose
+member_sections | Test failed. See exception logs above. The test description was: Harvest Return: no measured-harvest line; the
+member_sections | Test failed. See exception logs above. The test description was: an outcome recorded before reports shows its 
+member_sections | Test failed. See exception logs above. The test description was: the result, its date and the cause the Farmer
+member_sections | Test failed. See exception logs above. The test description was: a long cause stays inside the card (at most t
+program_rework_p17 | empty Actual: [ 'systemNoticeNewProgramEnrollmentRequest53: New Program Enrollment Request', 'systemNoticeProgramEnrollm
+program_rework_p17 | empty Actual: [ 'capSettingsPurchaseHint: Ang porsyento ng natapos na order ng Cooperative Product na idinadagdag sa Cap
+program_rework_p17 | false Actual: <true>  @ 
+program_rework_p17 | contains 'unitLocked: _r.itemUnit != null' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:googl
+program_rework_p17 | false Actual: <true>  @ 
+staff_log_filters | empty Actual: ['cooperative_annual_totals', 'member_contributions'] audited, but no filter shows it: [cooperative_annual
+staff_log_filters | empty Actual: [ 'shelf_life_settings', 'program_failure_resolutions', 'program_redistribution_requests', 'program_outcom
+staff_log_filters | 'Binura ang order: ORD-9' Actual: 'Binura ang binili: ORD-9' Which: is different. Expected: ... inura ang order: ORD ...
+staff_log_filters | null Actual: 'Changed: Note: a ? b'  @ 
+contribution_wording | 'Bayad sa Capital Share' Actual: 'Bayad sa puhunan' Which: is different. Expected: Bayad sa Capital Sh ... Actual: Bayad
+contribution_wording | 'Panimulang Capital (?)' Actual: 'Panimulang Puhunan (?)' Which: is different. Expected: ... animulang Capital (? ... Ac
+contribution_wording | contains '\'member_payment\': l10n.farmerDetailsSourcePaymentFull' Actual: 'import \'../../widgets/view_only_banner.dart
+program_rework_5a | ['return_quantity'] Actual: [] Which: at location [0] is [] which shorter than expected  @ 
+program_rework_5a | ['return_quantity'] Actual: [] Which: at location [0] is [] which shorter than expected  @ 
+officer_code_verification | empty Actual: [ 'lib/presentation/screens/admin/crop_management_screen.dart :: _confirmDelete', 'lib/presentation/screen
+officer_code_verification | contains 'case \'approve\':\n' ' if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;' Actual: 'imp
+officer_code_verification | Test failed. See exception logs above. The test description was: Buyer Management filters are All / Active / I
+officer_code_verification | Test failed. See exception logs above. The test description was: the chips work by tapping: tab, then feature,
+officer_code_verification | Test failed. See exception logs above. The test description was: Staff Accountability, the access matrix and t
+officer_reports_layout | Test failed. See exception logs above. The test description was: Manager: the three tools are one row of cards
+officer_reports_layout | Test failed. See exception logs above. The test description was: Manager: dragging the row sideways brings Exp
+program_rework_p5 | false Actual: <true> app_en.arb  @ 
+program_rework_p5 | contains 'Purchases - Regular Price (PHP)' Actual: 'import \'../../core/utils/item_type_utils.dart\';\n' 'import \'packa
+change_email | Test failed. See exception logs above. The test description was: a wrong password is refused clearly, the box 
+change_email | Test failed. See exception logs above. The test description was: an address that cannot be stored (already use
+members_controls | Test failed. See exception logs above. The test description was: only the tapped chip is selected @ 
+members_controls | a value greater than <39643> Actual: <-1> Which: is not a value greater than <39643>  @ 
+name_edit_contract | contains 'l10n.pendingFullNameLabel, p?.fullName' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'packag
+name_edit_contract | contains 'if (name != null) ...name.toColumns()' Actual: 'import \'dart:typed_data\';\n' 'import \'package:supabase_flut
+program_rework_p9 | contains 'QuantityUnitField(' Actual: 'import \'../../../core/theme/sagana_colors.dart\';\n' 'import \'package:flutter/m
+program_rework_p9 | contains 'QuantityUnitField(' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:google_fonts/googl
+unit_management | Test failed. See exception logs above. The test description was: lists the shared units and a compact + Unit r
+unit_management | Test failed. See exception logs above. The test description was: + Unit refuses empty, odd and duplicate names
+program_rework_p15 | contains 'Key(\'returnQuantityField\')' Actual: 'import \'../../widgets/view_only_banner.dart\';\n' 'import \'../../../d
+program_rework_p15 | contains 'unitLocked: _r.itemUnit != null' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:googl
+farmer_profile_records | contains 'item.inStock ? () => _editQuantity(item) : null' Actual: 'import \'dart:async\' show unawaited;\n' 'import \'p
+farmer_profile_records | not contains 'loan_capital_eligibility' Actual: 'import \'../../core/l10n/localized_labels.dart\';\n' 'import \'coop_she
+member_activity_label | 'Pinalitan ang Mga Utang access ni Omar Two sa View Only' Actual: 'Pinalitan ang Mga Utang access ni Omar Two sa Tingin 
+report_exports | a string ending with ',Overdue' Actual: 'LRN-20261001-0001,Juan Dela Cruz,2026-10-01,Fertilizer,1000.00,400.00,600.00,Ov
+listing_edit_approval | contains 'entityType: \'order\'' Actual: 'import \'../../widgets/view_only_banner.dart\';\n' 'import \'../../../data/ser
+member_actions | not contains 'more_vert' Actual: 'import \'../../widgets/view_only_banner.dart\';\n' 'import \'../../widgets/app_toast.d
+add_price_entry_validation | Test failed. See exception logs above. The test description was: an empty form shows inline errors, not a snac
+unified_ui_revision | Test failed. See exception logs above. The test description was: shows a dot only when a filter is active and 
+report_screens | a value greater than <12070> Actual: <-1> Which: is not a value greater than <12070>  @ 
+price_trend_panel | contains 'scrollDirection: Axis.horizontal' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'package:goog
+farmer_listing_edit_units | contains 'Withdraw Listing' Actual: 'if (listing.isPending) {\n' ' return Column(\n' ' crossAxisAlignment: CrossAxisAlig
+update_price_validation | Test failed. See exception logs above. The test description was: Source / Reference is required, marked, and c
+program_rework_p6 | Test failed. See exception logs above. The test description was: the return block shows progress and opens Man
+selling_channels | contains 'priceErrorText(_priceCtrl.text' Actual: 'class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {\n' 
+pending_applicant_views | Failed to load "C:/Users/Administrator/sagana/test/pending_applicant_views_test.dart": Locale data has not bee
+reports_hub_cards | contains 'DashboardModuleStrip(items: items)' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'../../../c
+cooperative_product_parity | contains '_percentText(double v) => formatQuantity(v)' Actual: 'import \'package:flutter/material.dart\';\n' 'import \'p
+unified_farmer_side | Test failed. See exception logs above. The test description was: source chips (All / Marketplace / Cooperative
+report_download | not contains 'isOfficer' Actual: 'import \'dart:io\';\n' 'import \'package:flutter/foundation.dart\' show setEquals;\n' 
+staff_permission_consistency | empty Actual: [ 'admin_loan_repository.dart -> rpc:get_loan_capital_standing', 'capital_share_rates_repository.dart -> t
+notification_read_status | Test failed. See exception logs above. The test description was: read and unread look different and the dot fo
+harvest_batch_number_source | contains '\'Assigned when you submit\'' Actual: 'import \'../../../core/theme/sagana_colors.dart\';\n' 'import \'package
+program_rework_p12 | contains 'a.programName.toLowerCase().compareTo(b.programName.toLowerCase())' Actual: 'fetchEnrolledMembers() async {\n'
+contact_email_verification | Test failed. See exception logs above. The test description was: if the address cannot be saved, no code is re
+member_card_layout | Test failed. See exception logs above. The test description was: Distribution: one line for what was given, an
+program_rework_p11 | contains 'fetchEligibleInventoryForSaleProgram(categories: sources)' Actual: 'import \'package:flutter/material.dart\';\
+cooperative_performance | contains 'formatQuantitiesByUnit(summary.farmerStock)' Actual: 'import \'../../../core/utils/quantity_utils.dart\';\n' '
+program_rework_p8 | contains 'ElevatedButton.styleFrom(minimumSize: const Size(0, 44))' Actual: 'import \'package:flutter/material.dart\';\n
+program_rework_p13 | contains 'itemPickerNames(eligible)' Actual: 'import \'../../widgets/view_only_banner.dart\';\n' 'import \'../../../data
+loan_forms_screens | Test failed. See exception logs above. The test description was: shows the four status chips and a Filter butt

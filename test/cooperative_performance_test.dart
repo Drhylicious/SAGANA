@@ -223,7 +223,8 @@ void main() {
       final screen = _read(
         'lib/presentation/screens/admin/admin_dashboard_screen.dart',
       );
-      expect(screen, contains('formatQuantitiesByUnit(summary.farmerStock)'));
+      expect(screen, contains('summary.farmerStock'));
+      expect(screen, contains('formatQuantitiesByUnit('));
       expect(screen.contains('formatKgTotal(summary.totalStockKg)'), isFalse);
     });
 

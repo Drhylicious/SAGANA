@@ -237,6 +237,8 @@ void main() {
           for (final read in [false, true]) {
             await tester.pumpWidget(
               MaterialApp(
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
                 theme: AppTheme.lightTheme,
                 home: Scaffold(
                   body: NotificationCard(
@@ -259,6 +261,8 @@ void main() {
           // Selected: the check shows.
           await tester.pumpWidget(
             MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               theme: AppTheme.lightTheme,
               home: Scaffold(
                 body: NotificationCard(

@@ -1,0 +1,434 @@
+[
+ {
+  "user": "t_buyer1",
+  "screen": "(home)",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "All (20)",
+    "w": 76,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Vegetables (20)",
+    "w": 126,
+    "h": 34,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_buyer1",
+  "screen": "Browse",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "All (20)",
+    "w": 76,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Vegetables (20)",
+    "w": 126,
+    "h": 34,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_buyer1",
+  "screen": "Orders",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "All (73)",
+    "w": 74,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Pending Order (62)",
+    "w": 148,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Approved (4)",
+    "w": 109,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Ready for Pickup (0)",
+    "w": 15,
+    "h": 34,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_buyer1",
+  "screen": "Prices",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "All (1)",
+    "w": 68,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Vegetables (1)",
+    "w": 118,
+    "h": 34,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_buyer1",
+  "screen": "Profile",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "View All",
+    "w": 55,
+    "h": 19,
+    "onscreen": true
+   },
+   {
+    "t": "Order Placed 8:03 AM Tomato ",
+    "w": 350,
+    "h": 16,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "(home)",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "M",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Sync now",
+    "w": 316,
+    "h": 32,
+    "onscreen": true
+   },
+   {
+    "t": "Cooperative Calendar View Fu",
+    "w": 350,
+    "h": 10,
+    "onscreen": true
+   },
+   {
+    "t": "Dashboard · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "Dashboard · View Only",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "M",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Sync now",
+    "w": 316,
+    "h": 32,
+    "onscreen": true
+   },
+   {
+    "t": "Cooperative Calendar View Fu",
+    "w": 350,
+    "h": 10,
+    "onscreen": true
+   },
+   {
+    "t": "Dashboard · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "Dashboard",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "M",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Sync now",
+    "w": 316,
+    "h": 32,
+    "onscreen": true
+   },
+   {
+    "t": "Cooperative Calendar View Fu",
+    "w": 350,
+    "h": 10,
+    "onscreen": true
+   },
+   {
+    "t": "Dashboard · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "Members",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "M",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Members · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "Marketplace",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "M",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Marketplace · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "Loans",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "OV",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "Loans · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ },
+ {
+  "user": "t_officer_view",
+  "screen": "Reports",
+  "small": [
+   {
+    "t": "",
+    "w": 38,
+    "h": 38,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 42,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "",
+    "w": 26,
+    "h": 26,
+    "onscreen": true
+   },
+   {
+    "t": "OV",
+    "w": 34,
+    "h": 34,
+    "onscreen": true
+   },
+   {
+    "t": "₱0 Expense Report Farmer exp",
+    "w": 169,
+    "h": 3,
+    "onscreen": true
+   },
+   {
+    "t": "0% active Member Contributio",
+    "w": 169,
+    "h": 3,
+    "onscreen": true
+   },
+   {
+    "t": "Reports · View Only",
+    "w": 390,
+    "h": 28,
+    "onscreen": true
+   }
+  ]
+ }
+]

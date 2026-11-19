@@ -230,7 +230,7 @@ void main() {
         expect(page, contains('fetchProgramSources(widget.programId)'));
         expect(
           page,
-          contains('fetchEligibleInventoryForSaleProgram(categories: sources)'),
+          allOf(contains('fetchEligibleInventoryForSaleProgram('), contains('categories: sources')),
         );
         expect(page, contains('l10n.prodNoSources'));
         expect(page, contains('l10n.prodNoItemsInSources'));

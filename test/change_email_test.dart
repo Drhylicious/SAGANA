@@ -273,7 +273,7 @@ void main() {
             tester,
             _Host(
               fake: _Fake(),
-              log: const [],
+              log: <String>[],
               signIn: true,
               needsPassword: true,
             ),
@@ -299,7 +299,7 @@ void main() {
       tester,
     ) async {
       await runIgnoringFontErrors(() async {
-        await _pumpHost(tester, _Host(fake: _Fake(), log: const []));
+        await _pumpHost(tester, _Host(fake: _Fake(), log: <String>[]));
         expect(_noteCurrent(), findsOneWidget);
         expect(_noteSignIn(), findsNothing);
         expect(_password(), findsNothing);
@@ -314,7 +314,7 @@ void main() {
           tester,
           _Host(
             fake: _Fake(),
-            log: const [],
+            log: <String>[],
             active: null,
             activeVerified: false,
             saved: null,
@@ -334,7 +334,7 @@ void main() {
             tester,
             _Host(
               fake: _Fake(),
-              log: const [],
+              log: <String>[],
               text: 'old@gmail.com',
               signIn: true,
               needsPassword: true,
@@ -355,7 +355,7 @@ void main() {
         await runIgnoringFontErrors(() async {
           await _pumpHost(
             tester,
-            _Host(fake: _Fake(), log: const [], text: 'new@gmail'),
+            _Host(fake: _Fake(), log: <String>[], text: 'new@gmail'),
           );
           expect(
             find.byKey(const ValueKey('verify-email-format-error')),
@@ -445,7 +445,7 @@ void main() {
           );
           await _pumpHost(
             tester,
-            _Host(fake: fake, log: const [], signIn: true, needsPassword: true),
+            _Host(fake: fake, log: <String>[], signIn: true, needsPassword: true),
           );
           await tester.enterText(
             find.descendant(of: _password(), matching: find.byType(TextField)),
@@ -554,7 +554,7 @@ void main() {
           final fake = _Fake(pendingAnswer: PendingEmailStatus.inUse);
           await _pumpHost(
             tester,
-            _Host(fake: fake, log: const [], signIn: true, needsPassword: true),
+            _Host(fake: fake, log: <String>[], signIn: true, needsPassword: true),
           );
           await tester.enterText(
             find.descendant(of: _password(), matching: find.byType(TextField)),

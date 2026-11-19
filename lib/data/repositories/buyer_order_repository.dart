@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_order_model.dart';
 import '../models/buyer_activity_model.dart';
@@ -64,10 +65,7 @@ class BuyerOrderRepository {
       // market they are in (see supabase_schema_market_rules_by_data.sql).
       // marketplace_listings itself hides farmer-only markets from buyers, so
       // an old order on one would otherwise lose its crop name and photo.
-      final listings = await _client
-          .from('my_order_listings')
-          .select('id, crop_name, variety, photo_url')
-          .inFilter('id', listingIds);
+      final listings = await chunkedIn(listingIds, (slice) => _client.from('my_order_listings').select('id, crop_name, variety, photo_url').inFilter('id', slice));
       for (final l in listings) {
         listingMap[l['id'] as String] = l;
       }
@@ -99,10 +97,7 @@ class BuyerOrderRepository {
   Future<Map<String, String>> fetchOrderNumbers(List<String> orderIds) async {
     if (orderIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('orders')
-          .select('id, order_number')
-          .inFilter('id', orderIds);
+      final rows = await chunkedIn(orderIds, (slice) => _client.from('orders').select('id, order_number').inFilter('id', slice));
       return {
         for (final r in rows)
           if (r['order_number'] != null) r['id'] as String: r['order_number'] as String,

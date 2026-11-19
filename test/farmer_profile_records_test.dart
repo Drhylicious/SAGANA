@@ -259,7 +259,8 @@ void main() {
 
     test('the Farmer screen blocks zero stock and caps the quantity at the stock', () {
       final src = read('lib/presentation/screens/farmer/request_loan_screen.dart');
-      expect(src, contains('item.inStock ? () => _editQuantity(item) : null'));
+      expect(src, contains('item.inStock && _maxQuantityFor(item) > 0')); // zero stock blocked (and the Capital Share limit)
+      expect(src, contains('? () => _editQuantity(item)'));
       expect(src, contains('DecimalInputFormatter(max: item.quantityOnHand)'));
       expect(src, contains('v > widget.item.quantityOnHand + 1e-9'));
     });
@@ -299,14 +300,17 @@ void main() {
       expect(issue, contains('idempotency_key'));
     });
 
-    test('Issue New Loan has no capital gate left', () {
+    test('Issue New Loan has no minimum-capital gate left (the later per-item Capital Share limit replaced it)', () {
       final src = read('lib/presentation/screens/admin/issue_new_loan_screen.dart');
       expect(src, isNot(contains('_capitalEligible')));
       expect(src, isNot(contains('issueLoanCapitalBlocked')));
       expect(src, isNot(contains('issueLoanCapitalIneligible')));
       final repo = read('lib/data/repositories/admin_loan_repository.dart');
-      expect(repo, isNot(contains('loan_capital_eligibility')));
-      expect(repo, isNot(contains('member_capital_shares')));
+      // The newer rule (a loan item cannot be worth more than the Capital Share) is enforced by the database;
+      // the app only reads the number to show the limit.
+      expect(src, contains('loan_capital_utils.dart'));
+      expect(src, contains('The Capital Share loan rule'));
+      expect(repo, contains('its value cannot exceed the Capital Share'));
     });
 
     test('nothing replaces it: no new eligibility rule in the request functions', () {

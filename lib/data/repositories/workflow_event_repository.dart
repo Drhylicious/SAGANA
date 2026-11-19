@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/chunked_in.dart';
 import '../models/workflow_event_model.dart';
 
 /// The Manager / Officer's view of who did what. Reads `workflow_events` (RLS:
@@ -36,10 +37,7 @@ class WorkflowEventRepository {
     final ids = userIds.toSet().toList();
     if (ids.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', ids);
+      final rows = await chunkedIn(ids, (slice) => _client.from('user_information').select('user_id, full_name').inFilter('user_id', slice));
       return {
         for (final r in rows)
           r['user_id'] as String: (r['full_name'] as String? ?? '').trim(),

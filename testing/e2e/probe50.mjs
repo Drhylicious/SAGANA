@@ -1,0 +1,11 @@
+import { serve, launch, boot, loginAs, text } from './lib.mjs';
+const srv = await serve(); const { browser, page } = await launch(); await boot(page); await loginAs(page, 't_manager');
+const reqs = [];
+page.on('requestfinished', async r => { if (r.url().includes(':54321/rest')) { const t = r.timing(); reqs.push([Math.round(t.responseEnd), r.url().replace('http://127.0.0.1:54321/rest/v1/', '').slice(0, 90)]); } });
+await page.getByText('Reports', { exact: true }).last().click(); await page.waitForTimeout(3000);
+console.log('REPORTS:', (await text(page)).slice(0, 500));
+reqs.length = 0;
+const t0 = Date.now();
+await page.getByText('Members', { exact: true }).last().click(); await page.waitForTimeout(7000);
+console.log('members requests (ms to finish, url):'); reqs.sort((a, b) => b[0] - a[0]).slice(0, 8).forEach(r => console.log(' ', r[0], r[1]));
+await browser.close(); srv.close();

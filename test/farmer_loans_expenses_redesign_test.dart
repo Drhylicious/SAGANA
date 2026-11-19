@@ -117,20 +117,28 @@ void main() {
       expect(src, contains('_AddExpenseDialog('));
       // The period chips are the shared Manager > Loans chip, and the periods
       // are the same four as before.
-      expect(src, contains('LoanChoiceChip('));
-      expect(src, contains('ExpensePeriod.values'));
+      // (Both the Farmer and the Manager read the list through the shared expenses view.)
+      final view = read('lib/presentation/widgets/expenses_view.dart');
+      expect(src, contains('expensesViewChildren('));
+      expect(view, contains('LoanChoiceChip('));
+      expect(view, contains('ExpensePeriod.values'));
     });
 
     test('the detail is a modal with the category icon and a Close button', () {
-      expect(src, contains('class _ExpenseDetailSheet'));
-      expect(src, contains('showManagementModal<void>'));
-      expect(src, contains('l10n.expnDetailCategory'));
-      expect(src, contains('l10n.close'));
+      final view = read('lib/presentation/widgets/expenses_view.dart');
+      expect(view, contains('class _ExpenseDetailSheet'));
+      expect(view, contains('showManagementModal<void>'));
+      expect(view, contains('l10n.expnDetailCategory'));
+      expect(view, contains('l10n.close'));
     });
   });
 
   group('Farmer Input Loans screen', () {
-    final src = read('lib/presentation/screens/farmer/my_loans_screen.dart');
+    // The landing content is the shared loans view (also used by the Manager), so the layout
+    // checks read the screen and that view together.
+    final src = read('lib/presentation/screens/farmer/my_loans_screen.dart') +
+        '\n' +
+        read('lib/presentation/widgets/loans_view.dart');
 
     test('follows the Manager layout, in order', () {
       final order = [
@@ -161,11 +169,11 @@ void main() {
     });
 
     test('shows only the latest few, newest first, from the shared sort', () {
-      expect(src, contains('static const _recentLoans = 3;'));
-      expect(src, contains('static const _recentPayments = 5;'));
-      expect(src, contains('loansNewestFirst(_loans).take(_recentLoans)'));
-      expect(src, contains('paymentsNewestFirst(_loans)'));
-      expect(src, contains('allPayments.take(_recentPayments)'));
+      expect(src, contains('recentLoansCount'));
+      expect(src, contains('recentPaymentsCount'));
+      expect(src, contains('loansNewestFirst(loans)'));
+      expect(src, contains('paymentsNewestFirst(loans)'));
+      expect(src, contains('allPayments.take(recentPaymentsCount)'));
     });
 
     test('Request a Loan is a floating + button, not a rectangular button', () {
@@ -181,7 +189,7 @@ void main() {
     });
 
     test('the balance comes from the same loans as the history and payments', () {
-      expect(src, contains('_loans.where((l) => !l.isPaid)'));
+      expect(src, contains('loans.where((l) => !l.isPaid)'));
       expect(src, contains('l.remainingBalance'));
       expect(src, isNot(contains('fetchTotalOutstanding')));
     });
@@ -207,7 +215,8 @@ void main() {
       expect(history, contains('loansNewestFirst(loans)'));
       expect(history, contains('LoanStatusChips('));
       expect(history, contains('counts: {'));
-      expect(history, contains('FarmerLoanCard(loan: visible[i])')); // the full card
+      expect(history, contains('FarmerLoanCard(')); // the full card (approved assistance is listed first, as its own card)
+      expect(history, contains('visible[i - visibleAssistance.length]'));
       for (final k in [
         'l10n.loanHistoryFilterAll',
         'l10n.loanDashActiveLoans',
@@ -226,8 +235,9 @@ void main() {
     });
 
     test('the landing page and the View All screens show a record the same way', () {
+      // The landing page draws its records through the shared loans view, which imports the same widgets.
+      expect(read('lib/presentation/widgets/loans_view.dart'), contains('farmer_loan_widgets.dart'));
       for (final f in [
-        'lib/presentation/screens/farmer/my_loans_screen.dart',
         'lib/presentation/screens/farmer/my_loan_history_screen.dart',
         'lib/presentation/screens/farmer/my_payment_history_screen.dart',
       ]) {
@@ -293,7 +303,7 @@ void main() {
       final src = read('lib/presentation/screens/farmer/my_loan_history_screen.dart');
       final search = src.indexOf('controller: _searchCtrl');
       final chips = src.indexOf('LoanStatusChips(');
-      final records = src.indexOf('FarmerLoanCard(loan: visible[i])');
+      final records = src.indexOf('FarmerLoanCard(');
       expect(search, greaterThan(0));
       expect(chips, greaterThan(search));
       expect(records, greaterThan(chips));
@@ -418,7 +428,9 @@ void main() {
     });
 
     test('keeps the stock checks and the submission', () {
-      expect(src, contains('item.inStock ? () => _editQuantity(item) : null'));
+      // Zero stock cannot be picked, and the Capital Share limit blocks a line above what the member may take.
+      expect(src, contains('item.inStock && _maxQuantityFor(item) > 0'));
+      expect(src, contains('? () => _editQuantity(item)'));
       expect(src, contains('DecimalInputFormatter(max: item.quantityOnHand)'));
       expect(src, contains('submitLoanRequest('));
       // After sending it stays: a clean selection and the requests list.
@@ -445,8 +457,11 @@ void main() {
     });
 
     test('counts and the list come from the same searched requests', () {
-      expect(src, contains('_searched.where((r) => r.status == status).length'));
-      expect(src, contains(': _searched.where((r) => r.status == _statusFilter).toList()'));
+      // The chip numbers count the searched loan requests plus the searched assistance requests.
+      expect(src, contains('_searched.where((r) => status == null || r.status == status).length'));
+      expect(src, contains('_searchedAssistance'));
+      expect(src, contains('for (final r in _searched)'));
+      expect(src, contains('if (_statusFilter == null || r.status == _statusFilter)'));
       // A request the Farmer withdrew is not listed (nothing to decide).
       expect(src, contains('if (r.isCancelled) return false;'));
     });

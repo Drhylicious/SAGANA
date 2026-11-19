@@ -1,0 +1,136 @@
+Stopped services: [supabase_imgproxy_sagana-test supabase_pg_meta_sagana-test supabase_studio_sagana-test supabase_edge_runtime_sagana-test supabase_analytics_sagana-test supabase_vector_sagana-test supabase_pooler_sagana-test]
+PASS [coop-stock] direct API insert of stock with a quantity is refused (stock moves only through the stock RPC)
+PASS [coop-stock] Manager creates an item with zero stock
+PASS [coop-stock] Farmer cannot create cooperative stock items
+PASS [coop-stock] view-only Officer cannot restock
+PASS [coop-stock] Farmer and Buyer cannot restock
+PASS [coop-stock] Manager restocks +40 (decimal 2 places accepted)
+PASS [coop-stock] sending the same request again does not add the stock twice (idempotent)
+PASS [coop-stock] the same request id with a different quantity is refused
+PASS [coop-stock] a restock with a negative quantity, an adjustment with a positive one, zero and 3 decimals are all refused
+PASS [coop-stock] writing off more than is on hand is refused and the stock is unchanged
+PASS [coop-stock] Manage Officer can write off 0.5 (valid)
+PASS [coop-stock] stock changes are written to the ledger
+PASS [coop-stock] a Buyer cannot read cooperative stock
+PASS [programs] Farmer cannot create a program
+PASS [programs] view-only Officer cannot create a program
+PASS [programs] a distribution program without photo and description is refused with the missing fields named
+PASS [programs] a bad benefit type is refused
+PASS [programs] a member discount over 100% is refused
+PASS [programs] Manager creates a distribution program
+PASS [programs] a Buyer cannot read programs' members
+PASS [programs] Farmer 1 asks to join the program
+PASS [programs] asking twice while the first request is pending is refused
+PASS [programs] a pending (unapproved) applicant cannot ask to join
+PASS [programs] Farmer 2 cannot see Farmer 1's join request
+PASS [programs] Manager sees the request
+PASS [programs] a Farmer cannot approve a join request (own or anyone's)
+PASS [programs] view-only Officer cannot approve a join request
+PASS [programs] a Farmer cannot make themselves a member by inserting directly
+PASS [programs] Manager approves; Farmer 1 becomes an active member
+PASS [programs] approving the same request again is refused
+PASS [programs] Farmer 2 cannot see Farmer 1's membership
+PASS [programs] a Farmer cannot distribute stock to themselves
+PASS [programs] view-only Officer cannot distribute stock
+PASS [programs] distributing more than is on hand, zero, or a negative quantity is refused
+PASS [programs] Manager distributes 2 units; stock falls by exactly 2 and the member is marked as received
+PASS [programs] distributing to the same member a second time is refused (one distribution per round)
+PASS [outcome] a Free Distribution refuses an outcome report (the item belongs to the Farmer once given)
+PASS [outcome] Manager creates a Harvest Return program (revenue share)
+PASS [outcome] Farmer 1 joins it; distributing is refused until the expected return is set, then works
+PASS [outcome] the evidence photo uploaded
+PASS [outcome] Farmer 2 cannot report an outcome for Farmer 1's membership
+PASS [outcome] a report needs an explanation, a quantity for success, a date, and a photo
+PASS [outcome] a photo path in someone else's folder is refused
+PASS [outcome] a failed outcome needs the cause and the date it failed
+PASS [outcome] Farmer 1 reports a successful outcome with a photo
+PASS [outcome] a second report while one is in progress is refused
+PASS [outcome] Farmer 2 does not see Farmer 1's report
+PASS [outcome] a Farmer cannot review, verify or finalise a report
+PASS [outcome] view-only Officer cannot review a report
+PASS [outcome] returning a report needs a note
+PASS [outcome] Manager validates the report
+PASS [outcome] finalising before the field verification is refused
+PASS [outcome] view-only Officer cannot record the field verification
+PASS [outcome] Manage Officer records the field verification (confirms 12.5 kg)
+PASS [outcome] finalising with an invalid outcome value is refused
+PASS [outcome] Manager finalises the outcome as Successful
+PASS [outcome] finalising a second time is refused (nothing is applied twice)
+PASS [returns] a Farmer cannot confirm, adjust or close a program return
+PASS [returns] a Farmer sees only their own returns
+PASS [programs] a Farmer cannot complete a program
+PASS [programs] view-only Officer cannot complete a program
+PASS [programs] Manager completes the program; it is then closed to new join requests
+PASS [offers] Farmer 1 has a 20 kg batch to offer
+PASS [offers] Farmer 2 cannot offer Farmer 1's batch
+PASS [offers] a Buyer cannot offer to the cooperative
+PASS [offers] offering more than the batch holds, zero, a negative quantity or a negative price is refused
+PASS [offers] Farmer 1 offers 10 kg at ₱40
+PASS [offers] Farmer 2 cannot see Farmer 1's offer; a Buyer cannot either
+PASS [offers] offering the same stock twice cannot exceed what the batch holds
+PASS [offers] a Farmer cannot counter or accept on behalf of the cooperative
+PASS [offers] view-only Officer cannot counter an offer
+PASS [offers] a counter-price of zero or a negative price is refused
+PASS [offers] Manager counters at ₱35 (round advances)
+PASS [offers] a counter that uses an out-of-date round is refused (two people cannot overwrite each other)
+PASS [offers] Farmer 2 cannot accept Farmer 1's offer
+PASS [offers] Farmer 1 accepts the counter; the agreed price is ₱35
+PASS [offers] accepting again, or countering after agreement, is refused
+PASS [offers] a Farmer cannot confirm receipt of their own delivery
+PASS [offers] confirming receipt before the Farmer has delivered is refused
+PASS [offers] another Farmer cannot deliver against this offer
+PASS [offers] delivery needs a photo; Farmer 1 delivers; the Manager confirms receipt twice, yet the stock and the payment amount are applied exactly once (10 kg x ₱35 = ₱350)
+PASS [offers] Farmer 1 cannot cancel Farmer 2's offer; Farmer 2 can cancel their own
+PASS [offers] Manager can decline a fresh offer with a reason, and a cancelled offer cannot be declined again
+PASS [offers] every negotiation step is recorded in the offer history
+PASS [linking] a Farmer without Ginger in the Crop Roster cannot enrol in DA-AMAD (Ginger is taken out of Farmer 2 roster for this check, then restored)
+PASS [linking] a Buyer and a pending applicant cannot enrol
+PASS [linking] Farmer 1 (has Ginger) enrols; a second enrolment while one is pending or approved is refused
+PASS [linking] Farmer 2 cannot see Farmer 1's enrolment
+PASS [linking] a Farmer and a view-only Officer cannot approve an enrolment
+PASS [linking] Manager approves the enrolment
+PASS [linking] Farmer 1 acknowledges the approval; another Farmer cannot
+PASS [linking] a Ginger batch cannot be offered to the cooperative (Ginger sells only through DA-AMAD)
+PASS [linking] Farmer 1 submits 12 kg of the Ginger batch for sale (the current path: submit_ginger_for_sale)
+PASS [linking] submitting more kg than the batch holds, zero, or a negative amount is refused
+PASS [linking] Farmer 2 cannot submit Farmer 1's batch
+PASS [linking] the same batch can be submitted again only for what is still available (partial sales): 1 kg is accepted, 100 kg is refused
+PASS [linking] the kilograms are reserved from the batch at submission (30 kg batch: 12 + 1 reserved leaves 17)
+PASS [linking] Farmer 2 cannot see Farmer 1's submission; a Buyer cannot either
+PASS [linking] the retired direct-insert request path now refuses 0, negative and oversized volumes (found by this test; fixed by supabase_schema_security_02)
+PASS [linking] a sale cannot be recorded before the buyer's details are saved; a Farmer cannot save them
+PASS [linking] Manager saves the buyer details
+PASS [linking] a Farmer cannot record a sale; nor can a view-only Officer
+PASS [linking] a sale of more than the reserved kg, zero, negative, or at a negative price is refused
+PASS [linking] Manager records a sale of 5 kg at ₱100; total is ₱500; sold kg goes up by 5
+PASS [linking] a second sale cannot exceed what is left (12 - 5 = 7): 8 kg is refused, 7 kg is accepted
+PASS [linking] Farmer 2 and a Buyer cannot read Farmer 1's sales
+PASS [linking] sales rows cannot be edited or deleted through the API by a Farmer
+PASS [linking] Farmer 2 cannot request cancellation of Farmer 1's request
+PASS [linking] a Farmer cannot close a request on the cooperative side
+PASS [delivery] delivery status can be read by a signed-in Buyer; a signed-out caller is refused
+PASS [delivery] a Farmer, Buyer and view-only Officer cannot switch delivery on or off
+PASS [delivery] a Farmer and a Buyer cannot replace the delivery fee bands
+PASS [delivery] a Farmer and a Buyer cannot write the delivery settings or fee bands tables directly
+PASS [delivery] fee bands with a negative fee, or where the km ranges overlap or run backwards, are refused
+PASS [delivery] Buyer saves a delivery address
+PASS [delivery] another user cannot get a delivery quote for the Buyer's address, nor read or change it
+PASS [delivery] the Buyer gets an answer for their own address (a price, or a clear reason delivery is unavailable)
+PASS [delivery] ordering for delivery while delivery is off is refused (only pickup works)
+PASS [delivery] a pickup order still works while delivery is off
+PASS [notifications] the Manager and Farmer 1 each have notifications; Farmer 2 sees only their own
+PASS [notifications] a signed-out caller reads no notifications
+PASS [notifications] a Farmer cannot create a notification in another user's inbox (directly or through helper functions)
+PASS [notifications] a Farmer can mark their own notification read, and cannot change another user's
+PASS [notifications] a Farmer cannot rewrite the text of their own notification, nor delete someone else's
+PASS [notifications] a new order notifies staff; the Buyer is not notified of their own action (by design)
+PASS [broadcast] a Farmer and a Buyer cannot send a broadcast (Officers may, at either access level, by design: officer_permissions_11_broadcast_open)
+PASS [broadcast] a Farmer cannot preview recipients or read the broadcast log
+PASS [broadcast] Manager sends a broadcast to all Farmers; Farmer 1 and Farmer 2 each receive exactly one; sending the same request again adds nothing
+PASS [broadcast] an unknown audience is refused instead of reaching nobody silently
+PASS [broadcast] a broadcast to one specific Buyer reaches only that Buyer
+PASS [broadcast] an empty title or an empty body is refused
+PASS [replay] the same expense (same client id) sent twice is stored once; the second send is refused as a duplicate
+PASS [replay] a Farmer cannot save an expense in another Farmer's name
+
+133/133 passed, 0 failed

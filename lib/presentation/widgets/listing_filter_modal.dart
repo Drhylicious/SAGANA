@@ -395,7 +395,7 @@ class MarketplaceFilterBar<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 34,
+      height: 34 * MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 2.0),
       child: ListView.separated(
         padding: padding,
         scrollDirection: Axis.horizontal,

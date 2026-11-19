@@ -337,7 +337,7 @@ void main() {
     });
 
     test('Marketplace Order Management, Market Linking and offers show who acted', () {
-      expect(read('lib/presentation/screens/admin/admin_order_detail_screen.dart'), contains("entityType: 'order'"));
+      expect(read('lib/presentation/screens/admin/admin_order_detail_screen.dart'), contains('entityType: "order"'));
       expect(read('lib/presentation/screens/admin/market_linking_screen.dart'), contains("entityType: 'market_linking'"));
       expect(read('lib/presentation/screens/admin/listing_review_screen.dart'), contains('AppRoutes.adminListingHistory'));
       final offer = read('lib/presentation/screens/shared/coop_offer_negotiation_screen.dart');

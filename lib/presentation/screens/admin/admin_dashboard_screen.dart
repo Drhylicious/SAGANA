@@ -1,6 +1,7 @@
 import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/material.dart';
 import '../../../data/services/hive_service.dart';
+import '../../../data/services/app_settings_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -55,7 +56,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadedLocale = AppSettingsService.instance.locale.languageCode;
+    AppSettingsService.instance.addListener(_onSettingsChanged);
     _loadAll();
+  }
+
+  // Several dashboard sentences (Priorities, Cooperative Performance...) are written when the
+  // data is fetched, so they would stay in the old language after the language is switched.
+  // Found by the Chrome test (Tagalog switched in the menu, "100 Overdue Loans" stayed English).
+  String _loadedLocale = '';
+  void _onSettingsChanged() {
+    final code = AppSettingsService.instance.locale.languageCode;
+    if (code == _loadedLocale) return;
+    _loadedLocale = code;
+    if (mounted) _loadAll();
+  }
+
+  @override
+  void dispose() {
+    AppSettingsService.instance.removeListener(_onSettingsChanged);
+    super.dispose();
   }
 
   @override

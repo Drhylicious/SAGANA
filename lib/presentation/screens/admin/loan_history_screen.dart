@@ -492,7 +492,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     };
 
     return SizedBox(
-      height: 38,
+      height: 38 * MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 2.0),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         // The platform's own scrolling feel (bounce on iOS, glow on Android).

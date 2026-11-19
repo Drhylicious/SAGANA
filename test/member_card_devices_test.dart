@@ -431,7 +431,9 @@ void main() {
         });
         for (final hr in [false, true]) {
           final kind = hr ? 'Harvest Return' : 'Free Distribution';
-          final tabs = {0: 'To Distribute', 2: 'Successful', 3: 'Failed'};
+          // A Free Distribution has two tabs (To Distribute, Distributed): it has no outcome
+          // report, so there is no Successful/Failed tab. Harvest Return has all four.
+          final tabs = hr ? {0: 'To Distribute', 2: 'Successful', 3: 'Failed'} : {0: 'To Distribute', 1: 'Distributed'};
           for (final e in tabs.entries) {
             testWidgets('$kind, $label: ${e.value} cards', (tester) async {
               await runIgnoringFontErrors(() => sectionCase(tester, tab: e.key, harvestReturn: hr, size: sizeEntry.value, scale: scale, locale: locale, shotName: wantShot && locale.languageCode == 'en' && scale == 1.0 ? 'staff_${e.value.replaceAll(' ', '').toLowerCase()}_${hr ? 'hr' : 'free'}_$shotBase' : null));

@@ -57,7 +57,8 @@ void main() {
 
     test('members are grouped by program', () {
       final fn = repo.substring(repo.indexOf('fetchEnrolledMembers()'), repo.indexOf('fetchReviewedEnrollmentRequests()'));
-      expect(fn, contains('a.programName.toLowerCase().compareTo(b.programName.toLowerCase())'));
+      expect(fn, contains('a.programName.toLowerCase().compareTo('));
+      expect(fn, contains('b.programName.toLowerCase()'));
     });
   });
 

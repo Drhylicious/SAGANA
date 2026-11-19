@@ -313,6 +313,8 @@ void main() {
         var taps = 0;
         Future<void> show(bool active) => tester.pumpWidget(
           MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             theme: AppTheme.lightTheme,
             home: Scaffold(
               body: Center(

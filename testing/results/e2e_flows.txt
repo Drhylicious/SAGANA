@@ -1,0 +1,28 @@
+PASS [black-box] empty sign-in shows field errors and does not sign in -> SAGANA Empowering the Future of Farming Username / Email Username or email is required Password Password is required Forgot Password? Sign In New to SAGANA? Cre
+PASS [black-box] wrong password is refused with a clear message -> SAGANA Empowering the Future of Farming Username / Email Password Forgot Password? Incorrect username or password. Please try again. Sign In New to SAGANA? Create an Account Manager access is managed 
+PASS [black-box] unknown username is refused (no account details leaked) -> SAGANA Empowering the Future of Farming Username / Email Password Forgot Password? Incorrect username or password. Please try again. Sign In New to SAGANA? Create an Account Manager access is managed 
+PASS [black-box] SQL-injection style input is just a failed sign-in
+PASS [session] Sign Out returns to the welcome/login screen -> SAGANA Welcome to SAGANA! How would you like to explore? Explore as Buyer Browse the marketplace and
+PASS [session] after Sign Out a browser refresh does not bring the account back -> SAGANA Welcome to SAGANA! How would you like to explore? Explore as Buyer Browse the marketplace and
+PASS [session] a corrupted/expired access token does not crash the app (signs out or refreshes it) -> You're Offline Close Some information on this screen is not saved on this device. To see it and retrieve the l
+PASS [buyer] marketplace lists approved crops with price and stock -> Marketplace All (20) Vegetables (20) Tomato ₱50.00/kg 0 buyers Not yet assigned 59.98 kg a
+PASS [buyer] searching for a crop that does not exist shows an empty result, not an error -> Marketplace All (20) Vegetables (20) No listings match your filters Try a different search term or category. Browse Orde
+PASS [buyer] searching "Tom" finds Tomato
+PASS [buyer] tapping a listing opens its details with Buy Now (1,500 listings in the system) -> Not yet assigned ₱50.00 /kg 0 kg sold Tomato Vegetables SP3 Agriculture Cooperative Barangay Payanas, Torrijos, Marinduq
+PASS [buyer] the quantity box will not accept more than the 60 kg in stock (typed 999) -> field holds 9
+PASS [buyer] checkout shows the right total (2.50 kg x ₱50.00 = ₱125.00) -> Checkout How would you like to receive this? Pickup Delivery Delivery is not available right now. Please choose Pickup. 
+PASS [buyer] Place Order confirms the order -> Order Placed! SP3 Agriculture Cooperative will review your order shortly. Pickup SP3 Agriculture Coo
+PASS [buyer] the order is saved as pending, 2.50 kg, ₱125.00 -> pending|2.50|125.00
+PASS [recovery] going offline shows the Offline state on Home -> You're Offline Close You're viewing saved data. New records are saved locally and sync when you're back online. Some fea
+PASS [recovery] offline: "Harvest" still opens with saved data (no crash / blank) -> You're Offline Close Some information on this screen is not saved on this device
+PASS [recovery] offline: "Listings" still opens with saved data (no crash / blank) -> You're Offline Close Some information on this screen is not saved on this device
+PASS [recovery] offline: "Analytics" still opens with saved data (no crash / blank) -> You're Offline Close Some information on this screen is not saved on this device
+PASS [recovery] offline: "Profile" still opens with saved data (no crash / blank) -> You're Offline Close Some information on this screen is not saved on this device
+PASS [recovery] coming back online shows Online again -> You're Back Online Close Your connection is restored. Your offline records are now syncing. Home Good morning, Farmer! T
+PASS [recovery] database down: the app stays up, no crash -> My Orders All (11) Pending Order (10) Approved (0) Ready for Pickup (0) Out for Delivery (0) Tomato Pending Order ORD-20261119-G911 · Nov 19
+PASS [recovery] database down: Orders already opened before still show the saved list (not an empty list) -> warm: My Orders All (11) Pending Order (10) Approved (0) Ready for | now: My Orders All (11) Pending Order (10) Approved (0) Ready for Pickup (0) Out for Delivery (0) Tomato Pending Order ORD-20
+psql: error: connection to server on socket "/run/postgresql/.s.PGSQL.5432" failed: Connection refused
+	Is the server running locally and accepting connections on that socket?
+PASS [recovery] database back: the Marketplace loads again without restarting the app -> Marketplace All (20) Vegetables (20) Tomato ₱50.00/kg 0 buyers Not yet assigned 59.99 kg available 0
+
+24/24 passed

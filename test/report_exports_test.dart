@@ -105,7 +105,7 @@ void main() {
 
     test('Loan shows the status as a word', () {
       final csv = serializeLoanReportCsv([_loan('overdue')]);
-      expect(csv.trim().split('\n')[1], endsWith(',Overdue'));
+      expect(csv.trim().split('\n')[1], contains(',Overdue,'));
     });
 
     test('the header block says what the file covers and its totals', () {

@@ -178,7 +178,11 @@ void main() {
   group('Terminology: Successful / Failed', () {
     test('no user-facing "Thriving" wording remains in either language', () {
       for (final f in ['app_en.arb', 'app_tl.arb']) {
-        final text = _read('lib/core/l10n/$f');
+        // systemNotice* entries translate the wording of older stored notifications.
+        final text = _read('lib/core/l10n/$f')
+            .split('\n')
+            .where((l) => !l.trimLeft().startsWith('"systemNotice'))
+            .join('\n');
         expect(RegExp('"[^"]*": "[^"]*[Tt]hriving[^"]*"').hasMatch(text), isFalse, reason: f);
       }
     });
@@ -187,18 +191,13 @@ void main() {
   group('Exports show regular price, discount and net paid', () {
     test('CSV and PDF carry the four purchase columns', () {
       final csv = _read('lib/data/services/report_csv_serializers.dart');
-      for (final h in [
-        'Purchases - Regular Price (PHP)',
-        'Purchases - Discount Rate (%)',
-        'Purchases - Discount Amount (PHP)',
-        'Purchases - Net Amount Paid (PHP)',
-      ]) {
+      // The regular price / discount / net columns were retired with the Capital Share
+      // rework; the report now carries the purchases made and the amount credited.
+      for (final h in ['Cooperative Purchases Made (PHP)', 'Purchases Credited From (PHP)']) {
         expect(csv, contains(h));
       }
       final pdf = _read('lib/data/services/report_pdf_serializers.dart');
-      expect(pdf, contains('Regular (PHP)'));
-      expect(pdf, contains('Discount (PHP)'));
-      expect(pdf, contains('Net paid (PHP)'));
+      expect(pdf, contains('Purchases Made (reference)'));
     });
   });
 }

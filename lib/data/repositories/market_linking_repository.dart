@@ -1,4 +1,5 @@
 import '../services/server_only.dart';
+import '../../core/utils/chunked_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../core/utils/person_name.dart';
@@ -560,10 +561,7 @@ class MarketLinkingRepository {
               .toList();
 
           // Fetch farmer info
-          final infoRows = await _client
-              .from('user_information')
-              .select('user_id, full_name, profile_photo_url')
-              .inFilter('user_id', farmerIds);
+          final infoRows = await chunkedIn(farmerIds, (slice) => _client.from('user_information').select('user_id, full_name, profile_photo_url').inFilter('user_id', slice));
           final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
           // Batch numbers — only for rows that actually have one attached.
@@ -579,10 +577,7 @@ class MarketLinkingRepository {
           final batchCropMap = <String, String>{};
           if (batchIds.isNotEmpty) {
             try {
-              final batchRows = await _client
-                  .from('inventory_batches')
-                  .select('id, batch_number, crop_id, unit')
-                  .inFilter('id', batchIds);
+              final batchRows = await chunkedIn(batchIds, (slice) => _client.from('inventory_batches').select('id, batch_number, crop_id, unit').inFilter('id', slice));
               for (final b in batchRows) {
                 batchMap[b['id'] as String] = b['batch_number'] as String;
                 batchUnitMap[b['id'] as String] = unitOrDefault(b['unit'] as String?);
@@ -1090,10 +1085,7 @@ class MarketLinkingRepository {
     }.toList();
     final people = <String, Map<String, dynamic>>{};
     if (peopleIds.isNotEmpty) {
-      final info = await _client
-          .from('user_information')
-          .select('user_id, full_name, profile_photo_url')
-          .inFilter('user_id', peopleIds);
+      final info = await chunkedIn(peopleIds, (slice) => _client.from('user_information').select('user_id, full_name, profile_photo_url').inFilter('user_id', slice));
       for (final i in info) {
         people[i['user_id'] as String] = i;
       }

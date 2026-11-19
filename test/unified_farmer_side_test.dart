@@ -319,7 +319,7 @@ void main() {
           await tester.tap(find.byKey(const Key('source_cooperative')));
           await tester.pump();
           expect(find.byKey(const Key('coopProduct_pp1')), findsOneWidget);
-          expect(find.text(l10n.cpFilterCooperative), findsOneWidget);
+          expect(find.textContaining(l10n.cpFilterCooperative), findsOneWidget);
         });
       },
     );

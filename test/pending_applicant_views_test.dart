@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:sagana/presentation/widgets/recent_activity_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sagana/core/l10n/app_localizations.dart';
@@ -137,8 +138,9 @@ PendingProfileView _profileView({
   onSignOut: onSignOut ?? () {},
 );
 
-void main() {
+Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('en');
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
   group('Top bar: SAGANA logo | title on all three tabs', () {

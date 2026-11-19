@@ -86,14 +86,14 @@ void main() {
       await openForm(tester);
       expect(find.text('Crop Name *'), findsOneWidget);
       expect(find.text('Price (₱) *'), findsOneWidget);
-      expect(find.text('Source / Reference *'), findsOneWidget);
+      expect(find.text('Source *'), findsOneWidget);
 
       await tester.tap(submitButton());
       await tester.pump();
 
       expect(find.text('Crop name is required'), findsOneWidget);
       expect(find.text('Price is required'), findsOneWidget);
-      expect(find.text('Source / reference is required'), findsOneWidget);
+      expect(find.text('Source is required'), findsOneWidget);
       expect(find.byType(SnackBar), findsNothing);
     });
   });

@@ -1,0 +1,18 @@
+import { serve, launch, boot, bodyText } from './lib.mjs';
+const [, , user = 't_farmer1'] = process.argv;
+const srv = await serve();
+const { browser, page, logs } = await launch();
+await boot(page);
+await page.getByText('Login', { exact: true }).last().click();
+await page.waitForTimeout(2000);
+const inputs = page.locator('flt-semantics-host input');
+console.log('inputs', await inputs.count());
+await inputs.nth(0).fill(user); await inputs.nth(1).fill('Test@12345');
+await page.getByText('Sign In', { exact: true }).last().click();
+await page.waitForTimeout(6000);
+console.log('AFTER LOGIN:', (await bodyText(page)).replace(/\s+/g, ' ').slice(0, 600));
+const roles = await page.locator('flt-semantics-host [role]').evaluateAll(els => els.map(e => e.getAttribute('role') + ':' + (e.textContent || '').slice(0, 25)).filter(x => !x.startsWith('group') && !x.startsWith('img')).slice(0, 40));
+console.log(roles.join(' | '));
+await page.screenshot({ path: `../results/shots/probe_${user}.png` });
+console.log('LOGS', logs.slice(0, 5));
+await browser.close(); srv.close();

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show debugPrint;
+import '../../core/utils/chunked_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/shelf_life_model.dart';
@@ -245,10 +246,7 @@ class ShelfLifeRepository {
   ) async {
     if (batchIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('batch_shelf_life')
-          .select()
-          .inFilter('batch_id', batchIds);
+      final rows = await chunkedIn(batchIds, (slice) => _client.from('batch_shelf_life').select().inFilter('batch_id', slice));
       final out = <String, BatchShelfLife>{};
       for (final r in rows) {
         final s = BatchShelfLife.fromEmbed(r);
@@ -266,10 +264,7 @@ class ShelfLifeRepository {
   ) async {
     if (listingIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('listing_shelf_life')
-          .select()
-          .inFilter('listing_id', listingIds);
+      final rows = await chunkedIn(listingIds, (slice) => _client.from('listing_shelf_life').select().inFilter('listing_id', slice));
       final out = <String, ListingShelfLife>{};
       for (final r in rows) {
         final s = ListingShelfLife.fromEmbed(r);

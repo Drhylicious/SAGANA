@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sagana/core/l10n/app_localizations.dart';
+import 'package:sagana/core/l10n/app_localizations.dart';
 import 'package:sagana/core/theme/app_theme.dart';
 import 'package:sagana/presentation/widgets/quantity_unit_field.dart';
 
@@ -40,6 +42,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: StatefulBuilder(
             builder: (context, setState) => SingleChildScrollView(

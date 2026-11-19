@@ -42,7 +42,8 @@ void main() {
     expect(src, contains('name: _name.parts'));
     expect(src, isNot(contains('_nameCtrl')));
     // The read-only view still shows the complete name (display only).
-    expect(src, contains('l10n.pendingFullNameLabel, p?.fullName'));
+    final flat = src.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains('l10n.pendingFullNameLabel, p?.fullName'));
   });
 
   group('Repositories save the parts, never a typed full name', () {
@@ -67,7 +68,7 @@ void main() {
     });
 
     test('Manager / Officer', () {
-      final src = _read('lib/data/repositories/admin_profile_repository.dart');
+      final src = _read('lib/data/repositories/admin_profile_repository.dart').replaceAll(RegExp(r'\s+'), ' ');
       expect(src, contains('if (name != null) ...name.toColumns()'));
       expect(src, contains("'name': name?.toColumns()"));
       expect(src, contains("surname: infoRow['surname'] as String?"));

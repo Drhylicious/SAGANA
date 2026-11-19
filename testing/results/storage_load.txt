@@ -1,0 +1,97 @@
+﻿INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+docker : NOTICE:  policy "Profile photos public read" for relation "storage.objects" does not exist, skipping
+At line:1 char:383
++ ... .sql -Raw | docker exec -i supabase_db_sagana-test psql -U postgres - ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (NOTICE:  policy...exist, skipping:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+DROP POLICY
+DROP POLICY
+DROP POLICY
+NOTICE:  policy "Profile photos owner upload" for relation "storage.objects" does not exist, skipping
+NOTICE:  policy "Profile photos owner delete" for relation "storage.objects" does not exist, skipping
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+NOTICE:  policy "Crop images public read" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Crop images owner upload" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Crop images owner delete" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+NOTICE:  policy "Listing photos public read" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Listing photos owner upload" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Listing photos owner delete" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+INSERT 0 0
+INSERT 0 1
+NOTICE:  policy "Inventory images public read" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Inventory images owner upload" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Inventory images owner update" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Inventory images owner delete" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+NOTICE:  policy "approved farmers only: product photo uploads (insert)" for relation "storage.objects" does not exist, 
+skipping
+NOTICE:  policy "approved farmers only: product photo uploads (update)" for relation "storage.objects" does not exist, 
+skipping
+NOTICE:  policy "approved farmers only: product photo uploads (delete)" for relation "storage.objects" does not exist, 
+skipping
+DO
+DROP POLICY
+DROP POLICY
+DROP POLICY
+NOTICE:  policy "Inventory images staff upload" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Inventory images staff update" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+NOTICE:  policy "Inventory images staff delete" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+UPDATE 4
+ bucket_id | name | created_at 
+-----------+------+------------
+(0 rows)
+
+INSERT 0 1
+NOTICE:  policy "Program evidence upload" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+NOTICE:  policy "Program evidence read" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+NOTICE:  policy "Program evidence delete own" for relation "storage.objects" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+CREATE FUNCTION
+              id              |             name             | public | file_size_limit |        allowed_mime_types         
+------------------------------+------------------------------+--------+-----------------+-----------------------------------
+ cooperative_inventory_images | cooperative_inventory_images | t      |        10485760 | 
+ crop_images                  | crop_images                  | t      |        10485760 | 
+ listing_photos               | listing_photos               | t      |        10485760 | 
+ profile_photos               | profile_photos               | t      |        10485760 | 
+ program_evidence             | program_evidence             | f      |        10485760 | {image/jpeg,image/png,image/webp}
+(5 rows)
+

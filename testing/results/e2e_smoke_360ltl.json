@@ -1,0 +1,302 @@
+[
+ {
+  "role": "t_farmer1",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Simula Magandang umaga, Fidel! Huwebes, Nobyembre 19, 2026 Maayos ang Lahat Wala"
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Simula\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Ani\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Mga Alok\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Pagsusuri\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "tab \"Detalye\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_farmer1",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Buod MM Magandang umaga, Mara! Huwebes, Nobyembre 19, 2026 100 Overdue Loans Imm"
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Buod\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Ipadala ngayon\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Mga Miyembro\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Pamilihan\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Mga Utang\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "tab \"Mga Ulat\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_manager",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Buod OV Magandang umaga, Olivia! Huwebes, Nobyembre 19, 2026 100 Overdue Loans I"
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Buod · Tingin lamang\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Buod\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Ipadala ngayon\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Mga Miyembro\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Pamilihan\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Mga Utang\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "tab \"Mga Ulat\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_view",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Buod OM Magandang umaga, Oscar! Huwebes, Nobyembre 19, 2026 100 Overdue Loans Im"
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Buod\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Ipadala ngayon\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Mga Miyembro\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Pamilihan\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Mga Utang\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "tab \"Mga Ulat\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_officer_manage",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Palengke Lahat (20) Vegetables (20) Tomato ₱50.00/kg 1 mamimili Wala pang nakata"
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Mamili\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Lahat (20)\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Mga Order\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Presyo\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "tab \"Detalye\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_buyer1",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "signs in and lands on a home screen",
+  "pass": true,
+  "detail": "Home Welcome, Pam! SP3 Agriculture Cooperative Your application has been receive"
+ },
+ {
+  "role": "t_pending",
+  "step": "tab \"Home\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "tab \"Notifications\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "tab \"Profile\" opens without an error",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "no unexpected console errors",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "role": "t_pending",
+  "step": "no failed (5xx / unexpected 4xx) network calls",
+  "pass": true,
+  "detail": ""
+ }
+]
