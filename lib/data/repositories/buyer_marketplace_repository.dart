@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/chunked_in.dart';
+import '../../core/utils/fetch_all_rows.dart';
 import '../services/guest_mode_service.dart';
 import '../services/market_types_service.dart';
 import '../services/offline_cache.dart';
@@ -190,7 +191,13 @@ class BuyerMarketplaceRepository {
         screen: 'buyer_listings_${limit ?? 'all'}_$offset',
         fetch: () async => limit != null
             ? await ordered.range(offset, offset + limit - 1)
-            : await ordered,
+            // No limit asked for: every page, not just the first 1,000 (fetch_all_rows.dart).
+            : await fetchAllRows(
+                (from, to) => query
+                    .order('created_at', ascending: false)
+                    .order('id')
+                    .range(from, to),
+              ),
       );
 
       // A saved snapshot may predate the current market rules (a crop moved to

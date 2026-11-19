@@ -17,7 +17,11 @@ class SubPageBackButton extends StatelessWidget {
     final sagana = context.saganaColors;
     final button = GestureDetector(
       onTap: onPressed,
-      child: Container(
+      behavior: HitTestBehavior.opaque,
+      // 48 px tap area around the 40 px circle (the Android guideline).
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
@@ -26,6 +30,7 @@ class SubPageBackButton extends StatelessWidget {
           border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
         ),
         child: Icon(Icons.arrow_back_rounded, color: cs.primary),
+      ),
       ),
     );
     return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
@@ -61,7 +66,10 @@ class SubPageTopBar extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: onBack,
-            child: Container(
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
@@ -71,8 +79,9 @@ class SubPageTopBar extends StatelessWidget {
               ),
               child: Icon(Icons.arrow_back_rounded, color: cs.primary),
             ),
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               title,

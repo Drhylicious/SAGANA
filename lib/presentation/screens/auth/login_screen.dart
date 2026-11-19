@@ -460,8 +460,9 @@ class _AuthCard extends StatelessWidget {
                         horizontal: 4,
                         vertical: 4,
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      // 48 px tap height (the Android guideline); was a 17 px strip.
+                      minimumSize: const Size(48, 48),
+                      tapTargetSize: MaterialTapTargetSize.padded,
                     ),
                     child: Text(
                       AppLocalizations.of(context).enhForgotPassword,

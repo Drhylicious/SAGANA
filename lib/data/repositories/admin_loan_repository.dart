@@ -1,5 +1,6 @@
 import '../../core/l10n/localized_labels.dart';
 import '../../core/utils/chunked_in.dart';
+import '../../core/utils/fetch_all_rows.dart';
 import 'coop_shelf_life_repository.dart';
 import '../services/offline_actions.dart'
     show isOfflineConnectionFailure, OfflineActionBlocked;
@@ -50,11 +51,16 @@ class AdminLoanRepository {
 
   Future<LoanDashboardStats> fetchDashboardStats() async {
     try {
-      final rows = await _client
-          .from('farmer_loans')
-          .select(
-            'farmer_id, status, total_value, amount_paid, monthly_payment, updated_at',
-          );
+      // Every loan, not just the first 1,000: these figures are money totals (fetch_all_rows.dart).
+      final rows = await fetchAllRows(
+        (from, to) => _client
+            .from('farmer_loans')
+            .select(
+              'farmer_id, status, total_value, amount_paid, monthly_payment, updated_at',
+            )
+            .order('id')
+            .range(from, to),
+      );
 
       int active = 0;
       int overdue = 0;
@@ -207,7 +213,15 @@ class AdminLoanRepository {
               .inFilter('status', statuses)
               .order('next_payment_date', ascending: true);
 
-          final rows = limit != null ? await query.limit(limit) : await query;
+          final rows = limit != null
+              ? await query.limit(limit)
+              // No limit asked for: every page, not just the first 1,000 (fetch_all_rows.dart).
+              : await fetchAllRows(
+                  (from, to) => query
+                      .order('next_payment_date', ascending: true)
+                      .order('id')
+                      .range(from, to),
+                );
 
           if (rows.isEmpty) return <Map<String, dynamic>>[];
 

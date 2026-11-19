@@ -140,8 +140,10 @@ class AdminTopBar extends StatelessWidget {
                     onTap:
                         onBroadcastTap ??
                         () => context.push(AppRoutes.announcementDashboard),
+                    behavior: HitTestBehavior.opaque,
+                    // 48 px tap area (the Android guideline); the icon looks the same.
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
                       child: Icon(
                         Icons.campaign_rounded,
                         color: cs.primary,
@@ -150,16 +152,19 @@ class AdminTopBar extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 0),
 
                   // Notifications (with unread badge)
                   GestureDetector(
                     onTap:
                         onNotificationTap ??
                         () => context.push(AppRoutes.adminNotifications),
+                    behavior: HitTestBehavior.opaque,
                     // The dot comes from the shared badge service, so it shows on
                     // every primary screen, not only where a count was loaded.
-                    child: ListenableBuilder(
+                    child: Padding(
+                      padding: const EdgeInsets.all(11),
+                      child: ListenableBuilder(
                       listenable: NotificationBadgeService.instance,
                       builder: (context, _) => Stack(
                         clipBehavior: Clip.none,
@@ -189,12 +194,20 @@ class AdminTopBar extends StatelessWidget {
                         ],
                       ),
                     ),
+                    ),
                   ),
 
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 1),
 
-                  // Profile / avatar
-                  Container(
+                  // Profile / avatar (48 px tap area around the 38 px circle)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap:
+                        onProfileTap ??
+                        () => context.push(AppRoutes.adminProfile),
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Container(
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
@@ -211,6 +224,8 @@ class AdminTopBar extends StatelessWidget {
                       onTap:
                           onProfileTap ??
                           () => context.push(AppRoutes.adminProfile),
+                    ),
+                  ),
                     ),
                   ),
                 ],

@@ -33,7 +33,8 @@ Run 2026-11-18 to 2026-11-19 on branch `testing/software-testing`. Everything ra
 | B4 | Capital Share wording said "enrolled" instead of "joined the Product Sales program". | Wording slip. | English and Tagalog text corrected. |
 | B5 | With about 200 or more listings the Marketplace failed to load and listing details never opened (a 45 KB request address was refused). | "id in this long list" queries. | `lib/core/utils/chunked_in.dart` sends long lists in slices of 80; applied in 18 repository files. Test `chunked_in_test.dart`. |
 | B6 | Tagalog Manager dashboard kept English sentences after the language was switched. | Sentences are written when data is fetched. | Dashboard reloads on a language change. |
-| B7 | Manager Order Management showed only the newest 1,000 orders: chips read "All (1000)" of 6,963, and the oldest, longest-waiting pending orders could not be seen or approved. The same limit applied to All Listings and cooperative orders. | The database returns at most 1,000 rows per query. | `lib/core/utils/fetch_all_rows.dart` reads page after page (three at a time); used by the three lists. Test `fetch_all_rows_test.dart`. Verified in Chrome: All (6963). |
+| B7 | Manager Order Management showed only the newest 1,000 orders: chips read "All (1000)" of 6,963, and the oldest, longest-waiting pending orders could not be seen or approved. The same limit applied to All Listings, cooperative orders, the Manager loan list, the loan dashboard money totals and the Buyer's listings. | The database returns at most 1,000 rows per query. | `lib/core/utils/fetch_all_rows.dart` reads page after page (three at a time); used by those six reads. Test `fetch_all_rows_test.dart`. Verified in Chrome: Order Management shows all 6,976 orders; Loans dashboard shows 108 active loans = the database. |
+| B14 | Header buttons (notification bell, settings, profile picture, back arrow) and the "Forgot Password?" and "View Market" links were smaller than the 48 px tap guideline (17 to 38 px). | Fixed-size icons and text with no padding. | Each now has a 48 px tap area without changing how it looks (`farmer_top_bar`, `admin_top_bar`, `sub_page_top_bar`, `login_screen`, `farmer_dashboard_screen`). Verified in Chrome: a tap 14 px off the bell and 11 px off the avatar still works; "View Market" is 48 px tall. |
 | B8 | A market-linking request could be saved for 0, negative or oversized kg when the API was called directly. | Policy checked only ownership. | `supabase_schema_security_02_input_validation.sql` (trigger). |
 | B9 | A signed-in user could rewrite the text and screen link of their own notification. | Policy allowed any column. | Same script: only the read status can be changed. |
 | B10 | A broadcast with a blank title or message was delivered as an empty notification. | No check. | Same script: blank title or message refused. |
@@ -61,21 +62,22 @@ Test laptop (7.7 GB RAM shared with Docker); 160 users, 1,501 listings, about 7,
 - Breaking point is between 200 and 400 simultaneous users here; it fails by refusing connections, with no corrupt data, and recovers fully.
 - Screen load times in Chrome (median of 3 runs, at this volume): Farmer tabs 0.2 to 2.3 s; Buyer Browse, Orders and Prices under 0.4 s; Manager Loans 0.6 to 1.2 s, Members 2 to 3 s, Order Management about 2.3 s before the B7 fix (it now loads every order, about 9 s for 7,000 orders). **Slower than the 3-second target at this volume:** Manager Dashboard when first opened (9 to 12 s), Reports tab (7 to 9 s), Harvest Report (about 11 s), Sales Report (about 4 s). The cause is many small requests (55 on the Reports tab) queued behind the browser's connection limit and client-side totalling, not slow queries. A real cooperative has far less data; these are the screens to watch as data grows (a server-side summary would fix them).
 
-## 4. Not fixed, for your decision
+## 4. Not fixed (decided with you; left unresolved on purpose)
 
-- If the server is down and a screen was never opened before, it shows an empty list with no "could not load" message. With a saved copy it shows the saved list (tested).
+- **Server down on a screen never opened before shows an empty list, with no "could not load" message.** I tried to add a notice three times; it did not appear in Chrome when the database was stopped (the app's reachability check also flips at that moment), so I removed the change rather than ship something unverified. Risk: during an outage a Buyer could read "no orders". With a saved copy, farmers and staff still see the saved list. Worth another look in a quiet moment.
 - A corrupted or expired sign-in token shows the "You're Offline" notice instead of signing out cleanly (no crash).
-- Sign-in address limit: the authentication service does not slow down repeated attempts from one address; the account lockout (B11) covers guessing at one account.
-- Tap targets under the 48 px guideline: header icon buttons (38 px) and text links such as "Forgot Password?", "View Market", "View All" (17 to 19 px tall).
-- On the web build the layout stretches to the full window on wide screens (not relevant to mobile devices).
-- Other lists that read a plain query may also stop at 1,000 rows once data grows; only the three confirmed ones (orders, listings, cooperative orders) were changed.
-- `test_rpc.bat` and `test_rpc.ps1` in the project root hold the live project address and the public key (not secret, but look like leftovers).
+- No sign-in limit per address: the account lockout (B11) covers guessing at one account.
+- Other tap targets: many small text links elsewhere (for example "View All" in section headers) are still under 48 px; the header buttons and the two most-used links were fixed (B14).
+- Wide web layout stretches (not relevant to mobile devices).
+- Other lists may still stop at 1,000 rows as data grows. The sweep fixed the six reads that show full lists or money totals (B7); the rest are report totals that already page or are small.
 - Dependencies are many versions behind (no advisories found today).
+- Slow screens at test volume (section 3).
 - Four files were changed by someone else while testing (`farmer_edit_profile_screen.dart`, `my_expenses_screen.dart`, `planting_forecast_card.dart`, `top_harvested_crops_chart.dart`, plus `test/inline_errors_and_unit_note_test.dart`). They are not part of this testing and were not touched.
+- `test_rpc.bat` and `test_rpc.ps1` (leftover files holding the live project address) were deleted; nothing referenced them.
 
 ## 5. Usability review (heuristic; no real users)
 
-Good: clear titles; the same bottom navigation per role; price and stock visible on every listing card; plain sign-in errors that do not reveal whether a username exists; "Failed to save. Please try again." keeps what was typed; "You have view-only access to this module." for View Only; offline and back-online notices; Tagalog and dark mode applied across roles. Task lengths (taps from the home screen): Farmer add expense 4; Farmer see market prices 1; Buyer buy a crop 4; Manager approve an order 5; Manager approve a member 4 (plus search); a View Only Officer gets the refusal after 1 tap. Weak: the four items in section 4 about tap-target size and missing "could not load" message; the language and theme switches are only in the side menu opened from the logo, which a new user may not find; at 200% text some labels end in "..." (bottom navigation, cards).
+Good: clear titles; the same bottom navigation per role; price and stock visible on every listing card; plain sign-in errors that do not reveal whether a username exists; "Failed to save. Please try again." keeps what was typed; "You have view-only access to this module." for View Only; offline and back-online notices; Tagalog and dark mode applied across roles. Task lengths (taps from the home screen): Farmer add expense 4; Farmer see market prices 1; Buyer buy a crop 4; Manager approve an order 5; Manager approve a member 4 (plus search); a View Only Officer gets the refusal after 1 tap. Weak: the remaining small links and the missing "could not load" message (section 4); the language and theme switches are only in the side menu opened from the logo, which a new user may not find; at 200% text some labels end in "..." (bottom navigation, cards).
 
 ## 6. Not covered and why
 
@@ -86,10 +88,16 @@ Good: clear titles; the same bottom navigation per role; price and stock visible
 
 ## 7. What you need to do on the live project
 
-1. Run in the Supabase SQL Editor, in order: `supabase_schema_security_01_lockdown.sql` (you said this one is already run), `supabase_schema_security_02_input_validation.sql`, `supabase_schema_security_03_signin_lockout.sql`.
-2. Turn on the sign-in lockout: Dashboard, Authentication, Hooks, "Password Verification Attempt", choose the Postgres function `public.hook_password_verification_attempt`. If your plan does not offer this hook, turn on CAPTCHA under Authentication, Attack Protection instead.
-3. Authentication, Sign In / Providers, Password: set the minimum password length to 8.
-4. Review and commit the code changes (B4 to B7, B11, B13: `chunked_in.dart`, `fetch_all_rows.dart`, the repositories, the screens, the new tests) and the `testing/` folder.
+1. The three SQL scripts (`security_01`, `02`, `03`) are already run (you confirmed).
+2. Sign-in lockout hook: Authentication, Hooks, "Password Verification Attempt". You could not find it, which most likely means it is not offered on your current plan (I cannot check the live project). Until it is available the lockout function exists but is not called; the sign-in service does not limit wrong passwords. Options: upgrade the plan, or ask me to add CAPTCHA to the app (a Supabase CAPTCHA key plus an app change; do not switch CAPTCHA on in the dashboard before that or nobody can sign in).
+3. Authentication, Sign In / Providers, Email: set "Minimum password length" to 8 (a live-project setting I cannot change).
+4. Push or merge the commits when you are ready.
+
+## Verification of the latest round
+
+- Dart: 2,667 of 2,667 pass after the changes (`dart_tests_final6.json`).
+- Chrome, rebuilt app: smoke walk, all six roles at phone width, 35 of 35 pass; Order Management shows all 6,976 orders; Loans dashboard shows 108 active loans = database; a tap 14 px off the notification bell and 11 px off the profile picture still works; "View Market" is 48 px tall; Farmer, Buyer and Manager home screens render normally.
+- Not verified (and so not shipped): the "could not load" notice (section 4).
 
 ## 8. Incident during testing
 

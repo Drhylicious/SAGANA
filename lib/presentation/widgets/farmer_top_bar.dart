@@ -214,9 +214,13 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                     if (widget.showNotificationButton)
                       GestureDetector(
                         onTap: widget.onNotificationTap,
+                        behavior: HitTestBehavior.opaque,
                         // The dot comes from the shared badge service, so it
-                        // shows on every primary screen.
-                        child: ListenableBuilder(
+                        // shows on every primary screen. The padding makes the tap area 48 px
+                        // (the Android guideline) without changing how the icon looks.
+                        child: Padding(
+                          padding: const EdgeInsets.all(11),
+                          child: ListenableBuilder(
                           listenable: NotificationBadgeService.instance,
                           builder: (context, _) => Stack(
                             clipBehavior: Clip.none,
@@ -246,23 +250,31 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                             ],
                           ),
                         ),
+                        ),
                       ),
                     if (widget.onSettingsTap != null) ...[
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 0),
                       GestureDetector(
                         onTap: widget.onSettingsTap,
-                        child: Icon(
-                          Icons.settings_outlined,
-                          color: iconColor,
-                          size: 26,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.all(11),
+                          child: Icon(
+                            Icons.settings_outlined,
+                            color: iconColor,
+                            size: 26,
+                          ),
                         ),
                       ),
                     ],
                     if (!widget.hideProfileAvatar) ...[
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 7),
                       GestureDetector(
                         onTap: widget.onProfileTap,
-                        child: Container(
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: Container(
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
@@ -291,6 +303,7 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                                   color: cs.primary,
                                   size: 20,
                                 ),
+                        ),
                         ),
                       ),
                     ],

@@ -988,12 +988,19 @@ class _MarketRatesCarousel extends StatelessWidget {
             const SizedBox(width: 8),
             GestureDetector(
               onTap: onViewMarket,
-              child: Text(
-                l10n.farmerDashViewMarket,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
+              behavior: HitTestBehavior.opaque,
+              // 48 px tap height (the Android guideline); the text looks the same.
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: Text(
+                    l10n.farmerDashViewMarket,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -61,11 +61,13 @@ void main() {
     expect(await run(0), isEmpty);
   });
 
-  test('the Manager order, listing and cooperative-order lists use it', () {
+  test('the Manager order, listing, cooperative-order and loan lists, the loan totals and the Buyer listings use it', () {
     for (final f in [
       'lib/data/repositories/admin_order_repository.dart',
       'lib/data/repositories/cooperative_order_repository.dart',
       'lib/data/repositories/admin_listing_repository.dart',
+      'lib/data/repositories/admin_loan_repository.dart',
+      'lib/data/repositories/buyer_marketplace_repository.dart',
     ]) {
       expect(File(f).readAsStringSync(), contains('fetchAllRows('), reason: f);
     }
