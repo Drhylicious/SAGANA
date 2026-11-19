@@ -39,7 +39,7 @@ Run 2026-11-18 to 2026-11-19 on branch `testing/software-testing`. Everything ra
 | B9 | A signed-in user could rewrite the text and screen link of their own notification. | Policy allowed any column. | Same script: only the read status can be changed. |
 | B10 | A broadcast with a blank title or message was delivered as an empty notification. | No check. | Same script: blank title or message refused. |
 | B11 | Unlimited wrong passwords were accepted for an account (60 in a row, no slow-down). | The sign-in service does not limit failed passwords. | `supabase_schema_security_03_signin_lockout.sql`: 10 wrong passwords in 15 minutes lock the account (even the right password is refused) until the window ends; a right password earlier clears the count. The app shows the friendly "Too many attempts" text (`auth_service.dart`, test `signin_lockout_message_test.dart`). |
-| B12 | The server accepted 6- and 7-character passwords while the app requires 8. | Authentication setting was the default (6). | Set locally to 8 and verified. **Must be changed on the live project** (see section 7). |
+| B12 | The server accepted 6- and 7-character passwords while the app requires 8. | Authentication setting was the default (6). | Set locally to 8 and verified. Set to 8 on the live project as well (section 7). |
 | B13 | At enlarged text size: Manager Loans numbers shrank to a few pixels while labels stayed large and the two action buttons were cut ("Issue Ne..."); status chip rows were clipped; the Farmer "Marketplace / Listing" switch broke a word in two. | Fixed-size boxes. | Cards, chip rows and the switch now grow or shrink with the text; the buttons stack. Test `text_scale_layout_fixes_test.dart`. Verified in Chrome at 150%. |
 
 Other work: about 140 stale Dart tests were corrected, and the last 35 (source-text tests) were rewritten to match intended behaviour (for example the later per-item Capital Share loan limit replaced the old minimum-capital rule). Four API checks that assumed an empty database were made independent of seed data.
@@ -89,8 +89,8 @@ Good: clear titles; the same bottom navigation per role; price and stock visible
 ## 7. What you need to do on the live project
 
 1. The three SQL scripts (`security_01`, `02`, `03`) are already run (you confirmed).
-2. Sign-in lockout hook: Authentication, Hooks, "Password Verification Attempt". You could not find it, which most likely means it is not offered on your current plan (I cannot check the live project). Until it is available the lockout function exists but is not called; the sign-in service does not limit wrong passwords. Options: upgrade the plan, or ask me to add CAPTCHA to the app (a Supabase CAPTCHA key plus an app change; do not switch CAPTCHA on in the dashboard before that or nobody can sign in).
-3. Authentication, Sign In / Providers, Email: set "Minimum password length" to 8 (a live-project setting I cannot change). The fuller rule (uppercase letter, number, special character) is enforced by the app on every screen where a password is chosen (see below); the server setting only enforces the length.
+2. Sign-in lockout hook: now working on the live project (you confirmed on 2026-11-19), so repeated wrong passwords are limited there.
+3. Authentication, Sign In / Providers, Email: "Minimum password length" is now 8 on the live project (you confirmed on 2026-11-19). The fuller rule (uppercase letter, number, special character) is enforced by the app on every screen where a password is chosen (see below); the server setting only enforces the length.
 4. Push or merge the commits when you are ready.
 
 ## Final status

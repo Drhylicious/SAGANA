@@ -79,6 +79,11 @@ class PlantingForecastSectionHeader extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 6),
+        Text(
+          l10n.analyticsKgOnlyNote,
+          style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+        ),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(12),

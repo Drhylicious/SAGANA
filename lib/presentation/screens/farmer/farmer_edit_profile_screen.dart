@@ -47,6 +47,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   final _repo = FarmerProfileRepository();
   final _name = PersonNameInput();
   final _nameFormKey = GlobalKey<FormState>();
+  final _phoneFormKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
@@ -246,16 +247,8 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
         return;
       }
     }
-    final phoneText = _phoneController.text.trim();
-    if (phoneText.isNotEmpty && normalizePhilippineMobile(phoneText) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.registerInvalidPhone),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
-      return;
-    }
+    // The phone box shows its own inline error (registerInvalidPhone).
+    if (!(_phoneFormKey.currentState?.validate() ?? true)) return;
     if (_dateOfBirth != null) {
       final now = DateTime.now();
       final eighteenth = DateTime(
@@ -457,11 +450,24 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      AppTextField(
-                        controller: _phoneController,
-                        label: l10n.phoneNumber,
-                        prefixIcon: Icons.phone_outlined,
-                        keyboardType: TextInputType.phone,
+                      Form(
+                        key: _phoneFormKey,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: AppTextField(
+                          controller: _phoneController,
+                          label: l10n.phoneNumber,
+                          prefixIcon: Icons.phone_outlined,
+                          keyboardType: TextInputType.phone,
+                          // Same rule as the registration form: optional, but
+                          // when filled it must be a Philippine mobile number.
+                          validator: (v) {
+                            final t = v?.trim() ?? '';
+                            if (t.isEmpty) return null;
+                            return normalizePhilippineMobile(t) == null
+                                ? l10n.registerInvalidPhone
+                                : null;
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Row(

@@ -122,6 +122,11 @@ class TopHarvestedCropsChart extends StatelessWidget {
                     )
                     .toList(),
               ),
+              const SizedBox(height: 10),
+              Text(
+                AppLocalizations.of(context).analyticsKgOnlyNote,
+                style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
+              ),
             ],
           ),
         ),

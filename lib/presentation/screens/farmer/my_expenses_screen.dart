@@ -183,6 +183,9 @@ class _AddExpenseDialog extends StatefulWidget {
 }
 
 class _AddExpenseDialogState extends State<_AddExpenseDialog> {
+  String? _nameError;
+  String? _descError;
+  String? _amountError;
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _amountController = TextEditingController(text: '0.00');
@@ -262,30 +265,26 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
       );
       return;
     }
-    if (_nameController.text.trim().isEmpty) {
-      AppToast.show(
-        context,
-        AppLocalizations.of(context).enhPleaseEnterAName,
-        isError: true,
-      );
-      return;
-    }
-    if (_descController.text.trim().isEmpty) {
-      AppToast.show(
-        context,
-        AppLocalizations.of(context).enhPleaseEnterADescription,
-        isError: true,
-      );
-      return;
-    }
+    // Every missing box is outlined with its own message at the same time.
+    final l10n = AppLocalizations.of(context);
     final amountText = _amountController.text.trim();
     final amount = double.tryParse(amountText) ?? 0;
-    if (!_isSubsidy && (!isValidCurrencyValue(amountText) || amount <= 0)) {
-      AppToast.show(
-        context,
-        AppLocalizations.of(context).enhPleaseEnterAValidAmount,
-        isError: true,
-      );
+    final nameError = _nameController.text.trim().isEmpty
+        ? l10n.enhPleaseEnterAName
+        : null;
+    final descError = _descController.text.trim().isEmpty
+        ? l10n.enhPleaseEnterADescription
+        : null;
+    final amountError =
+        (!_isSubsidy && (!isValidCurrencyValue(amountText) || amount <= 0))
+        ? l10n.enhPleaseEnterAValidAmount
+        : null;
+    if (nameError != null || descError != null || amountError != null) {
+      setState(() {
+        _nameError = nameError;
+        _descError = descError;
+        _amountError = amountError;
+      });
       return;
     }
     setState(() => _isSaving = true);
@@ -383,8 +382,12 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
+                onChanged: (_) {
+                  if (_nameError != null) setState(() => _nameError = null);
+                },
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
+                  errorText: _nameError,
                   hintText: AppLocalizations.of(context).enhEGUreaFertilizer,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -409,8 +412,12 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _descController,
+                onChanged: (_) {
+                  if (_descError != null) setState(() => _descError = null);
+                },
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
+                  errorText: _descError,
                   hintText: AppLocalizations.of(
                     context,
                   ).enhEGHiredHelpForHarvesting,
@@ -444,8 +451,12 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
                 enabled: !_isSubsidy,
+                onChanged: (_) {
+                  if (_amountError != null) setState(() => _amountError = null);
+                },
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
+                  errorText: _amountError,
                   prefixText: '₱ ',
                   filled: _isSubsidy,
                   fillColor: context.adaptiveSurface(const Color(0xFFF1F5F9)),
