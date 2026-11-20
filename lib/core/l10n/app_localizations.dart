@@ -3131,7 +3131,7 @@ abstract class AppLocalizations {
   /// No description provided for @adminDashManagementModules.
   ///
   /// In en, this message translates to:
-  /// **'Management Modules'**
+  /// **'Cooperative Management'**
   String get adminDashManagementModules;
 
   /// No description provided for @adminDashRecentActivity.

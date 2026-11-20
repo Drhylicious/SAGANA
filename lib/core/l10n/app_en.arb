@@ -739,7 +739,7 @@
   "adminCalSelectDay": "Select a day",
   "adminCalNoEvents": "No events on this day",
   "adminDashViewFullCalendar": "View Full Calendar",
-  "adminDashManagementModules": "Management Modules",
+  "adminDashManagementModules": "Cooperative Management",
   "adminDashRecentActivity": "Recent Activity",
   "adminDashTodaysPriorities": "Today's Priorities",
   "adminDashAllClearMessage": "No urgent items today. Cooperative is on track.",
