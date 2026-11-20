@@ -1652,7 +1652,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminDashViewFullCalendar => 'View Full Calendar';
 
   @override
-  String get adminDashManagementModules => 'Management Modules';
+  String get adminDashManagementModules => 'Cooperative Management';
 
   @override
   String get adminDashRecentActivity => 'Recent Activity';
@@ -19748,7 +19748,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privS6Manager =>
-      'Member and Buyer records and every management module.';
+      'Member and Buyer records and every Cooperative Management function.';
 
   @override
   String get privS6Officers =>

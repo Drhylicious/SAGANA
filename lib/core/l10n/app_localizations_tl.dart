@@ -1674,7 +1674,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminDashViewFullCalendar => 'Tingnan ang Buong Kalendaryo';
 
   @override
-  String get adminDashManagementModules => 'Mga Module ng Pamamahala';
+  String get adminDashManagementModules => 'Pamamahala ng Kooperatiba';
 
   @override
   String get adminDashRecentActivity => 'Kamakailang Aktibidad';
@@ -19935,7 +19935,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get privS6Manager =>
-      'Mga tala ng miyembro at Mamimili at bawat management module.';
+      'Mga tala ng miyembro at Mamimili at bawat function ng Pamamahala ng Kooperatiba.';
 
   @override
   String get privS6Officers =>

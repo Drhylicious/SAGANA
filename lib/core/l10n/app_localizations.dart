@@ -3131,7 +3131,7 @@ abstract class AppLocalizations {
   /// No description provided for @adminDashManagementModules.
   ///
   /// In en, this message translates to:
-  /// **'Management Modules'**
+  /// **'Cooperative Management'**
   String get adminDashManagementModules;
 
   /// No description provided for @adminDashRecentActivity.
@@ -33238,7 +33238,7 @@ abstract class AppLocalizations {
   /// No description provided for @privS6Manager.
   ///
   /// In en, this message translates to:
-  /// **'Member and Buyer records and every management module.'**
+  /// **'Member and Buyer records and every Cooperative Management function.'**
   String get privS6Manager;
 
   /// No description provided for @privS6Officers.

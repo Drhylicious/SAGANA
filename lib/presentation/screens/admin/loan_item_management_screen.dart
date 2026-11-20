@@ -471,7 +471,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                         if (_items.isNotEmpty) ...[
                           // KPI cards in the titled container the Report tab
                           // uses, as a horizontal row like the other
-                          // Management modules.
+                          // Cooperative Management screens.
                           ReportSectionCard(
                             title: AppLocalizations.of(
                               context,

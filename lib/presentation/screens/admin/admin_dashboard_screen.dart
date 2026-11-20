@@ -419,7 +419,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   const SizedBox(height: 20),
 
-                  // ── Management Modules ───────────────────────────────────
+                  // ── Cooperative Management ───────────────────────────────────
                   _SectionHeader(
                     icon: Icons.grid_view_rounded,
                     label: l10n.adminDashManagementModules,
@@ -714,7 +714,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
 // KPI Strip
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The Dashboard Overview: one card for each Management Module (same order as the modules below
+/// The Dashboard Overview: one card for each Cooperative Management area (same order as the cards below
 /// it) with Revenue in the middle. Every figure is for the current year and starts again each
 /// January, so nothing piles up across years.
 class _KpiStrip extends StatelessWidget {
@@ -1080,7 +1080,7 @@ class _MiniCalendar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Management Modules Grid
+// Cooperative Management Grid
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ManagementModulesGrid extends StatelessWidget {

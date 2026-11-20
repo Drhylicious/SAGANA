@@ -242,7 +242,7 @@ class CoopPerformanceSummary {
   );
 }
 
-// ─── Management Module Card ───────────────────────────────────────────────────
+// ─── Cooperative Management Card ───────────────────────────────────────────────────
 
 class ManagementModuleCard {
   final String id;

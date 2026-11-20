@@ -378,7 +378,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
     ];
 
     // One horizontally scrolling row of equal-size cards, the same treatment
-    // the other Management modules (Crop, Program) use for their KPI cards.
+    // the other Cooperative Management screens (Crop, Program) use for their KPI cards.
     return ReportSectionCard(
       title: l10n.priceKpiOverviewTitle,
       icon: Icons.sell_rounded,

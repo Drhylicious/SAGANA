@@ -661,7 +661,7 @@ class AdminDashboardRepository {
     );
   }
 
-  // ─── Management Module Badges ──────────────────────────────────────────────
+  // ─── Cooperative Management Badges ──────────────────────────────────────────────
 
   Future<List<ManagementModuleCard>> fetchManagementModuleBadges() async {
     String cropsBadge = '—';

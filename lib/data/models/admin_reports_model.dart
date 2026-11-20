@@ -195,7 +195,7 @@ class ProductSalesReportData {
   static const empty = ProductSalesReportData(summary: ProductSalesSummary.empty, rows: []);
 }
 
-/// The Dashboard Overview: the figure of each of the six Management Modules, and the Revenue.
+/// The Dashboard Overview: the figure of each of the six Cooperative Management areas, and the Revenue.
 /// Everything follows the CURRENT YEAR and starts again each January (like the Marketplace and
 /// Loans figures), so a year never piles onto the last one.
 class DashboardOverview {
