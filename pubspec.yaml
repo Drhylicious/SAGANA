@@ -2,7 +2,7 @@ name: sagana
 description: "SAGANA Agriculture Marketplace and Farm Management System"
 publish_to: 'none'
 
-version: 1.0.0+2
+version: 1.0.2+4
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
