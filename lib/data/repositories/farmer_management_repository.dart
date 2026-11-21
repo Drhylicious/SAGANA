@@ -91,11 +91,14 @@ class FarmerManagementRepository {
           }
 
           // 5. Loan summary per farmer
-          final loanRows = await _client
-              .from('farmer_loans')
-              .select('farmer_id, total_value, amount_paid, status')
-              .inFilter('farmer_id', userIds)
-              .neq('status', 'paid');
+          final loanRows = await chunkedIn(
+            userIds,
+            (slice) => _client
+                .from('farmer_loans')
+                .select('farmer_id, total_value, amount_paid, status')
+                .inFilter('farmer_id', slice)
+                .neq('status', 'paid'),
+          );
 
           final loanMap = <String, Map<String, dynamic>>{};
           for (final r in loanRows) {
@@ -117,11 +120,15 @@ class FarmerManagementRepository {
           }
 
           // 6. Last harvest date per farmer
-          final harvestRows = await _client
-              .from('harvest_records')
-              .select('farmer_id, harvest_date').eq('source_type', 'self')
-              .inFilter('farmer_id', userIds)
-              .order('harvest_date', ascending: false);
+          final harvestRows = await chunkedIn(
+            userIds,
+            (slice) => _client
+                .from('harvest_records')
+                .select('farmer_id, harvest_date')
+                .eq('source_type', 'self')
+                .inFilter('farmer_id', slice)
+                .order('harvest_date', ascending: false),
+          );
 
           final harvestMap = <String, String>{};
           for (final r in harvestRows) {
@@ -204,11 +211,14 @@ class FarmerManagementRepository {
       int withActive = 0;
       int withOverdue = 0;
       if (userIds.isNotEmpty) {
-        final loanRows = await _client
-            .from('farmer_loans')
-            .select('farmer_id, status')
-            .inFilter('farmer_id', userIds)
-            .neq('status', 'paid');
+        final loanRows = await chunkedIn(
+          userIds,
+          (slice) => _client
+              .from('farmer_loans')
+              .select('farmer_id, status')
+              .inFilter('farmer_id', slice)
+              .neq('status', 'paid'),
+        );
 
         final seen = <String>{};
         for (final r in loanRows) {

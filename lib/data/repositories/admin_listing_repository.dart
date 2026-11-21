@@ -508,11 +508,14 @@ class AdminListingRepository {
 
           final loanMap = <String, double>{};
           try {
-            final loanRows = await _client
-                .from('farmer_loans')
-                .select('farmer_id, total_value, amount_paid')
-                .inFilter('farmer_id', farmerIds)
-                .neq('status', 'paid');
+            final loanRows = await chunkedIn(
+              farmerIds,
+              (slice) => _client
+                  .from('farmer_loans')
+                  .select('farmer_id, total_value, amount_paid')
+                  .inFilter('farmer_id', slice)
+                  .neq('status', 'paid'),
+            );
             for (final r in loanRows) {
               final fid = r['farmer_id'] as String;
               final rem =
@@ -601,7 +604,11 @@ class AdminListingRepository {
   ) async {
     if (ids.isEmpty) return {};
     try {
-      final rows = await _client.from(table).select().inFilter(keyColumn, ids);
+      // Sliced: with hundreds of listings one request address is too long (see chunked_in.dart).
+      final rows = await chunkedIn(
+        ids,
+        (slice) => _client.from(table).select().inFilter(keyColumn, slice),
+      );
       return {
         for (final r in rows)
           r[keyColumn] as String: Map<String, dynamic>.from(r),

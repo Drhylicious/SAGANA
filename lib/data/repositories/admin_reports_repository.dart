@@ -858,10 +858,13 @@ class AdminReportsRepository {
   Future<Map<String, double>> _fetchOfferPricesBySale(List<String> saleIds) async {
     if (saleIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('cooperative_purchase_offers')
-          .select('member_sales_transaction_id, agreed_price_per_kg')
-          .inFilter('member_sales_transaction_id', saleIds);
+      final rows = await chunkedIn(
+        saleIds,
+        (slice) => _client
+            .from('cooperative_purchase_offers')
+            .select('member_sales_transaction_id, agreed_price_per_kg')
+            .inFilter('member_sales_transaction_id', slice),
+      );
       return {
         for (final r in rows)
           if (r['agreed_price_per_kg'] != null)
@@ -896,10 +899,13 @@ class AdminReportsRepository {
   Future<Map<String, String>> _fetchOfferBatchBySale(List<String> saleIds) async {
     if (saleIds.isEmpty) return {};
     try {
-      final rows = await _client
-          .from('cooperative_purchase_offers')
-          .select('member_sales_transaction_id, inventory_batch_id')
-          .inFilter('member_sales_transaction_id', saleIds);
+      final rows = await chunkedIn(
+        saleIds,
+        (slice) => _client
+            .from('cooperative_purchase_offers')
+            .select('member_sales_transaction_id, inventory_batch_id')
+            .inFilter('member_sales_transaction_id', slice),
+      );
       return {
         for (final r in rows)
           if (r['inventory_batch_id'] != null)
