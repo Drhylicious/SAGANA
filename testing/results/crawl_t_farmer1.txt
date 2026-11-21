@@ -1,0 +1,31 @@
+tabs: Home, Harvest, Listings, Analytics, Profile
+screen 1 [d0] tab Home :: Home Good morning, Fidel! Saturday, November 21, 2026 Today's Prioriti
+screen 2 [d1] tab Home > Notice 1795075411741 Coopera :: Notifications NOVEMBER 19 Payment Recorded Your payment of ₱500.00 was
+screen 3 [d2] tab Home > Notice 1795075411741 Coopera > Notice 1795075411741 Coopera :: Home Harvest Listings Analytics Profile
+PROBLEM tab Home -> could not return to the screen after opening "Notice 1795075411741 Cooperati"
+screen 4 [d0] tab Harvest :: Harvest Record New Harvest 0 harvests this year Crop Roster 0 crops in
+screen 5 [d1] tab Harvest > Crop Roster 2 crops in your  :: Crop Roster Total Crops 2 Has Harvests 2 All (2) Spices (1) Vegetables
+screen 6 [d2] tab Harvest > Crop Roster 2 crops in your  > Spices (1) :: Crop Roster Total Crops 2 Has Harvests 2 All (2) Spices (1) Vegetables
+PROBLEM tab Harvest > Crop Roster 2 crops in your  -> could not return to the screen after opening "Spices (1)"
+screen 7 [d1] tab Harvest > Manage Inventory 63 batches :: Manage Inventory Available 595 kg Reserved 79 kg Sold 278 kg All (63) 
+screen 8 [d1] tab Harvest > View All :: Harvest History Total Harvest 63 This Year's Yield 952 kg Sync Status 
+screen 9 [d2] tab Harvest > View All > Tomato 12.50 kg #BATCH-TOMAT :: Tomato HARVEST Quantity 12.50 kg Category Vegetables Batch Number #BAT
+screen 10 [d2] tab Harvest > View All > Ginger 5 kg #BATCH-GINGER-26 :: Ginger HARVEST Quantity 5 kg Category Vegetables Batch Number #BATCH-G
+screen 11 [d0] tab Listings :: Listings Marketplace Listing Listing Overview Available Listings 7 Tot
+screen 12 [d1] tab Listings > AVAILABLE Nov 19, 2026 Tomat :: Tomato Details No photo available Tomato AVAILABLE ₱50.00 /kg Shelf Li
+screen 13 [d0] tab Analytics :: Analytics All Time This Month This Quarter This Year Recent Transactio
+screen 14 [d0] tab Profile :: Profile ACTIVE FF Fidel Farmer Farmer Member 09170000004 Farm Details 
+screen 15 [d1] tab Profile > Farm Details :: Profile ACTIVE FF Fidel Farmer Farmer Member 09170000004 Farm Details 
+PROBLEM tab Profile > Farm Details -> could not return to the screen after opening "Farm Details"
+screen 16 [d1] tab Profile > Input Loans ₱8,000.00 outsta :: My Input Loans Next Payment Due IN 19 DAYS December 10, 2026 Expected 
+PROBLEM tab Profile > Input Loans ₱8,000.00 outsta > View All -> blank or nearly blank screen
+screen 17 [d2] tab Profile > Input Loans ₱8,000.00 outsta > View All :: Loan History
+screen 18 [d0] side menu :: Dismiss FF Fidel Farmer 09170000004 ACCOUNT Account Farm Details My Ad
+screen 19 [d1] side menu > Account :: Account Save FF Change Photo PERSONAL INFORMATION Suffix None Full nam
+screen 20 [d1] side menu > Farm Details :: Farm Details View Full Map © OpenStreetMap contributors Search by Loca
+screen 21 [d1] side menu > My Addresses :: My Addresses Show menu Add New Address
+screen 22 [d1] side menu > About SAGANA :: About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness,
+screen 23 [d1] side menu > About the Cooperative :: Home Good morning, Fidel! Saturday, November 21, 2026 Today's Prioriti
+screen 24 [d1] side menu > Privacy Policy :: Privacy Policy Privacy Policy How SAGANA handles your information. Las
+
+t_farmer1: 24 screens, 33 taps, 4 problems, 0 console errors, 0 failed requests

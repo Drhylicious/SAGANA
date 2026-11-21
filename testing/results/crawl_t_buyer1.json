@@ -1,0 +1,115 @@
+{
+ "user": "t_buyer1",
+ "dark": false,
+ "tabs": [
+  "Browse",
+  "Orders",
+  "Prices",
+  "Profile"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Browse",
+   "depth": 0,
+   "head": "Marketplace All (20) Vegetables (20) Low Stock Tomato ₱50.00/kg 1 buyer Not yet assigned 0.50 kg available 2.5"
+  },
+  {
+   "n": 2,
+   "path": "tab Browse > Low Stock Tomato ₱50.00/kg 1",
+   "depth": 1,
+   "head": ""
+  },
+  {
+   "n": 3,
+   "path": "tab Orders",
+   "depth": 0,
+   "head": "My Orders All (82) Pending Order (70) Approved (4) Ready for Pickup (0) Out for Delivery (0) Tomato Pending Or"
+  },
+  {
+   "n": 4,
+   "path": "tab Orders > Ready for Pickup (0)",
+   "depth": 1,
+   "head": "My Orders All (82) Pending Order (70) Approved (4) Ready for Pickup (0) Out for Delivery (0) No Ready for Pick"
+  },
+  {
+   "n": 5,
+   "path": "tab Orders > Tomato Pending Order ORD-202",
+   "depth": 1,
+   "head": "Order #ORD-20261119-G982 Pickup SP3 Agriculture Cooperative, Barangay Payanas, Torrijos, Marinduque, MIMAROPA "
+  },
+  {
+   "n": 6,
+   "path": "tab Prices",
+   "depth": 0,
+   "head": "Market Prices Public Market Prices Reference prices set by the cooperative. Tap a crop to see its price trend."
+  },
+  {
+   "n": 7,
+   "path": "tab Profile",
+   "depth": 0,
+   "head": "Profile BB Bea Buyer 09170000007 PURCHASE SUMMARY 82 Orders 8 Completed View All Order Placed Nov 19 Tomato · "
+  },
+  {
+   "n": 8,
+   "path": "tab Profile > View All",
+   "depth": 1,
+   "head": "Recent Activity Order Placed Nov 19 Tomato · Pickup ₱50.00 PENDING ORDER Order Placed Nov 19 Tomato · Pickup ₱"
+  },
+  {
+   "n": 9,
+   "path": "side menu",
+   "depth": 0,
+   "head": "Dismiss BB Bea Buyer 09170000007 ACCOUNT Account My Addresses APP PREFERENCES SUPPORT & INFO About SAGANA Abou"
+  },
+  {
+   "n": 10,
+   "path": "side menu > Account",
+   "depth": 1,
+   "head": "Account Save BB Change Photo PERSONAL INFORMATION Suffix None Full name: Bea Buyer Select Gender Select SECURI"
+  },
+  {
+   "n": 11,
+   "path": "side menu > My Addresses",
+   "depth": 1,
+   "head": "My Addresses Show menu Show menu Show menu Show menu Show menu Show menu Show menu Add New Address"
+  },
+  {
+   "n": 12,
+   "path": "side menu > About SAGANA",
+   "depth": 1,
+   "head": "About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics A mobile syst"
+  },
+  {
+   "n": 13,
+   "path": "side menu > Privacy Policy",
+   "depth": 1,
+   "head": "Privacy Policy Privacy Policy How SAGANA handles your information. Last updated: November 2026 In short SAGANA"
+  }
+ ],
+ "problems": [
+  {
+   "where": "tab Browse > Low Stock Tomato ₱50.00/kg 1",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "tab Browse > Sold Out Tomato ₱50.00/kg 1 ",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "tab Orders > Ready for Pickup (0)",
+   "what": "could not return to the screen after opening \"All (82)\""
+  },
+  {
+   "where": "side menu > About the Cooperative",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "side menu > Terms of Use",
+   "what": "blank or nearly blank screen"
+  }
+ ],
+ "clicked": 16,
+ "consoleErrors": [],
+ "failedRequests": []
+}

@@ -1,0 +1,178 @@
+{
+ "user": "t_farmer1",
+ "dark": false,
+ "tabs": [
+  "Home",
+  "Harvest",
+  "Listings",
+  "Analytics",
+  "Profile"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Home",
+   "depth": 0,
+   "head": "Home Good morning, Fidel! Saturday, November 21, 2026 Today's Priorities 1 Item Notice 1795075411741 Cooperati"
+  },
+  {
+   "n": 2,
+   "path": "tab Home > Notice 1795075411741 Coopera",
+   "depth": 1,
+   "head": "Notifications NOVEMBER 19 Payment Recorded Your payment of ₱500.00 was recorded. Remaining balance: ₱1,000.00."
+  },
+  {
+   "n": 3,
+   "path": "tab Home > Notice 1795075411741 Coopera > Notice 1795075411741 Coopera",
+   "depth": 2,
+   "head": "Home Harvest Listings Analytics Profile"
+  },
+  {
+   "n": 4,
+   "path": "tab Harvest",
+   "depth": 0,
+   "head": "Harvest Record New Harvest 0 harvests this year Crop Roster 0 crops in your roster Manage Inventory View stock"
+  },
+  {
+   "n": 5,
+   "path": "tab Harvest > Crop Roster 2 crops in your ",
+   "depth": 1,
+   "head": "Crop Roster Total Crops 2 Has Harvests 2 All (2) Spices (1) Vegetables (1) Show menu Show menu"
+  },
+  {
+   "n": 6,
+   "path": "tab Harvest > Crop Roster 2 crops in your  > Spices (1)",
+   "depth": 2,
+   "head": "Crop Roster Total Crops 2 Has Harvests 2 All (2) Spices (1) Vegetables (1) Show menu"
+  },
+  {
+   "n": 7,
+   "path": "tab Harvest > Manage Inventory 63 batches",
+   "depth": 1,
+   "head": "Manage Inventory Available 595 kg Reserved 79 kg Sold 278 kg All (63) Available (63) Reserved (0) Sold (0) Low"
+  },
+  {
+   "n": 8,
+   "path": "tab Harvest > View All",
+   "depth": 1,
+   "head": "Harvest History Total Harvest 63 This Year's Yield 952 kg Sync Status Synced All (63) Vegetables (63) Tomato 1"
+  },
+  {
+   "n": 9,
+   "path": "tab Harvest > View All > Tomato 12.50 kg #BATCH-TOMAT",
+   "depth": 2,
+   "head": "Tomato HARVEST Quantity 12.50 kg Category Vegetables Batch Number #BATCH-TOMATO-261119-A1503 Storage Location "
+  },
+  {
+   "n": 10,
+   "path": "tab Harvest > View All > Ginger 5 kg #BATCH-GINGER-26",
+   "depth": 2,
+   "head": "Ginger HARVEST Quantity 5 kg Category Vegetables Batch Number #BATCH-GINGER-261119-E0002 Storage Location — Ha"
+  },
+  {
+   "n": 11,
+   "path": "tab Listings",
+   "depth": 0,
+   "head": "Listings Marketplace Listing Listing Overview Available Listings 7 Total Sold ₱3.8k All (8) Pending Approval ("
+  },
+  {
+   "n": 12,
+   "path": "tab Listings > AVAILABLE Nov 19, 2026 Tomat",
+   "depth": 1,
+   "head": "Tomato Details No photo available Tomato AVAILABLE ₱50.00 /kg Shelf Life: 5 days left · until Nov 26 Product D"
+  },
+  {
+   "n": 13,
+   "path": "tab Analytics",
+   "depth": 0,
+   "head": "Analytics All Time This Month This Quarter This Year Recent Transactions Tomato Nov 19, 2026 • 2.50 kg • REF: "
+  },
+  {
+   "n": 14,
+   "path": "tab Profile",
+   "depth": 0,
+   "head": "Profile ACTIVE FF Fidel Farmer Farmer Member 09170000004 Farm Details Farm Details Annual Summary 2026 Annual "
+  },
+  {
+   "n": 15,
+   "path": "tab Profile > Farm Details",
+   "depth": 1,
+   "head": "Profile ACTIVE FF Fidel Farmer Farmer Member 09170000004 Farm Details Annual Summary 2026 Annual Yield (2026) "
+  },
+  {
+   "n": 16,
+   "path": "tab Profile > Input Loans ₱8,000.00 outsta",
+   "depth": 1,
+   "head": "My Input Loans Next Payment Due IN 19 DAYS December 10, 2026 Expected payment: ₱4,000.00 Payments are reviewed"
+  },
+  {
+   "n": 17,
+   "path": "tab Profile > Input Loans ₱8,000.00 outsta > View All",
+   "depth": 2,
+   "head": "Loan History"
+  },
+  {
+   "n": 18,
+   "path": "side menu",
+   "depth": 0,
+   "head": "Dismiss FF Fidel Farmer 09170000004 ACCOUNT Account Farm Details My Addresses APP PREFERENCES SUPPORT & INFO A"
+  },
+  {
+   "n": 19,
+   "path": "side menu > Account",
+   "depth": 1,
+   "head": "Account Save FF Change Photo PERSONAL INFORMATION Suffix None Full name: Fidel Farmer 1985-05-05 Gender Male S"
+  },
+  {
+   "n": 20,
+   "path": "side menu > Farm Details",
+   "depth": 1,
+   "head": "Farm Details View Full Map © OpenStreetMap contributors Search by LocationIQ.com Save Farm Details"
+  },
+  {
+   "n": 21,
+   "path": "side menu > My Addresses",
+   "depth": 1,
+   "head": "My Addresses Show menu Add New Address"
+  },
+  {
+   "n": 22,
+   "path": "side menu > About SAGANA",
+   "depth": 1,
+   "head": "About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics A mobile syst"
+  },
+  {
+   "n": 23,
+   "path": "side menu > About the Cooperative",
+   "depth": 1,
+   "head": "Home Good morning, Fidel! Saturday, November 21, 2026 Today's Priorities 1 Item Ginger Sale Completed 7 kg of "
+  },
+  {
+   "n": 24,
+   "path": "side menu > Privacy Policy",
+   "depth": 1,
+   "head": "Privacy Policy Privacy Policy How SAGANA handles your information. Last updated: November 2026 In short SAGANA"
+  }
+ ],
+ "problems": [
+  {
+   "where": "tab Home",
+   "what": "could not return to the screen after opening \"Notice 1795075411741 Cooperati\""
+  },
+  {
+   "where": "tab Harvest > Crop Roster 2 crops in your ",
+   "what": "could not return to the screen after opening \"Spices (1)\""
+  },
+  {
+   "where": "tab Profile > Farm Details",
+   "what": "could not return to the screen after opening \"Farm Details\""
+  },
+  {
+   "where": "tab Profile > Input Loans ₱8,000.00 outsta > View All",
+   "what": "blank or nearly blank screen"
+  }
+ ],
+ "clicked": 33,
+ "consoleErrors": [],
+ "failedRequests": []
+}

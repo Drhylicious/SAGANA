@@ -1,0 +1,40 @@
+tabs: Sync now, Dashboard, Members, Marketplace, Loans, Reports
+screen 1 [d0] tab Sync now :: Dashboard MM Good afternoon, Mara! Saturday, November 21, 2026 100 Ove
+screen 2 [d1] tab Sync now > 100 Overdue Loans Immediate  :: Loans MM Review Overdue Loans Issue New Loan Record Payment Loan Reque
+screen 3 [d2] tab Sync now > 100 Overdue Loans Immediate  > Review Overdue Loans :: Loan History 308 Loans Needs Attention ₱357,150 Total Collected ₱4,000
+screen 4 [d1] tab Sync now > 1 Member Pending Verificatio :: Members MM Add Member Manage Accounts Filter All: 175 Active: 174 Inac
+screen 5 [d2] tab Sync now > 1 Member Pending Verificatio > Manage Accounts :: Manage Accounts AC apr Case ACTIVE Not set Not set AC apr Case ACTIVE 
+screen 6 [d2] tab Sync now > 1 Member Pending Verificatio > Filter :: Filter Members Refine the list by status, crop, or loan SORT BY Name (
+screen 7 [d1] tab Members > Add Member :: Create New Account Choose which type of account to create Add Farmer /
+screen 8 [d0] tab Marketplace :: Marketplace MM 6968 Orders Need Action Orders to approve or hand over 
+screen 9 [d1] tab Marketplace > 1508 All Listings Every prod :: All Listings All Markets (1508) Cooperative Market (0) Public Market (
+screen 10 [d2] tab Marketplace > 1508 All Listings Every prod > Tomato AVAILABLE Fidel Farme :: Tomato Review AVAILABLE 0.50 of 10 kg left Tomato Tomato Yesterday F F
+screen 11 [d1] tab Marketplace > 4 Buyer Management Buyer acc :: Buyer Management Active (4) Show menu Show menu Show menu Show menu
+PROBLEM tab Marketplace > 4 Buyer Management Buyer acc > Show menu -> blank or nearly blank screen
+screen 12 [d2] tab Marketplace > 4 Buyer Management Buyer acc > Show menu :: 
+PROBLEM tab Marketplace > 4 Buyer Management Buyer acc -> could not return to the screen after opening "Show menu"
+screen 13 [d1] tab Marketplace > 6976 Order Management Track  :: Order Management Delivery Settings Filter Orders All (0) Needs Action 
+screen 14 [d2] tab Marketplace > 6976 Order Management Track  > Filter Orders :: Filter Orders Show the orders of one source SOURCE All sources (0) Mar
+screen 15 [d2] tab Marketplace > 6976 Order Management Track  > All (0) :: Order Management Delivery Settings Filter Orders All (6976) Needs Acti
+PROBLEM tab Marketplace > 6976 Order Management Track  -> could not return to the screen after opening "All (0)"
+screen 16 [d1] tab Loans > Issue New Loan :: Issue New Loan Borrower Select Farmer * Tap to select a farmer Add Inp
+screen 17 [d2] tab Loans > Issue New Loan > Borrower Select Farmer * Tap :: Select Farmer 174 farmers AC apr Case AC apr Case AC apr Case FF Faye 
+screen 18 [d2] tab Loans > Issue New Loan > November 21, 2026 :: Switch to input Select year November 2026 Previous month Next month 1,
+screen 19 [d1] tab Loans > Loan Requests :: Loan Requests No loan requests here Requests from farmers will appear 
+screen 20 [d0] tab Reports :: Reports MM Executive Snapshot Detailed Reports ₱0 Sales Report Sales b
+screen 21 [d1] tab Reports > ₱0 Sales Report Sales by sel :: Sales Report Marketplace Sales Cooperative Product Sales Sales Overvie
+screen 22 [d2] tab Reports > ₱0 Sales Report Sales by sel > Cooperative Product Sales :: Sales Report Marketplace Sales Cooperative Product Sales Cooperative P
+PROBLEM tab Reports > ₱0 Sales Report Sales by sel -> could not return to the screen after opening "Cooperative Product Sales"
+screen 23 [d1] tab Reports > 0 kg Harvest Report Yield, b :: Harvest Report Total Yield 151,248 kg Sold 278 kg Harvest Entries 1588
+screen 24 [d1] tab Reports > Stock OK Cooperative Stock R :: Cooperative Stock Report Stock Overview Total Items 26 Low Stock 0 Cat
+screen 25 [d2] tab Reports > Stock OK Cooperative Stock R > Tomato Harvest Stock • Harve :: Inventory Management Show archived / inactive items Inventory Overview
+screen 26 [d1] tab Reports > ₱0 owed Loan Report Loans is :: Loan Report Loan Summary Collection Trend Last 6 months. Not affected 
+screen 27 [d1] tab Reports > ₱0 Expense Report Farmer exp :: Expense Report Expense Overview Subsidized entries are counted but car
+screen 28 [d0] side menu :: Dismiss MM Mara Manager t_manager@sagana.local 09170000001 ACCOUNT Acc
+screen 29 [d1] side menu > Account :: Account Save Changes MM Change Photo PERSONAL INFORMATION Suffix None 
+screen 30 [d1] side menu > Cooperative Details :: Cooperative Details Cooperative name SP3 Agriculture Cooperative Set l
+screen 31 [d1] side menu > About SAGANA :: About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness,
+screen 32 [d1] side menu > About the Cooperative :: Reports MM Total Sales (Farmers) ₱17,050 Total Harvested (Farmers) 99,
+screen 33 [d1] side menu > Privacy Policy :: Privacy Policy Privacy Policy How SAGANA handles your information. Las
+
+t_manager: 33 screens, 42 taps, 4 problems, 3 console errors, 0 failed requests

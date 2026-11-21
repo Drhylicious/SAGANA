@@ -1,0 +1,21 @@
+tabs: Browse, Orders, Prices, Profile
+screen 1 [d0] tab Browse :: Marketplace All (20) Vegetables (20) Low Stock Tomato ₱50.00/kg 1 buye
+PROBLEM tab Browse > Low Stock Tomato ₱50.00/kg 1 -> blank or nearly blank screen
+screen 2 [d1] tab Browse > Low Stock Tomato ₱50.00/kg 1 :: 
+PROBLEM tab Browse > Sold Out Tomato ₱50.00/kg 1  -> blank or nearly blank screen
+screen 3 [d0] tab Orders :: My Orders All (82) Pending Order (70) Approved (4) Ready for Pickup (0
+screen 4 [d1] tab Orders > Ready for Pickup (0) :: My Orders All (82) Pending Order (70) Approved (4) Ready for Pickup (0
+PROBLEM tab Orders > Ready for Pickup (0) -> could not return to the screen after opening "All (82)"
+screen 5 [d1] tab Orders > Tomato Pending Order ORD-202 :: Order #ORD-20261119-G982 Pickup SP3 Agriculture Cooperative, Barangay 
+screen 6 [d0] tab Prices :: Market Prices Public Market Prices Reference prices set by the coopera
+screen 7 [d0] tab Profile :: Profile BB Bea Buyer 09170000007 PURCHASE SUMMARY 82 Orders 8 Complete
+screen 8 [d1] tab Profile > View All :: Recent Activity Order Placed Nov 19 Tomato · Pickup ₱50.00 PENDING ORD
+screen 9 [d0] side menu :: Dismiss BB Bea Buyer 09170000007 ACCOUNT Account My Addresses APP PREF
+screen 10 [d1] side menu > Account :: Account Save BB Change Photo PERSONAL INFORMATION Suffix None Full nam
+screen 11 [d1] side menu > My Addresses :: My Addresses Show menu Show menu Show menu Show menu Show menu Show me
+screen 12 [d1] side menu > About SAGANA :: About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness,
+PROBLEM side menu > About the Cooperative -> blank or nearly blank screen
+screen 13 [d1] side menu > Privacy Policy :: Privacy Policy Privacy Policy How SAGANA handles your information. Las
+PROBLEM side menu > Terms of Use -> blank or nearly blank screen
+
+t_buyer1: 13 screens, 16 taps, 5 problems, 0 console errors, 0 failed requests

@@ -1,0 +1,36 @@
+tabs: Dashboard · View Only, Dashboard, Members, Marketplace, Loans, Reports
+screen 1 [d0] tab Dashboard · View Only :: Dashboard OV Good afternoon, Olivia! Saturday, November 21, 2026 100 O
+screen 2 [d1] tab Dashboard · View Only > 100 Overdue Loans Immediate  :: Loans OV Review Overdue Loans Issue New Loan Record Payment Loan Reque
+screen 3 [d2] tab Dashboard · View Only > 100 Overdue Loans Immediate  > Review Overdue Loans :: Loan History 308 Loans Needs Attention ₱357,150 Total Collected ₱4,000
+screen 4 [d1] tab Dashboard · View Only > 1 Member Pending Verificatio :: Members OV Members · View Only Dashboard Members Marketplace Loans Rep
+screen 5 [d2] tab Dashboard · View Only > 1 Member Pending Verificatio > Manage Accounts :: Manage Accounts View Only — you can look at this module but cannot cha
+screen 6 [d2] tab Dashboard · View Only > 1 Member Pending Verificatio > Filter :: Filter Members Refine the list by status, crop, or loan SORT BY Name (
+screen 7 [d1] tab Dashboard > 1 Member Pending Verificatio :: Members OV Add Member Manage Accounts Filter All: 175 Active: 174 Inac
+screen 8 [d0] tab Marketplace :: Marketplace OV 6968 Orders Need Action Orders to approve or hand over 
+screen 9 [d1] tab Marketplace > 1508 All Listings Every prod :: All Listings All Markets (1508) Cooperative Market (0) Public Market (
+screen 10 [d2] tab Marketplace > 1508 All Listings Every prod > Tomato AVAILABLE Fidel Farme :: Tomato Review AVAILABLE 0.50 of 10 kg left Tomato Tomato Yesterday F F
+screen 11 [d1] tab Marketplace > 4 Buyer Management Buyer acc :: Buyer Management Active (4) Show menu Show menu Show menu Show menu
+PROBLEM tab Marketplace > 4 Buyer Management Buyer acc > Show menu -> blank or nearly blank screen
+screen 12 [d2] tab Marketplace > 4 Buyer Management Buyer acc > Show menu :: 
+PROBLEM tab Marketplace > 4 Buyer Management Buyer acc -> could not return to the screen after opening "Show menu"
+screen 13 [d1] tab Marketplace > 6976 Order Management Track  :: Order Management Delivery Settings Filter Orders All (0) Needs Action 
+screen 14 [d2] tab Marketplace > 6976 Order Management Track  > Filter Orders :: Filter Orders Show the orders of one source SOURCE All sources (0) Mar
+screen 15 [d2] tab Marketplace > 6976 Order Management Track  > Needs Action (0) :: Order Management Delivery Settings Filter Orders All (6976) Needs Acti
+PROBLEM tab Marketplace > 6976 Order Management Track  -> could not return to the screen after opening "Needs Action (0)"
+screen 16 [d1] tab Loans > Loan Requests :: Loan Requests No loan requests here Requests from farmers will appear 
+screen 17 [d0] tab Reports :: Reports OV Executive Snapshot Detailed Reports ₱0 Sales Report Sales b
+screen 18 [d1] tab Reports > ₱0 Sales Report Sales by sel :: Sales Report Marketplace Sales Cooperative Product Sales Sales Overvie
+screen 19 [d2] tab Reports > ₱0 Sales Report Sales by sel > Cooperative Product Sales :: Sales Report Marketplace Sales Cooperative Product Sales Cooperative P
+PROBLEM tab Reports > ₱0 Sales Report Sales by sel -> could not return to the screen after opening "Cooperative Product Sales"
+screen 20 [d1] tab Reports > 0 kg Harvest Report Yield, b :: Harvest Report Total Yield 151,248 kg Sold 278 kg Harvest Entries 1588
+screen 21 [d1] tab Reports > Stock OK Cooperative Stock R :: Cooperative Stock Report Stock Overview Total Items 26 Low Stock 0 Cat
+screen 22 [d2] tab Reports > Stock OK Cooperative Stock R > Tomato Harvest Stock • Harve :: Inventory Management Show archived / inactive items Inventory Overview
+screen 23 [d1] tab Reports > ₱0 owed Loan Report Loans is :: Loan Report Loan Summary Collection Trend Last 6 months. Not affected 
+screen 24 [d0] side menu :: Dismiss OV Olivia ViewOnly t_officer_view@sagana.local 09170000002 ACC
+screen 25 [d1] side menu > Account :: Account Save Changes OV Change Photo PERSONAL INFORMATION Suffix None 
+screen 26 [d1] side menu > Cooperative Details :: Cooperative Details View Only — you can look at this module but cannot
+screen 27 [d1] side menu > About SAGANA :: About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness,
+screen 28 [d1] side menu > About the Cooperative :: Reports OV Total Sales (Farmers) ₱17,050 Total Harvested (Farmers) 99,
+screen 29 [d1] side menu > Privacy Policy :: Privacy Policy Privacy Policy How SAGANA handles your information. Las
+
+t_officer_view: 29 screens, 51 taps, 4 problems, 3 console errors, 0 failed requests

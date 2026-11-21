@@ -1,0 +1,33 @@
+{
+ "user": "t_pending",
+ "dark": false,
+ "tabs": [
+  "Home",
+  "Notifications",
+  "Profile"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Home",
+   "depth": 0,
+   "head": "Home Welcome, Pam! SP3 Agriculture Cooperative Your application has been received and is being reviewed by the"
+  },
+  {
+   "n": 2,
+   "path": "tab Notifications",
+   "depth": 0,
+   "head": "Notifications NOVEMBER 19 Membership Approved Your SP3 cooperative membership has been approved. Open SAGANA a"
+  },
+  {
+   "n": 3,
+   "path": "tab Profile",
+   "depth": 0,
+   "head": "Profile PENDING APPLICANT PP Pam Pending Personal Information Email Address Phone Number – 09170000006 Date of"
+  }
+ ],
+ "problems": [],
+ "clicked": 0,
+ "consoleErrors": [],
+ "failedRequests": []
+}

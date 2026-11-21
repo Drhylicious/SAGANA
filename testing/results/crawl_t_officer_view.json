@@ -1,0 +1,213 @@
+{
+ "user": "t_officer_view",
+ "dark": false,
+ "tabs": [
+  "Dashboard · View Only",
+  "Dashboard",
+  "Members",
+  "Marketplace",
+  "Loans",
+  "Reports"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Dashboard · View Only",
+   "depth": 0,
+   "head": "Dashboard OV Good afternoon, Olivia! Saturday, November 21, 2026 100 Overdue Loans Immediate attention require"
+  },
+  {
+   "n": 2,
+   "path": "tab Dashboard · View Only > 100 Overdue Loans Immediate ",
+   "depth": 1,
+   "head": "Loans OV Review Overdue Loans Issue New Loan Record Payment Loan Requests 108 Active Loans ₱238,100 Total Outs"
+  },
+  {
+   "n": 3,
+   "path": "tab Dashboard · View Only > 100 Overdue Loans Immediate  > Review Overdue Loans",
+   "depth": 2,
+   "head": "Loan History 308 Loans Needs Attention ₱357,150 Total Collected ₱4,000 Total Outstanding ₱353,150 Rate 1% Filt"
+  },
+  {
+   "n": 4,
+   "path": "tab Dashboard · View Only > 1 Member Pending Verificatio",
+   "depth": 1,
+   "head": "Members OV Members · View Only Dashboard Members Marketplace Loans Reports"
+  },
+  {
+   "n": 5,
+   "path": "tab Dashboard · View Only > 1 Member Pending Verificatio > Manage Accounts",
+   "depth": 2,
+   "head": "Manage Accounts View Only — you can look at this module but cannot change anything in it. Ask the Manager for "
+  },
+  {
+   "n": 6,
+   "path": "tab Dashboard · View Only > 1 Member Pending Verificatio > Filter",
+   "depth": 2,
+   "head": "Filter Members Refine the list by status, crop, or loan SORT BY Name (A–Z) Name (Z–A) Newest Member Recent Har"
+  },
+  {
+   "n": 7,
+   "path": "tab Dashboard > 1 Member Pending Verificatio",
+   "depth": 1,
+   "head": "Members OV Add Member Manage Accounts Filter All: 175 Active: 174 Inactive: 0 Suspended: 0 Pending: 1 Disappro"
+  },
+  {
+   "n": 8,
+   "path": "tab Marketplace",
+   "depth": 0,
+   "head": "Marketplace OV 6968 Orders Need Action Orders to approve or hand over 1 Farmers in DA-AMAD Pipeline Market Lin"
+  },
+  {
+   "n": 9,
+   "path": "tab Marketplace > 1508 All Listings Every prod",
+   "depth": 1,
+   "head": "All Listings All Markets (1508) Cooperative Market (0) Public Market (0) Tomato AVAILABLE Fidel Farmer • Yeste"
+  },
+  {
+   "n": 10,
+   "path": "tab Marketplace > 1508 All Listings Every prod > Tomato AVAILABLE Fidel Farme",
+   "depth": 2,
+   "head": "Tomato Review AVAILABLE 0.50 of 10 kg left Tomato Tomato Yesterday F Fidel Farmer • Batch #46B26FA1 Pricing An"
+  },
+  {
+   "n": 11,
+   "path": "tab Marketplace > 4 Buyer Management Buyer acc",
+   "depth": 1,
+   "head": "Buyer Management Active (4) Show menu Show menu Show menu Show menu"
+  },
+  {
+   "n": 12,
+   "path": "tab Marketplace > 4 Buyer Management Buyer acc > Show menu",
+   "depth": 2,
+   "head": ""
+  },
+  {
+   "n": 13,
+   "path": "tab Marketplace > 6976 Order Management Track ",
+   "depth": 1,
+   "head": "Order Management Delivery Settings Filter Orders All (0) Needs Action (0) Pending Orders (0) Approved (0) Read"
+  },
+  {
+   "n": 14,
+   "path": "tab Marketplace > 6976 Order Management Track  > Filter Orders",
+   "depth": 2,
+   "head": "Filter Orders Show the orders of one source SOURCE All sources (0) Marketplace (0) Cooperative (0) Reset All A"
+  },
+  {
+   "n": 15,
+   "path": "tab Marketplace > 6976 Order Management Track  > Needs Action (0)",
+   "depth": 2,
+   "head": "Order Management Delivery Settings Filter Orders All (6976) Needs Action (6968) Pending Orders (4964) Approved"
+  },
+  {
+   "n": 16,
+   "path": "tab Loans > Loan Requests",
+   "depth": 1,
+   "head": "Loan Requests No loan requests here Requests from farmers will appear here."
+  },
+  {
+   "n": 17,
+   "path": "tab Reports",
+   "depth": 0,
+   "head": "Reports OV Executive Snapshot Detailed Reports ₱0 Sales Report Sales by selling channel 0 kg Harvest Report Yi"
+  },
+  {
+   "n": 18,
+   "path": "tab Reports > ₱0 Sales Report Sales by sel",
+   "depth": 1,
+   "head": "Sales Report Marketplace Sales Cooperative Product Sales Sales Overview Total Revenue ₱17,050 Total Volume 278"
+  },
+  {
+   "n": 19,
+   "path": "tab Reports > ₱0 Sales Report Sales by sel > Cooperative Product Sales",
+   "depth": 2,
+   "head": "Sales Report Marketplace Sales Cooperative Product Sales Cooperative Product Sales Cooperative Product Sales ₱"
+  },
+  {
+   "n": 20,
+   "path": "tab Reports > 0 kg Harvest Report Yield, b",
+   "depth": 1,
+   "head": "Harvest Report Total Yield 151,248 kg Sold 278 kg Harvest Entries 1588 Contributing Farmers 152 Yield Trend La"
+  },
+  {
+   "n": 21,
+   "path": "tab Reports > Stock OK Cooperative Stock R",
+   "depth": 1,
+   "head": "Cooperative Stock Report Stock Overview Total Items 26 Low Stock 0 Categories 2 Planting Materials 0 Harvested"
+  },
+  {
+   "n": 22,
+   "path": "tab Reports > Stock OK Cooperative Stock R > Tomato Harvest Stock • Harve",
+   "depth": 2,
+   "head": "Inventory Management Show archived / inactive items Inventory Overview Total Items 26 Low Stock 0 Categories 2"
+  },
+  {
+   "n": 23,
+   "path": "tab Reports > ₱0 owed Loan Report Loans is",
+   "depth": 1,
+   "head": "Loan Report Loan Summary Collection Trend Last 6 months. Not affected by the period filter. Not enough data fo"
+  },
+  {
+   "n": 24,
+   "path": "side menu",
+   "depth": 0,
+   "head": "Dismiss OV Olivia ViewOnly t_officer_view@sagana.local 09170000002 ACCOUNT Account Cooperative Details APP PRE"
+  },
+  {
+   "n": 25,
+   "path": "side menu > Account",
+   "depth": 1,
+   "head": "Account Save Changes OV Change Photo PERSONAL INFORMATION Suffix None Full name: Olivia ViewOnly 1990-01-01 Ge"
+  },
+  {
+   "n": 26,
+   "path": "side menu > Cooperative Details",
+   "depth": 1,
+   "head": "Cooperative Details View Only — you can look at this module but cannot change anything in it. Ask the Manager "
+  },
+  {
+   "n": 27,
+   "path": "side menu > About SAGANA",
+   "depth": 1,
+   "head": "About SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics A mobile syst"
+  },
+  {
+   "n": 28,
+   "path": "side menu > About the Cooperative",
+   "depth": 1,
+   "head": "Reports OV Total Sales (Farmers) ₱17,050 Total Harvested (Farmers) 99,737.50 kg Marketplace Revenue ₱1,000 Coo"
+  },
+  {
+   "n": 29,
+   "path": "side menu > Privacy Policy",
+   "depth": 1,
+   "head": "Privacy Policy Privacy Policy How SAGANA handles your information. Last updated: November 2026 In short SAGANA"
+  }
+ ],
+ "problems": [
+  {
+   "where": "tab Marketplace > 4 Buyer Management Buyer acc > Show menu",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "tab Marketplace > 4 Buyer Management Buyer acc",
+   "what": "could not return to the screen after opening \"Show menu\""
+  },
+  {
+   "where": "tab Marketplace > 6976 Order Management Track ",
+   "what": "could not return to the screen after opening \"Needs Action (0)\""
+  },
+  {
+   "where": "tab Reports > ₱0 Sales Report Sales by sel",
+   "what": "could not return to the screen after opening \"Cooperative Product Sales\""
+  }
+ ],
+ "clicked": 51,
+ "consoleErrors": [
+  "error: Access to fetch at 'http://127.0.0.1:54321/rest/v1/batch_shelf_life?select=%2A&batch_id=in.%28%229a83e4ef-3071-43f0-aa2f-ea690fb896cf%22%2C%22e0d4ef58-e978-4d3b-ac15-b801fe2c64f2%22%2C%22b4f3d3f7-6819",
+  "error: Failed to load resource: net::ERR_FAILED",
+  "error: Access to fetch at 'http://127.0.0.1:54321/rest/v1/listing_shelf_life?select=%2A&listing_id=in.%28%2246b26fa1-5e84-4b19-96c8-93ba1f9e86a8%22%2C%2254ff74f1-2ed0-4ee9-9b5c-66a2c88bc21d%22%2C%2273eb2fe4-"
+ ],
+ "failedRequests": []
+}
