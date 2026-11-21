@@ -1,0 +1,200 @@
+{
+ "user": "t_farmer1",
+ "dark": true,
+ "tabs": [
+  "Simula",
+  "Ani",
+  "Mga Alok",
+  "Pagsusuri",
+  "Detalye"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Simula",
+   "depth": 0,
+   "head": "Simula Magandang gabi, Fidel! Sabado, Nobyembre 21, 2026 Mga Prayoridad Ngayon 1 produkto Ginger Sale Complete"
+  },
+  {
+   "n": 2,
+   "path": "tab Simula > Ipadala ngayon",
+   "depth": 1,
+   "head": "Simula Sabado, Nobyembre 21, 2026 Buwanang Ani Buwanang Kita Target 100% 0% kumpara sa nakaraang buwan ₱17.1k "
+  },
+  {
+   "n": 3,
+   "path": "tab Simula > Ipadala ngayon > Tingnan ang Merkado",
+   "depth": 2,
+   "head": "Presyo sa Merkado Lahat (1) Pamilihan ng Kooperatiba (0) Pampublikong Pamilihan (1) Mga Presyo sa Pampublikong"
+  },
+  {
+   "n": 4,
+   "path": "tab Ani",
+   "depth": 0,
+   "head": "Ani Magtala ng bagong ani 63 ani ngayong taon Listahan ng Pananim 2 pananim sa iyong talaan Pamahalaan ang sup"
+  },
+  {
+   "n": 5,
+   "path": "tab Ani > Magtala ng bagong ani 63 ani",
+   "depth": 1,
+   "head": "Magtala ng bagong ani Mga magagamit na pananim 2 Mga Kategorya 2 Lahat (2) Spices (1) Vegetables (1) Tomato VE"
+  },
+  {
+   "n": 6,
+   "path": "tab Ani > Magtala ng bagong ani 63 ani > Spices (1)",
+   "depth": 2,
+   "head": "Magtala ng bagong ani Mga magagamit na pananim 2 Mga Kategorya 2 Lahat (2) Spices (1) Vegetables (1) Ginger SP"
+  },
+  {
+   "n": 7,
+   "path": "tab Ani > Listahan ng Pananim 2 panani",
+   "depth": 1,
+   "head": "Listahan ng Pananim Kabuuang pananim 2 May ani 2 Lahat (2) Spices (1) Vegetables (1) Ipakita ang menu Ipakita "
+  },
+  {
+   "n": 8,
+   "path": "tab Ani > Listahan ng Pananim 2 panani > Spices (1)",
+   "depth": 2,
+   "head": "Listahan ng Pananim Kabuuang pananim 2 May ani 2 Lahat (2) Spices (1) Vegetables (1) Ipakita ang menu"
+  },
+  {
+   "n": 9,
+   "path": "tab Mga Alok",
+   "depth": 0,
+   "head": "Mga Alok Pamilihan Alok Buod ng mga alok Mga mabibiling alok 7 Kabuuang naibenta ₱3.8k Lahat (8) Naghihintay n"
+  },
+  {
+   "n": 10,
+   "path": "tab Mga Alok > Pamilihan",
+   "depth": 1,
+   "head": "Pamilihan Pamilihan Alok Aking mga Order Simula Ani Mga Alok Pagsusuri Detalye"
+  },
+  {
+   "n": 11,
+   "path": "tab Mga Alok > Pamilihan > Pamilihan",
+   "depth": 2,
+   "head": "Pamilihan Pamilihan Alok Aking mga Order Lahat (1508) Vegetables (1508) Sa Iyo Tomato ₱50.00/kg 1 mamimili Pam"
+  },
+  {
+   "n": 12,
+   "path": "tab Mga Alok > MAGAGAMIT Nob 19, 2026 Tomat",
+   "depth": 1,
+   "head": "Detalye ng Tomato Walang larawan Tomato MAGAGAMIT ₱50.00 /kg Shelf Life: 5 araw na lang · hanggang Nob 26 Deta"
+  },
+  {
+   "n": 13,
+   "path": "tab Pagsusuri",
+   "depth": 0,
+   "head": "Pagsusuri Lahat ng Panahon Ngayong Buwan Ngayong Quarter Ngayong Taon Mga Kamakailang Transaksyon Tomato Nob 1"
+  },
+  {
+   "n": 14,
+   "path": "tab Detalye",
+   "depth": 0,
+   "head": "Detalye AKTIBO FF Fidel Farmer Miyembrong magsasaka 09170000004 Detalye ng Bukid Detalye ng Bukid Taunang Buod"
+  },
+  {
+   "n": 15,
+   "path": "tab Detalye > Detalye ng Bukid",
+   "depth": 1,
+   "head": "Detalye AKTIBO FF Fidel Farmer Miyembrong magsasaka 09170000004 Detalye ng Bukid Taunang Buod 2026 Taunang Ani"
+  },
+  {
+   "n": 16,
+   "path": "tab Detalye > Pautang na gamit sa bukid ₱8",
+   "depth": 1,
+   "head": "Aking mga Pautang sa Input Susunod na Bayad SA 19 ARAW Disyembre 10, 2026 Inaasahang bayad: ₱4,000.00 Sinusuri"
+  },
+  {
+   "n": 17,
+   "path": "tab Detalye > Pautang na gamit sa bukid ₱8 > Tingnan Lahat",
+   "depth": 2,
+   "head": "Kasaysayan ng Pautang"
+  },
+  {
+   "n": 18,
+   "path": "tab Detalye > Pautang na gamit sa bukid ₱8 > Humiling ng Pautang",
+   "depth": 2,
+   "head": "Humiling ng Pautang Aking mga kahilingan sa pautang Walang magagamit na item sa pautang sa ngayon Walang laman"
+  },
+  {
+   "n": 19,
+   "path": "side menu",
+   "depth": 0,
+   "head": "I-dismiss FF Fidel Farmer 09170000004 AKAWNT Akawnt Detalye ng Bukid Aking mga Address MGA KAGUSTUHAN SA APP S"
+  },
+  {
+   "n": 20,
+   "path": "side menu > Akawnt",
+   "depth": 1,
+   "head": "Akawnt I-save FF Palitan ang Larawan PERSONAL NA IMPORMASYON Hulapi Wala Buong pangalan: Fidel Farmer 1985-05-"
+  },
+  {
+   "n": 21,
+   "path": "side menu > Detalye ng Bukid",
+   "depth": 1,
+   "head": "Detalye ng Bukid Tingnan ang Buong Mapa © OpenStreetMap contributors Search by LocationIQ.com I-save ang detal"
+  },
+  {
+   "n": 22,
+   "path": "side menu > Aking mga Address",
+   "depth": 1,
+   "head": "Aking mga Address Ipakita ang menu Magdagdag ng Bagong Address"
+  },
+  {
+   "n": 23,
+   "path": "side menu > Tungkol sa SAGANA",
+   "depth": 1,
+   "head": "Tungkol sa SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics Isang mo"
+  },
+  {
+   "n": 24,
+   "path": "side menu > Tungkol sa Kooperatiba",
+   "depth": 1,
+   "head": "Simula Magandang gabi, Fidel! Sabado, Nobyembre 21, 2026 Mga Prayoridad Ngayon 1 produkto Natapos ang benta ng"
+  },
+  {
+   "n": 25,
+   "path": "side menu > Patakaran sa Privacy",
+   "depth": 1,
+   "head": "Patakaran sa Privacy Patakaran sa Privacy Paano pinangangasiwaan ng SAGANA ang iyong impormasyon. Huling na-up"
+  }
+ ],
+ "problems": [
+  {
+   "where": "tab Simula > Ipadala ngayon",
+   "what": "could not return to the screen after opening \"Tingnan ang Merkado\""
+  },
+  {
+   "where": "tab Simula",
+   "what": "could not return to the screen after opening \"Ipadala ngayon\""
+  },
+  {
+   "where": "tab Ani > Magtala ng bagong ani 63 ani",
+   "what": "could not return to the screen after opening \"Spices (1)\""
+  },
+  {
+   "where": "tab Ani > Listahan ng Pananim 2 panani",
+   "what": "could not return to the screen after opening \"Spices (1)\""
+  },
+  {
+   "where": "tab Ani",
+   "what": "could not return to the screen after opening \"Listahan ng Pananim 2 pananim \""
+  },
+  {
+   "where": "tab Mga Alok > Pamilihan",
+   "what": "could not return to the screen after opening \"Pamilihan\""
+  },
+  {
+   "where": "tab Detalye > Detalye ng Bukid",
+   "what": "could not return to the screen after opening \"Detalye ng Bukid\""
+  },
+  {
+   "where": "tab Detalye > Pautang na gamit sa bukid ₱8 > Tingnan Lahat",
+   "what": "blank or nearly blank screen"
+  }
+ ],
+ "clicked": 25,
+ "consoleErrors": [],
+ "failedRequests": []
+}

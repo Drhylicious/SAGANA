@@ -4,11 +4,12 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { serve, launch, boot, loginAs, text } from './lib.mjs';
 
-const user = process.argv[2] || 't_farmer1', dark = process.argv[3] === 'dark';
+const user = process.argv[2] || 't_farmer1', dark = process.argv[3] === 'dark' || process.argv[3] === 'darktl';
 const ERR = /something went wrong|exception|unhandled|null check|type '.*' is not|RangeError|PostgrestException|failed to load|error loading|no element/i;
 // Never press anything that changes data or ends the session.
-const UNSAFE = /sign out|log ?out|delete|remove|archive|disapprove|reject|cancel|reset|suspend|ban\b|deactivate|clear|send|submit|save|place order|buy now|\bpay\b|record|approve|confirm|withdraw|mark|sync now|update password|upload|camera|take photo|dismiss|^close$|^ok$|^yes|^no$|create officer|create account|add to cart|checkout|download|export|share|generate|renew|restore|resolve|decline|accept|counter|deliver|distribute|finalize|verify|complete|start|stop/i;
+const UNSAFE = /sign out|mag-sign out|mag-log ?out|log ?out|appearance|language|wika|hitsura|delete|remove|archive|disapprove|reject|cancel|reset|suspend|ban\b|deactivate|clear|send|submit|save|place order|buy now|\bpay\b|record|approve|confirm|withdraw|mark|sync now|update password|upload|camera|take photo|dismiss|^close$|^ok$|^yes|^no$|create officer|create account|add to cart|checkout|download|export|share|generate|renew|restore|resolve|decline|accept|counter|deliver|distribute|finalize|verify|complete|start|stop/i;
 const DEEP_UNSAFE = /create|add |new |issue|register|apply|request|join|enrol|offer|submit|next|continue|edit|change|toggle|switch/i;
+const tag = process.argv[3] === 'darktl' ? '_darktl' : dark ? '_dark' : '';
 const shotDir = '../results/shots/crawl'; mkdirSync(shotDir, { recursive: true });
 const srv = await serve();
 const { browser, page, logs } = await launch({ dark });
@@ -24,7 +25,7 @@ async function examine(path, depth) {
   const t = await text(page); const s = t.slice(0, 110);
   if (ERR.test(t)) problem(path, 'error text on screen: ' + (t.match(ERR) || [''])[0]);
   if (t.length < 25) problem(path, 'blank or nearly blank screen');
-  if (!seen.has(s)) { seen.add(s); n++; await page.screenshot({ path: `${shotDir}/${user}${dark ? '_dark' : ''}_${String(n).padStart(2, '0')}.png` }); out.screens.push({ n, path, depth, head: s }); console.log(`screen ${n} [d${depth}] ${path} :: ${s.slice(0, 70)}`); return true; }
+  if (!seen.has(s)) { seen.add(s); n++; await page.screenshot({ path: `${shotDir}/${user}${tag}_${String(n).padStart(2, '0')}.png` }); out.screens.push({ n, path, depth, head: s }); console.log(`screen ${n} [d${depth}] ${path} :: ${s.slice(0, 70)}`); return true; }
   return false;
 }
 async function restore(parentSig, tabName) {
@@ -56,6 +57,12 @@ async function explore(path, depth, navLabels, tabName) {
 
 try {
   await boot(page); await loginAs(page, user); await page.waitForTimeout(3500);
+  if (process.argv[3] === 'darktl') { // the Appearance and Language switches are in the side menu (in-app settings, not the browser's)
+    await page.mouse.click(29, 31); await page.waitForTimeout(1500);
+    const sw = page.locator('flt-semantics-host [role=switch], flt-semantics-host [role=checkbox]');
+    if ((await sw.count()) >= 2) { await sw.nth(0).click(); await page.waitForTimeout(700); await sw.nth(1).click(); await page.waitForTimeout(1500); } else problem('setup', 'dark/Tagalog switches not found');
+    await page.getByText(/^(Dismiss|I-dismiss)$/).last().click({ timeout: 4000 }).catch(() => page.mouse.click(380, 700)); await page.waitForTimeout(1500);
+  }
   const vh = page.viewportSize().height;
   let tabs = (await buttons()).filter(o => o.y > vh - 110 && o.t.length < 24 && !o.t.includes('\n'));
   const names = [...new Set(tabs.map(x => x.t))]; const navLabels = new Set(names);
@@ -79,5 +86,5 @@ try {
 const cErr = logs.filter(l => !/favicon|manifest|ERR_CONNECTION_REFUSED|status of (400|401|404|406)|CanvasKit|google_fonts|fonts\.g/i.test(l));
 out.consoleErrors = [...new Set(cErr)].slice(0, 12); out.failedRequests = [...new Set(failed)].slice(0, 12);
 console.log(`\n${user}${dark ? ' (dark)' : ''}: ${out.screens.length} screens, ${out.clicked} taps, ${out.problems.length} problems, ${out.consoleErrors.length} console errors, ${out.failedRequests.length} failed requests`);
-writeFileSync(`../results/crawl_${user}${dark ? '_dark' : ''}.json`, JSON.stringify(out, null, 1));
+writeFileSync(`../results/crawl_${user}${tag}.json`, JSON.stringify(out, null, 1));
 await browser.close(); srv.close();

@@ -1,0 +1,22 @@
+tabs: Mamili, Mga Order, Presyo, Detalye
+screen 1 [d0] tab Mamili :: Palengke Lahat (20) Vegetables (20) Paubos Na Tomato ₱50.00/kg 1 mamim
+screen 2 [d1] tab Mamili > Paubos Na Tomato ₱50.00/kg 1 :: Wala pang nakatalaga ₱50.00 /kg 2.50 kg naibenta Tomato Vegetables SP3
+screen 3 [d2] tab Mamili > Paubos Na Tomato ₱50.00/kg 1 > Tomato ₱50.00/kg :: Naubos Na Wala pang nakatalaga ₱50.00 /kg 2.50 kg naibenta Tomato Vege
+PROBLEM tab Mamili > Paubos Na Tomato ₱50.00/kg 1 -> could not return to the screen after opening "Tomato ₱50.00/kg"
+screen 4 [d0] tab Mga Order :: Aking mga Order Lahat (82) Nakabinbing Order (70) Aprubado (4) Handa n
+screen 5 [d1] tab Mga Order > Aprubado (4) :: Aking mga Order Lahat (82) Nakabinbing Order (70) Aprubado (4) Handa n
+PROBLEM tab Mga Order > Aprubado (4) -> could not return to the screen after opening "Lahat (82)"
+screen 6 [d1] tab Mga Order > Tomato Nakabinbing Order ORD :: Binili #ORD-20261119-G982 Pagkuha SP3 Agriculture Cooperative, Baranga
+screen 7 [d0] tab Presyo :: Presyo sa Merkado Mga Presyo sa Pampublikong Pamilihan Mga reference p
+screen 8 [d0] tab Detalye :: Detalye BB Bea Buyer 09170000007 BUOD NG BILI 82 Mga Order 8 Nakomplet
+screen 9 [d1] tab Detalye > Tingnan Lahat :: Kamakailang Aktibidad Inilagay ang Order Nob 19 Tomato · Pickup ₱50.00
+screen 10 [d0] side menu :: I-dismiss BB Bea Buyer 09170000007 AKAWNT Akawnt Aking mga Address MGA
+screen 11 [d1] side menu > Akawnt :: Akawnt I-save BB Palitan ang Larawan PERSONAL NA IMPORMASYON Hulapi Wa
+screen 12 [d1] side menu > Aking mga Address :: Aking mga Address Ipakita ang menu Ipakita ang menu Ipakita ang menu I
+screen 13 [d1] side menu > Tungkol sa SAGANA :: Tungkol sa SAGANA SAGANA Streamlined Agricultural Gateway for Agribusi
+PROBLEM side menu > Tungkol sa Kooperatiba -> blank or nearly blank screen
+screen 14 [d1] side menu > Tungkol sa Kooperatiba :: 
+screen 15 [d1] side menu > Patakaran sa Privacy :: Patakaran sa Privacy Patakaran sa Privacy Paano pinangangasiwaan ng SA
+PROBLEM side menu > Mga Tuntunin ng Paggamit -> blank or nearly blank screen
+
+t_buyer1 (dark): 15 screens, 18 taps, 4 problems, 0 console errors, 0 failed requests

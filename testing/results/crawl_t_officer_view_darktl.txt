@@ -1,0 +1,44 @@
+tabs: Buod · Tingin lamang, Buod, Mga Miyembro, Pamilihan, Mga Utang, Mga Ulat
+screen 1 [d0] tab Buod · Tingin lamang :: Buod OV Magandang gabi, Olivia! Sabado, Nobyembre 21, 2026 100 Pautang
+screen 2 [d1] tab Buod · Tingin lamang > 100 Pautang na Lampas sa Tak :: Mga Pautang OV Suriin ang mga Overdue na Pautang Magbigay ng Bagong Pa
+screen 3 [d2] tab Buod · Tingin lamang > 100 Pautang na Lampas sa Tak > Suriin ang mga Overdue na Pa :: Kasaysayan ng Pautang 308 Pautang Kailangan ng Atensyon ₱357,150 Kabuu
+screen 4 [d2] tab Buod · Tingin lamang > 100 Pautang na Lampas sa Tak > Mga Kahilingan sa Pautang :: Mga Kahilingan sa Pautang Walang kahilingan sa pautang dito Lalabas di
+screen 5 [d1] tab Buod · Tingin lamang > 1 Miyembro ang Susuriin Pa M :: Mga Miyembro OV Mga Miyembro · Tingin lamang Buod Mga Miyembro Pamilih
+screen 6 [d2] tab Buod · Tingin lamang > 1 Miyembro ang Susuriin Pa M > Pamahalaan ang mga Account :: Pamahalaan ang mga Account View Only — maaari mong tingnan ang module 
+screen 7 [d2] tab Buod · Tingin lamang > 1 Miyembro ang Susuriin Pa M > Salain :: I-filter ang mga Miyembro Piliin ang listahan ayon sa status, pananim,
+screen 8 [d1] tab Buod > 1 Miyembro ang Susuriin Pa M :: Mga Miyembro OV Magdagdag ng Miyembro Pamahalaan ang mga Account Salai
+screen 9 [d0] tab Pamilihan :: Pamilihan OV 6968 Order ang Kailangan ng Aksyon Mga order na aaprubaha
+screen 10 [d1] tab Pamilihan > 6968 Order ang Kailangan ng  :: Pamamahala ng Order Mga Setting ng Delivery I-filter ang mga Order Lah
+screen 11 [d2] tab Pamilihan > 6968 Order ang Kailangan ng  > I-filter ang mga Order :: I-filter ang mga Order Ipakita ang mga order mula sa isang pinagmulan 
+PROBLEM tab Pamilihan > 6968 Order ang Kailangan ng  -> could not return to the screen after opening "I-filter ang mga Order"
+screen 12 [d1] tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel :: Pag-uugnay sa mamimili Mga Kahilingang Sumali Lahat (20) Mga hiling na
+PROBLEM tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > FF -> blank or nearly blank screen
+screen 13 [d2] tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > FF :: 
+screen 14 [d2] tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > Kasaysayan :: I-dismiss Ginger · Fidel Farmer Aktibidad ng staff Isinumite Magsasaka
+screen 15 [d2] tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > Idagdag ang Detalye ng Mamim :: Fidel Farmer Detalye ng Mamimili Kung sino lang ang mamimili. Ilalagay
+screen 16 [d1] tab Pamilihan > 1508 Lahat ng Listahan Lahat :: Lahat ng Listahan Lahat ng Merkado (1508) Pamilihan ng Kooperatiba (0)
+screen 17 [d2] tab Pamilihan > 1508 Lahat ng Listahan Lahat > Pamilihan ng Kooperatiba (0) :: Lahat ng Listahan Lahat ng Merkado (1508) Pamilihan ng Kooperatiba (0)
+PROBLEM tab Pamilihan > 1508 Lahat ng Listahan Lahat -> could not return to the screen after opening "Pamilihan ng Kooperatiba (0)"
+screen 18 [d1] tab Pamilihan > 0 Naghihintay ng Pag-apruba  :: Mga Pag-apruba ng Listahan I-filter ang mga Aprubal Lahat (1508) Naghi
+screen 19 [d2] tab Pamilihan > 0 Naghihintay ng Pag-apruba  > I-filter ang mga Aprubal :: I-filter ang mga Aprubal Ipakita ang bago o in-edit na alok URI Lahat 
+screen 20 [d2] tab Pamilihan > 0 Naghihintay ng Pag-apruba  > Tingnan ang Detalye :: Pagsusuri ng Tomato MAGAGAMIT 0.50 sa 10 kg ang natitira Tomato Tomato
+screen 21 [d1] tab Pamilihan > 4 Pamamahala ng Mamimili Mga :: Pamamahala ng Mamimili Aktibo (4) Ipakita ang menu Ipakita ang menu Ip
+PROBLEM tab Pamilihan > 4 Pamamahala ng Mamimili Mga > Ipakita ang menu -> blank or nearly blank screen
+PROBLEM tab Pamilihan > 4 Pamamahala ng Mamimili Mga -> could not return to the screen after opening "Ipakita ang menu"
+PROBLEM tab Pamilihan -> could not return to the screen after opening "4 Pamamahala ng Mamimili Mga a"
+screen 22 [d0] tab Mga Ulat :: Mga Ulat OV Buod sa Pamamahala Detalyadong Ulat ₱0 Ulat ng Benta Benta
+screen 23 [d1] tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  :: Ulat ng Benta Benta sa Pamilihan Benta ng Produkto ng Kooperatiba
+screen 24 [d2] tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  > Benta sa Pamilihan :: Ulat ng Benta Benta sa Pamilihan Benta ng Produkto ng Kooperatiba Buod
+PROBLEM tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  -> could not return to the screen after opening "Benta sa Pamilihan"
+screen 25 [d1] tab Mga Ulat > 0 kg Pamamahala ng Ani Ani,  :: Pamamahala ng Ani Kabuuang Ani 151,248 kg Nabenta 278 kg Mga Naitalang
+screen 26 [d1] tab Mga Ulat > Sapat ang stock Ulat ng Stoc :: Ulat ng Stock ng Kooperatiba Buod ng Stock Kabuuang Item 26 Mababang S
+screen 27 [d2] tab Mga Ulat > Sapat ang stock Ulat ng Stoc > Tomato Harvest Stock • Inani :: Pamamahala ng Imbakan Ipakita ang mga na-archive / hindi aktibong item
+screen 28 [d1] tab Mga Ulat > ₱0 utang Ulat ng Pautang Mga :: Ulat ng Pautang Buod ng Pautang Takbo ng Koleksyon Nakaraang 6 na buwa
+screen 29 [d0] side menu :: I-dismiss OV Olivia ViewOnly t_officer_view@sagana.local 09170000002 A
+screen 30 [d1] side menu > Akawnt :: Akawnt I-save ang Pagbabago OV Palitan ang Larawan PERSONAL NA IMPORMA
+screen 31 [d1] side menu > Detalye ng Kooperatiba :: Detalye ng Kooperatiba View Only — maaari mong tingnan ang module na i
+screen 32 [d1] side menu > Tungkol sa SAGANA :: Tungkol sa SAGANA SAGANA Streamlined Agricultural Gateway for Agribusi
+screen 33 [d1] side menu > Tungkol sa Kooperatiba :: Mga Ulat OV Kabuuang Benta (Mga Magsasaka) ₱17,050 Kabuuang Naani (Mga
+screen 34 [d1] side menu > Patakaran sa Privacy :: Patakaran sa Privacy Patakaran sa Privacy Paano pinangangasiwaan ng SA
+
+t_officer_view (dark): 34 screens, 69 taps, 7 problems, 0 console errors, 0 failed requests

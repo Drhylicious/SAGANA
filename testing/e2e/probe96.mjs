@@ -1,0 +1,11 @@
+import { serve, launch, boot, loginAs, text, typeInto } from './lib.mjs';
+const srv = await serve(); const { browser, page } = await launch(); await boot(page); await loginAs(page, 't_manager'); await page.waitForTimeout(3000);
+await page.mouse.click(267, 31); await page.waitForTimeout(3000);
+const ins = await page.locator('flt-semantics-host input, flt-semantics-host textarea').evaluateAll(els => els.map(e => e.tagName + ':' + (e.getAttribute('aria-label') || '') + ':' + e.type));
+console.log('inputs', ins);
+await typeInto(page, 0, 'Defense check message');
+await page.screenshot({ path: '../results/shots/probe96_a.png' });
+console.log((await text(page)).slice(0, 400));
+const b = await page.locator('flt-semantics-host [role=button]').evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return (e.textContent||'').trim().slice(0,30) + '@' + Math.round(r.x) + ',' + Math.round(r.y) + ',' + Math.round(r.width) + 'x' + Math.round(r.height); }));
+console.log(b.join(' | '));
+await browser.close(); srv.close();

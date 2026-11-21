@@ -1,0 +1,60 @@
+tabs: Buod, Mga Miyembro, Pamilihan, Mga Utang, Mga Ulat
+screen 1 [d0] tab Buod :: Buod MM Magandang gabi, Mara! Sabado, Nobyembre 21, 2026 100 Pautang n
+screen 2 [d1] tab Buod > 100 Pautang na Lampas sa Tak :: Mga Pautang MM Suriin ang mga Overdue na Pautang Magbigay ng Bagong Pa
+screen 3 [d2] tab Buod > 100 Pautang na Lampas sa Tak > Suriin ang mga Overdue na Pa :: Kasaysayan ng Pautang 308 Pautang Kailangan ng Atensyon ₱357,150 Kabuu
+screen 4 [d2] tab Buod > 100 Pautang na Lampas sa Tak > Magbigay ng Bagong Pautang :: Magbigay ng Bagong Pautang Nanghihiram Pumili ng Magsasaka * Pindutin 
+screen 5 [d2] tab Buod > 100 Pautang na Lampas sa Tak > Itala ang Bayad :: Itala ang Bayad Pumili ng Magsasaka PU Perf User 1 aktibong pautang · 
+screen 6 [d2] tab Buod > 100 Pautang na Lampas sa Tak > Mga Kahilingan sa Pautang :: Mga Kahilingan sa Pautang Walang kahilingan sa pautang dito Lalabas di
+screen 7 [d1] tab Buod > 1 Miyembro ang Susuriin Pa M :: Mga Miyembro MM Buod Mga Miyembro Pamilihan Mga Utang Mga Ulat
+screen 8 [d0] tab Mga Miyembro :: Mga Miyembro MM Magdagdag ng Miyembro Pamahalaan ang mga Account Salai
+screen 9 [d1] tab Mga Miyembro > Magdagdag ng Miyembro :: Gumawa ng Bagong Account Piliin kung anong uri ng account ang gagawin 
+screen 10 [d2] tab Mga Miyembro > Magdagdag ng Miyembro > Magdagdag ng Magsasaka / Miy :: Magdagdag ng Bagong Miyembro AWTOMATIKO Wala Susunod
+PROBLEM tab Mga Miyembro > Magdagdag ng Miyembro -> could not return to the screen after opening "Magdagdag ng Magsasaka / Miyem"
+screen 11 [d1] tab Mga Miyembro > Pamahalaan ang mga Account :: Pamahalaan ang mga Account AC apr Case AKTIBO Wala pa Wala pa AC apr C
+screen 12 [d2] tab Mga Miyembro > Pamahalaan ang mga Account > AC apr Case AKTIBO Wala pa W :: SAGANA ID ng Kooperatiba Magsasaka AC apr Case Aktibo I-tap ang card p
+screen 13 [d2] tab Mga Miyembro > Pamahalaan ang mga Account > FF Faye Farmer AKTIBO Wala p :: SAGANA ID ng Kooperatiba Magsasaka FF Faye Farmer Aktibo I-tap ang car
+screen 14 [d2] tab Mga Miyembro > Pamahalaan ang mga Account > FF Fidel Farmer AKTIBO Wala  :: SAGANA ID ng Kooperatiba Magsasaka FF Fidel Farmer Aktibo I-tap ang ca
+screen 15 [d2] tab Mga Miyembro > Pamahalaan ang mga Account > JR Jose Reyes AKTIBO Wala pa :: SAGANA ID ng Kooperatiba Magsasaka JR Jose Reyes Aktibo I-tap ang card
+screen 16 [d1] tab Mga Miyembro > Salain :: I-filter ang mga Miyembro Piliin ang listahan ayon sa status, pananim,
+screen 17 [d2] tab Mga Miyembro > Salain > Pangalan (Z–A) :: Detalye ng Magsasaka Aktibong Miyembro AC apr Case Address ng Email – 
+PROBLEM tab Mga Miyembro > Salain -> could not return to the screen after opening "Pangalan (Z–A)"
+PROBLEM tab Mga Miyembro -> could not return to the screen after opening "Salain"
+screen 18 [d0] tab Pamilihan :: Pamilihan MM Pamamahala ng Pamilihan 0 Lahat ng Listahan Lahat ng prod
+screen 19 [d1] tab Pamilihan > 0 Lahat ng Listahan Lahat ng :: Lahat ng Listahan Lahat ng Merkado (1508) Pamilihan ng Kooperatiba (0)
+screen 20 [d2] tab Pamilihan > 0 Lahat ng Listahan Lahat ng > Pamilihan ng Kooperatiba (0) :: Lahat ng Listahan Lahat ng Merkado (1508) Pamilihan ng Kooperatiba (0)
+PROBLEM tab Pamilihan > 0 Lahat ng Listahan Lahat ng -> could not return to the screen after opening "Pamilihan ng Kooperatiba (0)"
+screen 21 [d1] tab Pamilihan > 0 Naghihintay ng Pag-apruba  :: Mga Pag-apruba ng Listahan I-filter ang mga Aprubal Lahat (1508) Naghi
+screen 22 [d2] tab Pamilihan > 0 Naghihintay ng Pag-apruba  > I-filter ang mga Aprubal :: I-filter ang mga Aprubal Ipakita ang bago o in-edit na alok URI Lahat 
+screen 23 [d2] tab Pamilihan > 0 Naghihintay ng Pag-apruba  > Tingnan ang Detalye :: Pagsusuri ng Tomato MAGAGAMIT 0.50 sa 10 kg ang natitira Tomato Tomato
+screen 24 [d1] tab Pamilihan > 0 Pamamahala ng Mamimili Mga :: Pamamahala ng Mamimili Aktibo (4) Ipakita ang menu Ipakita ang menu Ip
+PROBLEM tab Pamilihan > 0 Pamamahala ng Mamimili Mga > Ipakita ang menu -> blank or nearly blank screen
+screen 25 [d2] tab Pamilihan > 0 Pamamahala ng Mamimili Mga > Ipakita ang menu :: 
+PROBLEM tab Pamilihan > 0 Pamamahala ng Mamimili Mga -> could not return to the screen after opening "Ipakita ang menu"
+screen 26 [d1] tab Pamilihan > 0 Pamamahala ng Order Subayb :: Pamamahala ng Order Mga Setting ng Delivery I-filter ang mga Order Lah
+screen 27 [d2] tab Pamilihan > 0 Pamamahala ng Order Subayb > I-filter ang mga Order :: I-filter ang mga Order Ipakita ang mga order mula sa isang pinagmulan 
+screen 28 [d2] tab Pamilihan > 0 Pamamahala ng Order Subayb > Lahat (0) :: Pamamahala ng Order Mga Setting ng Delivery I-filter ang mga Order Lah
+PROBLEM tab Pamilihan > 0 Pamamahala ng Order Subayb -> could not return to the screen after opening "Lahat (0)"
+screen 29 [d1] tab Pamilihan > 0 Pag-uugnay sa mamimili Mga :: Pag-uugnay sa mamimili Mga Kahilingang Sumali Lahat (0) Mga hiling na 
+PROBLEM tab Pamilihan > 0 Pag-uugnay sa mamimili Mga > FF -> blank or nearly blank screen
+screen 30 [d2] tab Pamilihan > 0 Pag-uugnay sa mamimili Mga > Kasaysayan :: I-dismiss Ginger · Fidel Farmer Aktibidad ng staff Isinumite Magsasaka
+screen 31 [d2] tab Pamilihan > 0 Pag-uugnay sa mamimili Mga > Idagdag ang Detalye ng Mamim :: Fidel Farmer Detalye ng Mamimili Kung sino lang ang mamimili. Ilalagay
+screen 32 [d1] tab Pamilihan > 0 Alok sa Kooperatiba Alok n :: Alok sa Kooperatiba Lahat (48) Kailangan ng Sagot (0) Naghihintay sa M
+screen 33 [d2] tab Pamilihan > 0 Alok sa Kooperatiba Alok n > Kailangan ng Sagot (0) :: Alok sa Kooperatiba Lahat (48) Kailangan ng Sagot (0) Naghihintay sa M
+PROBLEM tab Pamilihan > 0 Alok sa Kooperatiba Alok n -> could not return to the screen after opening "Kailangan ng Sagot (0)"
+screen 34 [d0] tab Mga Ulat :: Mga Ulat MM Buod sa Pamamahala Detalyadong Ulat ₱0 Ulat ng Benta Benta
+screen 35 [d1] tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  :: Ulat ng Benta Benta sa Pamilihan Benta ng Produkto ng Kooperatiba
+screen 36 [d2] tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  > Benta sa Pamilihan :: Ulat ng Benta Benta sa Pamilihan Benta ng Produkto ng Kooperatiba Buod
+PROBLEM tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  -> could not return to the screen after opening "Benta sa Pamilihan"
+screen 37 [d1] tab Mga Ulat > 0 kg Pamamahala ng Ani Ani,  :: Pamamahala ng Ani Kabuuang Ani 151,248 kg Nabenta 278 kg Mga Naitalang
+screen 38 [d1] tab Mga Ulat > Sapat ang stock Ulat ng Stoc :: Ulat ng Stock ng Kooperatiba Buod ng Stock Kabuuang Item 26 Mababang S
+screen 39 [d2] tab Mga Ulat > Sapat ang stock Ulat ng Stoc > Tomato Harvest Stock • Inani :: Pamamahala ng Imbakan Ipakita ang mga na-archive / hindi aktibong item
+screen 40 [d1] tab Mga Ulat > ₱0 utang Ulat ng Pautang Mga :: Ulat ng Pautang Buod ng Pautang Takbo ng Koleksyon Nakaraang 6 na buwa
+screen 41 [d1] tab Mga Ulat > ₱0 Ulat ng Gastos Gastos ng  :: Ulat ng Gastos Buod ng Gastos Binibilang ang mga subsidized na entry n
+screen 42 [d0] side menu :: I-dismiss MM Mara Manager t_manager@sagana.local 09170000001 AKAWNT Ak
+screen 43 [d1] side menu > Akawnt :: Akawnt I-save ang Pagbabago MM Palitan ang Larawan PERSONAL NA IMPORMA
+screen 44 [d1] side menu > Detalye ng Kooperatiba :: Detalye ng Kooperatiba Pangalan ng kooperatiba SP3 Agriculture Coopera
+screen 45 [d1] side menu > Tungkol sa SAGANA :: Tungkol sa SAGANA SAGANA Streamlined Agricultural Gateway for Agribusi
+screen 46 [d1] side menu > Patakaran sa Privacy :: Patakaran sa Privacy Patakaran sa Privacy Paano pinangangasiwaan ng SA
+screen 47 [d1] side menu > Mga Tuntunin ng Paggamit :: Mga Ulat MM Kabuuang Benta (Mga Magsasaka) ₱17,050 Kabuuang Naani (Mga
+
+t_manager (dark): 47 screens, 57 taps, 10 problems, 0 console errors, 0 failed requests

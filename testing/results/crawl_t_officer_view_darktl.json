@@ -1,0 +1,251 @@
+{
+ "user": "t_officer_view",
+ "dark": true,
+ "tabs": [
+  "Buod · Tingin lamang",
+  "Buod",
+  "Mga Miyembro",
+  "Pamilihan",
+  "Mga Utang",
+  "Mga Ulat"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Buod · Tingin lamang",
+   "depth": 0,
+   "head": "Buod OV Magandang gabi, Olivia! Sabado, Nobyembre 21, 2026 100 Pautang na Lampas sa Takda Kailangang asikasuhi"
+  },
+  {
+   "n": 2,
+   "path": "tab Buod · Tingin lamang > 100 Pautang na Lampas sa Tak",
+   "depth": 1,
+   "head": "Mga Pautang OV Suriin ang mga Overdue na Pautang Magbigay ng Bagong Pautang Itala ang Bayad Mga Kahilingan sa "
+  },
+  {
+   "n": 3,
+   "path": "tab Buod · Tingin lamang > 100 Pautang na Lampas sa Tak > Suriin ang mga Overdue na Pa",
+   "depth": 2,
+   "head": "Kasaysayan ng Pautang 308 Pautang Kailangan ng Atensyon ₱357,150 Kabuuang Nakolekta ₱4,000 Kabuuang Balanse ₱3"
+  },
+  {
+   "n": 4,
+   "path": "tab Buod · Tingin lamang > 100 Pautang na Lampas sa Tak > Mga Kahilingan sa Pautang",
+   "depth": 2,
+   "head": "Mga Kahilingan sa Pautang Walang kahilingan sa pautang dito Lalabas dito ang mga kahilingan ng mga magsasaka."
+  },
+  {
+   "n": 5,
+   "path": "tab Buod · Tingin lamang > 1 Miyembro ang Susuriin Pa M",
+   "depth": 1,
+   "head": "Mga Miyembro OV Mga Miyembro · Tingin lamang Buod Mga Miyembro Pamilihan Mga Utang Mga Ulat"
+  },
+  {
+   "n": 6,
+   "path": "tab Buod · Tingin lamang > 1 Miyembro ang Susuriin Pa M > Pamahalaan ang mga Account",
+   "depth": 2,
+   "head": "Pamahalaan ang mga Account View Only — maaari mong tingnan ang module na ito pero wala kang mababago rito. Hum"
+  },
+  {
+   "n": 7,
+   "path": "tab Buod · Tingin lamang > 1 Miyembro ang Susuriin Pa M > Salain",
+   "depth": 2,
+   "head": "I-filter ang mga Miyembro Piliin ang listahan ayon sa status, pananim, o pautang AYUSIN AYON SA Pangalan (A–Z)"
+  },
+  {
+   "n": 8,
+   "path": "tab Buod > 1 Miyembro ang Susuriin Pa M",
+   "depth": 1,
+   "head": "Mga Miyembro OV Magdagdag ng Miyembro Pamahalaan ang mga Account Salain Lahat: 175 Aktibo: 174 Hindi Aktibo: 0"
+  },
+  {
+   "n": 9,
+   "path": "tab Pamilihan",
+   "depth": 0,
+   "head": "Pamilihan OV 6968 Order ang Kailangan ng Aksyon Mga order na aaprubahan o ibibigay 1 Magsasaka sa DA-AMAD Pipe"
+  },
+  {
+   "n": 10,
+   "path": "tab Pamilihan > 6968 Order ang Kailangan ng ",
+   "depth": 1,
+   "head": "Pamamahala ng Order Mga Setting ng Delivery I-filter ang mga Order Lahat (0) Kailangan ng Aksyon (0) Mga Nakab"
+  },
+  {
+   "n": 11,
+   "path": "tab Pamilihan > 6968 Order ang Kailangan ng  > I-filter ang mga Order",
+   "depth": 2,
+   "head": "I-filter ang mga Order Ipakita ang mga order mula sa isang pinagmulan PINAGMULAN Lahat ng pinagmulan (0) Pamil"
+  },
+  {
+   "n": 12,
+   "path": "tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel",
+   "depth": 1,
+   "head": "Pag-uugnay sa mamimili Mga Kahilingang Sumali Lahat (20) Mga hiling na kanselahin (0) Naghihintay ng mamimili "
+  },
+  {
+   "n": 13,
+   "path": "tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > FF",
+   "depth": 2,
+   "head": ""
+  },
+  {
+   "n": 14,
+   "path": "tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > Kasaysayan",
+   "depth": 2,
+   "head": "I-dismiss Ginger · Fidel Farmer Aktibidad ng staff Isinumite Magsasaka Fidel Farmer · Nob 19, 2026 4:03 pm"
+  },
+  {
+   "n": 15,
+   "path": "tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > Idagdag ang Detalye ng Mamim",
+   "depth": 2,
+   "head": "Fidel Farmer Detalye ng Mamimili Kung sino lang ang mamimili. Ilalagay ang dami at presyo mamaya, sa Kumpletuh"
+  },
+  {
+   "n": 16,
+   "path": "tab Pamilihan > 1508 Lahat ng Listahan Lahat",
+   "depth": 1,
+   "head": "Lahat ng Listahan Lahat ng Merkado (1508) Pamilihan ng Kooperatiba (0) Pampublikong Pamilihan (0) Tomato MAGAG"
+  },
+  {
+   "n": 17,
+   "path": "tab Pamilihan > 1508 Lahat ng Listahan Lahat > Pamilihan ng Kooperatiba (0)",
+   "depth": 2,
+   "head": "Lahat ng Listahan Lahat ng Merkado (1508) Pamilihan ng Kooperatiba (0) Pampublikong Pamilihan (0) Walang lista"
+  },
+  {
+   "n": 18,
+   "path": "tab Pamilihan > 0 Naghihintay ng Pag-apruba ",
+   "depth": 1,
+   "head": "Mga Pag-apruba ng Listahan I-filter ang mga Aprubal Lahat (1508) Naghihintay (0) Inaprubahan (1508) Hindi Inap"
+  },
+  {
+   "n": 19,
+   "path": "tab Pamilihan > 0 Naghihintay ng Pag-apruba  > I-filter ang mga Aprubal",
+   "depth": 2,
+   "head": "I-filter ang mga Aprubal Ipakita ang bago o in-edit na alok URI Lahat (1508) Mga Bagong Alok (1508) Mga In-edi"
+  },
+  {
+   "n": 20,
+   "path": "tab Pamilihan > 0 Naghihintay ng Pag-apruba  > Tingnan ang Detalye",
+   "depth": 2,
+   "head": "Pagsusuri ng Tomato MAGAGAMIT 0.50 sa 10 kg ang natitira Tomato Tomato Nob 19, 2026 F Fidel Farmer • Pangkat #"
+  },
+  {
+   "n": 21,
+   "path": "tab Pamilihan > 4 Pamamahala ng Mamimili Mga",
+   "depth": 1,
+   "head": "Pamamahala ng Mamimili Aktibo (4) Ipakita ang menu Ipakita ang menu Ipakita ang menu Ipakita ang menu"
+  },
+  {
+   "n": 22,
+   "path": "tab Mga Ulat",
+   "depth": 0,
+   "head": "Mga Ulat OV Buod sa Pamamahala Detalyadong Ulat ₱0 Ulat ng Benta Benta ayon sa paraan ng pagbebenta 0 kg Pamam"
+  },
+  {
+   "n": 23,
+   "path": "tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon ",
+   "depth": 1,
+   "head": "Ulat ng Benta Benta sa Pamilihan Benta ng Produkto ng Kooperatiba"
+  },
+  {
+   "n": 24,
+   "path": "tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon  > Benta sa Pamilihan",
+   "depth": 2,
+   "head": "Ulat ng Benta Benta sa Pamilihan Benta ng Produkto ng Kooperatiba Buod ng Benta Kabuuang Kita ₱17,050 Kabuuang"
+  },
+  {
+   "n": 25,
+   "path": "tab Mga Ulat > 0 kg Pamamahala ng Ani Ani, ",
+   "depth": 1,
+   "head": "Pamamahala ng Ani Kabuuang Ani 151,248 kg Nabenta 278 kg Mga Naitalang Ani 1588 Mga Magsasakang Nag-ani 152 Ta"
+  },
+  {
+   "n": 26,
+   "path": "tab Mga Ulat > Sapat ang stock Ulat ng Stoc",
+   "depth": 1,
+   "head": "Ulat ng Stock ng Kooperatiba Buod ng Stock Kabuuang Item 26 Mababang Stock 0 Mga Kategorya 2 Pananim na Itatan"
+  },
+  {
+   "n": 27,
+   "path": "tab Mga Ulat > Sapat ang stock Ulat ng Stoc > Tomato Harvest Stock • Inani",
+   "depth": 2,
+   "head": "Pamamahala ng Imbakan Ipakita ang mga na-archive / hindi aktibong item Buod ng suplay Kabuuang Item 26 Mababan"
+  },
+  {
+   "n": 28,
+   "path": "tab Mga Ulat > ₱0 utang Ulat ng Pautang Mga",
+   "depth": 1,
+   "head": "Ulat ng Pautang Buod ng Pautang Takbo ng Koleksyon Nakaraang 6 na buwan. Hindi apektado ng filter ng panahon. "
+  },
+  {
+   "n": 29,
+   "path": "side menu",
+   "depth": 0,
+   "head": "I-dismiss OV Olivia ViewOnly t_officer_view@sagana.local 09170000002 AKAWNT Akawnt Detalye ng Kooperatiba MGA "
+  },
+  {
+   "n": 30,
+   "path": "side menu > Akawnt",
+   "depth": 1,
+   "head": "Akawnt I-save ang Pagbabago OV Palitan ang Larawan PERSONAL NA IMPORMASYON Hulapi Wala Buong pangalan: Olivia "
+  },
+  {
+   "n": 31,
+   "path": "side menu > Detalye ng Kooperatiba",
+   "depth": 1,
+   "head": "Detalye ng Kooperatiba View Only — maaari mong tingnan ang module na ito pero wala kang mababago rito. Humingi"
+  },
+  {
+   "n": 32,
+   "path": "side menu > Tungkol sa SAGANA",
+   "depth": 1,
+   "head": "Tungkol sa SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics Isang mo"
+  },
+  {
+   "n": 33,
+   "path": "side menu > Tungkol sa Kooperatiba",
+   "depth": 1,
+   "head": "Mga Ulat OV Kabuuang Benta (Mga Magsasaka) ₱17,050 Kabuuang Naani (Mga Magsasaka) 99,737.50 kg Kita sa Pamilih"
+  },
+  {
+   "n": 34,
+   "path": "side menu > Patakaran sa Privacy",
+   "depth": 1,
+   "head": "Patakaran sa Privacy Patakaran sa Privacy Paano pinangangasiwaan ng SAGANA ang iyong impormasyon. Huling na-up"
+  }
+ ],
+ "problems": [
+  {
+   "where": "tab Pamilihan > 6968 Order ang Kailangan ng ",
+   "what": "could not return to the screen after opening \"I-filter ang mga Order\""
+  },
+  {
+   "where": "tab Pamilihan > 1 Magsasaka sa DA-AMAD Pipel > FF",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "tab Pamilihan > 1508 Lahat ng Listahan Lahat",
+   "what": "could not return to the screen after opening \"Pamilihan ng Kooperatiba (0)\""
+  },
+  {
+   "where": "tab Pamilihan > 4 Pamamahala ng Mamimili Mga > Ipakita ang menu",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "tab Pamilihan > 4 Pamamahala ng Mamimili Mga",
+   "what": "could not return to the screen after opening \"Ipakita ang menu\""
+  },
+  {
+   "where": "tab Pamilihan",
+   "what": "could not return to the screen after opening \"4 Pamamahala ng Mamimili Mga a\""
+  },
+  {
+   "where": "tab Mga Ulat > ₱0 Ulat ng Benta Benta ayon ",
+   "what": "could not return to the screen after opening \"Benta sa Pamilihan\""
+  }
+ ],
+ "clicked": 69,
+ "consoleErrors": [],
+ "failedRequests": []
+}

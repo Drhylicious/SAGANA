@@ -1,0 +1,123 @@
+{
+ "user": "t_buyer1",
+ "dark": true,
+ "tabs": [
+  "Mamili",
+  "Mga Order",
+  "Presyo",
+  "Detalye"
+ ],
+ "screens": [
+  {
+   "n": 1,
+   "path": "tab Mamili",
+   "depth": 0,
+   "head": "Palengke Lahat (20) Vegetables (20) Paubos Na Tomato ₱50.00/kg 1 mamimili Wala pang nakatalaga 0.50 kg natitir"
+  },
+  {
+   "n": 2,
+   "path": "tab Mamili > Paubos Na Tomato ₱50.00/kg 1",
+   "depth": 1,
+   "head": "Wala pang nakatalaga ₱50.00 /kg 2.50 kg naibenta Tomato Vegetables SP3 Agriculture Cooperative Barangay Payana"
+  },
+  {
+   "n": 3,
+   "path": "tab Mamili > Paubos Na Tomato ₱50.00/kg 1 > Tomato ₱50.00/kg",
+   "depth": 2,
+   "head": "Naubos Na Wala pang nakatalaga ₱50.00 /kg 2.50 kg naibenta Tomato Vegetables SP3 Agriculture Cooperative Baran"
+  },
+  {
+   "n": 4,
+   "path": "tab Mga Order",
+   "depth": 0,
+   "head": "Aking mga Order Lahat (82) Nakabinbing Order (70) Aprubado (4) Handa nang Kunin (0) Ihinahatid na (0) Tomato N"
+  },
+  {
+   "n": 5,
+   "path": "tab Mga Order > Aprubado (4)",
+   "depth": 1,
+   "head": "Aking mga Order Lahat (82) Nakabinbing Order (70) Aprubado (4) Handa nang Kunin (0) Ihinahatid na (0) Tingnan "
+  },
+  {
+   "n": 6,
+   "path": "tab Mga Order > Tomato Nakabinbing Order ORD",
+   "depth": 1,
+   "head": "Binili #ORD-20261119-G982 Pagkuha SP3 Agriculture Cooperative, Barangay Payanas, Torrijos, Marinduque, MIMAROP"
+  },
+  {
+   "n": 7,
+   "path": "tab Presyo",
+   "depth": 0,
+   "head": "Presyo sa Merkado Mga Presyo sa Pampublikong Pamilihan Mga reference price na itinakda ng kooperatiba. I-tap a"
+  },
+  {
+   "n": 8,
+   "path": "tab Detalye",
+   "depth": 0,
+   "head": "Detalye BB Bea Buyer 09170000007 BUOD NG BILI 82 Mga Order 8 Nakompleto Tingnan Lahat Inilagay ang Order Nob 1"
+  },
+  {
+   "n": 9,
+   "path": "tab Detalye > Tingnan Lahat",
+   "depth": 1,
+   "head": "Kamakailang Aktibidad Inilagay ang Order Nob 19 Tomato · Pickup ₱50.00 NAKABINBING ORDER Inilagay ang Order No"
+  },
+  {
+   "n": 10,
+   "path": "side menu",
+   "depth": 0,
+   "head": "I-dismiss BB Bea Buyer 09170000007 AKAWNT Akawnt Aking mga Address MGA KAGUSTUHAN SA APP SUPORTA AT IMPORMASYO"
+  },
+  {
+   "n": 11,
+   "path": "side menu > Akawnt",
+   "depth": 1,
+   "head": "Akawnt I-save BB Palitan ang Larawan PERSONAL NA IMPORMASYON Hulapi Wala Buong pangalan: Bea Buyer Pumili Kasa"
+  },
+  {
+   "n": 12,
+   "path": "side menu > Aking mga Address",
+   "depth": 1,
+   "head": "Aking mga Address Ipakita ang menu Ipakita ang menu Ipakita ang menu Ipakita ang menu Ipakita ang menu Ipakita"
+  },
+  {
+   "n": 13,
+   "path": "side menu > Tungkol sa SAGANA",
+   "depth": 1,
+   "head": "Tungkol sa SAGANA SAGANA Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics Isang mo"
+  },
+  {
+   "n": 14,
+   "path": "side menu > Tungkol sa Kooperatiba",
+   "depth": 1,
+   "head": ""
+  },
+  {
+   "n": 15,
+   "path": "side menu > Patakaran sa Privacy",
+   "depth": 1,
+   "head": "Patakaran sa Privacy Patakaran sa Privacy Paano pinangangasiwaan ng SAGANA ang iyong impormasyon. Huling na-up"
+  }
+ ],
+ "problems": [
+  {
+   "where": "tab Mamili > Paubos Na Tomato ₱50.00/kg 1",
+   "what": "could not return to the screen after opening \"Tomato ₱50.00/kg\""
+  },
+  {
+   "where": "tab Mga Order > Aprubado (4)",
+   "what": "could not return to the screen after opening \"Lahat (82)\""
+  },
+  {
+   "where": "side menu > Tungkol sa Kooperatiba",
+   "what": "blank or nearly blank screen"
+  },
+  {
+   "where": "side menu > Mga Tuntunin ng Paggamit",
+   "what": "blank or nearly blank screen"
+  }
+ ],
+ "clicked": 18,
+ "consoleErrors": [],
+ "failedRequests": []
+}

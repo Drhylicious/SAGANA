@@ -110,3 +110,11 @@ One rule for every role (Buyer, Farmer, Manager, Officer) wherever a password is
 ## 8. Incident during testing
 
 On 2026-11-18 the whole `test/` folder disappeared from disk during the first full Dart run. The cause was not found. It was restored with `git checkout -- test` and the fixes were re-applied; a copy is at `C:\Users\Administrator\sagana-test-backup\test_fixed`. Later full runs left it intact. If it happens again, check antivirus or sync software.
+
+## Final checks: dark mode + Tagalog crawl and data-changing workflows (Nov 21 2026, local stack only)
+
+- **Dark mode + Tagalog crawl (Farmer, Buyer, Manager, Officer view-only):** 121 screens walked with both switched on in the app. 0 console errors, 0 failed requests; screenshots reviewed (`results/shots/crawl/*_darktl_*.png`). Only nav-artifact notes from the crawler itself (no screen defects).
+- **Broadcast (Manager, real screen):** composed a title and message, pressed "Send to 174 Members". 174 notifications created, 0 duplicates (`workflows.mjs`).
+- **Delivery settings (Manager, real screen):** screen opens; Pickup is always on; the Delivery switch is correctly disabled until location, verified contact number and fees are set. Verified as a pass (the gate is intended). Stored setting unchanged (`delivery_enabled = f`).
+- **NOT re-clicked through the screens in this round:** loan issue and payment, program outcomes, cooperative offers, market linking, exports. These remain covered by the earlier API/SQL tests (API 141+133, SQL harness 322) and the earlier Chrome checks, not by a new UI pass.
+- Real Android APK verification: left to the user.
