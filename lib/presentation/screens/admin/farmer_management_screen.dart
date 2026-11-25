@@ -303,13 +303,48 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       case 'payment':
         context.push(AppRoutes.recordPayment, extra: farmer.userId);
       case 'toggle':
-        // Suspend is a two-step flow (Decision D17); reactivate is one tap.
+        // Suspend is a two-step flow (Decision D17); reactivate confirms first.
         if (!farmer.memberStatus.supportsSuspendToggle) return;
         if (farmer.memberStatus.isEffectivelyActive) {
           await _suspendMemberFlow(farmer);
         } else {
-          await _repo.reactivateMember(userId: farmer.userId);
-          _loadAll();
+          final l10n = AppLocalizations.of(context);
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(l10n.farmerMgmtConfirmActivateTitle(farmer.fullName)),
+              content: Text(
+                l10n.farmerMgmtConfirmActivateBody(farmer.fullName),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(l10n.farmerMgmtCancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(l10n.farmerMgmtActionSetActive),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true || !mounted) return;
+          try {
+            await _repo.reactivateMember(userId: farmer.userId);
+            if (!mounted) return;
+            AppToast.show(
+              context,
+              l10n.farmerMgmtActivatedToast(farmer.fullName),
+            );
+            _loadAll();
+          } catch (e, st) {
+            if (!mounted) return;
+            AppToast.show(
+              context,
+              friendlyError(l10n, e, st),
+              isError: true,
+            );
+          }
         }
       case 'restrict':
         await _restrictFlow(farmer);
@@ -947,6 +982,9 @@ class _FarmerCard extends StatelessWidget {
             ),
           );
         case MemberListAction.restrictFeatures:
+          if (entries.isNotEmpty && !entries.any((e) => e is PopupMenuDivider)) {
+            entries.add(const PopupMenuDivider());
+          }
           entries.add(
             _menuItem(
               'restrict',
@@ -958,6 +996,9 @@ class _FarmerCard extends StatelessWidget {
         case MemberListAction.manageRestrictions:
           // Only when there is something to manage.
           if (restrictions.isNotEmpty) {
+            if (entries.isNotEmpty && !entries.any((e) => e is PopupMenuDivider)) {
+              entries.add(const PopupMenuDivider());
+            }
             entries.add(
               _menuItem(
                 'manageRestrictions',
@@ -969,7 +1010,9 @@ class _FarmerCard extends StatelessWidget {
           }
         case MemberListAction.toggleSuspend:
           final suspend = status.isEffectivelyActive;
-          if (suspend) entries.add(const PopupMenuDivider());
+          if (suspend && entries.isNotEmpty && !entries.any((e) => e is PopupMenuDivider)) {
+            entries.add(const PopupMenuDivider());
+          }
           entries.add(
             _menuItem(
               'toggle',

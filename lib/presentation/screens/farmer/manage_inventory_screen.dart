@@ -153,7 +153,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     final parts = requested.split('|');
     final answer = parts.length > 1 ? parts[1] : null;
     final match = _allBatches.where((b) => b.id == parts.first);
-    if (match.isEmpty || match.first.isLost) return;
+    if (match.isEmpty || match.first.isFinalizedRotten) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkProduce(match.first, answer: answer);
     });
@@ -185,12 +185,12 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       case _StatusFilterRow.available:
         return b.status == 'available';
       case _StatusFilterRow.reserved:
-        return b.status == 'reserved' && !b.isLost;
+        return b.status == 'reserved' && !b.isFinalizedRotten;
       // Folds 'withdrawn' into "Sold" — both represent inventory no longer
       // available to dispose of. A batch emptied by a rotten report is a loss,
       // not a sale: it is under the Rotten chip instead.
       case _StatusFilterRow.sold:
-        return (b.isSoldOut || b.isWithdrawn) && !b.isLost;
+        return (b.isSoldOut || b.isWithdrawn) && !b.isFinalizedRotten;
       case _StatusFilterRow.lowStock:
         return b.status == 'low_stock';
       default:
@@ -206,7 +206,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       case _ConditionFilter.rotten:
         return b.hasLoss;
       case _ConditionFilter.needsCheck:
-        return hasStock && (b.shelfLife?.needsCheck ?? false);
+        return b.hasCheckableStock && (b.shelfLife?.needsCheck ?? false);
       case _ConditionFilter.good:
         return hasStock &&
             !b.hasLoss &&
@@ -391,6 +391,10 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     String why,
   ) async {
     if (batch.hasPhoto) return batch;
+    final rosterPhoto = _cropsById[batch.cropId]?.displayImageUrl;
+    if (rosterPhoto != null && rosterPhoto.isNotEmpty) {
+      return batch.withPhoto(rosterPhoto);
+    }
     final url = await requireCropPhotoToSell(
       context,
       repo: _cropRepo,
@@ -405,15 +409,16 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
   Future<void> _handleBatchAction(InventoryBatchModel batch) async {
     // Reported as rotten: nothing can be sold, the card only leads to history.
-    if (batch.isLost) {
+    if (batch.isFinalizedRotten) {
       context.pushRoute(AppRoutes.harvestHistory, extra: batch.cropName);
       return;
     }
-    // Recorded past its shelf life and not confirmed yet: no selling channel
-    // (Marketplace, Offer to Cooperative, Informal Sale, DA-AMAD Market
+    // Recorded past its shelf life or expired and not confirmed yet: no selling
+    // channel (Marketplace, Offer to Cooperative, Informal Sale, DA-AMAD Market
     // Linking) takes it until the Farmer confirms the produce. The database
     // refuses it as well.
-    if (batch.isOnShelfLifeHold) {
+    final isExpired = batch.shelfLife?.stage == ShelfLifeStage.expired;
+    if (batch.isOnShelfLifeHold || (isExpired && batch.availableKg > 0)) {
       await _checkProduce(batch);
       return;
     }
@@ -957,13 +962,14 @@ class _BatchCard extends StatelessWidget {
     final statusInfo = _statusInfo(context, batch.status);
     final l10n = AppLocalizations.of(context);
     final shelf = batch.shelfLife;
-    final hasStock = batch.availableKg > 0 || batch.reservedKg > 0;
-    // Something is left and the Farmer should look at it now.
-    final needsCheck = hasStock && (shelf?.needsCheck ?? false);
+    final hasCheckable = batch.hasCheckableStock;
+    final isRottenLost = batch.isFinalizedRotten;
+    // Something is left (and not finalized rotten) and the Farmer should look at it now.
+    final needsCheck = hasCheckable && (shelf?.needsCheck ?? false);
 
     // A batch reported as rotten is greyed out: it is a record, not stock.
     return Opacity(
-      opacity: batch.isLost ? 0.55 : 1,
+      opacity: isRottenLost ? 0.55 : 1,
       child: ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -974,7 +980,7 @@ class _BatchCard extends StatelessWidget {
             color:
                 context
                     .adaptiveSurface(
-                      batch.isSoldOut || batch.isLost
+                      batch.isSoldOut || isRottenLost
                           ? const Color(0xFFF1F5F9)
                           : Colors.white,
                     )
@@ -1017,14 +1023,14 @@ class _BatchCard extends StatelessWidget {
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
-                            if (batch.isLost)
+                            if (isRottenLost)
                               ShelfLifeTag(
-                                label: l10n.shelfTagRotten,
+                                label: l10n.shelfTagRottenLost,
                                 color: Theme.of(context).colorScheme.outline,
                               )
                             else
                               _StatusBadge(status: batch.status),
-                            if (batch.isOnShelfLifeHold)
+                            if (batch.isOnShelfLifeHold && !isRottenLost)
                               ShelfLifeTag(
                                 label: l10n.shelfTagOnHold,
                                 color: AppConstants.errorRed,
@@ -1082,8 +1088,8 @@ class _BatchCard extends StatelessWidget {
                     // reasoning already applied to Crop Roster's crops.
                     itemBuilder: (context) => [
                       // Confirm it is still good (and set how long), or report
-                      // it as rotten. Offered while anything is left.
-                      if (hasStock)
+                      // it as rotten. Offered only while unspoiled stock remains.
+                      if (hasCheckable)
                         PopupMenuItem(
                           value: 'check',
                           child: _batchMenuRow(
@@ -1092,7 +1098,7 @@ class _BatchCard extends StatelessWidget {
                             Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
-                      if (!batch.isSoldOut && !batch.isLost)
+                      if (!batch.isSoldOut && !isRottenLost)
                         PopupMenuItem(
                           value: 'update',
                           child: _batchMenuRow(
@@ -1173,10 +1179,10 @@ class _BatchCard extends StatelessWidget {
               // and what was reported as rotten.
               if (shelf != null && (shelf.isTracked || shelf.hasLoss)) ...[
                 const SizedBox(height: 10),
-                if (shelf.isTracked && hasStock)
+                if (shelf.isTracked && hasCheckable)
                   ShelfLifeLine(shelfLife: shelf),
                 if (shelf.hasLoss) ...[
-                  if (shelf.isTracked && hasStock) const SizedBox(height: 4),
+                  if (shelf.isTracked && hasCheckable) const SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(
@@ -1271,9 +1277,14 @@ class _BatchCard extends StatelessWidget {
                     ),
                     _ActionButton(
                       // A rotten batch only leads to its history; a batch on
-                      // hold must be confirmed before anything else.
-                      status: batch.isLost ? 'lost' : batch.status,
-                      overrideLabel: batch.isOnShelfLifeHold && !batch.isLost
+                      // hold (or expired with available stock) must be confirmed
+                      // before anything else.
+                      status: isRottenLost ? 'lost' : batch.status,
+                      overrideLabel:
+                          (batch.isOnShelfLifeHold ||
+                                  (shelf?.stage == ShelfLifeStage.expired &&
+                                      batch.availableKg > 0)) &&
+                              !isRottenLost
                           ? l10n.shelfCheckNow
                           : null,
                       hasPendingOffer: hasPendingOffer,

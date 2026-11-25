@@ -156,9 +156,6 @@ class AppRoutes {
       '/admin/programs/enrollment-requests';
   static const String programMembers = '/admin/programs/members';
   static const String programProducts = '/admin/programs/products';
-  static const String programOutcomes = '/admin/programs/outcomes';
-  static const String programOutcomeDetail = '/admin/programs/outcomes/detail';
-  static const String reportOutcome = '/farmer/profile/programs/report-outcome';
   static const String requestAssistance = '/farmer/profile/programs/request-assistance';
   static const String assistanceRequests = '/admin/loans/assistance';
   static const String loanItemManagement = '/admin/loan-items';

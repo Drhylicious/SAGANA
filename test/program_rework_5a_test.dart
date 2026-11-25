@@ -71,19 +71,6 @@ void main() {
       expect(p.canDistribute, isTrue);
     });
 
-    test('Harvest Return asks for nothing extra: the quantity is recorded with the outcome', () {
-      final p = _program(benefit: 'revenue_share');
-      expect(p.isHarvestReturn, isTrue);
-      expect(p.missingFields, isEmpty);
-      final done = _program(
-        benefit: 'revenue_share',
-        returnCrop: 'crop-1',
-        returnQty: 50,
-        returnUnit: 'kg',
-      );
-      expect(done.missingFields, isEmpty);
-    });
-
     test('a zero budget counts as missing; a zero return quantity does not', () {
       expect(_program(budget: 0).missingFields, ['budget']);
       expect(
@@ -293,30 +280,6 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     });
-  });
-
-  group('Farmer My Programs data', () {
-    test('keeps the Harvest Return requirement and hides nothing staff-only', () {
-      final e = MyProgramEntry.fromMap({
-        'id': 'm1',
-        'program_id': 'p1',
-        'status': 'active',
-        'enrolled_at': '2026-10-01T00:00:00Z',
-        'cooperative_programs': {
-          'program_name': 'Eggplant Seeds',
-          'benefit_type': 'revenue_share',
-          'program_purpose': 'distribution',
-          'status': 'active',
-          'return_quantity': 50,
-          'return_unit': 'kg',
-          'return_crop': {'crop_name': 'Eggplant'},
-        },
-      });
-      expect(e.isHarvestReturn, isTrue);
-      expect(e.returnQuantity, 50);
-      expect(e.returnCropName, 'Eggplant');
-    });
-
   });
 
   group('Phase 5A SQL contract (read from the script, not the database)', () {

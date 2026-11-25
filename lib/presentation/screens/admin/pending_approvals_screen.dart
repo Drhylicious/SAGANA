@@ -168,15 +168,18 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
             (e.variety?.toLowerCase().contains(q) ?? false),
       );
     }
-    final grouped = stableGroupSort<ListingEditRequest>(
-      list,
-      (e) => e.isPending ? 0 : 1,
-    );
+    int editGroup(ListingEditRequest e) {
+      if (e.isPending) return 0;
+      if (e.status == 'approved') return 1;
+      return 2; // rejected or cancelled at the bottom
+    }
+
+    final grouped = stableGroupSort<ListingEditRequest>(list, editGroup);
     final firstDecided = grouped.indexWhere((e) => !e.isPending);
     final end = firstDecided < 0 ? grouped.length : firstDecided;
-    // Waiting requests: oldest first. The decided ones follow, newest first.
+    // Pending requests: newest first, followed by approved, then rejected/cancelled.
     return [
-      ...oldestFirst(grouped.sublist(0, end), (e) => e.createdAt),
+      ...newestFirst(grouped.sublist(0, end), (e) => e.createdAt),
       ...grouped.sublist(end),
     ];
   }
@@ -232,15 +235,20 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    // Everything waiting for a decision first (a new listing or an edited
-    // listing), then the decided ones; newest first inside each group.
+    // Pending (0) -> Approved (1) -> Disapproved (2), newest first inside each group.
+    int groupOfDecision(String? d) {
+      if (d == 'pending') return 0;
+      if (d == 'disapproved') return 2;
+      return 1;
+    }
+
     final entries =
-        <({bool pending, DateTime at, Widget Function() card})>[
+        <({int group, DateTime at, Widget Function() card})>[
           for (final l in _allListings)
             if ((_allFilter == null || _decisionOfListing(l) == _allFilter) &&
                 _matchesSearch(l.cropName, l.farmerName, l.variety))
               (
-                pending: l.isPending,
+                group: groupOfDecision(_decisionOfListing(l)),
                 at: l.createdAt,
                 card: () => _PendingListingCard(
                   listing: l,
@@ -253,7 +261,9 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
             if ((_allFilter == null || _decisionOfEdit(e) == _allFilter) &&
                 _matchesSearch(e.cropName, e.farmerName, e.variety))
               (
-                pending: e.isPending,
+                group: e.status == 'cancelled'
+                    ? 2
+                    : groupOfDecision(_decisionOfEdit(e)),
                 at: e.createdAt,
                 card: () => _EditRequestCard(
                   request: e,
@@ -263,10 +273,9 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
                 ),
               ),
         ]..sort((a, b) {
-          if (a.pending != b.pending) return a.pending ? -1 : 1;
-          // What is waiting for a decision: oldest first (first in, first out). The decided
-          // ones follow, newest first.
-          return a.pending ? a.at.compareTo(b.at) : b.at.compareTo(a.at);
+          final byGroup = a.group.compareTo(b.group);
+          if (byGroup != 0) return byGroup;
+          return b.at.compareTo(a.at);
         });
 
     return Column(
@@ -817,20 +826,26 @@ class _PendingListingCard extends StatelessWidget {
       ),
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (listing.hasStockWarning)
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(AppConstants.radiusLg),
-              ),
-              child: Container(width: 4, color: cs.error),
-            ),
-          Expanded(child: card),
-        ],
+    return SoldOutGrey(
+      active: listing.isRejected,
+      child: Opacity(
+        opacity: listing.isRejected ? 0.65 : 1.0,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (listing.hasStockWarning)
+                ClipRRect(
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(AppConstants.radiusLg),
+                  ),
+                  child: Container(width: 4, color: cs.error),
+                ),
+              Expanded(child: card),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1060,9 +1075,15 @@ class _EditRequestCard extends StatelessWidget {
         change(Icons.photo_camera_outlined, l10n.wfDetailPhoto),
     ];
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    final isDisapproved = r.status == 'rejected';
+
+    return SoldOutGrey(
+      active: isDisapproved,
+      child: Opacity(
+        opacity: isDisapproved ? 0.65 : 1.0,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: sagana.cardBackground,
@@ -1158,6 +1179,8 @@ class _EditRequestCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+      ),
       ),
     );
   }

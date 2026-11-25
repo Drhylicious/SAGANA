@@ -696,10 +696,8 @@ class DashboardRepository {
       ),
     );
 
-    // Loan request, program outcome report and assistance request — the
-    // Farmer's own submissions.
+    // Loan request and assistance request — the Farmer's own submissions.
     items.addAll(await _fetchLoanRequestActivity(limit: sourceLimit));
-    items.addAll(await _fetchOutcomeReportActivity(limit: sourceLimit));
     items.addAll(await _fetchAssistanceRequestActivity(limit: sourceLimit));
     items.addAll(
       await _fetchShelfLifeActivity(userId: _userId, limit: sourceLimit),
@@ -1012,7 +1010,7 @@ class DashboardRepository {
           title: localizeActivityRow(r),
           subtitle: _l.activityAccount,
           statusLabel: _l.activityUpdated,
-          timestamp: DateTime.parse(r['created_at'] as String),
+          timestamp: DateTime.parse(r['created_at'] as String).toLocal(),
         ),
       );
     }
@@ -1331,16 +1329,6 @@ class DashboardRepository {
       return [];
     }
   }
-
-  Future<List<ActivityItem>> _fetchOutcomeReportActivity({int limit = 15}) =>
-      _fetchRequestsActivity(
-        rpc: 'get_my_outcome_reports',
-        timeKey: 'submitted_at',
-        type: ActivityType.outcomeReported,
-        title: _l.activityOutcomeReported,
-        subtitle: (r) => (r['program_name'] as String?) ?? '',
-        limit: limit,
-      );
 
   Future<List<ActivityItem>> _fetchAssistanceRequestActivity({
     int limit = 15,

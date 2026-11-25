@@ -455,10 +455,35 @@ extension FarmerListFilter on List<FarmerMemberModel> {
       }
     }
 
+    int statusRank(MemberStatus s) {
+      switch (s) {
+        case MemberStatus.pending:
+        case MemberStatus.draft:
+          return 0;
+        case MemberStatus.active:
+          return 1;
+        case MemberStatus.inactive:
+        case MemberStatus.suspended:
+          return 2;
+        case MemberStatus.rejected:
+          return 3;
+      }
+    }
+
     list.sort((a, b) {
-      final aRejected = a.memberStatus == MemberStatus.rejected;
-      final bRejected = b.memberStatus == MemberStatus.rejected;
-      if (aRejected != bRejected) return aRejected ? 1 : -1;
+      final rankA = statusRank(a.memberStatus);
+      final rankB = statusRank(b.memberStatus);
+      if (rankA != rankB) return rankA.compareTo(rankB);
+      if (rankA == 0) {
+        if (a.joinedAt != null && b.joinedAt != null) {
+          final cmp = b.joinedAt!.compareTo(a.joinedAt!);
+          if (cmp != 0) return cmp;
+        } else if (a.joinedAt != null) {
+          return -1;
+        } else if (b.joinedAt != null) {
+          return 1;
+        }
+      }
       return byOption(a, b);
     });
 

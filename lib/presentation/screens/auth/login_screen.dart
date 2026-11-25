@@ -14,6 +14,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/models/suspension_notice.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/auth_visuals.dart';
 import '../../widgets/suspension_dialogs.dart';
@@ -46,6 +47,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _authRepository = AuthRepository();
 
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   bool _isLoading = false;
   bool _isForgotPasswordLoading = false;
   String? _errorMessage;
@@ -57,6 +59,13 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _rememberMe = HiveService.getRememberMe();
+    if (_rememberMe) {
+      final saved = HiveService.getRememberedIdentifier();
+      if (saved != null) {
+        _identifierController.text = saved;
+      }
+    }
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 650),
@@ -103,6 +112,11 @@ class _LoginScreenState extends State<LoginScreen>
       final user = await (widget.signIn ?? _authRepository.login)(
         identifier: _identifierController.text,
         password: _passwordController.text,
+      );
+
+      await HiveService.saveRememberMe(
+        remember: _rememberMe,
+        identifier: _identifierController.text,
       );
 
       if (!mounted) return;
@@ -281,6 +295,13 @@ class _LoginScreenState extends State<LoginScreen>
                                 onTogglePassword: () => setState(
                                   () => _obscurePassword = !_obscurePassword,
                                 ),
+                                rememberMe: _rememberMe,
+                                onRememberMeChanged: (value) {
+                                  setState(() => _rememberMe = value);
+                                  if (!value) {
+                                    HiveService.saveRememberMe(remember: false);
+                                  }
+                                },
                                 errorMessage: _errorMessage,
                                 isLoading: _isLoading,
                                 onLogin: _handleLogin,
@@ -379,6 +400,8 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController passwordController;
   final bool obscurePassword;
   final VoidCallback onTogglePassword;
+  final bool rememberMe;
+  final ValueChanged<bool> onRememberMeChanged;
   final String? errorMessage;
   final bool isLoading;
   final VoidCallback onLogin;
@@ -392,6 +415,8 @@ class _AuthCard extends StatelessWidget {
     required this.passwordController,
     required this.obscurePassword,
     required this.onTogglePassword,
+    required this.rememberMe,
+    required this.onRememberMeChanged,
     required this.errorMessage,
     required this.isLoading,
     required this.onLogin,
@@ -448,30 +473,66 @@ class _AuthCard extends StatelessWidget {
                   onToggle: onTogglePassword,
                 ),
 
-                // Forgot password
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: isForgotPasswordLoading
-                        ? null
-                        : onForgotPassword,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 4,
+                // Remember me + Forgot password
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: InkWell(
+                        onTap: () => onRememberMeChanged(!rememberMe),
+                        borderRadius: BorderRadius.circular(8),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Checkbox(
+                                value: rememberMe,
+                                onChanged: (v) =>
+                                    onRememberMeChanged(v ?? false),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              Flexible(
+                                child: Text(
+                                  AppLocalizations.of(context).loginRememberMe,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      // 48 px tap height (the Android guideline); was a 17 px strip.
-                      minimumSize: const Size(48, 48),
-                      tapTargetSize: MaterialTapTargetSize.padded,
                     ),
-                    child: Text(
-                      AppLocalizations.of(context).enhForgotPassword,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.primary,
+                    TextButton(
+                      onPressed: isForgotPasswordLoading
+                          ? null
+                          : onForgotPassword,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        // 48 px tap height (the Android guideline); was a 17 px strip.
+                        minimumSize: const Size(48, 48),
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                      ),
+                      child: Text(
+                        AppLocalizations.of(context).enhForgotPassword,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
 
                 const SizedBox(height: 8),

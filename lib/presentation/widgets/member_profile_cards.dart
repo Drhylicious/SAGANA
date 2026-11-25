@@ -105,6 +105,19 @@ class MemberIdentityCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
+    final badgeColor =
+        statusColor ??
+        (profile.memberStatus == MemberStatus.rejected ||
+                profile.memberStatus == MemberStatus.suspended
+            ? AppConstants.errorRed
+            : profile.memberStatus == MemberStatus.inactive
+            ? cs.onSurfaceVariant
+            : profile.memberStatus == MemberStatus.pending ||
+                    profile.memberStatus == MemberStatus.draft
+            ? AppConstants.warningAmber
+            : profile.isVerified
+            ? AppConstants.successGreen
+            : AppConstants.warningAmber);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -137,30 +150,29 @@ class MemberIdentityCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: (statusColor ?? AppConstants.successGreen).withValues(
+                  color: badgeColor.withValues(
                     alpha: 0.10,
                   ),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
                   statusLabel ??
-                      (profile.memberStatus == MemberStatus.pending
-                      ? l10n.farmerDetailsPendingApplicantBadge
-                      : profile.memberStatus == MemberStatus.rejected
-                      ? l10n.farmerMgmtStatusRejectedLabel
-                      : profile.isVerified
-                      ? l10n.farmerDetailsActiveMemberBadge
-                      : l10n.farmerDetailsPendingVerificationBadge),
+                      (profile.memberStatus == MemberStatus.pending ||
+                              profile.memberStatus == MemberStatus.draft
+                          ? l10n.farmerDetailsPendingApplicantBadge
+                          : profile.memberStatus == MemberStatus.suspended
+                          ? l10n.farmerMgmtStatusSuspendedLabel
+                          : profile.memberStatus == MemberStatus.inactive
+                          ? l10n.analyticsInactive
+                          : profile.memberStatus == MemberStatus.rejected
+                          ? l10n.farmerMgmtStatusRejectedLabel
+                          : profile.isVerified
+                          ? l10n.farmerDetailsActiveMemberBadge
+                          : l10n.farmerDetailsPendingVerificationBadge),
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color:
-                        statusColor ??
-                        (profile.memberStatus == MemberStatus.rejected
-                            ? AppConstants.errorRed
-                            : profile.isVerified
-                            ? AppConstants.successGreen
-                            : AppConstants.warningAmber),
+                    color: badgeColor,
                   ),
                 ),
               ),

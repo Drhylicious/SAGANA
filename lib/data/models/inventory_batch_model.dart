@@ -118,6 +118,14 @@ class InventoryBatchModel {
   /// Everything that was left was reported as rotten: nothing can be sold.
   bool get isLost => hasLoss && availableKg <= 0 && reservedKg <= 0;
 
+  /// All remaining unhanded stock of this batch has already been recorded as
+  /// rotten/lost (even if an already-delivered order/offer awaits receipt).
+  bool get isFinalizedRotten => isLost || (hasLoss && availableKg <= 0);
+
+  /// Stock still open for the farmer to inspect or mark as rotten/lost.
+  bool get hasCheckableStock =>
+      !isFinalizedRotten && (availableKg > 0 || reservedKg > 0);
+
   /// Recorded past its shelf life and not confirmed yet: no selling channel
   /// accepts it until the Farmer confirms the produce.
   bool get isOnShelfLifeHold => shelfLife?.hold ?? false;

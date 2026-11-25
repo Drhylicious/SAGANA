@@ -118,6 +118,7 @@ _ProfileBadge _profileBadge(String? messageKey, AppLocalizations l10n) {
       return _ProfileBadge(l10n.buyerActivityBadgeDefault, RecentActivityTone.neutral,
           Icons.location_on_rounded, RecentActivityIconTone.info);
     case 'activityPasswordChanged':
+    case 'activityDeviceLogin':
     return _ProfileBadge(l10n.buyerActivityBadgeSecurity, RecentActivityTone.neutral,
         Icons.lock_outline_rounded, RecentActivityIconTone.primary);
   }

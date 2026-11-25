@@ -4,17 +4,6 @@
 
 class ProgramCompletionStatus {
   final String programId;
-  final int awaitingOutcome;
-  final int openReturns;
-
-  /// Failed outcomes whose latest cooperative decision is still "Pending Cooperative Decision".
-  final int pendingDecisions;
-
-  /// Failed outcomes marked "Eligible for Reassessment" whose second distribution has not started.
-  final int openReassessments;
-
-  /// Assistance requests from a Referred case that nobody has decided yet.
-  final int pendingAssistanceRequests;
 
   /// Product Sales: orders still open (Pending, Approved, Ready for Pickup, Out for Delivery,
   /// or handed over and waiting for the member's confirmation).
@@ -25,34 +14,17 @@ class ProgramCompletionStatus {
 
   const ProgramCompletionStatus({
     required this.programId,
-    this.awaitingOutcome = 0,
-    this.openReturns = 0,
-    this.pendingDecisions = 0,
-    this.openReassessments = 0,
-    this.pendingAssistanceRequests = 0,
     this.openOrders = 0,
     this.allocatedStock = 0,
   });
 
-  bool get isReady =>
-      awaitingOutcome == 0 &&
-      openReturns == 0 &&
-      pendingDecisions == 0 &&
-      openReassessments == 0 &&
-      pendingAssistanceRequests == 0 &&
-      openOrders == 0 &&
-      allocatedStock == 0;
+  bool get isReady => openOrders == 0 && allocatedStock == 0;
 
   factory ProgramCompletionStatus.fromMap(Map<String, dynamic> m) {
     final b = (m['blockers'] as Map?)?.cast<String, dynamic>() ?? const {};
     int n(String k) => (b[k] as num?)?.toInt() ?? 0;
     return ProgramCompletionStatus(
       programId: m['program_id'] as String,
-      awaitingOutcome: n('awaiting_outcome'),
-      openReturns: n('open_returns'),
-      pendingDecisions: n('pending_decisions'),
-      openReassessments: n('open_reassessments'),
-      pendingAssistanceRequests: n('pending_assistance_requests'),
       openOrders: n('open_orders'),
       allocatedStock: n('allocated_stock'),
     );
@@ -63,25 +35,18 @@ class CooperativeProgram {
   final String id;
   final String programName;
   final String programType;
-  final String benefitType; // 'grant' | 'revenue_share'
   final String? description;
   final int seasonYear;
   final String status;
   final double? budget;
   final int memberCount;
-  final double? expectedReturnPercent;
   // Which cooperative_inventory.category this program distributes from —
   // decoupled from programType (a free-text display label like "Peanut" or
   // "Livestock" that doesn't necessarily match an inventory category name).
   // Null for programs created before this field existed, or for programs
   // that intentionally distribute across any category.
   final String? distributionCategory;
-  // 'distribution' (default — the existing benefit/loan-ROI workflow) or
-  // 'sales' (the cooperative sells its own inventory products to enrolled
-  // members via program_products/program_product_purchases — see
-  // supabase_schema_program_product_sales.sql). Orthogonal to benefitType,
-  // which answers "how does the member owe the coop back" — a question
-  // that doesn't apply to a sale.
+  // 'distribution' (Free Distribution) or 'sales' (Product Sales).
   final String programPurpose;
   final String? imageUrl;
   // The ONE inventory item a Distribution program hands out (Phase 5A).
@@ -91,17 +56,6 @@ class CooperativeProgram {
   final String? distributionItemName;
   final String? distributionItemUnit;
   final double? distributionItemStock;
-  // Harvest Return programs: what the cooperative expects back, set per
-  // program by the cooperative — never a fixed quantity or a percentage.
-  final String? returnCropId;
-  final String? returnCropName;
-  final double? returnQuantity;
-  final String? returnUnit;
-  // The DEFAULT Inventory item a Harvest Return Farmer returns (null = the item they were given). Each
-  // member's own agreed return can differ; see [ProgramMember.returnItemId].
-  final String? returnItemId;
-  final String? returnItemName;
-  final String? returnItemUnit;
   // Product Sales programs: percent off the regular price an ENROLLED member
   // pays (Balik-Tangkilik at the point of sale). Set per program; 0 = none.
   final double memberDiscountPercent;
@@ -115,13 +69,11 @@ class CooperativeProgram {
     required this.id,
     required this.programName,
     required this.programType,
-    required this.benefitType,
     this.description,
     required this.seasonYear,
     required this.status,
     this.budget,
     required this.memberCount,
-    this.expectedReturnPercent,
     this.distributionCategory,
     this.programPurpose = 'distribution',
     this.imageUrl,
@@ -129,13 +81,6 @@ class CooperativeProgram {
     this.distributionItemName,
     this.distributionItemUnit,
     this.distributionItemStock,
-    this.returnCropId,
-    this.returnCropName,
-    this.returnQuantity,
-    this.returnUnit,
-    this.returnItemId,
-    this.returnItemName,
-    this.returnItemUnit,
     this.memberDiscountPercent = 0,
     this.sourceCategories = const [],
     this.createdAt,
@@ -143,20 +88,15 @@ class CooperativeProgram {
 
   factory CooperativeProgram.fromMap(Map<String, dynamic> m) {
     final item = m['distribution_item'] as Map<String, dynamic>?;
-    final crop = m['return_crop'] as Map<String, dynamic>?;
     return CooperativeProgram(
         id: m['id'] as String,
         programName: m['program_name'] as String,
         programType: m['program_type'] as String? ?? 'other',
-        benefitType: m['benefit_type'] as String? ?? 'grant',
         description: m['description'] as String?,
         seasonYear: m['season_year'] as int? ?? DateTime.now().year,
         status: m['status'] as String? ?? 'active',
         budget: m['budget'] != null ? (m['budget'] as num).toDouble() : null,
         memberCount: m['member_count'] as int? ?? 0,
-        expectedReturnPercent: m['expected_return_percent'] != null
-            ? (m['expected_return_percent'] as num).toDouble()
-            : null,
         distributionCategory: m['distribution_category'] as String?,
         programPurpose: m['program_purpose'] as String? ?? 'distribution',
         imageUrl: m['image_url'] as String?,
@@ -164,13 +104,6 @@ class CooperativeProgram {
         distributionItemName: item?['item_name'] as String?,
         distributionItemUnit: item?['unit'] as String?,
         distributionItemStock: (item?['quantity_on_hand'] as num?)?.toDouble(),
-        returnCropId: m['return_crop_id'] as String?,
-        returnCropName: crop?['crop_name'] as String?,
-        returnQuantity: (m['return_quantity'] as num?)?.toDouble(),
-        returnUnit: m['return_unit'] as String?,
-        returnItemId: m['return_item_id'] as String?,
-        returnItemName: (m['return_item'] as Map?)?['item_name'] as String?,
-        returnItemUnit: (m['return_item'] as Map?)?['unit'] as String?,
         memberDiscountPercent:
             (m['member_discount_percent'] as num?)?.toDouble() ?? 0,
         sourceCategories: ((m['source_categories'] as List?) ?? const [])
@@ -183,15 +116,10 @@ class CooperativeProgram {
   }
 
   bool get isActive => status == 'active';
-  // 'revenue_share' is the stored value; it now means a HARVEST RETURN (the
-  // farmer returns harvested produce). The old money-percentage meaning is
-  // retired — the stored value is kept so existing rows and RPCs still work.
-  bool get isRevenueShare => benefitType == 'revenue_share';
-  bool get isHarvestReturn => isRevenueShare;
   bool get isSalesProgram => programPurpose == 'sales';
   bool get hasMemberDiscount => isSalesProgram && memberDiscountPercent > 0;
 
-  /// Required fields this program still lacks (Distribution and Product Sales).
+  /// Required fields this program still lacks (Free Distribution and Product Sales).
   /// Mirrors program_missing_fields() in the database (keep the two in step).
   /// An Incomplete program is only labelled: a Sales program keeps selling.
   List<String> get missingFields => programMissingFields(
@@ -202,8 +130,6 @@ class CooperativeProgram {
         description: description,
         budget: budget,
         distributionItemId: distributionItemId,
-        isHarvestReturn: isHarvestReturn,
-        returnQuantity: returnQuantity,
         sourceCount: sourceCategories.length,
       );
 
@@ -369,8 +295,6 @@ List<String> programMissingFields({
   required String? description,
   required double? budget,
   required String? distributionItemId,
-  required bool isHarvestReturn,
-  required double? returnQuantity,
   int sourceCount = 0,
 }) {
   bool blank(String? v) => v == null || v.trim().isEmpty;
@@ -380,7 +304,6 @@ List<String> programMissingFields({
     if (blank(imageUrl)) 'photo',
     if (blank(description)) 'description',
     if (budget == null || budget <= 0) 'budget',
-    // A Harvest Return quantity is agreed per Farmer when the item is distributed, not on the program.
     // Where it distributes from (inventory categories). An older Distribution
     // program that still has its single configured item counts until it is edited.
     if (sourceCount == 0 && (purpose == 'sales' || distributionItemId == null))
@@ -593,34 +516,6 @@ class ProgramProductStats {
       );
 }
 
-/// A Farmer's request for another distribution after "Eligible for Reassessment" (staff can only approve it).
-class RedistributionRequest {
-  final String id;
-  final String memberId;
-  final String note;
-  final DateTime? requestedAt;
-  const RedistributionRequest({
-    required this.id,
-    required this.memberId,
-    required this.note,
-    this.requestedAt,
-  });
-}
-
-/// An earlier, failed distribution of a Farmer who was then given another one (kept as history).
-class EarlierRound {
-  final String? itemName;
-  final String? unit;
-  final double? quantity;
-  final DateTime? distributedAt;
-  const EarlierRound({
-    this.itemName,
-    this.unit,
-    this.quantity,
-    this.distributedAt,
-  });
-}
-
 class ProgramMember {
   final String id;
   final String programId;
@@ -634,20 +529,6 @@ class ProgramMember {
   // The item's name and unit at the moment it was given (the Inventory item's unit).
   final String? distributedItemName;
   final String? distributedUnit;
-  // The agreed return for this member's item (set at distribution; Harvest Return programs only).
-  final String? returnItemId;
-  final double? returnQuantity;
-  final double? amountReturned;
-  final DateTime? settledAt;
-  // Phase 8 / Issue 3's Loan/ROI workflow — the outcome check-in recorded
-  // on a distributed benefit. Null/'pending' until an admin records it.
-  final String? distributionOutcome; // null | 'pending' | 'thriving' | 'failed'
-  final DateTime? outcomeRecordedAt;
-  final String? convertedLoanId;
-  // 1 for the first distribution; 2, 3... when the cooperative gave another item after a failed outcome.
-  final int roundNo;
-  // For a second (or later) round: the item the Farmer asked for again (the failed round's item).
-  final String? requestedItemId;
 
   const ProgramMember({
     required this.id,
@@ -661,22 +542,9 @@ class ProgramMember {
     this.distributedAt,
     this.distributedItemName,
     this.distributedUnit,
-    this.returnItemId,
-    this.returnQuantity,
-    this.amountReturned,
-    this.settledAt,
-    this.distributionOutcome,
-    this.outcomeRecordedAt,
-    this.convertedLoanId,
-    this.roundNo = 1,
-    this.requestedItemId,
   });
 
   bool get isDistributed => distributedAt != null;
-  bool get isSettled => settledAt != null;
-  bool get isOutcomeRecorded => distributionOutcome == 'thriving' || distributionOutcome == 'failed';
-  bool get isThriving => distributionOutcome == 'thriving';
-  bool get isFailed => distributionOutcome == 'failed';
 
   factory ProgramMember.fromMap(Map<String, dynamic> m) => ProgramMember(
     id: m['id'] as String,
@@ -694,21 +562,6 @@ class ProgramMember {
         : null,
     distributedItemName: m['distributed_item_name'] as String?,
     distributedUnit: m['distributed_unit'] as String?,
-    returnItemId: m['return_item_id'] as String?,
-    returnQuantity: (m['return_quantity'] as num?)?.toDouble(),
-    amountReturned: m['amount_returned'] != null
-        ? (m['amount_returned'] as num).toDouble()
-        : null,
-    settledAt: m['settled_at'] != null
-        ? DateTime.parse(m['settled_at'] as String)
-        : null,
-    distributionOutcome: m['distribution_outcome'] as String?,
-    outcomeRecordedAt: m['outcome_recorded_at'] != null
-        ? DateTime.parse(m['outcome_recorded_at'] as String)
-        : null,
-    convertedLoanId: m['converted_loan_id'] as String?,
-    roundNo: (m['round_no'] as num?)?.toInt() ?? 1,
-    requestedItemId: m['requested_item_id'] as String?,
   );
 }
 
@@ -725,8 +578,6 @@ class DistributionItem {
   // The item's type and (crop types) its Crop Master crop, from Inventory Management.
   final String itemType;
   final String? cropMasterId;
-  // What comes back when a Farmer returns this item (Inventory's "When returned, it comes back as").
-  final String? returnItemId;
 
   const DistributionItem({
     required this.id,
@@ -738,7 +589,6 @@ class DistributionItem {
     this.sourceFarmerId,
     this.itemType = 'non_crop',
     this.cropMasterId,
-    this.returnItemId,
   });
 
   /// Just the item's name ("Tomato"), like every other inventory card. Where it
@@ -755,7 +605,6 @@ class DistributionItem {
         sourceFarmerId: m['source_farmer_id'] as String?,
         itemType: m['item_type'] as String? ?? 'non_crop',
         cropMasterId: m['crop_master_id'] as String?,
-        returnItemId: m['return_item_id'] as String?,
       );
 }
 

@@ -9,6 +9,7 @@ import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : FlutterActivity() {
     private var downloads: ReportDownloadsChannel? = null
+    private var deviceInfo: DeviceInfoChannel? = null
 
     // High-importance channel so phone notifications show on the lock screen and
     // pop up over other apps. Must match PushNotificationService.androidChannelId.
@@ -30,6 +31,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         downloads = ReportDownloadsChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        deviceInfo = DeviceInfoChannel(this, flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun onRequestPermissionsResult(
@@ -44,6 +46,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         downloads?.dispose()
         downloads = null
+        deviceInfo?.dispose()
+        deviceInfo = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

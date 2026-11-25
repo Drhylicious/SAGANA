@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_constants.dart';
+import '../services/device_name_service.dart';
 import '../services/encrypted_box.dart';
 
 // ─── Settings Model (snapshot of all user preferences) ───────────────────────
@@ -114,6 +115,19 @@ class SettingsRepository {
       email: email,
       password: currentPassword,
     );
+
+    // Re-authentication issues a new session_id; silently refresh the active
+    // session record so the upcoming password update, activity log, and logout
+    // pass the single-session gate without logging a cross-device event.
+    try {
+      await _client.rpc(
+        'claim_active_session',
+        params: {
+          'p_device_name': await DeviceNameService.getDeviceName(),
+          'p_silent': true,
+        },
+      );
+    } catch (_) {}
 
     // Step 2: Update to new password
     await _client.auth.updateUser(UserAttributes(password: newPassword));

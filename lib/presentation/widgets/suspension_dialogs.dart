@@ -351,3 +351,89 @@ Widget _noticeLine(String label, String value) {
     ],
   );
 }
+
+/// Shown when the same account signs in on another device and ends this
+/// device's session. Non-dismissible; tapping OK clears the local session and
+/// returns to Login.
+Future<void> showSessionReplacedNotice({
+  required BuildContext context,
+  required String deviceName,
+}) {
+  final l10n = AppLocalizations.of(context);
+  final cleanDevice = deviceName.trim();
+  final body = cleanDevice.isEmpty
+      ? l10n.sessionReplacedGenericBody
+      : l10n.sessionReplacedBody(cleanDevice);
+
+  return AppDialog.show<void>(
+    context: context,
+    barrierDismissible: false,
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: WebSafeBlurContainer(
+            blurSigma: 18,
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            decoration: BoxDecoration(
+              color: AppConstants.errorRed.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.devices_other_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.sessionReplacedTitle,
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    body,
+                    style: GoogleFonts.inter(
+                      fontSize: 13.5,
+                      height: 1.45,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppConstants.errorRed,
+                      ),
+                      child: Text(l10n.suspendNoticeOk),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}

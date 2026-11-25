@@ -21,9 +21,8 @@ void main() {
   group('Pending applicant', () {
     final actions = MemberStatus.pending.listActions;
 
-    test('can only be viewed, approved or disapproved', () {
+    test('can only be approved or disapproved (tap card opens profile)', () {
       expect(actions, [
-        MemberListAction.viewProfile,
         MemberListAction.approve,
         MemberListAction.disapprove,
       ]);
@@ -48,7 +47,6 @@ void main() {
       test('${status.name} gets every member action and none of the review ones', () {
         final actions = status.listActions;
         expect(actions, [
-          MemberListAction.viewProfile,
           MemberListAction.sendNotification,
           MemberListAction.resetPassword,
           MemberListAction.issueLoan,
@@ -80,21 +78,14 @@ void main() {
     });
   });
 
-  test('Suspended member: no new loan, but can be notified, paid and reactivated', () {
+  test('Suspended member: can only be reactivated from list menu', () {
     final actions = MemberStatus.suspended.listActions;
-    expect(actions, isNot(contains(MemberListAction.issueLoan)));
-    expect(actions, containsAll([
-      MemberListAction.sendNotification,
-      MemberListAction.resetPassword,
-      MemberListAction.recordLoanPayment,
-      MemberListAction.toggleSuspend,
-    ]));
+    expect(actions, [MemberListAction.toggleSuspend]);
     expect(MemberStatus.suspended.isApplicant, isFalse);
   });
 
   test('Disapproved applicant: notify, reset password, delete; nothing financial', () {
     expect(MemberStatus.rejected.listActions, [
-      MemberListAction.viewProfile,
       MemberListAction.sendNotification,
       MemberListAction.resetPassword,
       MemberListAction.deleteApplicant,

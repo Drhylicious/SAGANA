@@ -9,7 +9,9 @@ import '../../core/utils/person_name.dart';
 import '../models/suspension_notice.dart';
 import '../models/user_model.dart';
 import 'account_status_watcher.dart';
+import 'active_session_watcher.dart';
 import 'app_settings_service.dart';
+import 'device_name_service.dart';
 import 'guest_mode_service.dart';
 import 'hive_service.dart';
 import 'market_types_service.dart';
@@ -164,6 +166,19 @@ class AuthService {
       if (e is AuthException || e is AccountSuspendedException) rethrow;
     }
 
+    // Claim sole active device session and revoke older refresh tokens on any
+    // previously signed-in device (all roles: admin, officer, farmer, buyer).
+    try {
+      final deviceName = await DeviceNameService.getDeviceName();
+      await _client.rpc(
+        'claim_active_session',
+        params: {'p_device_name': deviceName},
+      );
+      await _client.auth.signOut(scope: SignOutScope.others);
+    } catch (e) {
+      debugPrint('claim_active_session / signOut(others) skipped: $e');
+    }
+
     // Stamp last activity for the derived "Inactive" indicator (Decision
     // D8). Fire-and-forget — never let this block or fail a login.
     touchLastActive(force: true);
@@ -220,6 +235,7 @@ class AuthService {
     StaffPermissions.instance.start();
 
     AccountStatusWatcher.instance.start();
+    ActiveSessionWatcher.instance.start();
 
     // A real session replaces any guest exploration. Done last, so the guest
     // screens are only rebuilt once the signed-in account is fully set up (and
@@ -430,17 +446,18 @@ class AuthService {
   /// main.dart does not treat it as the session being lost.
   static bool endingSession = false;
 
-  static Future<void> logout() async {
+  static Future<void> logout({bool skipReleaseSession = false}) async {
     endingSession = true;
     try {
-      await _logout();
+      await _logout(skipReleaseSession: skipReleaseSession);
     } finally {
       endingSession = false;
     }
   }
 
-  static Future<void> _logout() async {
+  static Future<void> _logout({bool skipReleaseSession = false}) async {
     AccountStatusWatcher.instance.stop();
+    ActiveSessionWatcher.instance.stop();
     MarketTypes.instance.stop();
     StaffPermissions.instance.clear();
     FeatureRestrictionService.instance.clear();
@@ -448,7 +465,12 @@ class AuthService {
     // Stop pushing this user's notifications to this phone while the session
     // can still authorise it.
     await PushNotificationService.instance.unregister();
-    await _client.auth.signOut();
+    if (!skipReleaseSession && _client.auth.currentSession != null) {
+      try {
+        await _client.rpc('release_active_session');
+      } catch (_) {}
+    }
+    await _client.auth.signOut(scope: SignOutScope.local);
     await HiveService.clearUserSession();
   }
 
@@ -467,6 +489,7 @@ class AuthService {
     endingSession = true;
     try {
       AccountStatusWatcher.instance.stop();
+      ActiveSessionWatcher.instance.stop();
       StaffPermissions.instance.clear();
       FeatureRestrictionService.instance.clear();
       if (_client.auth.currentSession != null) {

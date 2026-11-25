@@ -12,9 +12,7 @@ import '../../widgets/support_info_widgets.dart';
 ///
 /// The "what SAGANA does for you" line follows the viewer: a signed-in role, or
 /// the Buyer / Farmer preview a guest is exploring. The team section is a single
-/// column of individual cards (picture, full name, role). Pictures are
-/// placeholders: give a member a [_TeamMember.photo] in [_team] below to replace
-/// the avatar; nothing else on the screen needs to change.
+/// column of individual cards (picture, full name, role, description).
 class AboutSaganaScreen extends StatelessWidget {
   const AboutSaganaScreen({super.key});
 
@@ -169,32 +167,39 @@ class AboutSaganaScreen extends StatelessWidget {
     );
   }
 
-  // The team. Names are people, not translated text. Swap a placeholder
-  // picture for a real one by passing an image to [_TeamMember.photo].
+  // The team. Names are people, not translated text.
   static List<_TeamMember> _team(AppLocalizations l10n) => [
     _TeamMember(
       name: 'Jhon Drhy M. Salangsang',
       role: l10n.aboutRoleLeadDeveloper,
+      description: l10n.aboutRoleLeadDeveloperDesc,
       icon: Icons.code_rounded,
       color: AppConstants.primaryGreen,
+      photo: const AssetImage('assets/images/jhon-drhy.jpg'),
     ),
     _TeamMember(
       name: 'Marc Louie M. Yañez',
       role: l10n.aboutRoleUiUxDesigner,
+      description: l10n.aboutRoleUiUxDesignerDesc,
       icon: Icons.palette_rounded,
       color: AppConstants.programPurple,
+      photo: const AssetImage('assets/images/marc-louie.jpg'),
     ),
     _TeamMember(
       name: 'John Harvey Revilloza',
       role: l10n.aboutRoleSystemAnalyst,
+      description: l10n.aboutRoleSystemAnalystDesc,
       icon: Icons.account_tree_rounded,
       color: AppConstants.buyerBlue,
+      photo: const AssetImage('assets/images/john-harvey.jpg'),
     ),
     _TeamMember(
       name: 'John Harold Revilloza',
       role: l10n.aboutRoleQaTester,
+      description: l10n.aboutRoleQaTesterDesc,
       icon: Icons.fact_check_rounded,
       color: AppConstants.amber,
+      photo: const AssetImage('assets/images/john-harold.jpg'),
     ),
   ];
 }
@@ -202,6 +207,7 @@ class AboutSaganaScreen extends StatelessWidget {
 class _TeamMember {
   final String name;
   final String role;
+  final String description;
   final IconData icon;
   final Color color;
 
@@ -211,15 +217,16 @@ class _TeamMember {
   const _TeamMember({
     required this.name,
     required this.role,
+    required this.description,
     required this.icon,
     required this.color,
     this.photo,
   });
 }
 
-/// One team member in their own centered card: a picture, the full name and the
-/// role, and nothing else. Each card carries its role colour (banner, ring and
-/// role pill) so the four read as one team while staying distinct.
+/// One team member in their own centered card: a picture, the full name, the
+/// role, and a short description. Each card carries its role colour (banner,
+/// ring and role pill) so the four read as one team while staying distinct.
 class _TeamCard extends StatelessWidget {
   final _TeamMember member;
 
@@ -291,20 +298,24 @@ class _TeamCard extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: c, width: 3),
                           color: c.withValues(alpha: 0.12),
-                          image: member.photo == null
-                              ? null
-                              : DecorationImage(
-                                  image: member.photo!,
-                                  fit: BoxFit.cover,
+                        ),
+                        child: ClipOval(
+                          child: member.photo == null
+                              ? Icon(
+                                  Icons.person_rounded,
+                                  size: 54,
+                                  color: c.withValues(alpha: 0.7),
+                                )
+                              : Transform.scale(
+                                  scale: 1.45,
+                                  alignment: const Alignment(0, 0.35),
+                                  child: Image(
+                                    image: member.photo!,
+                                    fit: BoxFit.cover,
+                                    alignment: const Alignment(0, 0.25),
+                                  ),
                                 ),
                         ),
-                        child: member.photo == null
-                            ? Icon(
-                                Icons.person_rounded,
-                                size: 54,
-                                color: c.withValues(alpha: 0.7),
-                              )
-                            : null,
                       ),
                     ),
                   ),
@@ -352,6 +363,16 @@ class _TeamCard extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    member.description,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      height: 1.55,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],

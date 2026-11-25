@@ -24,15 +24,36 @@ class InventoryRepository {
     try {
       final rows = await OfflineCache.load(
         screen: 'inventory_batches',
-        fetch: () => withShelfLifeEmbed(
-          _batchColumns,
-          _batchShelfLife,
-          (columns) => _client
-              .from('inventory_batches')
-              .select(columns)
-              .eq('farmer_id', _userId)
-              .order('created_at', ascending: false),
-        ),
+        fetch: () async {
+          final response = await withShelfLifeEmbed(
+            _batchColumns,
+            _batchShelfLife,
+            (columns) => _client
+                .from('inventory_batches')
+                .select(columns)
+                .eq('farmer_id', _userId)
+                .order('created_at', ascending: false),
+          );
+          final cropIds = response
+              .map((r) => r['crop_id'] as String?)
+              .whereType<String>()
+              .toSet()
+              .toList();
+          final imageMap = await fetchFarmerCropImageMap(_client, cropIds);
+          final categoryMap = await fetchFarmerCropCategoryMap(
+            _client,
+            cropIds,
+          );
+          return response
+              .map<Map<String, dynamic>>(
+                (row) => {
+                  ...row,
+                  'display_image_url': imageMap[row['crop_id']],
+                  'category': categoryMap[row['crop_id']],
+                },
+              )
+              .toList();
+        },
       );
       return rows.map((row) => InventoryBatchModel.fromMap(row)).toList();
     } catch (_) {

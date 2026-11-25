@@ -237,8 +237,10 @@ class _SplashScreenState extends State<SplashScreen>
           }
         }
       } else {
-        // No session at all: the public Welcome screen.
-        targetRoute = AppRoutes.welcome;
+        // Signed out: skip Welcome and open Login when Remember Me is active.
+        targetRoute = HiveService.getRememberMe()
+            ? AppRoutes.login
+            : AppRoutes.welcome;
       }
     }
 

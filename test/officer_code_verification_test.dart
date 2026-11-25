@@ -1058,7 +1058,7 @@ void main() {
       );
       expect(menu, isNot(contains(MemberListAction.approve)));
       expect(menu, isNot(contains(MemberListAction.disapprove)));
-      expect(menu, contains(MemberListAction.viewProfile));
+      expect(menu, isEmpty);
     });
 
     test('Officer: still decides a self-registered applicant', () {

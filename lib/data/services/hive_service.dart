@@ -161,9 +161,8 @@ class HiveService {
             .toList(),
       );
     }
-    await (await EncryptedBox.open(AppConstants.hiveBoxExportHistory)).clear();
-    // Viewing snapshots belong to the signed-out user. Queued records are not
-    // touched: they stay on the device for that user's next sign-in.
+    // Viewing snapshots belong to the signed-out user. Export history and
+    // queued records are owner-scoped and preserved across sign-outs.
     await _cacheBox.clear();
   }
 
@@ -536,6 +535,7 @@ class HiveService {
   static Future<void> addExportHistoryEntry(Map<String, dynamic> entry) async {
     final id = entry['id'] as String;
     await _exportHistoryBox.put(id, _owned(entry));
+    AppEventService.instance.notify();
   }
 
   static List<Map<String, dynamic>> getExportHistory() {
@@ -551,6 +551,37 @@ class HiveService {
 
   static Future<void> removeExportHistoryEntry(String id) async {
     await _exportHistoryBox.delete(id);
+    AppEventService.instance.notify();
+  }
+
+  // ─── Remember Me (identifier only, never password) ─────────────────────────
+  // Stored in encrypted settings_box so it survives clearUserSession().
+  static bool getRememberMe() {
+    if (!Hive.isBoxOpen(AppConstants.hiveBoxSettings)) return false;
+    return _settingsBox.get(AppConstants.hiveKeyRememberMe, defaultValue: false)
+        as bool;
+  }
+
+  static String? getRememberedIdentifier() {
+    if (!Hive.isBoxOpen(AppConstants.hiveBoxSettings)) return null;
+    final raw =
+        _settingsBox.get(AppConstants.hiveKeyRememberedIdentifier) as String?;
+    final trimmed = raw?.trim();
+    return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+  }
+
+  static Future<void> saveRememberMe({
+    required bool remember,
+    String? identifier,
+  }) async {
+    if (!Hive.isBoxOpen(AppConstants.hiveBoxSettings)) return;
+    await _settingsBox.put(AppConstants.hiveKeyRememberMe, remember);
+    final trimmed = identifier?.trim() ?? '';
+    if (remember && trimmed.isNotEmpty) {
+      await _settingsBox.put(AppConstants.hiveKeyRememberedIdentifier, trimmed);
+    } else if (!remember) {
+      await _settingsBox.delete(AppConstants.hiveKeyRememberedIdentifier);
+    }
   }
 
   // ─── Harvest Queue (offline harvest submission) ──────────────────────────────

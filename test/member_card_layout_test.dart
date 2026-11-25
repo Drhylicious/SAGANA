@@ -100,8 +100,6 @@ void main() {
         id: 'p1',
         programName: purpose == 'sales' ? 'Peanut Cookies' : 'Peanut Seed Distribution',
         programType: 'Crop',
-        // "Waiting to report" (days waiting, Remind) exists only on a Harvest Return program.
-        benefitType: 'revenue_share',
         programPurpose: purpose,
         seasonYear: 2026,
         status: 'active',

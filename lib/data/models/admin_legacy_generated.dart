@@ -65,6 +65,7 @@ AdminLogMessage? parseLegacyAdminLog(String text) {
     (RegExp('^Scheduled "(.+?)" for a program\\.\$'), 'adminLogProgramActivityCreated', ['title']),
     (RegExp('^Deleted a program activity\\.\$'), 'adminLogProgramActivityDeleted', []),
     (RegExp('^Changed their account password\\.\$'), 'adminLogPasswordChanged', []),
+    (RegExp('^Signed in on (.+?) \\(previous device signed out\\)\$'), 'activityDeviceLogin', ['device']),
     (RegExp('^Added inventory item "(.+?)" \\((.+?)\\)\\.\$'), 'adminLogInventoryItemAdded', ['name', 'category']),
     (RegExp('^Added (.+?) units of stock \\((.+?)\\)\\.\$'), 'adminLogStockAdded', ['qty', 'type']),
     (RegExp('^Deducted (.+?) units of stock \\((.+?)\\)\\.\$'), 'adminLogStockDeducted', ['qty', 'type']),

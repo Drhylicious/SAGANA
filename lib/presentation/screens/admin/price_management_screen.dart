@@ -2095,8 +2095,17 @@ class _EffectiveDateField extends StatelessWidget {
                   ),
                 );
                 if (picked != null) {
-                  field.didChange(picked);
-                  onChanged(picked);
+                  final now = DateTime.now();
+                  final isToday =
+                      picked.year == now.year &&
+                      picked.month == now.month &&
+                      picked.day == now.day;
+                  // Preserve current time-of-day when today is picked so a
+                  // newly saved price always sorts after earlier entries from
+                  // today instead of falling behind at 00:00:00.
+                  final resolved = isToday ? now : picked;
+                  field.didChange(resolved);
+                  onChanged(resolved);
                 }
               },
               child: Container(

@@ -12,12 +12,9 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_error_message.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/repositories/category_repository.dart';
-import '../../../data/models/program_return_model.dart';
-import '../../widgets/program_return_panel.dart';
 import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/program_model.dart';
 import '../../../data/models/program_enrollment_request_model.dart';
-import '../../../data/models/program_outcome_model.dart';
 import '../../../data/repositories/program_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
@@ -36,7 +33,7 @@ import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/report_summary_widgets.dart'
     show ReportIconStatCard, ReportSectionCard;
 
-// ── Screen ───────────────────────────────────────────────────────────────────
+// â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class ProgramManagementScreen extends StatefulWidget {
   const ProgramManagementScreen({super.key});
@@ -57,7 +54,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   // Crop, Livestock, Processed Products and any type added since.
   List<String> _programTypes = [];
   int _pendingEnrollmentRequestCount = 0;
-  int _pendingOutcomeCount = 0;
   Map<String, ProgramCompletionStatus> _completion = {};
   bool _isLoading = true;
   bool _isOnline = true;
@@ -66,10 +62,10 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   String _searchQuery = '';
 
   // Only two statuses: Active (open to enrollment, distribution, purchases)
-  // and Completed (ended — existing members can still be processed).
+  // and Completed (ended â€” existing members can still be processed).
 
   // program_purpose is a DB-constrained 2-value column
-  // (distribution/sales) — the right, stable basis for these chips.
+  // (distribution/sales) â€” the right, stable basis for these chips.
   // program_type (the separate free-text field used for each card's
   // icon/color) is intentionally not touched here.
   List<CooperativeProgram> get _displayedPrograms {
@@ -111,11 +107,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       _repo.fetchCompletionStatuses(),
       CategoryRepository().fetchInventoryCategories(),
       CategoryRepository().fetchProgramTypes(),
-      // The red dot on the menu must not stop the screen from loading.
-      _repo
-          .fetchOutcomeReports()
-          .then((r) => r.where((x) => x.isPending).length)
-          .catchError((_) => 0),
     ]);
     if (!mounted) return;
     setState(() {
@@ -123,7 +114,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       _completion = results[2] as Map<String, ProgramCompletionStatus>;
       _inventoryCategories = results[3] as List<String>;
       _programTypes = results[4] as List<String>;
-      _pendingOutcomeCount = results[5] as int;
       _pendingEnrollmentRequestCount =
           (results[1] as List<ProgramEnrollmentRequest>).length;
       _isLoading = false;
@@ -192,7 +182,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     }
   }
 
-  // ─── Mark as Completed ──────────────────────────────────────────────────
+  // â”€â”€â”€ Mark as Completed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // The only way to close a program (there is no delete, and the status is not
   // editable). It is allowed only when nothing is left to process; the
   // database enforces the same rule, so this checklist is not the only guard.
@@ -211,20 +201,10 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
 
     if (status == null || !status.isReady) {
       final reasons = <String>[
-        if ((status?.awaitingOutcome ?? 0) > 0)
-          l10n.programMgmtBlockedAwaiting(status!.awaitingOutcome),
         if ((status?.openOrders ?? 0) > 0)
           l10n.programMgmtBlockedOpenOrders(status!.openOrders),
         if ((status?.allocatedStock ?? 0) > 0)
           l10n.programMgmtBlockedAllocated(status!.allocatedStock),
-        if ((status?.openReturns ?? 0) > 0)
-          l10n.programMgmtBlockedReturns(status!.openReturns),
-        if ((status?.pendingDecisions ?? 0) > 0)
-          l10n.programMgmtBlockedDecisions(status!.pendingDecisions),
-        if ((status?.openReassessments ?? 0) > 0)
-          l10n.programMgmtBlockedReassess(status!.openReassessments),
-        if ((status?.pendingAssistanceRequests ?? 0) > 0)
-          l10n.programMgmtBlockedAssistance(status!.pendingAssistanceRequests),
         if (status == null) l10n.programMgmtBlockedUnknown,
       ];
       await showDialog<void>(
@@ -458,7 +438,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           ? _trimQty(existing.memberDiscountPercent)
           : '',
     );
-    String selectedBenefitType = existing?.benefitType ?? 'grant';
     String selectedPurpose = existing?.programPurpose ?? 'distribution';
     // The inventory categories this program distributes from (both program types).
     final selectedSources = <String>[...?existing?.sourceCategories];
@@ -558,14 +537,12 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                   createdId = await _repo.createProgram(
                     name: nameCtrl.text,
                     type: selectedType!,
-                    benefitType: isDistribution ? selectedBenefitType : 'grant',
                     description: descCtrl.text.trim().isEmpty
                         ? null
                         : descCtrl.text,
                     budget: budget,
                     distributionCategory: category,
                     distributionItemId: null,
-                    // Harvest Return: what comes back is set per Farmer at distribution.
                     programPurpose: selectedPurpose,
                     imageUrl: imageUrl,
                     memberDiscountPercent: discountToSave,
@@ -845,7 +822,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                         );
                       },
                     ),
-                    // Purpose is fixed once a program exists — switching an
+                    // Purpose is fixed once a program exists â€” switching an
                     // existing program (which may already have members and
                     // distributions) between purposes is a data-integrity
                     // question this screen deliberately does not handle.
@@ -878,46 +855,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     if (isDistribution) ...[
                       const SizedBox(height: 12),
                       sourcesField(),
-                      const SizedBox(height: 12),
-                      // Chosen when the program is created, then locked: members' outcomes,
-                      // returns and records depend on it (the database refuses a change too).
-                      if (existing == null)
-                        AppDropdownField<String>(
-                          value: selectedBenefitType,
-                          hintText: l10n.programMgmtSelectBenefitTypeHint,
-                          labelText: l10n.programMgmtBenefitTypeLabel,
-                          items: const ['grant', 'revenue_share'],
-                          itemLabel: (v) => v == 'grant'
-                              ? l10n.programMgmtBenefitGrant
-                              : l10n.programMgmtBenefitRevenueShare,
-                          onChanged: (v) => setSheet(
-                            () =>
-                                selectedBenefitType = v ?? selectedBenefitType,
-                          ),
-                          validator: (v) => v == null
-                              ? l10n.programMgmtBenefitTypeRequired
-                              : null,
-                        )
-                      else
-                        InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: l10n.programMgmtBenefitTypeLabel,
-                            suffixIcon: Tooltip(
-                              message: l10n.programMgmtBenefitLocked,
-                              triggerMode: TooltipTriggerMode.tap,
-                              child: const Icon(
-                                Icons.lock_outline_rounded,
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            selectedBenefitType == 'grant'
-                                ? l10n.programMgmtBenefitGrant
-                                : l10n.programMgmtBenefitRevenueShare,
-                            style: GoogleFonts.inter(fontSize: 14),
-                          ),
-                        ),
                     ],
                     if (selectedPurpose == 'sales') ...[
                       const SizedBox(height: 12),
@@ -953,7 +890,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       controller: budgetCtrl,
                       label: label(l10n.programMgmtBudgetLabel),
                       hint: '0.00',
-                      prefixText: '₱ ',
+                      prefixText: 'â‚± ',
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -1034,27 +971,15 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                   ? l10n.programMgmtFilterSales
                   : l10n.programMgmtFilterDistribution,
             ),
-            if (!p.isSalesProgram)
-              DetailRow(
-                l10n.detailsBenefit,
-                p.benefitType == 'revenue_share'
-                    ? l10n.detailsBenefitReturn
-                    : l10n.detailsBenefitFree,
-              ),
             DetailRow(l10n.detailsStatus, _statusLabel(l10n, p.status)),
             DetailRow(l10n.detailsSeason, '${p.seasonYear}'),
             if (p.budget != null)
               DetailRow(
                 l10n.detailsBudget,
-                '₱${p.budget!.toStringAsFixed(2)}',
+                'â‚±${p.budget!.toStringAsFixed(2)}',
               ),
             if ((p.distributionItemName ?? '').isNotEmpty)
               DetailRow(l10n.detailsItemGiven, p.distributionItemName!),
-            if ((p.returnItemName ?? p.returnCropName ?? '').isNotEmpty)
-              DetailRow(
-                l10n.detailsFarmerReturns,
-                p.returnItemName ?? p.returnCropName!,
-              ),
             if (p.isSalesProgram)
               DetailRow(
                 l10n.detailsMemberDiscount,
@@ -1210,14 +1135,14 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     // Single outer scrollable so the KPI cards scroll away
                     // with the list below them, instead of staying pinned
                     // as static siblings above it (per your Item B request
-                    // — matches Crop Management / Price Management's own
+                    // â€” matches Crop Management / Price Management's own
                     // KPI-inside-the-list pattern).
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
                       children: [
-                        // KPI cards (dashboard.md section 5) — a
-                        // responsively-laid-out set (2/4 cards → 2x2 grid,
-                        // 3/5 cards → horizontal scroll row) since Total
+                        // KPI cards (dashboard.md section 5) â€” a
+                        // responsively-laid-out set (2/4 cards â†’ 2x2 grid,
+                        // 3/5 cards â†’ horizontal scroll row) since Total
                         // Programs + Active + Product Sales + Enrollment +
                         // Distribution Benefit/Loans is an odd count of 5.
                         if (_programs.isNotEmpty) ...[
@@ -1268,7 +1193,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                 accent: AppConstants.primaryGreen,
                                 label: l10n.marketLinkKpiEnrolled,
                                 value:
-                                    // Enrollment across every program purpose —
+                                    // Enrollment across every program purpose â€”
                                     // memberCount is already purpose-agnostic (it's
                                     // just each program's active program_members
                                     // count), so Distribution and Product Sales
@@ -1298,7 +1223,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          // Filter chips — All | Distribution | Sales,
+                          // Filter chips â€” All | Distribution | Sales,
                           // backed by the DB-constrained program_purpose
                           // column (exactly 2 values, locked once a program
                           // is created).
@@ -1480,27 +1405,26 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     ];
   }
 
-  // One tidy menu instead of three crowded icons. A red dot marks anything that
-  // needs action, on the menu button and beside the item.
+  // Direct button for Join Requests (the three-dot menu and Outcome Reviews were removed).
   Widget _requestsMenu(AppLocalizations l10n, ColorScheme cs) {
-    final total = _pendingOutcomeCount + _pendingEnrollmentRequestCount;
-
-    PopupMenuItem<String> item(
-      String value,
-      IconData icon,
-      String label,
-      int count,
-    ) {
-      return PopupMenuItem<String>(
-        value: value,
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: cs.onSurface),
-            const SizedBox(width: 12),
-            Expanded(child: Text(label)),
-            if (count > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    final count = _pendingEnrollmentRequestCount;
+    return IconButton(
+      tooltip: l10n.reqEnrollTitle,
+      onPressed: () {
+        context
+            .push(AppRoutes.programEnrollmentRequests)
+            .then((_) => _load());
+      },
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(Icons.how_to_reg_rounded, color: cs.onSurface),
+          if (count > 0)
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: AppConstants.errorRed,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
@@ -1514,62 +1438,14 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                   ),
                 ),
               ),
-          ],
-        ),
-      );
-    }
-
-    return PopupMenuButton<String>(
-      tooltip: l10n.programMgmtMenuTooltip,
-      onSelected: (v) {
-        final route = switch (v) {
-          'outcomes' => AppRoutes.programOutcomes,
-          _ => AppRoutes.programEnrollmentRequests,
-        };
-        context.push(route).then((_) => _load());
-      },
-      itemBuilder: (_) => [
-        item(
-          'outcomes',
-          Icons.fact_check_rounded,
-          l10n.outcReviewsTitle,
-          _pendingOutcomeCount,
-        ),
-        item(
-          'enrollment',
-          Icons.how_to_reg_rounded,
-          l10n.reqEnrollTitle,
-          _pendingEnrollmentRequestCount,
-        ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Icon(Icons.more_vert_rounded, color: cs.onSurface),
-            if (total > 0)
-              Positioned(
-                top: -1,
-                right: -1,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: AppConstants.errorRed,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                ),
-              ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 
   // Responsive KPI layout: an even card count (2 or 4) lays out as a 2x2
-  // grid; an odd count (3 or 5) scrolls horizontally in one row instead —
+  // grid; an odd count (3 or 5) scrolls horizontally in one row instead â€”
   // this module's card count isn't fixed at 4 anymore now that Distribution
   // Benefit/Loans joined Total Programs/Active/Product Sales/Enrollment.
   Widget _buildKpiSection(List<Widget> cards) {
@@ -1588,7 +1464,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     }
     return SizedBox(
       // 150w/98h overflowed by 4px for the "Distribution Benefit/Loans"
-      // card — ReportIconStatCard's label has no maxLines cap, so that
+      // card â€” ReportIconStatCard's label has no maxLines cap, so that
       // longer label wrapped to 2 lines inside the narrower card. Widened
       // instead of touching the shared card widget (used elsewhere with
       // short single-line labels that already fit fine).
@@ -1604,7 +1480,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   }
 }
 
-// ── Program Members page ──────────────────────────────────────────────────────
+// â”€â”€ Program Members page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// The members of one program as a full page (route /admin/programs/members).
 class ProgramMembersScreen extends StatelessWidget {
@@ -1635,7 +1511,7 @@ class ProgramMembersScreen extends StatelessWidget {
   }
 }
 
-// ── Program Members Modal Body ────────────────────────────────────────────────
+// â”€â”€ Program Members Modal Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ProgramMembersModalBody extends StatefulWidget {
   final CooperativeProgram program;
@@ -1651,19 +1527,8 @@ class _ProgramMembersModalBody extends StatefulWidget {
 class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   List<ProgramMember> _members = [];
   List<DistributionItem> _items = [];
-  List<OutcomeReport> _reports = [];
-  // Harvest returns and Failed resolutions, by program member.
-  Map<String, ProgramReturn> _returns = {};
-  Map<String, FailedResolution> _resolutions = {};
-  // Farmers' pending requests for another distribution, by the failed round.
-  Map<String, RedistributionRequest> _redistRequests = {};
-  // The failed first distribution behind a second round, by 'farmerId:roundNo'.
-  Map<String, EarlierRound> _earlierRounds = {};
   // Product Sales: each member's orders, spent, saved and pending (one read for all).
   Map<String, MemberPurchaseSummary> _purchaseSummaries = {};
-  // The latest reminder sent to each member to report, and the member being reminded now.
-  Map<String, ProgramReportReminder> _lastReminders = {};
-  String? _remindingId;
   bool _isLoading = true;
 
   // Distribution happens inline on the member's own card (no extra modal).
@@ -1671,10 +1536,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   // The item chosen for this distribution (from the program's categories).
   String? _distItemId;
   final _qtyCtrl = TextEditingController();
-  // Harvest Return: the agreed return for THIS Farmer's item ('' = the item given). Pre-filled from the
-  // program's default; staff can change both for the item actually handed out.
-  String? _returnError;
-  final _returnQtyCtrl = TextEditingController();
   bool _distSaving = false;
   String? _distError;
   // Product Sales: the member search (by Farmer name).
@@ -1689,18 +1550,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   @override
   void dispose() {
     _qtyCtrl.dispose();
-    _returnQtyCtrl.dispose();
     super.dispose();
   }
-
-  /// The report that represents a member right now (in progress or finished,
-  /// else the latest returned one); null if the Farmer has not reported.
-  OutcomeReport? _reportFor(ProgramMember m) => currentReportFor<OutcomeReport>(
-    _reports,
-    m.id,
-    memberOf: (r) => r.programMemberId,
-    isReturned: (r) => r.isReturned,
-  );
 
   /// What this program may give: in-stock-or-not items in its categories, plus the
   /// single configured item of an older program.
@@ -1723,59 +1574,20 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
 
   Future<void> _loadMembers() async {
     setState(() => _isLoading = true);
-    var redistLoadFailed = false;
     final results = await Future.wait([
       widget.repo.fetchProgramMembers(widget.program.id),
       widget.repo.fetchDistributionItems(),
-      // A failed load of the reports must not hide the members.
-      widget.repo
-          .fetchOutcomeReports(programId: widget.program.id)
-          .catchError((_) => <OutcomeReport>[]),
-      widget.repo
-          .fetchReturns(programId: widget.program.id)
-          .catchError((_) => <ProgramReturn>[]),
-      widget.repo
-          .fetchResolutions(programId: widget.program.id)
-          .catchError((_) => <FailedResolution>[]),
-      widget.repo.fetchRedistributionRequests(widget.program.id).catchError((
-        _,
-      ) {
-        redistLoadFailed = true;
-        return <String, RedistributionRequest>{};
-      }),
       widget.program.isSalesProgram
           ? widget.repo.fetchPurchaseSummaries(widget.program.id)
           : Future<Map<String, MemberPurchaseSummary>>.value(const {}),
-      widget.program.isSalesProgram
-          ? Future<Map<String, ProgramReportReminder>>.value(const {})
-          : widget.repo.fetchLastReminders(widget.program.id),
     ]);
-    final earlier = await widget.repo.fetchEarlierRounds(widget.program.id);
     if (!mounted) return;
     setState(() {
-      _earlierRounds = earlier;
       _members = results[0] as List<ProgramMember>;
       _items = results[1] as List<DistributionItem>;
-      _reports = results[2] as List<OutcomeReport>;
-      _returns = {
-        for (final r in results[3] as List<ProgramReturn>) r.programMemberId: r,
-      };
-      _resolutions = {
-        for (final r in results[4] as List<FailedResolution>)
-          r.programMemberId: r,
-      };
-      _redistRequests = results[5] as Map<String, RedistributionRequest>;
-      _purchaseSummaries = results[6] as Map<String, MemberPurchaseSummary>;
-      _lastReminders = results[7] as Map<String, ProgramReportReminder>;
+      _purchaseSummaries = results[2] as Map<String, MemberPurchaseSummary>;
       _isLoading = false;
     });
-    // A Farmer's request must never be hidden without a word.
-    if (redistLoadFailed) {
-      _showSnack(
-        AppLocalizations.of(context).memRedistLoadFailed,
-        isError: true,
-      );
-    }
   }
 
   String _formatDate(DateTime dt) {
@@ -1796,7 +1608,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
-  // Uses the root-overlay toast rather than ScaffoldMessenger — a plain
+  // Uses the root-overlay toast rather than ScaffoldMessenger â€” a plain
   // SnackBar renders behind any still-open management modal (they're
   // showGeneralDialog routes, which sit above the Scaffold), so an action
   // taken inside a modal (e.g. distributing a benefit while the Members
@@ -1807,12 +1619,12 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     AppToast.show(context, message, isError: isError);
   }
 
-  // ─── Distribute benefit (inline on the member's card) ─────────────────────
+  // â”€â”€â”€ Distribute benefit (inline on the member's card) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _startDistribute(ProgramMember member) {
     if (!requireManage(context, StaffModule.dashboard)) return;
     // The program fixes WHAT is distributed (Distributes From). A program
-    // without that item is Incomplete and cannot distribute — the database
+    // without that item is Incomplete and cannot distribute â€” the database
     // enforces this too (distribute_program_benefit()).
     final l10n = AppLocalizations.of(context);
     // A Completed program no longer distributes (the database refuses too).
@@ -1837,37 +1649,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     }
     setState(() {
       _distributingId = member.id;
-      // A second round starts on the item the Farmer asked for again (staff can still change it).
-      _distItemId = eligible.length == 1
-          ? eligible.first.id
-          : (member.requestedItemId != null && eligible.any((e) => e.id == member.requestedItemId)
-                ? member.requestedItemId
-                : null);
+      _distItemId = eligible.length == 1 ? eligible.first.id : null;
       _qtyCtrl.clear();
-      _applyReturnDefaults(member);
       _distError = null;
     });
-  }
-
-  /// What the Farmer gives back for [given]: the item set under "When returned, it comes back as" in
-  /// Inventory (Pechay Seeds -> Pechay, for example). Null = the item given itself. The database saves the
-  /// same answer on the member when the item is handed out.
-  DistributionItem? _returnItemFor(DistributionItem? given) {
-    final id = given?.returnItemId;
-    return id == null ? null : _itemsById[id];
-  }
-
-  /// Harvest Return: the quantity this Farmer is expected to return, pre-filled with what staff already set
-  /// for them (else an older program's default). What comes back is the item given, in its unit.
-  void _applyReturnDefaults(ProgramMember member) {
-    if (!widget.program.isHarvestReturn) return;
-    final q = member.returnQuantity ?? widget.program.returnQuantity;
-    _returnQtyCtrl.text = q == null
-        ? ''
-        : (q == q.roundToDouble()
-              ? q.toStringAsFixed(0)
-              : q.toStringAsFixed(2));
-    _returnError = null;
   }
 
   Future<void> _submitDistribute(ProgramMember member) async {
@@ -1892,29 +1677,11 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       );
       return;
     }
-    // Harvest Return: the agreed return for this Farmer's item must be a quantity.
-    double? returnQty;
-    if (widget.program.isHarvestReturn) {
-      returnQty = double.tryParse(_returnQtyCtrl.text.trim());
-      if (returnQty == null || returnQty <= 0) {
-        setState(() => _returnError = l10n.programMgmtInvalidQuantity);
-        return;
-      }
-    }
     setState(() {
       _distSaving = true;
-      _returnError = null;
       _distError = null;
     });
     try {
-      if (widget.program.isHarvestReturn) {
-        await widget.repo.setMemberReturnArrangement(
-          programMemberId: member.id,
-          // The return item is saved by the database from the item's Inventory setting when it is handed out.
-          returnItemId: null,
-          returnQuantity: returnQty,
-        );
-      }
       await widget.repo.distributeBenefit(
         programMemberId: member.id,
         inventoryItemId: selected.id,
@@ -1976,7 +1743,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             onChanged: (v) => setState(() {
               _distItemId = v;
               _distError = null;
-              _applyReturnDefaults(m);
             }),
           ),
           const SizedBox(height: 8),
@@ -1998,39 +1764,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             ),
             onSubmitted: (_) => _submitDistribute(m),
           ),
-          // Harvest Return: how much THIS Farmer is expected to return, of the item they are given.
-          if (widget.program.isHarvestReturn) ...[
-            const SizedBox(height: 8),
-            TextField(
-              key: const Key('distReturnQuantityField'),
-              controller: _returnQtyCtrl,
-              enabled: !_distSaving,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: const [DecimalInputFormatter()],
-              decoration: InputDecoration(
-                isDense: true,
-                // The unit is the unit of what comes back (the item's Inventory setting, else the item itself).
-                labelText: selected == null
-                    ? l10n.programMgmtReturnQtyLabel
-                    : l10n.programMgmtReturnQtyWithUnit(
-                        (_returnItemFor(selected) ?? selected).unit,
-                      ),
-                helperText: selected == null || _returnItemFor(selected) == null
-                    ? null
-                    : l10n.programMgmtReturnsItem(
-                        _returnItemFor(selected)!.itemName,
-                      ),
-                helperMaxLines: 2,
-                hintText: '0.00',
-                errorText: _returnError,
-              ),
-              onChanged: (_) {
-                if (_returnError != null) setState(() => _returnError = null);
-              },
-            ),
-          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -2066,441 +1799,33 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     );
   }
 
-  // ─── Outcome status on the member's card ─────────────────────────────────
-
-  Widget _outcomeSection(ProgramMember m, AppLocalizations l10n) {
-    if (widget.program.isSalesProgram || !m.isDistributed) {
-      return const SizedBox.shrink();
-    }
-    final cs = Theme.of(context).colorScheme;
-    final r = _reportFor(m);
-    if (r == null) {
-      // An outcome recorded before the evidence workflow has no report: its result line.
-      if (m.isOutcomeRecorded) return _finalLine(m, null, l10n);
-      // A Free Distribution expects no outcome: nothing is awaited, nothing to remind.
-      if (!widget.program.isHarvestReturn) return const SizedBox.shrink();
-      // How long the Farmer has had the item without reporting: counted from the day it
-      // was received, every day, with no fixed limit.
-      // The row stays neutral however many days pass: no colour changes with the count.
-      final days = daysSinceReceived(m.distributedAt!);
-      final last = _lastReminders[m.id];
-      final remindedToday = last?.isToday() ?? false;
-      final sending = _remindingId == m.id;
-      final remind = OutlinedButton(
-        key: Key('remind_${m.id}'),
-        onPressed: remindedToday || sending ? null : () => _remind(m),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 32),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          visualDensity: VisualDensity.compact,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          textStyle: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        child: sending
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Text(
-                remindedToday ? l10n.memRemindedToday : l10n.memRemindAction,
-              ),
-      );
-      final waiting = <Widget>[
-        Icon(
-          Icons.hourglass_empty_rounded,
-          size: 14,
-          color: cs.onSurfaceVariant,
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            l10n.memWaitingDays(days),
-            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
-        ),
-      ];
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            // Beside the text when there is room; below it (right-aligned) on a narrow
-            // card or at a large text size, so the text is never squeezed to a few letters.
-            final scale = MediaQuery.textScalerOf(context).scale(1);
-            final stacked = box.maxWidth / scale < 230;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (stacked) ...[
-                  Row(
-                    key: Key('waitingDays_${m.id}'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: waiting,
-                  ),
-                  const SizedBox(height: 6),
-                  Align(alignment: Alignment.centerRight, child: remind),
-                ] else
-                  Row(
-                    key: Key('waitingDays_${m.id}'),
-                    children: [...waiting, const SizedBox(width: 6), remind],
-                  ),
-                if (last != null)
-                  Padding(
-                    key: Key('lastReminded_${m.id}'),
-                    padding: const EdgeInsets.only(top: 2, left: 20),
-                    child: Text(
-                      l10n.memLastReminded(_formatDate(last.sentAt)),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      );
-    }
-    // A finished outcome reads as one result line (the report opens from it).
-    if (r.isFinalized) return _finalLine(m, r, l10n);
-    // Closed (no longer required): kept as history, one quiet line.
-    if (r.isClosed) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              size: 14,
-              color: cs.onSurfaceVariant,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                l10n.outcStageClosed,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    final String label;
-    final Color color;
-    switch (r.stage) {
-      case OutcomeStage.awaitingBoth:
-        label = l10n.outcStageAwaitingBoth;
-        color = AppConstants.warningAmber;
-      case OutcomeStage.awaitingVerification:
-        label = l10n.outcStageAwaitingVerification;
-        color = AppConstants.warningAmber;
-      case OutcomeStage.awaitingReview:
-        label = l10n.outcStageAwaitingReview;
-        color = AppConstants.warningAmber;
-      case OutcomeStage.readyToFinalize:
-        label = l10n.outcStageReady;
-        color = AppConstants.buyerBlue;
-      case OutcomeStage.returned:
-        label = l10n.outcStageReturned;
-        color = AppConstants.errorRed;
-      case OutcomeStage.closed:
-        label = l10n.outcStageClosed;
-        color = cs.onSurfaceVariant;
-      case OutcomeStage.finalized:
-        final failed = r.finalOutcome == 'failed';
-        label = failed
-            ? l10n.outcStageFinalizedFailed
-            : l10n.outcStageFinalizedSuccessful;
-        color = failed ? AppConstants.errorRed : AppConstants.successGreen;
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        onTap: () => context
-            .push(AppRoutes.programOutcomeDetail, extra: {'report': r})
-            .then((_) => _loadMembers()),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.fact_check_outlined, size: 16, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      r.isSuccessfulReport
-                          ? l10n.outcReportedSuccessful
-                          : l10n.outcReportedFailed,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    if (r.stage == OutcomeStage.awaitingBoth ||
-                        r.stage == OutcomeStage.awaitingVerification ||
-                        r.stage == OutcomeStage.awaitingReview)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Row(
-                          key: Key('outcomeTicks_${m.id}'),
-                          children: [
-                            Flexible(
-                              child: _tick(l10n.memTickEvidence, r.isReviewed),
-                            ),
-                            const SizedBox(width: 12),
-                            Flexible(
-                              child: _tick(l10n.memTickField, r.isVerified),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Text(
-                        label,
-                        style: GoogleFonts.inter(fontSize: 11, color: color),
-                      ),
-                  ],
-                ),
-              ),
-              Text(
-                r.isFinalized ? l10n.outcViewAction : l10n.outcOpenAction,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, size: 18, color: color),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Reminds the Farmer to report. The database allows one per item per day and records
-  // it in the Accountability Log; its reason is shown if it refuses.
-  Future<void> _remind(ProgramMember m) async {
-    if (_remindingId != null) return;
-    if (!requireManage(context, StaffModule.dashboard)) return;
-    final l10n = AppLocalizations.of(context);
-    setState(() => _remindingId = m.id);
-    try {
-      await widget.repo.remindReport(m.id);
-      if (!mounted) return;
-      _showSnack(l10n.memRemindSent(m.farmerName));
-    } catch (e, st) {
-      if (!mounted) return;
-      _showSnack(
-        friendlyError(l10n, e, st, l10n.adminInvFailedTryAgain),
-        isError: true,
-      );
-    }
-    if (!mounted) return;
-    final fresh = await widget.repo.fetchLastReminders(widget.program.id);
-    if (!mounted) return;
-    setState(() {
-      _remindingId = null;
-      _lastReminders = fresh;
-    });
-  }
-
-  // To Distribute: how long since they joined, counted live with no limit and kept neutral;
-  // on a Harvest Return program also what is expected back (the unit is the item's).
+  // To Distribute: how long since they joined, counted live with no limit and kept neutral.
   Widget _waitingToReceive(ProgramMember m, AppLocalizations l10n) {
     final cs = Theme.of(context).colorScheme;
     final days = daysSinceReceived(m.enrolledAt);
-    final p = widget.program;
     return Padding(
       key: Key('waitingToReceive_${m.id}'),
       padding: const EdgeInsets.only(top: 8),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.hourglass_empty_rounded,
-                size: 14,
-                color: cs.onSurfaceVariant,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  m.roundNo > 1
-                      ? l10n.memWaitingToReceiveAgain
-                      : l10n.memWaitingToReceive(days),
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (p.isHarvestReturn && p.returnQuantity != null)
-            Padding(
-              key: Key('expectedReturn_${m.id}'),
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.assignment_return_outlined,
-                    size: 14,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      l10n.programMgmtHarvestReturnLine(
-                        '${formatQuantityGrouped(p.returnQuantity!)}${p.returnItemUnit != null ? ' ${p.returnItemUnit}' : ''}${p.returnItemName != null ? ' ${p.returnItemName}' : ''}',
-                      ),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // Successful / Failed: one line with the result, its date, and either what the field
-  // verification measured (Free Distribution) or the Farmer's stated cause (Failed). A
-  // Harvest Return that succeeded shows its return progress block below instead of the
-  // measured harvest. Tapping it opens the report when there is one.
-  Widget _finalLine(ProgramMember m, OutcomeReport? r, AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
-    final success = r != null ? r.finalOutcome != 'failed' : m.isThriving;
-    final at = r?.finalizedAt ?? m.outcomeRecordedAt;
-    final date = at == null ? '' : _formatDate(at);
-    final color = success ? AppConstants.successGreen : AppConstants.errorRed;
-    final String text;
-    if (success) {
-      final vq = r?.verifiedQuantity;
-      final vu = (r?.verifiedUnit ?? m.distributedUnit ?? '').trim();
-      if (date.isEmpty) {
-        text = l10n.memDetailsOutcomeSuccessful;
-      } else if (!widget.program.isHarvestReturn && vq != null) {
-        text = l10n.memFinalSuccessfulVerified(
-          date,
-          '${formatQuantityGrouped(vq)} $vu'.trim(),
-        );
-      } else {
-        text = l10n.memFinalSuccessful(date);
-      }
-    } else {
-      final cause = (r?.failureCause ?? '').trim();
-      if (date.isEmpty) {
-        text = l10n.memDetailsOutcomeFailed;
-      } else if (cause.isNotEmpty) {
-        text = l10n.memFinalFailedCause(date, cause);
-      } else {
-        text = l10n.memFinalFailed(date);
-      }
-    }
-    final row = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          success ? Icons.check_circle_rounded : Icons.cancel_rounded,
-          size: 15,
-          color: color,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              height: 1.35,
-              color: color,
-            ),
-          ),
-        ),
-        if (r != null) ...[
-          const SizedBox(width: 6),
-          Text(
-            l10n.outcViewAction,
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
           Icon(
-            Icons.chevron_right_rounded,
-            size: 16,
+            Icons.hourglass_empty_rounded,
+            size: 14,
             color: cs.onSurfaceVariant,
           ),
-        ],
-      ],
-    );
-    return Padding(
-      key: Key('finalLine_${m.id}'),
-      padding: const EdgeInsets.only(top: 8),
-      child: r == null
-          ? row
-          : InkWell(
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              onTap: () => context
-                  .push(AppRoutes.programOutcomeDetail, extra: {'report': r})
-                  .then((_) => _loadMembers()),
-              child: row,
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              l10n.memWaitingToReceive(days),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
             ),
-    );
-  }
-
-  // A small tick: done (green) or still to do (amber outline).
-  Widget _tick(String label, bool done) {
-    final color = done ? AppConstants.successGreen : AppConstants.warningAmber;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          done
-              ? Icons.check_circle_rounded
-              : Icons.radio_button_unchecked_rounded,
-          size: 13,
-          color: color,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: color,
           ),
-        ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2508,7 +1833,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   Widget _salesStats(ProgramMember m, AppLocalizations l10n) {
     final cs = Theme.of(context).colorScheme;
     final s = _purchaseSummaries[m.farmerId] ?? const MemberPurchaseSummary();
-    String peso(double v) => '₱${formatQuantityGrouped(v)}';
+    String peso(double v) => 'â‚±${formatQuantityGrouped(v)}';
     // Each figure may be as wide as the card and no wider, so a long one wraps instead of
     // running past the edge (big amounts, Tagalog, large text sizes).
     Widget stat(IconData icon, String text, {Color? color}) => LayoutBuilder(
@@ -2586,7 +1911,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     );
   }
 
-  // ─── The members, as swipeable sections ──────────────────────────────────
+  // â”€â”€â”€ The members, as swipeable sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _infoLine(IconData icon, String text, Color color) => Padding(
     padding: const EdgeInsets.only(top: 8),
@@ -2641,9 +1966,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
         context,
         program: widget.program,
         member: m,
-        report: _reportFor(m),
-        ret: _returns[m.id],
-        resolution: _resolutions[m.id],
         itemUnit: receivedUnit,
         itemName: receivedName,
         repo: widget.repo,
@@ -2716,9 +2038,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                 AppConstants.primaryGreen,
               ),
             if (isSales) _salesStats(m, l10n),
-            if (!isSales && m.roundNo > 1) _roundNote(m, l10n),
-            if (!isSales) _outcomeSection(m, l10n),
-            if (!isSales) _afterOutcomeSection(m, l10n),
             if (!isSales && toDistribute && !m.isDistributed)
               _waitingToReceive(m, l10n),
             if (!isSales && toDistribute) ...[
@@ -2739,297 +2058,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
         ),
       ),
     );
-  }
-
-  /// Approves a Farmer's request for another distribution. There is no decline: they were already marked
-  /// eligible. It starts the next round, which then appears under To Distribute.
-  Future<void> _approveRedistribution(
-    ProgramMember m,
-    RedistributionRequest req,
-  ) async {
-    if (!requireManage(context, StaffModule.dashboard)) return;
-    final l10n = AppLocalizations.of(context);
-    try {
-      await widget.repo.approveRedistribution(req.id);
-      if (!mounted) return;
-      AppToast.show(context, l10n.memRedistributeDone(m.farmerName));
-      _loadMembers();
-    } catch (e, st) {
-      if (mounted) {
-        AppToast.show(context, friendlyError(l10n, e, st), isError: true);
-      }
-    }
-  }
-
-  /// "Give another item": a Farmer whose Failed outcome was decided "Eligible for Reassessment" starts a NEW
-  /// distribution. The failed one stays in the history. A note is required.
-  Future<void> _giveAnotherItem(ProgramMember m) async {
-    if (!requireManage(context, StaffModule.dashboard)) return;
-    final noteCtrl = TextEditingController();
-    var saving = false;
-    String? error;
-    final done = await showManagementModal<bool>(
-      context: context,
-      builder: (ctx) {
-        final l10n = AppLocalizations.of(ctx);
-        return StatefulBuilder(
-          builder: (ctx, setModal) {
-            Future<void> submit() async {
-              if (saving) return;
-              if (noteCtrl.text.trim().isEmpty) {
-                setModal(() => error = l10n.memRedistributeNoteRequired);
-                return;
-              }
-              setModal(() {
-                saving = true;
-                error = null;
-              });
-              try {
-                await widget.repo.redistributeMember(
-                  memberId: m.id,
-                  note: noteCtrl.text.trim(),
-                );
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              } catch (e, st) {
-                if (!ctx.mounted) return;
-                setModal(() => saving = false);
-                AppToast.show(ctx, friendlyError(l10n, e, st), isError: true);
-              }
-            }
-
-            return ManagementModalShell(
-              title: l10n.memRedistributeTitle,
-              subtitle: m.farmerName,
-              body: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.memRedistributeInfo,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  LabeledTextField(
-                    controller: noteCtrl,
-                    label: l10n.memRedistributeNoteLabel,
-                    hint: '',
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  if (error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        error!,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppConstants.errorRed,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              footer: ManagementModalActions(
-                primaryLabel: l10n.memRedistributeConfirm,
-                isLoading: saving,
-                onPrimary: saving ? null : submit,
-              ),
-            );
-          },
-        );
-      },
-    );
-    noteCtrl.dispose();
-    if (done == true) {
-      if (!mounted) return;
-      AppToast.show(
-        context,
-        AppLocalizations.of(context).memRedistributeDone(m.farmerName),
-      );
-      _loadMembers();
-    }
-  }
-
-  /// A small line on a card that belongs to a second (or later) distribution.
-  Widget _roundNote(ProgramMember m, AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
-    final earlier = _earlierRounds['${m.farmerId}:${m.roundNo - 1}'];
-    final what = earlier == null
-        ? ''
-        : '${earlier.quantity != null ? '${formatQuantity(earlier.quantity!)} ' : ''}'
-                  '${earlier.unit ?? ''} ${earlier.itemName ?? ''}'
-              .trim();
-    final style = GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant);
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.replay_rounded, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(l10n.memRoundNote(m.roundNo), style: style),
-              ),
-            ],
-          ),
-          if (what.isNotEmpty)
-            Padding(
-              key: Key('earlierRound_${m.id}'),
-              padding: const EdgeInsets.only(top: 4, left: 20),
-              child: Text(
-                l10n.memEarlierRound(
-                  what,
-                  earlier!.distributedAt == null
-                      ? '—'
-                      : _formatDate(earlier.distributedAt!),
-                ),
-                style: style,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Sections added after an outcome is final (Harvest Return, failed
-  /// resolution, assistance). Filled in where those workflows apply.
-  Widget _afterOutcomeSection(ProgramMember m, AppLocalizations l10n) {
-    // A Successful Harvest Return outcome: what is due and what has arrived.
-    final ret = _returns[m.id];
-    if (m.isThriving && ret != null) {
-      return ReturnSummaryBlock(
-        ret: ret,
-        onManage: () async {
-          final changed = await showProgramReturnSheet(
-            context,
-            repo: widget.repo,
-            ret: ret,
-          );
-          if (changed == true) _loadMembers();
-        },
-      );
-    }
-    // A Failed outcome: the resolution (Pending Cooperative Decision at first).
-    if (m.isFailed) {
-      final res = _resolutions[m.id];
-      final block = ResolutionSummaryBlock(
-        resolution: res,
-        // A Final Decision stays, whichever it is (Closed, Referred, Eligible). Only Pending Cooperative Decision, the
-        // state waiting for it, can still be set.
-        onSet:
-            res != null &&
-                res.resolution != FailedResolution.pendingCooperativeDecision
-            ? null
-            : () async {
-          final changed = await showFailedResolutionSheet(
-            context,
-            repo: widget.repo,
-            programMemberId: m.id,
-            farmerName: m.farmerName,
-            current: res,
-          );
-          if (changed == true) _loadMembers();
-        },
-      );
-      // Eligible for Reassessment: the Farmer's request waits here to be approved; staff can also start a new
-      // distribution themselves.
-      final request = _redistRequests[m.id];
-      if (res?.resolution == FailedResolution.eligibleForReassessment &&
-          widget.program.isHarvestReturn &&
-          request != null) {
-        final cs = Theme.of(context).colorScheme;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            block,
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppConstants.buyerBlue.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(
-                  color: AppConstants.buyerBlue.withValues(alpha: 0.30),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppLocalizations.of(
-                      context,
-                    ).memRedistRequestTitle(m.farmerName),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if ((m.distributedItemName ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      AppLocalizations.of(context).memRedistRequestedItem(
-                        '${m.quantityGiven != null ? '${formatQuantity(m.quantityGiven!)} ' : ''}'
-                                '${m.distributedUnit ?? ''} ${m.distributedItemName}'
-                            .trim(),
-                      ),
-                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  Text(
-                    request.note,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      key: const Key('approveRedistributionButton'),
-                      onPressed: () => _approveRedistribution(m, request),
-                      icon: const Icon(Icons.check_rounded, size: 18),
-                      label: Text(
-                        AppLocalizations.of(context).memRedistApprove,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      }
-      if (res?.resolution == FailedResolution.eligibleForReassessment &&
-          widget.program.isHarvestReturn) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            block,
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                key: const Key('giveAnotherItemButton'),
-                onPressed: () => _giveAnotherItem(m),
-                icon: const Icon(Icons.replay_rounded, size: 18),
-                label: Text(AppLocalizations.of(context).memRedistributeAction),
-              ),
-            ),
-          ],
-        );
-      }
-      return block;
-    }
-    return const SizedBox.shrink();
   }
 
   Widget _list(
@@ -3129,15 +2157,6 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           Icons.pause_circle_outline_rounded,
           AppConstants.warningAmber,
         ),
-      // Farmers waiting to be approved for another distribution (they are on the Failed tab).
-      if (!program.isSalesProgram &&
-          program.status == 'active' &&
-          _redistRequests.isNotEmpty)
-        _notice(
-          l10n.memRedistWaitingNotice(_redistRequests.length),
-          Icons.replay_rounded,
-          AppConstants.buyerBlue,
-        ),
     ];
 
     // Product Sales: just who is enrolled. No sections, no counters.
@@ -3176,75 +2195,32 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     }
 
     final toDistribute = _members.where((m) => !m.isDistributed).toList();
-    final distributed = _members
-        .where((m) => m.isDistributed && !m.isOutcomeRecorded)
-        .toList();
-    final successful = _members.where((m) => m.isThriving).toList();
-    final failed = _members.where((m) => m.isFailed).toList();
+    final handedOut = _members.where((m) => m.isDistributed).toList();
 
     // Free Distribution has no outcome process: once an item is handed out it belongs to the Farmer.
-    // Just To Distribute and Distributed; an outcome recorded earlier stays visible on the member's
-    // card as history.
-    if (!program.isHarvestReturn) {
-      final handedOut = _members.where((m) => m.isDistributed).toList();
-      return DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            ...notices,
-            // Two sections only: the tabs share the width equally, each label centered.
-            TabBar(
-              labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: Theme.of(context).colorScheme.primary,
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: cs.outline.withValues(alpha: 0.15),
-              labelStyle: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-              unselectedLabelStyle: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-              tabs: [
-                Tab(text: l10n.memTabToDistribute(toDistribute.length)),
-                Tab(text: l10n.memTabDistributed(handedOut.length)),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _list(
-                    toDistribute,
-                    l10n.memEmptyToDistribute,
-                    toDistribute: true,
-                  ),
-                  _list(handedOut, l10n.memEmptyDistributed),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return DefaultTabController(
-      length: 4,
+      length: 2,
       child: Column(
         children: [
           ...notices,
+          // Two sections only: the tabs share the width equally, each label centered.
           TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
             labelColor: Theme.of(context).colorScheme.primary,
             unselectedLabelColor: cs.onSurfaceVariant,
             indicatorColor: Theme.of(context).colorScheme.primary,
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: cs.outline.withValues(alpha: 0.15),
+            labelStyle: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
             tabs: [
               Tab(text: l10n.memTabToDistribute(toDistribute.length)),
-              Tab(text: l10n.memTabDistributed(distributed.length)),
-              Tab(text: l10n.memTabSuccessful(successful.length)),
-              Tab(text: l10n.memTabFailed(failed.length)),
+              Tab(text: l10n.memTabDistributed(handedOut.length)),
             ],
           ),
           Expanded(
@@ -3255,9 +2231,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                   l10n.memEmptyToDistribute,
                   toDistribute: true,
                 ),
-                _list(distributed, l10n.memEmptyDistributed),
-                _list(successful, l10n.memEmptySuccessful),
-                _list(failed, l10n.memEmptyFailed),
+                _list(handedOut, l10n.memEmptyDistributed),
               ],
             ),
           ),
@@ -3268,7 +2242,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
 }
 
 // Same filter-chip style already established for Inventory Management,
-// Loan Item Catalog, and Crop Management — a separate local copy here
+// Loan Item Catalog, and Crop Management â€” a separate local copy here
 // rather than a shared extraction, matching that same convention.
 class _PurposeChip extends StatelessWidget {
   final String label;

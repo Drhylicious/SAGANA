@@ -38,12 +38,10 @@ void main() {
 
   String iso(int daysAgo) => DateTime.now().subtract(Duration(days: daysAgo)).toUtc().toIso8601String();
 
-  CooperativeProgram program({bool harvestReturn = false}) => CooperativeProgram(
+  CooperativeProgram program() => CooperativeProgram(
         id: 'p1',
-        programName: harvestReturn ? 'Livestock Dispersal' : 'Peanut Seed Distribution',
+        programName: 'Peanut Seed Distribution',
         programType: 'Crop',
-        benefitType: harvestReturn ? 'revenue_share' : 'grant',
-        returnQuantity: harvestReturn ? 5 : null,
         seasonYear: 2026,
         status: 'active',
         memberCount: 3,
@@ -138,17 +136,6 @@ void main() {
       });
     });
 
-    testWidgets('Harvest Return: also what is expected back, per Farmer', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(harvestReturn: true), tab: 0, members: [member('m1', 'f1', joinedDaysAgo: 40)]);
-        final l10n = l10nOf(tester);
-        expect(find.text(l10n.memWaitingToReceive(40)), findsOneWidget);
-        expect(find.byKey(const Key('expectedReturn_m1')), findsOneWidget);
-        expect(find.text('Return: 5 per Farmer'), findsOneWidget);
-        expect(find.text(l10n.programMgmtDistributeAction), findsOneWidget);
-      });
-    });
-
     testWidgets('joined today, and the day count keeps growing with no limit and no warning colour', (tester) async {
       await runIgnoringFontErrors(() async {
         await pump(tester, program(), tab: 0, members: [member('m1', 'f1', joinedDaysAgo: 0)]);
@@ -157,103 +144,5 @@ void main() {
         expect(find.text('Joined today · waiting to receive'), findsOneWidget);
       });
     });
-  });
-
-  group('Successful', () {
-    testWidgets('Free Distribution: the result, its date and the harvest the field check measured', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(), tab: 1, members: [
-          member('m1', 'f1', givenDaysAgo: 60, outcome: 'thriving', outcomeDaysAgo: 3),
-        ], reports: [finalReport('m1', 'f1', success: true, verified: 20)]);
-        expect(find.byKey(const Key('finalLine_m1')), findsOneWidget);
-        expect(find.textContaining('Successful ·'), findsOneWidget);
-        expect(find.textContaining('verified harvest 20 kg'), findsOneWidget);
-        // Opens the report from the line.
-        expect(find.descendant(of: find.byKey(const Key('finalLine_m1')), matching: find.byType(InkWell)), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-    });
-
-    testWidgets('Harvest Return: no measured-harvest line; the return progress is shown instead', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(harvestReturn: true), tab: 2, members: [
-          member('m1', 'f1', givenDaysAgo: 60, outcome: 'thriving', outcomeDaysAgo: 3),
-        ], reports: [
-          finalReport('m1', 'f1', success: true, verified: 20)
-        ], returns: [
-          {
-            'id': 'ret1',
-            'program_id': 'p1',
-            'program_member_id': 'm1',
-            'crop_name': 'Pig',
-            'unit': 'head',
-            'original_quantity': 5,
-            'due_quantity': 5,
-            'received_quantity': 3,
-            'status': 'partial',
-          }
-        ]);
-        final l10n = l10nOf(tester);
-        expect(find.textContaining('Successful ·'), findsOneWidget);
-        expect(find.textContaining('verified harvest'), findsNothing);
-        expect(find.text(l10n.retProgressLine('3', '5', 'head')), findsOneWidget);
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
-        expect(find.text(l10n.retManage), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-    });
-
-    testWidgets('an outcome recorded before reports shows its result as plain text', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(harvestReturn: true), tab: 2, members: [
-          member('m1', 'f1', givenDaysAgo: 90, outcome: 'thriving', outcomeDaysAgo: 40),
-        ]);
-        expect(find.byKey(const Key('finalLine_m1')), findsOneWidget);
-        expect(find.textContaining('Successful ·'), findsOneWidget);
-        expect(find.descendant(of: find.byKey(const Key('finalLine_m1')), matching: find.byType(InkWell)), findsNothing);
-      });
-    });
-  });
-
-  group('Failed', () {
-    testWidgets('the result, its date and the cause the Farmer gave', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(harvestReturn: true), tab: 3, members: [
-          member('m1', 'f1', givenDaysAgo: 60, outcome: 'failed', outcomeDaysAgo: 3),
-        ], reports: [finalReport('m1', 'f1', success: false, cause: 'Pest damage')]);
-        expect(find.byKey(const Key('finalLine_m1')), findsOneWidget);
-        expect(find.textContaining('Failed ·'), findsOneWidget);
-        expect(find.textContaining('Pest damage'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-    });
-
-    testWidgets('Harvest Return: a failed outcome opens no return, so no return progress', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(harvestReturn: true), tab: 3, members: [
-          member('m1', 'f1', givenDaysAgo: 60, outcome: 'failed', outcomeDaysAgo: 3),
-        ], reports: [finalReport('m1', 'f1', success: false)]);
-        expect(find.textContaining('Failed ·'), findsOneWidget);
-        expect(find.byType(LinearProgressIndicator), findsNothing);
-      });
-    });
-
-    testWidgets('a long cause stays inside the card (at most three lines)', (tester) async {
-      await runIgnoringFontErrors(() async {
-        await pump(tester, program(harvestReturn: true), tab: 3, size: const Size(320, 1400), members: [
-          member('m1', 'f1', givenDaysAgo: 60, outcome: 'failed', outcomeDaysAgo: 3),
-        ], reports: [finalReport('m1', 'f1', success: false, cause: 'A long period of heavy rain flooded the whole field and the seedlings rotted before they could take root, so nothing was harvested at all.')]);
-        expect(tester.takeException(), isNull);
-        final r = tester.getRect(find.byKey(const Key('finalLine_m1')));
-        expect(r.right, lessThanOrEqualTo(320));
-      });
-    });
-  });
-
-  test('Distributed members keep the waiting line, the reminder and the evidence ticks', () {
-    final screen = File('lib/presentation/screens/admin/program_management_screen.dart').readAsStringSync();
-    expect(screen, contains("Key('waitingDays_"));
-    expect(screen, contains("Key('outcomeTicks_"));
-    expect(screen, contains("Key('remind_"));
   });
 }

@@ -201,6 +201,17 @@ class ListingRepository {
     AppEventService.instance.notify();
   }
 
+  /// Farmer accepts the automatically adjusted price (new range lower boundary)
+  /// without changing it further.
+  Future<void> acceptAdjustedPrice(String listingId) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'accept_adjusted_listing_price',
+      params: {'p_listing_id': listingId},
+    );
+    AppEventService.instance.notify();
+  }
+
   /// This listing's edit requests, newest first. The reviewer is never included.
   Future<List<ListingEditRequest>> fetchMyEditRequests(String listingId) async {
     try {

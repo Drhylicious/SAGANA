@@ -277,15 +277,6 @@ class _CoopInventoryRepository {
     }
   }
 
-  /// Sets what comes back when a Farmer returns this item (null = the same item). Throws when refused.
-  Future<void> setReturnItem(String id, String? returnItemId) async {
-    await _client
-        .from('cooperative_inventory')
-        .update({'return_item_id': returnItemId})
-        .eq('id', id);
-    logStaffAction('inventory', 'return_item_set', 'adminLogInventoryReturnItemSet', referenceId: id);
-  }
-
   /// Undoes an archive. Throws when the database refuses (for example the same item is active already).
   Future<void> restoreItem(String id) async {
     await _client.rpc('restore_inventory_item', params: {'p_inventory_id': id});
@@ -736,48 +727,6 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   int get _lowStockCount => _items.where((i) => i.isDepleted || i.isLow).length;
 
   /// "When returned, it comes back as": the one setting that says what the cooperative receives back when a
-  /// Farmer returns this item in a Harvest Return program (Pechay Seeds -> Pechay produce, Pig -> Pig).
-  /// Empty = the same item. Only active, cooperative-owned items can be chosen, never the item itself.
-  Widget _returnItemField(
-    AppLocalizations l10n, {
-    required String value,
-    required String excludeId,
-    required ValueChanged<String?> onChanged,
-  }) {
-    final options =
-        _items
-            .where(
-              (i) =>
-                  i.id != excludeId &&
-                  i.sourceFarmerId == null &&
-                  i.isActive &&
-                  i.archivedAt == null,
-            )
-            .toList()
-          ..sort(
-            (a, b) =>
-                a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase()),
-          );
-    final byId = {for (final i in options) i.id: i};
-    final dropdown = AppDropdownField<String>(
-      key: const Key('returnItemField'),
-      value: value,
-      hintText: l10n.invReturnItemSame,
-      labelText: l10n.invReturnItemLabel,
-      wrapText: true,
-      items: ['', ...options.map((i) => i.id)],
-      itemLabel: (id) {
-        if (id.isEmpty) return l10n.invReturnItemSame;
-        final i = byId[id];
-        return i == null
-            ? id
-            : '${i.itemName} (${i.unit}) · ${itemTypeLabel(l10n, i.itemType)}';
-      },
-      onChanged: onChanged,
-    );
-    return dropdown;
-  }
-
   void _showAddSheet() {
     if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
@@ -2084,80 +2033,6 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     if (ok) _load();
   }
 
-  /// Harvest Return setting for one item, from the card's three-dot menu: what the cooperative receives back
-  /// when a Farmer returns this item. Its own small modal, like Publish for the loan catalog.
-  void _showReturnItemSheet(InventoryItem item) {
-    if (!requireManage(context, StaffModule.dashboard)) return;
-    var selected = item.returnItemId ?? '';
-    var saving = false;
-    showManagementModal(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          final l = AppLocalizations.of(ctx);
-          Future<void> save() async {
-            if (saving) return;
-            if (selected == (item.returnItemId ?? '')) {
-              Navigator.pop(ctx);
-              return;
-            }
-            setSheet(() => saving = true);
-            try {
-              await _repo.setReturnItem(
-                item.id,
-                selected.isEmpty ? null : selected,
-              );
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                AppToast.show(context, l.invReturnSaved(item.itemName));
-                _load();
-              }
-            } catch (e, st) {
-              if (!ctx.mounted) return;
-              setSheet(() => saving = false);
-              AppToast.show(
-                ctx,
-                friendlyError(l, e, st, l.adminInvFailedTryAgain),
-                isError: true,
-              );
-            }
-          }
-
-          return ManagementModalShell(
-            title: l.invReturnSectionTitle,
-            subtitle: item.itemName,
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l.invReturnSectionHelp,
-                  textAlign: TextAlign.justify,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _returnItemField(
-                  l,
-                  value: selected,
-                  excludeId: item.id,
-                  onChanged: (v) => setSheet(() => selected = v ?? ''),
-                ),
-              ],
-            ),
-            footer: ManagementModalActions(
-              primaryLabel: saving ? l.adminInvSaving : l.adminInvUpdate,
-              isLoading: saving,
-              onPrimary: saving ? null : save,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   /// Restore an archived item. Messages show over the modal, so they use AppToast on the modal's context.
   Future<bool> _restoreItem(InventoryItem item, BuildContext modalCtx) async {
     if (!requireManage(modalCtx, StaffModule.dashboard)) return false;
@@ -2815,13 +2690,6 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                               item,
                                                             );
                                                           }
-                                                        case 'return':
-                                                          if (_isOnline &&
-                                                              !_showArchived) {
-                                                            _showReturnItemSheet(
-                                                              item,
-                                                            );
-                                                          }
                                                         case 'history':
                                                           _showTransactionHistory(
                                                             item,
@@ -2926,21 +2794,6 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                           cs.onSurface,
                                                         ),
                                                       ),
-                                                      // Cooperative-owned items only: a Farmer's delivered
-                                                      // batch has no Harvest Return setting.
-                                                      if (!item.isFarmerHarvest)
-                                                        PopupMenuItem(
-                                                          value: 'return',
-                                                          enabled:
-                                                              _isOnline &&
-                                                              !_showArchived,
-                                                          child: _menuRow(
-                                                            Icons
-                                                                .assignment_return_outlined,
-                                                            l10n.invReturnMenu,
-                                                            cs.onSurface,
-                                                          ),
-                                                        ),
                                                       PopupMenuItem(
                                                         value: 'history',
                                                         child: _menuRow(

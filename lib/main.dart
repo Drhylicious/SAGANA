@@ -12,6 +12,7 @@ import 'data/services/app_settings_service.dart';
 import 'data/services/app_update_service.dart';
 import 'data/models/suspension_notice.dart';
 import 'data/services/account_status_watcher.dart';
+import 'data/services/active_session_watcher.dart';
 import 'data/services/auth_service.dart';
 import 'data/services/connectivity_service.dart';
 import 'data/services/feature_restriction_service.dart';
@@ -75,6 +76,8 @@ Future<void> main() async {
     await StaffPermissions.instance.refresh();
     StaffPermissions.instance.start();
     AccountStatusWatcher.instance.start();
+    ActiveSessionWatcher.instance.start();
+    unawaited(ActiveSessionWatcher.instance.checkNow());
     // A saved session never goes through sign-in, so record the activity here.
     AuthService.touchLastActive();
   }
@@ -93,6 +96,7 @@ class SAGANAApp extends StatefulWidget {
 class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
   late final GoRouter _router = AppRouter.create();
   StreamSubscription<SuspensionNotice>? _suspensionSub;
+  StreamSubscription<SessionReplacedNotice>? _sessionSub;
   StreamSubscription<AuthState>? _authSub;
 
   @override
@@ -104,6 +108,7 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
       if (state.event == AuthChangeEvent.signedOut &&
           !AuthService.endingSession &&
+          !ActiveSessionWatcher.instance.handlingReplacement &&
           HiveService.isLoggedIn()) {
         unawaited(_onSessionLost());
       }
@@ -113,6 +118,9 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _suspensionSub = AccountStatusWatcher.instance.suspensions.listen(
       _onSuspended,
+    );
+    _sessionSub = ActiveSessionWatcher.instance.replacements.listen(
+      _onSessionReplaced,
     );
     // Lets a tapped phone notification open its screen, even from a closed app.
     unawaited(PushNotificationService.instance.attachRouter(_router));
@@ -148,6 +156,7 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
     MarketTypes.instance.removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
     _suspensionSub?.cancel();
+    _sessionSub?.cancel();
     _authSub?.cancel();
     super.dispose();
   }
@@ -163,6 +172,7 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
         }),
       );
       unawaited(AccountStatusWatcher.instance.checkNow());
+      unawaited(ActiveSessionWatcher.instance.checkNow());
       unawaited(NotificationBadgeService.instance.refresh());
       unawaited(_checkForUpdate());
       if (AuthService.isLoggedIn) {
@@ -186,12 +196,28 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
         signedOut: true,
       );
     }
-    await AuthService.logout();
+    await AuthService.logout(skipReleaseSession: true);
+    _router.go(AppRoutes.login);
+  }
+
+  Future<void> _onSessionReplaced(SessionReplacedNotice notice) async {
+    final overlayContext =
+        AppRouter.rootNavigatorKey.currentState?.overlay?.context;
+    if (overlayContext != null && overlayContext.mounted) {
+      await showSessionReplacedNotice(
+        context: overlayContext,
+        deviceName: notice.deviceName,
+      );
+    }
+    await AuthService.logout(skipReleaseSession: true);
+    ActiveSessionWatcher.instance.handlingReplacement = false;
     _router.go(AppRoutes.login);
   }
 
   Future<void> _onSessionLost() async {
+    if (ActiveSessionWatcher.instance.handlingReplacement) return;
     AccountStatusWatcher.instance.stop();
+    ActiveSessionWatcher.instance.stop();
     StaffPermissions.instance.clear();
     FeatureRestrictionService.instance.clear();
     await HiveService.clearUserSession();

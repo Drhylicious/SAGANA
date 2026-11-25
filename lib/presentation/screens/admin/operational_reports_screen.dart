@@ -14,6 +14,7 @@ import '../../widgets/admin_top_bar.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/models/admin_analytics_model.dart';
@@ -51,10 +52,25 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   @override
   void initState() {
     super.initState();
+    AppEventService.instance.addListener(_refreshExports);
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
     _load();
+  }
+
+  @override
+  void dispose() {
+    AppEventService.instance.removeListener(_refreshExports);
+    super.dispose();
+  }
+
+  void _refreshExports() {
+    if (!mounted) return;
+    final updated = HiveService.getExportHistory()
+        .map(ExportHistoryEntry.fromMap)
+        .toList();
+    setState(() => _recentExports = updated);
   }
 
   Future<void> _load() async {
@@ -143,6 +159,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   _buildSectionTitle(l10n.reportsManagementTools, cs),
                   const SizedBox(height: AppConstants.spacingMd),
                   _buildManagementToolsGrid(context, l10n),
+                  const SizedBox(height: AppConstants.spacingSectionV),
+                  _buildRecentReportsSection(context, l10n, cs, sagana),
                 ],
               ),
             ),
@@ -493,9 +511,116 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           title: l10n.reportsExportCenter,
           subtitle: l10n.rptHubExportSub,
           badge: l10n.rptHubBadgeExports(_recentExports.length),
-          onTap: () => context.push(AppRoutes.exportCenter),
+          onTap: () =>
+              context.push(AppRoutes.exportCenter).then((_) => _refreshExports()),
         ),
     ];
     return DashboardModuleGrid(items: items);
+  }
+
+  Widget _buildRecentReportsSection(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    final visible = _recentExports.take(5).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSectionTitle(l10n.reportsRecentReports, cs),
+            TextButton(
+              onPressed: () => context
+                  .push(AppRoutes.exportCenter)
+                  .then((_) => _refreshExports()),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                l10n.reportsViewAllExports,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingSm),
+        if (visible.isEmpty)
+          ReportEmptyState(message: l10n.reportsNoRecentExports)
+        else
+          ...visible.map((entry) {
+            final isPdf = entry.format == 'pdf';
+            return InkWell(
+              onTap: () => context
+                  .push(AppRoutes.exportCenter)
+                  .then((_) => _refreshExports()),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                padding: const EdgeInsets.all(AppConstants.spacingMd),
+                decoration: BoxDecoration(
+                  color: sagana.cardBackground,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  border: Border.all(
+                    color: cs.outline.withValues(alpha: 0.10),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isPdf
+                          ? Icons.picture_as_pdf_rounded
+                          : Icons.table_chart_rounded,
+                      color: cs.primary,
+                      size: 22,
+                    ),
+                    const SizedBox(width: AppConstants.spacingMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.moduleLabels.join(', '),
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: cs.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${entry.format.toUpperCase()} • ${entry.periodLabel} • '
+                            '${DateFormat('MMM d, h:mm a').format(entry.generatedAt)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
   }
 }

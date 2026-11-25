@@ -651,8 +651,6 @@ String supplyTypeLabel(AppLocalizations l10n, SupplyRecordType t) {
       return l10n.scmTypeRestock;
     case SupplyRecordType.programDistribution:
       return l10n.scmTypeDistribution;
-    case SupplyRecordType.harvestReturn:
-      return l10n.scmTypeReturn;
     case SupplyRecordType.cooperativePurchase:
       return l10n.scmTypePurchase;
     case SupplyRecordType.cooperativeSale:

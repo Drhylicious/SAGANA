@@ -10,8 +10,6 @@ import '../models/analytics_model.dart';
 import '../../core/utils/quantity_utils.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
-import '../models/program_outcome_model.dart';
-import '../models/program_return_model.dart';
 import 'program_assistance_repository.dart';
 import '../models/program_assistance_model.dart';
 import 'farmer_profile_repository.dart';
@@ -23,16 +21,10 @@ import 'farmer_profile_repository.dart';
 /// Everything the Farmer's My Programs cards are built from, for one Farmer (Manager / Officer, read-only).
 class FarmerProgramCards {
   final List<MyProgramEntry> entries;
-  final Map<String, MyOutcomeReport> reportByMember;
-  final MyReturnsSnapshot returns;
-  final Map<String, String> redistByMember;
   // The latest request for inventory assistance on each program card, by program member.
   final Map<String, AssistanceRequest> assistByMember;
   const FarmerProgramCards({
     this.entries = const [],
-    this.reportByMember = const {},
-    this.returns = const MyReturnsSnapshot(),
-    this.redistByMember = const {},
     this.assistByMember = const {},
   });
 }
@@ -474,37 +466,10 @@ class FarmerDetailsRepository {
     }
   }
 
-  /// The Farmer's programs exactly as their own My Programs shows them: every round, with the outcome, the
-  /// decision and the harvest return. The facts beyond the program rows come from
-  /// get_farmer_programs_view() (p45); without it the cards still show the program and what was received.
+  /// The Farmer's programs as their own My Programs shows them.
   Future<FarmerProgramCards> fetchProgramCards(String farmerId) async {
     try {
       final entries = await FarmerProfileRepository().fetchProgramsOf(farmerId);
-      var reports = <MyOutcomeReport>[];
-      var returns = const MyReturnsSnapshot();
-      var redist = <String, String>{};
-      try {
-        final res = Map<String, dynamic>.from(
-          await _client.rpc(
-                'get_farmer_programs_view',
-                params: {'p_farmer_id': farmerId},
-              )
-              as Map,
-        );
-        reports = [
-          for (final r in (res['reports'] as List? ?? const []))
-            MyOutcomeReport.fromMap(Map<String, dynamic>.from(r as Map)),
-        ];
-        returns = MyReturnsSnapshot.fromMap(
-          Map<String, dynamic>.from(res['returns'] as Map),
-        );
-        redist = {
-          for (final r in (res['redistribution'] as List? ?? const []))
-            (r as Map)['program_member_id'] as String: r['status'] as String,
-        };
-      } catch (_) {
-        // p45 not applied yet: the cards simply have no outcome details.
-      }
       // The latest assistance request per card (the Farmer's card shows it too). The
       // staff list covers every farmer, so keep only this farmer's cards.
       final assist = <String, AssistanceRequest>{};
@@ -520,21 +485,8 @@ class FarmerDetailsRepository {
       } catch (_) {
         // Not available: the cards simply have no assistance line.
       }
-      final byMember = <String, MyOutcomeReport>{};
-      for (final p in entries) {
-        final current = currentReportFor<MyOutcomeReport>(
-          reports,
-          p.id,
-          memberOf: (r) => r.programMemberId,
-          isReturned: (r) => r.isReturned,
-        );
-        if (current != null) byMember[p.id] = current;
-      }
       return FarmerProgramCards(
         entries: entries,
-        reportByMember: byMember,
-        returns: returns,
-        redistByMember: redist,
         assistByMember: assist,
       );
     } catch (_) {

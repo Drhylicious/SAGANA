@@ -156,7 +156,7 @@ class AdminActivityRepository {
           type: AdminActivityType.logged,
           plainDescription: localizeAdminLogRow(r),
           adminName: adminId != null ? infoMap[adminId]?.fullName : null,
-          timestamp: DateTime.parse(r['created_at'] as String),
+          timestamp: DateTime.parse(r['created_at'] as String).toLocal(),
           isPrimary: false,
           sourceModule: r['module'] as String,
           referenceId: r['reference_id'] as String?,

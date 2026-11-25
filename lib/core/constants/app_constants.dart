@@ -168,6 +168,8 @@ class AppConstants {
   static const String hiveKeyIsLoggedIn = 'is_logged_in';
   static const String hiveKeyThemeMode = 'theme_mode';
   static const String hiveKeyLocale = 'locale';
+  static const String hiveKeyRememberMe = 'remember_me';
+  static const String hiveKeyRememberedIdentifier = 'remembered_identifier';
 
   static const String themeLight = 'light';
   static const String themeDark = 'dark';

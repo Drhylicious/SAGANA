@@ -33,6 +33,7 @@ import '../../widgets/member_discipline_card.dart';
 import '../../widgets/expenses_view.dart';
 import '../../widgets/loans_view.dart';
 import '../../widgets/monthly_contribution_widgets.dart';
+import '../../../data/models/suspension_reasons.dart';
 import '../../../data/models/monthly_contribution_model.dart';
 import '../../../data/repositories/monthly_contribution_repository.dart';
 import '../../widgets/report_summary_widgets.dart';
@@ -43,7 +44,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../widgets/program_origin_chip.dart';
 import '../../../data/models/program_assistance_model.dart';
 import '../../../data/repositories/program_assistance_repository.dart';
-import '../farmer/my_programs_screen.dart' show MyProgramCard, MyProgramRound, groupProgramRounds;
+import '../farmer/my_programs_screen.dart' show MyProgramCard;
 
 class FarmerDetailsScreen extends StatefulWidget {
   final String farmerId;
@@ -443,6 +444,13 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                       cs: cs,
                                     ),
                                     const SizedBox(height: 16),
+                                  ] else if (profile.memberStatus ==
+                                      MemberStatus.suspended) ...[
+                                    _SuspendedMemberBanner(
+                                      profile: profile,
+                                      cs: cs,
+                                    ),
+                                    const SizedBox(height: 16),
                                   ],
                                   MemberIdentityCard(profile: profile),
                                   const SizedBox(height: 16),
@@ -689,6 +697,69 @@ class _RejectedApplicationBanner extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 11,
               color: cs.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuspendedMemberBanner extends StatelessWidget {
+  final FarmerProfileModel profile;
+  final ColorScheme cs;
+
+  const _SuspendedMemberBanner({required this.profile, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final rawReason = profile.suspensionReason?.trim();
+    final reason = (rawReason != null && rawReason.isNotEmpty)
+        ? localizedSuspensionReason(l10n, rawReason)
+        : null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppConstants.errorRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.block_rounded,
+                size: 18,
+                color: AppConstants.errorRed,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  l10n.farmerMgmtStatusSuspendedLabel,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.errorRed,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            reason != null
+                ? l10n.farmerMgmtReasonLine(reason)
+                : l10n.farmerDetailsNoReasonRecorded,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: cs.onSurface,
               height: 1.5,
             ),
           ),
@@ -1563,9 +1634,7 @@ class _ProgramsTabState extends State<_ProgramsTab> {
     final l10n = AppLocalizations.of(context);
     final cs = widget.cs;
 
-    // One card per program: the latest round. Earlier rounds sit under History on that card.
-    final groups = groupProgramRounds(widget.cards.entries);
-    final entries = groups.current;
+    final entries = widget.cards.entries;
     if (entries.isEmpty) {
       return Center(
         child: Padding(
@@ -1670,20 +1739,7 @@ class _ProgramsTabState extends State<_ProgramsTab> {
               child: MyProgramCard(
                 readOnly: true,
                 entry: p,
-                report: widget.cards.reportByMember[p.id],
-                harvestReturn: widget.cards.returns.byMember[p.id],
-                resolution: widget.cards.returns.resolutionByMember[p.id],
-                redistStatus: widget.cards.redistByMember[p.id],
                 assistRequest: widget.cards.assistByMember[p.id],
-                history: [
-                  for (final e in groups.earlier[p.id] ?? const [])
-                    MyProgramRound(
-                      entry: e,
-                      report: widget.cards.reportByMember[e.id],
-                      resolution: widget.cards.returns.resolutionByMember[e.id],
-                      assistRequest: widget.cards.assistByMember[e.id],
-                    ),
-                ],
                 formatDate: (d) => DateFormat('MMM d, y').format(d),
                 statusLabel: (s) => switch (s) {
                   'withdrawn' => l10n.farmerProgStatusWithdrawn,

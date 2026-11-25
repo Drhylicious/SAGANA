@@ -1,7 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../data/models/program_outcome_model.dart';
 import '../../data/services/connectivity_service.dart';
 import '../../data/services/server_only.dart';
 import '../../data/services/offline_actions.dart';
@@ -26,10 +25,6 @@ String friendlyError(
 
   if (error is ServerOnlyException || error is OfflineActionBlocked) {
     return l10n.errOffline;
-  }
-  if (error is OutcomeActionException) {
-    if (error.offline) return l10n.errOffline;
-    return _fromText(l10n, error.message, null) ?? other;
   }
   // A dropped connection is never shown as "something went wrong". When the
   // device is offline it gets the same "needs internet" message as every

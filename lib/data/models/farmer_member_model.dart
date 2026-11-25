@@ -177,23 +177,20 @@ extension MemberStatusActions on MemberStatus {
       case MemberStatus.pending:
         // Under review: look, then decide. Nothing a member can do.
         return const [
-          MemberListAction.viewProfile,
           MemberListAction.approve,
           MemberListAction.disapprove,
         ];
       case MemberStatus.rejected:
         return const [
-          MemberListAction.viewProfile,
           MemberListAction.sendNotification,
           MemberListAction.resetPassword,
           MemberListAction.deleteApplicant,
         ];
       case MemberStatus.draft:
-        return const [MemberListAction.viewProfile];
+        return const [];
       case MemberStatus.active:
       case MemberStatus.inactive:
         return const [
-          MemberListAction.viewProfile,
           MemberListAction.sendNotification,
           MemberListAction.resetPassword,
           MemberListAction.issueLoan,
@@ -203,12 +200,8 @@ extension MemberStatusActions on MemberStatus {
           MemberListAction.toggleSuspend,
         ];
       case MemberStatus.suspended:
-        // A suspended member cannot be issued a new loan.
+        // Suspended accounts can only be reactivated from the list menu.
         return const [
-          MemberListAction.viewProfile,
-          MemberListAction.sendNotification,
-          MemberListAction.resetPassword,
-          MemberListAction.recordLoanPayment,
           MemberListAction.toggleSuspend,
         ];
     }

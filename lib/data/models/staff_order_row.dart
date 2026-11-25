@@ -1,4 +1,4 @@
-import '../../core/utils/listing_order.dart' show oldestFirst;
+import '../../core/utils/listing_order.dart' show oldestFirst, stableGroupSort;
 import '../../core/utils/order_status.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../repositories/admin_order_repository.dart';
@@ -114,10 +114,14 @@ List<StaffOrderRow> filterStaffOrders(
     );
   }
   final result = list.toList();
-  // The two work queues (Pending, Needs Action) are oldest first: what has waited longest is
-  // handled first. Every other view is newest first.
-  if (status == kOrderNeedsActionFilter || status == 'pending') {
+  // Needs Action is oldest first so what has waited longest is handled first.
+  // Pending and all other statuses keep newest-first order, with cancelled
+  // orders always moved to the bottom.
+  if (status == kOrderNeedsActionFilter) {
     return oldestFirst(result, (r) => r.createdAt);
   }
-  return result;
+  return stableGroupSort(
+    result,
+    (r) => r.displayStatus == 'cancelled' ? 1 : 0,
+  );
 }

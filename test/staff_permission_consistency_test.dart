@@ -89,8 +89,9 @@ void main() {
     // Buyer
     'rpc:place_order', 'rpc:cancel_my_order', 'rpc:confirm_order_received',
     'table:buyer_profiles', 'table:buyer_profile_activity', 'table:buyer_addresses',
-    // own contact e-mail, own profile, own notifications
+    // own contact e-mail, own profile, own notifications, own active session
     'rpc:promote_contact_email', 'rpc:set_pending_contact_email', 'rpc:verify_contact_email',
+    'rpc:claim_active_session',
     'table:user_information', 'table:notifications',
     // Farmer: own harvest, crops, expenses, profile, activity feeds
     'table:harvest_records', 'table:inventory_batches', 'table:farmer_crops',

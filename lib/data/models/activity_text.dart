@@ -23,6 +23,8 @@ String renderActivityMessage(AppLocalizations l, AdminLogMessage m) {
       return l.activityProfileUpdated(labels.join(', '));
     case 'activitySyncedOfflineRecords':
       return l.activitySyncedOfflineRecords;
+    case 'activityDeviceLogin':
+      return l.activityDeviceLogin(p['device'] ?? '');
   }
   return renderGeneratedActivity(l, m.key, p) ??
       renderAdminLogMessage(l, m);
@@ -84,6 +86,11 @@ AdminLogMessage? parseLegacyActivity(String text) {
   }
   if (text == 'Synced offline records') {
     return const AdminLogMessage('activitySyncedOfflineRecords');
+  }
+  m = RegExp(r'^Signed in on (.+?) \(previous device signed out\)$')
+      .firstMatch(text);
+  if (m != null) {
+    return AdminLogMessage('activityDeviceLogin', {'device': m.group(1)!});
   }
   m = RegExp(r'^Updated (.+)$').firstMatch(text);
   if (m != null) {

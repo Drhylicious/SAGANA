@@ -183,7 +183,7 @@ class ListingStatusBadge extends StatelessWidget {
   const ListingStatusBadge({super.key, required this.label, required this.color});
 
   /// Availability view: Pending Approval / Available / Sold Out / Disapproved
-  /// / Withdrawn. Used on All Listings and on the Farmer's My Listings.
+  /// / Withdrawn / Rotten/Lost. Used on All Listings and on the Farmer's My Listings.
   factory ListingStatusBadge.forListing(
     BuildContext context, {
     required String status,
@@ -191,8 +191,16 @@ class ListingStatusBadge extends StatelessWidget {
     // Published but past its shelf life and not confirmed: Buyers cannot see
     // or buy it. Only the Farmer's and the staff's screens pass this.
     bool shelfUnavailable = false,
+    // Closed or finalized as Rotten/Lost from Manage Inventory.
+    bool shelfRotten = false,
   }) {
     final l10n = AppLocalizations.of(context);
+    if (shelfRotten && remainingKg <= 0) {
+      return ListingStatusBadge(
+        label: l10n.shelfTagRottenLost,
+        color: Theme.of(context).colorScheme.error,
+      );
+    }
     final state = listingStateOf(status: status, remainingKg: remainingKg);
     if (shelfUnavailable && state == ListingState.available) {
       return ListingStatusBadge(

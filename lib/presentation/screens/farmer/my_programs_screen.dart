@@ -4,23 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/quantity_utils.dart';
-import '../../../data/models/program_model.dart' show daysSinceReceived;
 import '../../../data/models/farmer_profile_model.dart';
-import '../../../data/models/program_outcome_model.dart';
-import '../../../data/models/program_return_model.dart';
 import '../../../data/models/program_assistance_model.dart';
 import '../../../data/repositories/program_assistance_repository.dart';
 import '../../../core/utils/app_error_message.dart';
 import '../../widgets/app_toast.dart';
-import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
-import '../../widgets/labeled_text_field.dart';
-import '../../widgets/management_modal.dart';
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/l10n/localized_labels.dart';
@@ -34,19 +28,11 @@ class MyProgramsScreen extends StatefulWidget {
 
 class _MyProgramsScreenState extends State<MyProgramsScreen> {
   final _repo = FarmerProfileRepository();
-  final _programRepo = FarmerProgramRepository();
   List<MyProgramEntry> _programs = [];
-  // The outcome report that represents each enrollment right now.
-  Map<String, MyOutcomeReport> _reportByMember = {};
-  // Harvest returns received so far, and the plain status of failed outcomes.
-  MyReturnsSnapshot _returns = const MyReturnsSnapshot();
-  // Assistance after a failed outcome (separate from loans), by program member.
   final _assistRepo = ProgramAssistanceRepository();
   Map<String, AssistanceOption> _assistOptions = {};
   Map<String, AssistanceRequest> _assistLatest = {};
-  // The Farmer's requests for another distribution, by the failed round ('pending' | 'approved').
-  Map<String, String> _redistRequests = {};
-  // Search and the All / Distribution / Sales chips (the same format as Browse Programs).
+  // Search and the All / Free Distribution / Sales chips (the same format as Browse Programs).
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _purposeFilter = 'All';
@@ -72,13 +58,10 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
     super.dispose();
   }
 
-  // One card per program: the latest round. Earlier rounds sit under History on that card.
-  ProgramRoundGroups get _groups => groupProgramRounds(_programs);
-
   bool _matchesPurpose(MyProgramEntry p, String label) =>
       label == 'All' || (label == 'Sales' ? p.isSalesProgram : !p.isSalesProgram);
 
-  List<MyProgramEntry> get _visible => _groups.current
+  List<MyProgramEntry> get _visible => _programs
       .where((p) =>
           _matchesPurpose(p, _purposeFilter) &&
           (_searchQuery.isEmpty || p.programName.toLowerCase().contains(_searchQuery)))
@@ -88,192 +71,24 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
     setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchMyPrograms(),
-      _programRepo.fetchMyOutcomeReports(),
-      _programRepo.fetchMyReturns(),
       _assistRepo.fetchMyOptions(),
       _assistRepo.fetchMyRequests(),
-      _programRepo.fetchMyRedistributionRequests(),
     ]);
     if (!mounted) return;
     final programs = results[0] as List<MyProgramEntry>;
-    final reports = results[1] as List<MyOutcomeReport>; // newest first
-    final byMember = <String, MyOutcomeReport>{};
-    for (final p in programs) {
-      final current = currentReportFor<MyOutcomeReport>(
-        reports,
-        p.id,
-        memberOf: (r) => r.programMemberId,
-        isReturned: (r) => r.isReturned,
-      );
-      if (current != null) byMember[p.id] = current;
-    }
     setState(() {
       _programs = programs;
-      _reportByMember = byMember;
-      _returns = results[2] as MyReturnsSnapshot;
       _assistOptions = {
-        for (final o in results[3] as List<AssistanceOption>)
+        for (final o in results[1] as List<AssistanceOption>)
           o.programMemberId: o,
       };
       // Newest first, so the first one seen per member is the latest.
       _assistLatest = {};
-      for (final r in results[4] as List<AssistanceRequest>) {
+      for (final r in results[2] as List<AssistanceRequest>) {
         _assistLatest.putIfAbsent(r.programMemberId, () => r);
       }
-      _redistRequests = results[5] as Map<String, String>;
       _isLoading = false;
     });
-  }
-
-  /// The Farmer's request for another distribution: what they reported, then a required note. It goes to the
-  /// cooperative, which can only approve it (they were already marked eligible).
-  Future<void> _openRequestRedistribution(MyProgramEntry entry) async {
-    final report = _reportByMember[entry.id];
-    final noteCtrl = TextEditingController();
-    var saving = false;
-    String? error;
-    final sent = await showManagementModal<bool>(
-      context: context,
-      builder: (ctx) {
-        final l10n = AppLocalizations.of(ctx);
-        final cs = Theme.of(ctx).colorScheme;
-        return StatefulBuilder(
-          builder: (ctx, setModal) {
-            Future<void> submit() async {
-              if (saving) return;
-              if (noteCtrl.text.trim().isEmpty) {
-                setModal(() => error = l10n.farmerRedistNoteRequired);
-                return;
-              }
-              setModal(() {
-                saving = true;
-                error = null;
-              });
-              try {
-                await _programRepo.requestRedistribution(
-                  memberId: entry.id,
-                  note: noteCtrl.text.trim(),
-                );
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              } catch (e, st) {
-                if (!ctx.mounted) return;
-                setModal(() => saving = false);
-                AppToast.show(ctx, friendlyError(l10n, e, st), isError: true);
-              }
-            }
-
-            Widget row(String label, String value) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      value,
-                      textAlign: TextAlign.end,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-
-            return ManagementModalShell(
-              title: l10n.farmerRedistSheetTitle,
-              subtitle: entry.programName,
-              body: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.farmerRedistSheetInfo,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    l10n.farmerRedistReported,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  row(
-                    l10n.farmerRedistItemGiven,
-                    '${entry.quantityGiven != null ? '${formatQuantityGrouped(entry.quantityGiven!)} ' : ''}'
-                            '${entry.itemUnit ?? ''} ${entry.itemName ?? ''}'
-                        .trim(),
-                  ),
-                  if (report != null) ...[
-                    row(
-                      l10n.farmerRedistReportedOutcome,
-                      report.reportedOutcome == 'successful'
-                          ? l10n.outcStatusSuccessful
-                          : l10n.outcStatusFailed,
-                    ),
-                    row(
-                      l10n.farmerRedistReportedOn,
-                      _formatDate(report.submittedAt),
-                    ),
-                    if (report.finalizedAt != null)
-                      row(
-                        l10n.farmerRedistConfirmedOn,
-                        _formatDate(report.finalizedAt!),
-                      ),
-                  ],
-                  const SizedBox(height: 10),
-                  LabeledTextField(
-                    controller: noteCtrl,
-                    label: l10n.farmerRedistNoteLabel,
-                    hint: '',
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  if (error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        error!,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppConstants.errorRed,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              footer: ManagementModalActions(
-                primaryLabel: l10n.farmerRedistSubmit,
-                isLoading: saving,
-                onPrimary: saving ? null : submit,
-              ),
-            );
-          },
-        );
-      },
-    );
-    noteCtrl.dispose();
-    if (sent == true && mounted) {
-      AppToast.show(context, AppLocalizations.of(context).farmerRedistSent);
-      _load();
-    }
   }
 
   Future<void> _openAssistance(MyProgramEntry entry) async {
@@ -296,17 +111,6 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
         AppToast.show(context, friendlyError(l10n, e, st), isError: true);
       }
     }
-  }
-
-  Future<void> _openReport(
-    MyProgramEntry entry,
-    MyOutcomeReport? current,
-  ) async {
-    final filed = await context.push<bool>(
-      AppRoutes.reportOutcome,
-      extra: {'entry': entry, 'returnNote': current?.returnNote},
-    );
-    if (filed == true) _load();
   }
 
   String _formatDate(DateTime dt) {
@@ -385,7 +189,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                     itemBuilder: (_, i) {
                       final label = ['All', 'Distribution', 'Sales'][i];
                       final isSelected = label == _purposeFilter;
-                      final count = _groups.current.where((p) => _matchesPurpose(p, label)).length;
+                      final count = _programs.where((p) => _matchesPurpose(p, label)).length;
                       return GestureDetector(
                         onTap: () => setState(() => _purposeFilter = label),
                         child: Container(
@@ -479,33 +283,12 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                               const SizedBox(height: 14),
                           itemBuilder: (_, i) => MyProgramCard(
                             entry: shown[i],
-                            report: _reportByMember[shown[i].id],
-                            harvestReturn: _returns.byMember[shown[i].id],
-                            resolution:
-                                _returns.resolutionByMember[shown[i].id],
                             assistOption: _assistOptions[shown[i].id],
                             assistRequest: _assistLatest[shown[i].id],
-                            redistStatus: _redistRequests[shown[i].id],
-                            onRequestRedistribution: _isOnline
-                                ? () => _openRequestRedistribution(shown[i])
-                                : null,
                             onAssist: () => _openAssistance(shown[i]),
                             onCancelAssist: () => _cancelAssistance(
                               _assistLatest[shown[i].id]!,
                             ),
-                            onReport: () => _openReport(
-                              shown[i],
-                              _reportByMember[shown[i].id],
-                            ),
-                            history: [
-                              for (final e in _groups.earlier[shown[i].id] ?? const <MyProgramEntry>[])
-                                MyProgramRound(
-                                  entry: e,
-                                  report: _reportByMember[e.id],
-                                  resolution: _returns.resolutionByMember[e.id],
-                                  assistRequest: _assistLatest[e.id],
-                                ),
-                            ],
                             formatDate: _formatDate,
                             statusLabel: (s) => _statusLabel(l10n, s),
                           ),
@@ -533,86 +316,26 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   }
 }
 
-/// One program, one card: the latest round is the card, the earlier rounds of the same program go under History.
-class ProgramRoundGroups {
-  final List<MyProgramEntry> current;
-
-  /// Earlier rounds by the id of the current round's entry, oldest first.
-  final Map<String, List<MyProgramEntry>> earlier;
-  const ProgramRoundGroups(this.current, this.earlier);
-}
-
-ProgramRoundGroups groupProgramRounds(List<MyProgramEntry> all) {
-  final latest = <String, MyProgramEntry>{};
-  for (final e in all) {
-    final cur = latest[e.programId];
-    if (cur == null || e.roundNo > cur.roundNo) latest[e.programId] = e;
-  }
-  final current = [
-    for (final e in all)
-      if (identical(latest[e.programId], e)) e,
-  ];
-  final earlier = <String, List<MyProgramEntry>>{};
-  for (final e in all) {
-    final cur = latest[e.programId]!;
-    if (!identical(cur, e)) (earlier[cur.id] ??= []).add(e);
-  }
-  for (final list in earlier.values) {
-    list.sort((a, b) => a.roundNo.compareTo(b.roundNo));
-  }
-  return ProgramRoundGroups(current, earlier);
-}
-
-/// An earlier round of a program with what its History row shows.
-class MyProgramRound {
-  final MyProgramEntry entry;
-  final MyOutcomeReport? report;
-  final String? resolution;
-  final AssistanceRequest? assistRequest;
-  const MyProgramRound({
-    required this.entry,
-    this.report,
-    this.resolution,
-    this.assistRequest,
-  });
-}
-
 /// One enrolled program on the Farmer's My Programs screen (public so its layout can be tested).
 class MyProgramCard extends StatelessWidget {
   final MyProgramEntry entry;
-  final MyOutcomeReport? report;
-  final ProgramReturnSummary? harvestReturn;
-  final String? resolution;
   final AssistanceOption? assistOption;
   final AssistanceRequest? assistRequest;
-  // The Farmer's request for another distribution after "Eligible for Reassessment" (null = none sent).
-  final String? redistStatus;
-  final VoidCallback? onRequestRedistribution;
   final VoidCallback? onAssist;
   final VoidCallback? onCancelAssist;
-  final VoidCallback? onReport;
   // Staff view (Farmer Details): the same card, nothing to tap. No buttons, no links.
   final bool readOnly;
-  // The earlier (failed) rounds of this program, oldest first. Shown under History on the same card.
-  final List<MyProgramRound> history;
   final String Function(DateTime) formatDate;
   final String Function(String) statusLabel;
 
   const MyProgramCard({
     super.key,
     required this.entry,
-    required this.report,
-    this.harvestReturn,
-    this.resolution,
     this.assistOption,
     this.assistRequest,
-    this.redistStatus,
-    this.onRequestRedistribution,
     this.onAssist,
     this.onCancelAssist,
-    this.onReport,
     this.readOnly = false,
-    this.history = const [],
     required this.formatDate,
     required this.statusLabel,
   });
@@ -720,13 +443,6 @@ class MyProgramCard extends StatelessWidget {
                             : l10n.farmerProgDistributionProgram,
                         color: accent,
                       ),
-                      if (entry.roundNo > 1)
-                        _Badge(
-                          label: entry.roundNo == 2
-                              ? l10n.farmerProgRoundSecond
-                              : l10n.farmerProgRound(entry.roundNo),
-                          color: AppConstants.buyerBlue,
-                        ),
                       Text(
                         l10n.farmerProgEnrolledOn(formatDate(entry.enrolledAt)),
                         style: GoogleFonts.inter(
@@ -768,10 +484,6 @@ class MyProgramCard extends StatelessWidget {
                     )
                   else
                     ..._distributionBody(context, l10n),
-                  if (history.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    _RoundHistory(rounds: history, formatDate: formatDate),
-                  ],
                 ],
               ),
             ),
@@ -787,44 +499,9 @@ class MyProgramCard extends StatelessWidget {
     child: Icon(icon, size: 38, color: accent.withValues(alpha: 0.7)),
   );
 
-  // Enrolled → Received → Outcome, the same three steps the cooperative
-  // follows. Colours: green = done, red = recorded as failed, grey = waiting.
+  // Enrolled → Received, for Free Distribution.
   List<Widget> _distributionBody(BuildContext context, AppLocalizations l10n) {
     final received = entry.isDistributed;
-    final r = report;
-    // A finalized report is the outcome. An outcome recorded BEFORE the
-    // evidence workflow (no report) still shows as it was.
-    final legacyDone =
-        r == null && (entry.isOutcomeThriving || entry.isOutcomeFailed);
-    final outcomeDone = (r?.isFinalized ?? false) || legacyDone;
-    final failedFinal = r != null
-        ? r.finalOutcome == 'failed'
-        : entry.isOutcomeFailed;
-    final outcomeColor = outcomeDone
-        ? (failedFinal ? AppConstants.errorRed : AppConstants.successGreen)
-        : (r?.isReturned ?? false)
-        ? AppConstants.errorRed
-        : AppConstants.amber;
-    final outcomeText = r != null
-        ? (r.isFinalized
-              ? (r.finalOutcome == 'failed'
-                    ? l10n.outcStatusFailed
-                    : l10n.outcStatusSuccessful)
-              : r.isReturned
-              ? l10n.outcStatusReturned
-              : l10n.outcStatusPending)
-        : entry.isOutcomeThriving
-        ? l10n.farmerProgOutcomeThriving
-        : entry.isOutcomeFailed
-        ? l10n.farmerProgOutcomeFailed
-        : l10n.farmerProgOutcomePending;
-    // Only a Harvest Return reports an outcome. A Free Distribution is complete once received.
-    final canReport =
-        received &&
-        entry.isHarvestReturn &&
-        r == null &&
-        !legacyDone &&
-        entry.enrollmentStatus == 'active';
 
     final what = received
         ? '${_qty(entry.quantityGiven ?? 0)}'
@@ -846,14 +523,6 @@ class MyProgramCard extends StatelessWidget {
             color: AppConstants.successGreen,
             done: received,
           ),
-          if (entry.isHarvestReturn) ...[
-            _StepLine(active: outcomeDone),
-            _Step(
-              label: l10n.farmerProgStageOutcome,
-              color: outcomeColor,
-              done: outcomeDone,
-            ),
-          ],
         ],
       ),
       const SizedBox(height: 12),
@@ -913,433 +582,16 @@ class MyProgramCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        // A Free Distribution: the item is the Farmer's. An outcome recorded earlier stays as history.
-        if (!entry.isHarvestReturn && !outcomeDone)
-          Text(
-            l10n.farmerProgFreeOwned,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.successGreen,
-            ),
+        Text(
+          l10n.farmerProgFreeOwned,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.successGreen,
           ),
-        // Waiting to report: how long ago the item was received. Neutral, and with no
-        // deadline implied: the cooperative has not set an official reporting date.
-        if (entry.isHarvestReturn || outcomeDone)
-          Text(
-            canReport
-                ? l10n.farmerProgReportPending(
-                    daysSinceReceived(entry.distributedAt!),
-                  )
-                : outcomeText,
-            key: canReport ? const Key('reportPendingLine') : null,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: outcomeDone || r != null
-                  ? outcomeColor
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        if (entry.isHarvestReturn && r != null && r.isPending) ...[
-          const SizedBox(height: 6),
-          Text(
-            l10n.outcPendingLine(formatDate(r.submittedAt)),
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              height: 1.4,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 14,
-            runSpacing: 4,
-            children: [
-              _check(context, l10n.outcCheckEvidence, r.reviewDone),
-              _check(context, l10n.outcCheckField, r.verificationDone),
-            ],
-          ),
-        ],
-        if (entry.isHarvestReturn && r != null && r.isReturned) ...[
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppConstants.errorRed.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            ),
-            child: Text(
-              (r.returnNote ?? '').trim().isEmpty
-                  ? l10n.outcReturnedNoNote
-                  : r.returnNote!,
-              style: GoogleFonts.inter(fontSize: 12, height: 1.4),
-            ),
-          ),
-        ],
-        if (!readOnly &&
-            ((entry.isHarvestReturn && r != null && r.isReturned) ||
-                canReport)) ...[
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: onReport,
-              icon: const Icon(Icons.assignment_turned_in_outlined, size: 18),
-              label: Text(
-                r != null && r.isReturned
-                    ? l10n.outcSubmitNewReport
-                    : l10n.outcReportAction,
-              ),
-            ),
-          ),
-        ],
-      ],
-      if (harvestReturn != null) ...[
-        const SizedBox(height: 10),
-        _returnStatus(context, l10n, harvestReturn!),
-      ],
-      if (failedFinal && outcomeDone && resolution != null) ...[
-        const SizedBox(height: 10),
-        _resolutionStatus(context, l10n, resolution!),
-      ],
-      if (failedFinal && outcomeDone) ..._assistanceBlock(context, l10n),
-      if (entry.isHarvestReturn) ...[
-        const SizedBox(height: 12),
-        _returnBox(context, l10n),
+        ),
       ],
     ];
-  }
-
-  Widget _check(BuildContext context, String label, bool done) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(
-        done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-        size: 15,
-        color: done
-            ? AppConstants.successGreen
-            : Theme.of(context).colorScheme.outline,
-      ),
-      const SizedBox(width: 4),
-      Flexible(child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          color: done
-              ? Theme.of(context).colorScheme.onSurface
-              : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      )),
-    ],
-  );
-
-  // Assistance after a failed outcome: the latest request's status, and a button
-  // to ask when the database says this outcome may. Not a loan.
-  List<Widget> _assistanceBlock(BuildContext context, AppLocalizations l10n) {
-    final req = assistRequest;
-    final opt = assistOption;
-    final widgets = <Widget>[];
-    if (req != null) {
-      final color = req.isApproved
-          ? AppConstants.successGreen
-          : req.isRejected
-          ? AppConstants.errorRed
-          : req.isPending
-          ? AppConstants.warningAmber
-          : Theme.of(context).colorScheme.onSurfaceVariant;
-      final status = switch (req.status) {
-        'approved' => l10n.assistStatusApproved,
-        'rejected' => l10n.assistStatusRejected,
-        'cancelled' => l10n.assistStatusCancelled,
-        _ => l10n.assistStatusPending,
-      };
-      widgets.add(const SizedBox(height: 10));
-      widgets.add(
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${l10n.assistStatusLine(req.requestNumber)} · $status',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-              if (req.assistanceReference != null)
-                Text(
-                  l10n.assistFarmerRef(req.assistanceReference!),
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              if (req.isRejected && (req.reviewNote ?? '').isNotEmpty)
-                Text(
-                  req.reviewNote!,
-                  style: GoogleFonts.inter(fontSize: 11, height: 1.4),
-                ),
-              if (req.isPending && onCancelAssist != null)
-                TextButton(
-                  onPressed: onCancelAssist,
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: Text(l10n.assistCancel),
-                ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (opt != null && opt.canRequest && onAssist != null) {
-      widgets.add(const SizedBox(height: 10));
-      widgets.add(
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: onAssist,
-            icon: const Icon(Icons.volunteer_activism_rounded, size: 18),
-            label: Text(l10n.assistRequestAction),
-          ),
-        ),
-      );
-    }
-    return widgets;
-  }
-
-  // Where the Farmer's harvest return stands (received so far, no staff names).
-  Widget _returnStatus(
-    BuildContext context,
-    AppLocalizations l10n,
-    ProgramReturnSummary r,
-  ) {
-    final done = r.status == 'received';
-    final closed = r.status == 'closed_short';
-    final color = done
-        ? AppConstants.successGreen
-        : closed
-        ? Theme.of(context).colorScheme.onSurfaceVariant
-        : AppConstants.buyerBlue;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.agriculture_rounded, size: 16, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              l10n.retFarmerLine(
-                formatReturnQuantity(r.receivedQuantity),
-                formatReturnQuantity(r.dueQuantity),
-                r.unit,
-                r.cropName,
-              ),
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // The status of a Failed outcome. Only the status: never who decided or why. A referral for loan assessment
-  // also explains what it is not (a loan) and offers the existing loan request. "Eligible for Reassessment"
-  // tells the Farmer they may ask for another distribution, without joining again.
-  Widget _resolutionStatus(
-    BuildContext context,
-    AppLocalizations l10n,
-    String resolution,
-  ) {
-    final text = switch (resolution) {
-      FailedResolution.closedNoFurtherObligation => l10n.resFarmerClosed,
-      FailedResolution.eligibleForReassessment => l10n.resFarmerReassess,
-      FailedResolution.referredForLoanAssessment => l10n.resFarmerReferred,
-      _ => l10n.resFarmerPending,
-    };
-    final referred = resolution == FailedResolution.referredForLoanAssessment;
-    final eligible =
-        resolution == FailedResolution.eligibleForReassessment &&
-        entry.programStatus != 'completed';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.info_outline_rounded,
-              size: 15,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                text,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (referred) ...[
-          const SizedBox(height: 6),
-          Text(
-            l10n.resFarmerReferredNote,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              height: 1.4,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-        if (eligible) ...[
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppConstants.successGreen.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(
-                color: AppConstants.successGreen.withValues(alpha: 0.30),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.farmerRedistEligibleTitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (redistStatus == 'pending')
-                  Text(
-                    l10n.farmerRedistPending,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else if (redistStatus == 'approved')
-                  Text(
-                    l10n.farmerRedistApproved,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else ...[
-                  Text(
-                    l10n.farmerRedistEligibleBody,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (onRequestRedistribution != null) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        key: const Key('requestRedistributionButton'),
-                        onPressed: onRequestRedistribution,
-                        icon: const Icon(Icons.replay_rounded, size: 18),
-                        label: Text(l10n.farmerRedistRequestButton),
-                      ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _returnBox(BuildContext context, AppLocalizations l10n) {
-    // History only: a program that was settled in pesos under the old
-    // revenue-share model keeps showing what was recorded.
-    if (entry.isSettled && entry.amountReturned != null) {
-      return Text(
-        l10n.farmerProgReturnedMoney(
-          entry.amountReturned!.toStringAsFixed(2),
-          formatDate(entry.settledAt!),
-        ),
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: AppConstants.successGreen,
-        ),
-      );
-    }
-    final qty = entry.returnQuantity;
-    final what = qty == null
-        ? null
-        : '${_qty(qty)}'
-              '${entry.returnUnitShown != null ? ' ${entry.returnUnitShown}' : ''}'
-              '${entry.returnName != null ? ' ${entry.returnName}' : ''}';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppConstants.warningAmber.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(
-          color: AppConstants.warningAmber.withValues(alpha: 0.35),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (what != null)
-            Text(
-              l10n.farmerProgHarvestReturn(what.trim()),
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          if (what != null) const SizedBox(height: 3),
-          Text(
-            l10n.farmerProgHarvestReturnNote,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              height: 1.4,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -1437,141 +689,4 @@ class _StepLine extends StatelessWidget {
   }
 }
 
-/// Earlier rounds of the same program (each was a distribution of its own). Collapsed until opened.
-class _RoundHistory extends StatefulWidget {
-  final List<MyProgramRound> rounds;
-  final String Function(DateTime) formatDate;
-  const _RoundHistory({required this.rounds, required this.formatDate});
 
-  @override
-  State<_RoundHistory> createState() => _RoundHistoryState();
-}
-
-class _RoundHistoryState extends State<_RoundHistory> {
-  bool _open = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      key: const Key('programRoundHistory'),
-      decoration: BoxDecoration(
-        color: cs.onSurface.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            onTap: () => setState(() => _open = !_open),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(Icons.history_rounded, size: 16, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.farmerProgHistory(widget.rounds.length),
-                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Icon(
-                    _open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                    size: 20,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_open)
-            for (final r in widget.rounds)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                child: _row(context, l10n, r),
-              ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(BuildContext context, AppLocalizations l10n, MyProgramRound r) {
-    final cs = Theme.of(context).colorScheme;
-    final e = r.entry;
-    final rep = r.report;
-    final failed = rep != null ? rep.finalOutcome == 'failed' : e.isOutcomeFailed;
-    final done = (rep?.isFinalized ?? false) || (rep == null && (e.isOutcomeThriving || e.isOutcomeFailed));
-    final outcome = rep != null
-        ? (rep.isFinalized
-              ? (failed ? l10n.outcStatusFailed : l10n.outcStatusSuccessful)
-              : rep.isReturned
-              ? l10n.outcStatusReturned
-              : l10n.outcStatusPending)
-        : e.isOutcomeThriving
-        ? l10n.farmerProgOutcomeThriving
-        : e.isOutcomeFailed
-        ? l10n.farmerProgOutcomeFailed
-        : l10n.farmerProgOutcomePending;
-    final outcomeColor = done
-        ? (failed ? AppConstants.errorRed : AppConstants.successGreen)
-        : cs.onSurfaceVariant;
-    final what = e.isDistributed
-        ? '${formatQuantityGrouped(e.quantityGiven ?? 0)}'
-              '${e.itemUnit != null ? ' ${e.itemUnit}' : ''}'
-              '${e.itemName != null ? ' ${e.itemName}' : ''}'
-        : '';
-    final decision = failed && done
-        ? switch (r.resolution) {
-            FailedResolution.closedNoFurtherObligation => l10n.resFarmerClosed,
-            FailedResolution.eligibleForReassessment => l10n.resFarmerReassess,
-            FailedResolution.referredForLoanAssessment => l10n.resFarmerReferred,
-            null => null,
-            _ => l10n.resFarmerPending,
-          }
-        : null;
-    final assist = r.assistRequest;
-    final small = GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: context.saganaColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.farmerProgRound(e.roundNo),
-            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-          if (e.isDistributed) ...[
-            const SizedBox(height: 2),
-            Text(l10n.farmerProgReceivedLine(what, widget.formatDate(e.distributedAt!)), style: small),
-          ],
-          const SizedBox(height: 4),
-          Text(
-            outcome,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: outcomeColor),
-          ),
-          if (decision != null) Text(decision, style: small),
-          if (assist != null)
-            Text(
-              '${l10n.assistStatusLine(assist.requestNumber)} · ${switch (assist.status) {
-                'approved' => l10n.assistStatusApproved,
-                'rejected' => l10n.assistStatusRejected,
-                'cancelled' => l10n.assistStatusCancelled,
-                _ => l10n.assistStatusPending,
-              }}',
-              style: small,
-            ),
-        ],
-      ),
-    );
-  }
-}

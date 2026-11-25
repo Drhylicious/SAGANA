@@ -142,6 +142,26 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     _loadRequests();
   }
 
+  Future<void> _acceptAdjustedPrice() async {
+    if (!_requireOnline() || _isSubmitting) return;
+    final l = AppLocalizations.of(context);
+    setState(() => _isSubmitting = true);
+    try {
+      await _listingRepo.acceptAdjustedPrice(_listing.id);
+      final fresh = await _listingRepo.fetchListing(_listing.id);
+      if (!mounted) return;
+      setState(() {
+        if (fresh != null) _listing = fresh;
+        _isSubmitting = false;
+      });
+      AppToast.show(context, l.priceAdjustedAcceptedToast);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      AppToast.show(context, l.priceAdjustedAcceptFailed, isError: true);
+    }
+  }
+
   Future<void> _cancelRequest(ListingEditRequest request) async {
     final l = AppLocalizations.of(context);
     if (!_requireOnline()) return;
@@ -461,21 +481,30 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           status: listing.status,
           remainingKg: listing.remainingKg,
           shelfUnavailable: listing.isShelfUnavailable,
+          shelfRotten: listing.isShelfRotten,
         ),
       ],
     );
   }
 
   /// Shelf life of the harvest this listing sells, and what the Farmer should
-  /// do when it was discounted or made unavailable. Farmer-only: a Buyer's
-  /// listing screens never show any of this.
+  /// do when it was discounted or made unavailable. Harvest condition is
+  /// inspected and finalized only in Manage Inventory.
   Widget _buildShelfLife(BuildContext context, MarketplaceListingModel listing) {
     final l10n = AppLocalizations.of(context);
     final batch = _batch;
     final shelf = batch?.shelfLife;
-    final flagged = listing.isShelfUnavailable || listing.isShelfDiscounted;
+    final rotten = listing.isUnavailableDueToRotten;
+    final flagged =
+        !rotten && (listing.isShelfUnavailable || listing.isShelfDiscounted);
     final priceRule = listing.priceUpdateRule;
-    if (!flagged && priceRule == null && (shelf == null || !shelf.isTracked)) {
+    final needsPriceConfirm =
+        !rotten && listing.priceConfirmationRequired && _pendingRequest == null;
+    if (!rotten &&
+        !flagged &&
+        !needsPriceConfirm &&
+        priceRule == null &&
+        (shelf == null || !shelf.isTracked)) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -483,10 +512,127 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Price Update Required: the Reference Price Range changed and this
-          // price is outside it. The listing stays available; the Farmer edits
-          // the price and it goes through the usual approval.
-          if (priceRule != null) ...[
+          if (rotten) ...[
+            ShelfLifeNote(
+              text: l10n.shelfListingRottenHint,
+              color: Theme.of(context).colorScheme.error,
+              icon: Icons.delete_outline_rounded,
+            ),
+          ],
+          // Reference Price Range changed and this listing's price was
+          // auto-adjusted to the new lower boundary: Farmer can Accept or
+          // Edit within the new range for approval.
+          if (needsPriceConfirm && priceRule != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.warningAmber.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                border: Border.all(
+                  color: AppConstants.warningAmber.withValues(alpha: 0.40),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.price_change_outlined,
+                        color: AppConstants.warningAmber,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.priceAdjustedConfirmBanner(
+                            priceRule.min.toStringAsFixed(2),
+                            priceRule.max.toStringAsFixed(2),
+                            priceRule.unit,
+                            (listing.priceAdjustedFrom ?? listing.pricePerKg)
+                                .toStringAsFixed(2),
+                            listing.pricePerKg.toStringAsFixed(2),
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed:
+                              (_isSubmitting ||
+                                  !ConnectivityService.instance.isOnline)
+                              ? null
+                              : _acceptAdjustedPrice,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppConstants.primaryGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusMd,
+                              ),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            l10n.priceAdjustedAcceptAction(
+                              listing.pricePerKg.toStringAsFixed(2),
+                              listing.unit,
+                            ),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed:
+                              (_isSubmitting ||
+                                  !ConnectivityService.instance.isOnline)
+                              ? null
+                              : _openEdit,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppConstants.primaryGreen,
+                            side: const BorderSide(
+                              color: AppConstants.primaryGreen,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusMd,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            l10n.priceAdjustedEditAction,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ] else if (!rotten && priceRule != null) ...[
             ShelfLifeNote(
               text: l10n.priceUpdateRequiredHint(
                 priceRule.min.toStringAsFixed(2),
@@ -498,7 +644,8 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             ),
             const SizedBox(height: 8),
           ],
-          if (shelf != null && shelf.isTracked) ShelfLifeLine(shelfLife: shelf),
+          if (!rotten && shelf != null && shelf.isTracked)
+            ShelfLifeLine(shelfLife: shelf),
           if (flagged) ...[
             const SizedBox(height: 8),
             ShelfLifeNote(
@@ -512,23 +659,20 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                   ? Theme.of(context).colorScheme.error
                   : AppConstants.warningAmber,
               icon: Icons.fact_check_outlined,
-              action: batch == null
+              action: listing.inventoryBatchId == null
                   ? null
                   : TextButton(
-                      onPressed: () async {
-                        final changed = await showShelfLifeCheckSheet(
-                          context,
-                          batch: batch,
+                      onPressed: () {
+                        context.pushRoute(
+                          AppRoutes.manageInventory,
+                          extra: listing.inventoryBatchId,
                         );
-                        if (changed && context.mounted) {
-                          Navigator.of(context).pop(true);
-                        }
                       },
                       style: TextButton.styleFrom(
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                       ),
-                      child: Text(l10n.shelfCheckNow),
+                      child: Text(l10n.shelfInspectInInventory),
                     ),
             ),
           ],
@@ -780,12 +924,13 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             ),
             const SizedBox(height: 20),
           ],
-          _actionButton(
-            AppLocalizations.of(context).enhDeleteListing246,
-            AppConstants.errorRed,
-            outlined: true,
-            onTap: _confirmDelete,
-          ),
+          if (!listing.isShelfRotten)
+            _actionButton(
+              AppLocalizations.of(context).enhDeleteListing246,
+              AppConstants.errorRed,
+              outlined: true,
+              onTap: _confirmDelete,
+            ),
         ],
       );
     }

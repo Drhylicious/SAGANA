@@ -43,7 +43,6 @@ enum SupplyDirection {
 enum SupplyRecordType {
   inventoryRestock,
   programDistribution,
-  harvestReturn,
   cooperativePurchase,
   cooperativeSale,
   marketplaceSale,
@@ -56,8 +55,6 @@ enum SupplyRecordType {
         return SupplyRecordType.inventoryRestock;
       case 'program_distribution':
         return SupplyRecordType.programDistribution;
-      case 'harvest_return':
-        return SupplyRecordType.harvestReturn;
       case 'cooperative_purchase':
         return SupplyRecordType.cooperativePurchase;
       case 'cooperative_sale':

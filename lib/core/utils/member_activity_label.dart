@@ -4,8 +4,6 @@ import '../../data/models/activity_text.dart';
 import '../../data/models/admin_legacy_generated.dart';
 import '../../data/models/staff_action_model.dart';
 import '../../data/services/staff_permission_service.dart';
-import '../../presentation/widgets/program_return_panel.dart'
-    show resolutionLabel;
 import '../../presentation/widgets/staff_access_matrix.dart';
 import '../l10n/app_localizations.dart';
 
@@ -289,43 +287,9 @@ String staffActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   }
 }
 
-/// What a Manager or Officer did to a program member, in plain words: set (or changed) the quantity the
-/// Farmer is expected to return, or gave the Farmer their item. The log row holds only the columns that
-/// changed. Null for any other row, which then keeps the generic wording.
+/// What a Manager or Officer did to a program member, in plain words: gave the Farmer their item.
+/// Null for any other row, which then keeps the generic wording.
 String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
-  // A cooperative decision on a Failed outcome: every one is kept, with who recorded it and when.
-  if (e.tableName == 'program_failure_resolutions' &&
-      e.operation == 'created') {
-    final decision = (e.newValues ?? const <String, dynamic>{})['resolution'];
-    if (decision is! String) return null;
-    final who = (e.reference ?? '').trim();
-    return l10n.staffActDecisionRecorded(
-      who.isEmpty ? '—' : who,
-      resolutionLabel(l10n, decision),
-    );
-  }
-  if (e.tableName == 'program_redistribution_requests' &&
-      e.operation == 'updated') {
-    final status = (e.newValues ?? const <String, dynamic>{})['status'];
-    if (status == 'approved') {
-      final who = (e.reference ?? '').trim();
-      return l10n.staffActRedistApproved(who.isEmpty ? '—' : who);
-    }
-    return null;
-  }
-  // A second distribution: the new round, and the earlier round closing (both kept as history).
-  if (e.tableName == 'program_members' && e.operation == 'created') {
-    final round =
-        num.tryParse(
-          '${(e.newValues ?? const <String, dynamic>{})['round_no']}',
-        )?.toInt() ??
-        1;
-    if (round > 1) {
-      final who = (e.reference ?? '').trim();
-      return l10n.staffActNewRound(who.isEmpty ? '—' : who, round);
-    }
-    return null;
-  }
   if (e.tableName != 'program_members' || e.operation != 'updated') return null;
   final before = e.oldValues ?? const <String, dynamic>{};
   final after = e.newValues ?? const <String, dynamic>{};
@@ -334,9 +298,6 @@ String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
   String qty(num v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
-  if (after['status'] == 'completed' && before['status'] == 'active') {
-    return l10n.staffActRoundClosed(name);
-  }
   if (after['distributed_at'] != null && before['distributed_at'] == null) {
     final given = num.tryParse('${after['quantity_given']}');
     final item = '${after['distributed_item_name'] ?? ''}'.trim();
@@ -346,14 +307,6 @@ String? programActionHeadline(StaffActionEntry e, AppLocalizations l10n) {
       [qty(given), if (unit.isNotEmpty) unit, item].join(' '),
       name,
     );
-  }
-  if (after.containsKey('return_quantity')) {
-    final to = num.tryParse('${after['return_quantity']}');
-    if (to == null) return null;
-    final from = num.tryParse('${before['return_quantity']}');
-    return from == null
-        ? l10n.staffActReturnSet(name, qty(to))
-        : l10n.staffActReturnChanged(name, qty(from), qty(to));
   }
   return null;
 }

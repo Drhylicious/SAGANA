@@ -375,15 +375,16 @@ class RecentActivityCard extends StatelessWidget {
   }
 }
 
-/// Today shows the clock time; earlier days show the date.
+/// Today shows the clock time; earlier days show the date and clock time.
 String recentActivityTime(DateTime dt) {
+  final local = dt.toLocal();
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final itemDay = DateTime(dt.year, dt.month, dt.day);
+  final itemDay = DateTime(local.year, local.month, local.day);
   if (itemDay == today) {
-    return DateFormat('h:mm a').format(dt);
+    return DateFormat('h:mm a').format(local);
   }
-  return DateFormat('MMM d').format(dt);
+  return DateFormat('MMM d, h:mm a').format(local);
 }
 
 class _RecentActivityCardBottom extends StatelessWidget {

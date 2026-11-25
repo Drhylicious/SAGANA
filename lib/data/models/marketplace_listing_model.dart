@@ -42,6 +42,12 @@ class MarketplaceListingModel {
   final ListingPriceRule? priceUpdateRule;
   bool get priceUpdateRequired => priceUpdateRule != null;
 
+  /// True when the cooperative's Reference Price Range changed and this
+  /// listing's price was automatically adjusted to the new lower boundary,
+  /// awaiting the Farmer's confirmation (accept or edit within the new range).
+  final bool priceConfirmationRequired;
+  final double? priceAdjustedFrom;
+
   const MarketplaceListingModel({
     required this.id,
     required this.farmerId,
@@ -62,6 +68,8 @@ class MarketplaceListingModel {
     this.updatedAt,
     this.shelfLife,
     this.priceUpdateRule,
+    this.priceConfirmationRequired = false,
+    this.priceAdjustedFrom,
   });
 
   bool get isPending => status == 'pending_review';
@@ -82,9 +90,17 @@ class MarketplaceListingModel {
       remainingKg > 0 &&
       (shelfLife?.unavailable ?? false);
 
-  /// Carries the automatic expiry-day discount.
+  /// Carries the automatic expiry-day discount while stock remains for sale.
   bool get isShelfDiscounted =>
-      status == 'approved' && (shelfLife?.isDiscounted ?? false);
+      status == 'approved' &&
+      remainingKg > 0 &&
+      (shelfLife?.isDiscounted ?? false);
+
+  /// Closed or marked rotten/lost when its harvest batch was reported rotten.
+  bool get isShelfRotten => shelfLife?.isRotten ?? false;
+
+  /// Visually disabled because the underlying harvest was recorded rotten/lost.
+  bool get isUnavailableDueToRotten => isShelfRotten && remainingKg <= 0;
 
   /// Nothing left to buy: stored as sold, or approved with 0 kg remaining.
   bool get isSoldOut => status == 'sold' || (status == 'approved' && remainingKg <= 0);
@@ -132,6 +148,15 @@ class MarketplaceListingModel {
       updatedAt: _parseDateTime(map['updated_at']),
       shelfLife: ListingShelfLife.fromEmbed(map['listing_shelf_life']),
       priceUpdateRule: ListingPriceRule.fromMap(map['price_update_rule']),
+      priceConfirmationRequired:
+          map['price_confirmation_required'] as bool? ??
+          ((map['price_update_rule'] as Map?)?['price_confirmation_required']
+                  as bool? ??
+              false),
+      priceAdjustedFrom:
+          (map['price_adjusted_from'] as num?)?.toDouble() ??
+          ((map['price_update_rule'] as Map?)?['price_adjusted_from'] as num?)
+              ?.toDouble(),
     );
   }
 }

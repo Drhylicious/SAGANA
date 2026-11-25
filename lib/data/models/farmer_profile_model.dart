@@ -218,7 +218,6 @@ class MyProgramEntry {
   final String? programDescription;
   final String programType;
   final String? distributionCategory;
-  final String benefitType;
   final String programPurpose; // 'distribution' | 'sales'
   final String programStatus;
   final String enrollmentStatus;
@@ -227,30 +226,10 @@ class MyProgramEntry {
   final String? itemUnit;
   final double? quantityGiven;
   final DateTime? distributedAt;
-  final double? expectedReturnPercent;
-  final double? amountReturned;
-  final DateTime? settledAt;
   final String? programImageUrl;
   final String? itemImageUrl;
-  // 'pending' | 'thriving' | 'failed' | null (not yet distributed, or
-  // recorded before this field existed). 'failed' is when a distribution
-  // was converted into a farmer_loans entry — see convertedLoanId.
-  final String? distributionOutcome;
-  final DateTime? outcomeRecordedAt;
-  final String? convertedLoanId;
-  // Harvest Return requirement the cooperative set for the program (shown to
-  // the Farmer as the program's requirement — never a staff detail).
-  final String? returnCropName;
-  final double? returnQuantity;
-  final String? returnUnit;
-  // The item's type from Inventory Management ('crop' or 'non_crop'). A Crop Item is listed under the
-  // Harvest tab; any other item stays under My Programs / Received Items.
+  // The item's type from Inventory Management ('seeds_seedlings', 'harvested_produce', or 'non_crop').
   final String? itemType;
-  // What this Farmer gives back when it differs from the item given (the produce for seeds).
-  final String? returnItemName;
-  final String? returnItemUnit;
-  // 1 for the first distribution; 2 for the second, and so on (another round after a failed outcome).
-  final int roundNo;
 
   const MyProgramEntry({
     required this.id,
@@ -259,7 +238,6 @@ class MyProgramEntry {
     this.programDescription,
     this.programType = 'other',
     this.distributionCategory,
-    required this.benefitType,
     this.programPurpose = 'distribution',
     required this.programStatus,
     required this.enrollmentStatus,
@@ -268,37 +246,15 @@ class MyProgramEntry {
     this.itemUnit,
     this.quantityGiven,
     this.distributedAt,
-    this.expectedReturnPercent,
-    this.amountReturned,
-    this.settledAt,
     this.programImageUrl,
     this.itemImageUrl,
-    this.distributionOutcome,
-    this.outcomeRecordedAt,
-    this.convertedLoanId,
-    this.returnCropName,
-    this.returnQuantity,
-    this.returnUnit,
     this.itemType,
-    this.returnItemName,
-    this.returnItemUnit,
-    this.roundNo = 1,
   });
 
-  /// The name and unit shown for the return: the produce for seeds, else the item given.
-  String? get returnName => returnItemName ?? itemName;
-  String? get returnUnitShown => returnItemUnit ?? itemUnit;
-
-  bool get isRevenueShare => benefitType == 'revenue_share';
-  bool get isHarvestReturn => isRevenueShare;
   /// Seeds & Seedlings or Harvested Produce (a Crop Master crop); everything else is a Non-Crop Item.
   bool get isCropItem => itemType == 'seeds_seedlings' || itemType == 'harvested_produce';
   bool get isDistributed => distributedAt != null;
-  bool get isSettled => settledAt != null;
   bool get isSalesProgram => programPurpose == 'sales';
-  bool get isOutcomeThriving => distributionOutcome == 'thriving';
-  bool get isOutcomeFailed => distributionOutcome == 'failed';
-  bool get hasConvertedLoan => convertedLoanId != null;
 
   factory MyProgramEntry.fromMap(Map<String, dynamic> m) {
     final program = m['cooperative_programs'] as Map<String, dynamic>? ?? {};
@@ -310,7 +266,6 @@ class MyProgramEntry {
       programDescription: program['description'] as String?,
       programType: program['program_type'] as String? ?? 'other',
       distributionCategory: program['distribution_category'] as String?,
-      benefitType: program['benefit_type'] as String? ?? 'grant',
       programPurpose: program['program_purpose'] as String? ?? 'distribution',
       programStatus: program['status'] as String? ?? 'active',
       enrollmentStatus: m['status'] as String? ?? 'active',
@@ -329,31 +284,9 @@ class MyProgramEntry {
       distributedAt: m['distributed_at'] != null
           ? DateTime.parse(m['distributed_at'] as String)
           : null,
-      expectedReturnPercent: program['expected_return_percent'] != null
-          ? (program['expected_return_percent'] as num).toDouble()
-          : null,
-      amountReturned: m['amount_returned'] != null
-          ? (m['amount_returned'] as num).toDouble()
-          : null,
-      settledAt: m['settled_at'] != null
-          ? DateTime.parse(m['settled_at'] as String)
-          : null,
       programImageUrl: program['image_url'] as String?,
       itemImageUrl: item?['image_url'] as String?,
-      distributionOutcome: m['distribution_outcome'] as String?,
-      outcomeRecordedAt: m['outcome_recorded_at'] != null
-          ? DateTime.parse(m['outcome_recorded_at'] as String)
-          : null,
-      convertedLoanId: m['converted_loan_id'] as String?,
-      returnCropName:
-          (program['return_crop'] as Map?)?['crop_name'] as String?,
-      // The quantity agreed for THIS Farmer when the item was given; an older program's default otherwise.
-      returnQuantity: ((m['return_quantity'] ?? program['return_quantity']) as num?)?.toDouble(),
-      returnUnit: program['return_unit'] as String?,
       itemType: item?['item_type'] as String?,
-      returnItemName: (m['return_item'] as Map?)?['item_name'] as String?,
-      returnItemUnit: (m['return_item'] as Map?)?['unit'] as String?,
-      roundNo: (m['round_no'] as num?)?.toInt() ?? 1,
     );
   }
 }

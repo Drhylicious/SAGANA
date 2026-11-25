@@ -8,12 +8,9 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../data/models/farmer_profile_model.dart';
 import '../../data/models/program_model.dart';
-import '../../data/models/program_outcome_model.dart';
-import '../../data/models/program_return_model.dart';
 import '../../data/repositories/farmer_details_repository.dart';
 import '../../data/repositories/program_repository.dart';
 import 'management_modal.dart';
-import 'program_return_panel.dart';
 import 'request_card.dart';
 
 /// One member's participation in one program, opened from Manage Members. Read-only:
@@ -32,9 +29,6 @@ Future<void> showProgramMemberDetails(
   BuildContext context, {
   required CooperativeProgram program,
   required ProgramMember member,
-  OutcomeReport? report,
-  ProgramReturn? ret,
-  FailedResolution? resolution,
   String? itemUnit,
   String? itemName,
   ProgramRepository? repo,
@@ -47,9 +41,6 @@ Future<void> showProgramMemberDetails(
       body: ProgramMemberDetails(
         program: program,
         member: member,
-        report: report,
-        ret: ret,
-        resolution: resolution,
         itemUnit: itemUnit,
         itemName: itemName,
         repo: repo ?? ProgramRepository(),
@@ -62,9 +53,6 @@ Future<void> showProgramMemberDetails(
 class ProgramMemberDetails extends StatefulWidget {
   final CooperativeProgram program;
   final ProgramMember member;
-  final OutcomeReport? report;
-  final ProgramReturn? ret;
-  final FailedResolution? resolution;
   final String? itemUnit;
   final String? itemName;
   final ProgramRepository repo;
@@ -76,9 +64,6 @@ class ProgramMemberDetails extends StatefulWidget {
     required this.member,
     required this.repo,
     required this.farmerRepo,
-    this.report,
-    this.ret,
-    this.resolution,
     this.itemUnit,
     this.itemName,
   });
@@ -308,90 +293,6 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
     ]);
   }
 
-  Widget _outcome(AppLocalizations l10n) {
-    final r = widget.report;
-    final m = widget.member;
-    if (r == null) {
-      return _section(l10n.memDetailsOutcome, [_note(l10n.memDetailsNoReport)]);
-    }
-    String qty(double? q, String? u) =>
-        q == null ? '' : '${formatQuantity(q)} ${u ?? ''}'.trim();
-    String by(String? n, DateTime? at) => n == null
-        ? (at == null ? '' : _date(at))
-        : l10n.memDetailsDoneBy(n, at == null ? '' : _date(at));
-    return _section(l10n.memDetailsOutcome, [
-      RequestDetailRow(
-        label: l10n.memDetailsReported,
-        value: r.isSuccessfulReport
-            ? l10n.memDetailsOutcomeSuccessful
-            : l10n.memDetailsOutcomeFailed,
-        valueColor: r.isSuccessfulReport
-            ? AppConstants.successGreen
-            : AppConstants.errorRed,
-        emphasize: true,
-      ),
-      if (r.isSuccessfulReport && r.quantityHarvested != null)
-        RequestDetailRow(
-          label: l10n.outcFarmerReported,
-          value: qty(r.quantityHarvested, r.quantityUnit),
-        ),
-      RequestDetailRow(
-        label: l10n.memDetailsEvidence,
-        value: r.isReviewed
-            ? by(r.reviewedByName, r.reviewedAt)
-            : l10n.memDetailsPending,
-      ),
-      RequestDetailRow(
-        label: l10n.memDetailsFieldCheck,
-        value: r.isVerified
-            ? [
-                if (r.verifiedQuantity != null)
-                  qty(r.verifiedQuantity, r.verifiedUnit),
-                by(r.verifiedByName, r.verifiedAt),
-              ].where((s) => s.isNotEmpty).join(' · ')
-            : l10n.memDetailsPending,
-      ),
-      if (m.isOutcomeRecorded)
-        RequestDetailRow(
-          label: l10n.outcFinalOutcome,
-          value: m.isThriving
-              ? l10n.memDetailsOutcomeSuccessful
-              : l10n.memDetailsOutcomeFailed,
-          valueColor: m.isThriving
-              ? AppConstants.successGreen
-              : AppConstants.errorRed,
-        ),
-    ]);
-  }
-
-  Widget _afterOutcome(AppLocalizations l10n) {
-    final ret = widget.ret;
-    final res = widget.resolution;
-    if (widget.member.isThriving && ret != null) {
-      return _section(l10n.memDetailsHarvestReturn, [
-        RequestDetailRow(
-          label: ret.cropName,
-          value: l10n.memDetailsReturnLine(
-            '${formatQuantity(ret.receivedQuantity)} ${ret.unit}'.trim(),
-            '${formatQuantity(ret.dueQuantity)} ${ret.unit}'.trim(),
-          ),
-          emphasize: true,
-        ),
-      ]);
-    }
-    if (widget.member.isFailed && res != null) {
-      return _section(l10n.memDetailsDecision, [
-        RequestDetailRow(
-          label: l10n.memDetailsDecision,
-          value: resolutionLabel(l10n, res.resolution),
-        ),
-        if (res.note != null && res.note!.trim().isNotEmpty)
-          _note('"${res.note}"'),
-      ]);
-    }
-    return const SizedBox.shrink();
-  }
-
   Widget _purchasesSection(AppLocalizations l10n) {
     final all = _purchases;
     // Only completed orders count as spent (handed over, cash recorded, confirmed).
@@ -464,8 +365,6 @@ class _ProgramMemberDetailsState extends State<ProgramMemberDetails> {
           _purchasesSection(l10n),
         ] else ...[
           _distribution(l10n),
-          if (widget.member.isDistributed) _outcome(l10n),
-          _afterOutcome(l10n),
         ],
         SizedBox(
           width: double.infinity,

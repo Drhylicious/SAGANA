@@ -9,17 +9,13 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/item_type_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_profile_model.dart';
-import '../../../data/models/program_return_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
-import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/choice_filter_modal.dart';
 import '../../widgets/dashboard_cards.dart';
 import '../../widgets/filter_icon_button.dart';
-import '../../widgets/listing_filter_modal.dart'
-    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
@@ -37,15 +33,10 @@ class ReceivedItemsScreen extends StatefulWidget {
   State<ReceivedItemsScreen> createState() => _ReceivedItemsScreenState();
 }
 
-enum _ItemFilter { all, keep, toReturn, returned }
-
 class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
   final _repo = FarmerProfileRepository();
-  final _programRepo = FarmerProgramRepository();
   final _searchController = TextEditingController();
   List<MyProgramEntry> _items = [];
-  MyReturnsSnapshot _returns = const MyReturnsSnapshot();
-  _ItemFilter _filter = _ItemFilter.all;
   String? _program; // the filter button: one program, null = every program
   String _query = '';
   bool _isLoading = true;
@@ -76,46 +67,12 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _repo.fetchMyReceivedItems(),
-      _programRepo.fetchMyReturns(),
-    ]);
+    final items = await _repo.fetchMyReceivedItems();
     if (!mounted) return;
     setState(() {
-      _items = results[0] as List<MyProgramEntry>;
-      _returns = results[1] as MyReturnsSnapshot;
+      _items = items;
       _isLoading = false;
     });
-  }
-
-  // ─── What each item's situation is ───────────────────────────────────────
-
-  bool _isReturned(MyProgramEntry e) {
-    if (!e.isRevenueShare) return false;
-    final r = _returns.byMember[e.id];
-    return r != null && (r.status == 'received' || r.status == 'closed_short');
-  }
-
-  /// A Harvest Return item is still owed back until its return is fully received (or closed).
-  /// A failed outcome with no return opened owes nothing.
-  bool _owesReturn(MyProgramEntry e) {
-    if (!e.isRevenueShare) return false;
-    final r = _returns.byMember[e.id];
-    if (r == null) return !e.isOutcomeFailed;
-    return !_isReturned(e);
-  }
-
-  bool _matchesChip(MyProgramEntry e, _ItemFilter f) {
-    switch (f) {
-      case _ItemFilter.all:
-        return true;
-      case _ItemFilter.keep:
-        return !e.isRevenueShare;
-      case _ItemFilter.toReturn:
-        return _owesReturn(e);
-      case _ItemFilter.returned:
-        return _isReturned(e);
-    }
   }
 
   /// The program picked in the filter and the words typed in the search.
@@ -126,24 +83,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
         e.programName.toLowerCase().contains(_query);
   }
 
-  List<MyProgramEntry> get _visible =>
-      _items.where((e) => _matchesBase(e) && _matchesChip(e, _filter)).toList();
-
-  int _count(_ItemFilter f) =>
-      _items.where((e) => _matchesBase(e) && _matchesChip(e, f)).length;
-
-  String _filterLabel(AppLocalizations l10n, _ItemFilter f) {
-    switch (f) {
-      case _ItemFilter.all:
-        return l10n.receivedItemsFilterAll;
-      case _ItemFilter.keep:
-        return l10n.receivedItemsFilterKeep;
-      case _ItemFilter.toReturn:
-        return l10n.receivedItemsFilterReturn;
-      case _ItemFilter.returned:
-        return l10n.receivedItemsFilterReturned;
-    }
-  }
+  List<MyProgramEntry> get _visible => _items.where(_matchesBase).toList();
 
   Future<void> _openFilter() async {
     final l10n = AppLocalizations.of(context);
@@ -186,7 +126,6 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
       context: context,
       builder: (ctx) => _ItemDetailsSheet(
         entry: e,
-        harvestReturn: _returns.byMember[e.id],
         formatDate: _formatDate,
         onViewProgram: () {
           Navigator.of(ctx).pop();
@@ -284,11 +223,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
   }
 
   Widget _buildContent(AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
     final visible = _visible;
-    final keepCount = _items.where((e) => !e.isRevenueShare).length;
-    final owedCount = _items.where(_owesReturn).length;
-    final returnedCount = _items.where(_isReturned).length;
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -297,7 +232,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
         bottom: 32,
       ),
       children: [
-        // Summary: every item, then how they stand (the same cards as the other dashboards).
+        // Summary: every item received.
         _pad(
           DashboardKpiStrip(
             tiles: [
@@ -309,21 +244,9 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
               ),
               DashboardKpiTile(
                 label: l10n.receivedItemsKeep,
-                value: '$keepCount',
+                value: '${_items.length}',
                 color: AppConstants.successGreen,
                 icon: Icons.check_circle_outline_rounded,
-              ),
-              DashboardKpiTile(
-                label: l10n.receivedItemsStatReturn,
-                value: '$owedCount',
-                color: AppConstants.warningAmber,
-                icon: Icons.assignment_return_outlined,
-              ),
-              DashboardKpiTile(
-                label: l10n.receivedItemsReturned,
-                value: '$returnedCount',
-                color: AppConstants.buyerBlue,
-                icon: Icons.done_all_rounded,
               ),
             ],
           ),
@@ -352,23 +275,6 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        MarketplaceFilterBar<_ItemFilter>(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSafeH,
-          ),
-          selected: _filter,
-          onSelected: (f) => setState(() => _filter = f),
-          options: [
-            for (final f in _ItemFilter.values)
-              MarketplaceFilterOption<_ItemFilter>(
-                value: f,
-                label: _filterLabel(l10n, f),
-                count: _count(f),
-                color: cs.primary,
-              ),
-          ],
-        ),
         const SizedBox(height: AppConstants.spacingMd),
         if (visible.isEmpty)
           _pad(
@@ -393,7 +299,6 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ItemCard(
                       entry: e,
-                      harvestReturn: _returns.byMember[e.id],
                       formatDate: _formatDate,
                       onTap: () => _openDetails(e),
                     ),
@@ -425,49 +330,10 @@ BoxDecoration _cardDecoration() => BoxDecoration(
 String _qty(double v, String? unit) =>
     '${formatQuantityGrouped(v)} ${unitOrDefault(unit)}';
 
-/// The one status the Farmer cares about for an item: theirs to keep, or what is owed back.
+/// The one status the Farmer cares about for an item: theirs to keep.
 ({String label, Color color}) _itemStatus(
   AppLocalizations l10n,
-  MyProgramEntry entry,
-  ProgramReturnSummary? r,
-) {
-  if (!entry.isRevenueShare) {
-    return (label: l10n.receivedItemsKeep, color: AppConstants.successGreen);
-  }
-  if (r == null) {
-    return entry.isOutcomeFailed
-        ? (label: l10n.receivedItemsReturnClosed, color: AppConstants.outline)
-        : (
-            label: l10n.receivedItemsReturnExpected,
-            color: AppConstants.buyerBlue,
-          );
-  }
-  switch (r.status) {
-    case 'received':
-      return (
-        label: l10n.receivedItemsReturned,
-        color: AppConstants.successGreen,
-      );
-    case 'closed_short':
-      return (
-        label: l10n.receivedItemsReturnClosed,
-        color: AppConstants.outline,
-      );
-    case 'partial':
-      return (
-        label: l10n.receivedItemsReturnPartial(
-          _qty(r.receivedQuantity, r.unit),
-          _qty(r.dueQuantity, r.unit),
-        ),
-        color: AppConstants.warningAmber,
-      );
-    default:
-      return (
-        label: l10n.receivedItemsReturnDue(_qty(r.dueQuantity, r.unit)),
-        color: AppConstants.warningAmber,
-      );
-  }
-}
+) => (label: l10n.receivedItemsKeep, color: AppConstants.successGreen);
 
 class _Pill extends StatelessWidget {
   const _Pill({required this.label, required this.color});
@@ -535,20 +401,18 @@ class _ItemPhoto extends StatelessWidget {
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.entry,
-    required this.harvestReturn,
     required this.formatDate,
     required this.onTap,
   });
 
   final MyProgramEntry entry;
-  final ProgramReturnSummary? harvestReturn;
   final String Function(DateTime) formatDate;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final status = _itemStatus(l10n, entry, harvestReturn);
+    final status = _itemStatus(l10n);
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -630,26 +494,18 @@ class _ItemCard extends StatelessWidget {
 class _ItemDetailsSheet extends StatelessWidget {
   const _ItemDetailsSheet({
     required this.entry,
-    required this.harvestReturn,
     required this.formatDate,
     required this.onViewProgram,
   });
 
   final MyProgramEntry entry;
-  final ProgramReturnSummary? harvestReturn;
   final String Function(DateTime) formatDate;
   final VoidCallback onViewProgram;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final status = _itemStatus(l10n, entry, harvestReturn);
-    final r = harvestReturn;
-    final outcome = entry.isOutcomeThriving
-        ? l10n.receivedItemsOutcomeSuccessful
-        : entry.isOutcomeFailed
-        ? l10n.receivedItemsOutcomeFailed
-        : l10n.receivedItemsOutcomePending;
+    final status = _itemStatus(l10n);
 
     final rows = <(String, String)>[
       (
@@ -660,23 +516,9 @@ class _ItemDetailsSheet extends StatelessWidget {
       (l10n.receivedItemsProgram, entry.programName),
       (
         l10n.receivedItemsDetailArrangement,
-        entry.isRevenueShare
-            ? l10n.receivedItemsBenefitReturn
-            : l10n.receivedItemsBenefitFree,
+        l10n.receivedItemsBenefitFree,
       ),
       (l10n.receivedItemsReceived, formatDate(entry.distributedAt!)),
-      // A Free Distribution has no outcome; one recorded earlier stays as history.
-      if (entry.isRevenueShare ||
-          entry.isOutcomeThriving ||
-          entry.isOutcomeFailed)
-        (l10n.receivedItemsOutcome, outcome),
-      if (r != null) ...[
-        (l10n.receivedItemsDetailExpected, _qty(r.dueQuantity, r.unit)),
-        (
-          l10n.receivedItemsDetailReceivedBack,
-          _qty(r.receivedQuantity, r.unit),
-        ),
-      ],
     ];
 
     return ManagementModalShell(

@@ -4,13 +4,11 @@ import '../../../core/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/app_error_message.dart';
-import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/program_model.dart';
 import '../../../data/models/program_enrollment_request_model.dart';
 import '../../../data/repositories/farmer_program_repository.dart';
-import '../../../routes/app_routes.dart';
 import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/app_toast.dart';
@@ -77,8 +75,6 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
       widget.entry?.programImageUrl ?? widget.program?.imageUrl;
   bool get _isSalesProgram =>
       widget.entry?.isSalesProgram ?? widget.program?.isSalesProgram ?? false;
-  bool get _isRevenueShare =>
-      widget.entry?.isRevenueShare ?? widget.program?.isRevenueShare ?? false;
   String get _programType =>
       widget.entry?.programType ?? widget.program?.programType ?? 'other';
   String? get _distributionCategory =>
@@ -94,9 +90,6 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   String get _programPurposeLabel => _isSalesProgram
       ? AppLocalizations.of(context).adminDashStatSalesAllTime
       : AppLocalizations.of(context).balikTangkilikDistributionTab;
-  String get _benefitTypeLabel => _isRevenueShare
-      ? AppLocalizations.of(context).enhRevenueShare
-      : AppLocalizations.of(context).enhGrant;
 
   Future<void> _requestEnrollment() async {
     final programId = widget.program?.id;
@@ -182,7 +175,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                             value: _programPurposeLabel,
                             isLast: _isSalesProgram,
                           ),
-                          if (!_isSalesProgram) ...[
+                          if (!_isSalesProgram)
                             _InfoRow(
                               icon: Icons.inventory_2_outlined,
                               label: AppLocalizations.of(
@@ -193,16 +186,8 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                                   AppLocalizations.of(
                                     context,
                                   ).commonNotSpecified,
-                            ),
-                            _InfoRow(
-                              icon: Icons.card_giftcard_rounded,
-                              label: AppLocalizations.of(
-                                context,
-                              ).enhBenefitType,
-                              value: _benefitTypeLabel,
                               isLast: true,
                             ),
-                          ],
                         ],
                       ),
                     ),
@@ -368,56 +353,10 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
-                    if (_isRevenueShare) ...[
-                      const SizedBox(height: 8),
-                      if (entry.isSettled)
-                        Text(
-                          AppLocalizations.of(context).enhReturnedOn(
-                            (entry.amountReturned?.toStringAsFixed(
-                              2,
-                            )).toString(),
-                            (_formatDate(entry.settledAt!)).toString(),
-                          ),
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppConstants.successGreen,
-                          ),
-                        )
-                      else
-                        Text(
-                          entry.returnQuantity != null
-                              ? AppLocalizations.of(context)
-                                    .enhHarvestReturn(
-                                      (formatQuantity(
-                                        entry.returnQuantity!,
-                                      )).toString(),
-                                      (entry.returnUnitShown ?? '').toString(),
-                                      (entry.returnName ?? '').toString(),
-                                    )
-                                    .trim()
-                              : AppLocalizations.of(
-                                  context,
-                                ).enhAHarvestReturnIsExpectedByTheCooperative,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: AppConstants.warningAmber,
-                          ),
-                        ),
-                    ],
                   ],
                 ),
         ),
         const SizedBox(height: 16),
-
-        if (entry.distributionOutcome != null) ...[
-          _SectionCard(
-            icon: Icons.insights_rounded,
-            title: AppLocalizations.of(context).memDetailsOutcome,
-            child: _OutcomeBody(entry: entry),
-          ),
-          const SizedBox(height: 16),
-        ],
       ],
     ];
   }
@@ -601,63 +540,6 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
       AppLocalizations.of(context).enhDec,
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-}
-
-class _OutcomeBody extends StatelessWidget {
-  final MyProgramEntry entry;
-  const _OutcomeBody({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    if (entry.isOutcomeFailed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppLocalizations.of(context).enhThisDistributionDidNotSucceed,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: AppConstants.errorRed,
-            ),
-          ),
-          if (entry.hasConvertedLoan) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => context.pushRoute(AppRoutes.myLoans),
-                icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                label: Text(AppLocalizations.of(context).enhViewInMyLoans),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.primary,
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-          ],
-        ],
-      );
-    }
-    if (entry.isOutcomeThriving) {
-      return Text(
-        AppLocalizations.of(context).enhThisDistributionWasSuccessful,
-        style: GoogleFonts.inter(
-          fontSize: 13,
-          color: AppConstants.successGreen,
-        ),
-      );
-    }
-    return Text(
-      AppLocalizations.of(context).enhOutcomeNotYetRecorded,
-      style: GoogleFonts.inter(
-        fontSize: 13,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    );
   }
 }
 

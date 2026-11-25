@@ -66,10 +66,6 @@ class AdminProgramCard extends StatelessWidget {
         return l10n.programMgmtFieldItem;
       case 'sources':
         return l10n.programMgmtFieldSources;
-      case 'return_quantity':
-        return l10n.programMgmtFieldReturnQuantity;
-      case 'return_unit':
-        return l10n.programMgmtFieldReturnUnit;
       default:
         return key;
     }
@@ -196,15 +192,6 @@ class AdminProgramCard extends StatelessWidget {
                             label: l10n.programMgmtMemberDiscountChip(_pct(p.memberDiscountPercent)),
                             color: AppConstants.successGreen,
                           ),
-                        if (!p.isSalesProgram)
-                          _Pill(
-                            label: p.isHarvestReturn
-                                ? l10n.programMgmtBenefitReturnChip
-                                : l10n.programMgmtBenefitFreeChip,
-                            color: p.isHarvestReturn
-                                ? AppConstants.warningAmber
-                                : AppConstants.primaryGreen,
-                          ),
                       ],
                     ),
                     if (p.description != null &&
@@ -247,16 +234,6 @@ class AdminProgramCard extends StatelessWidget {
                         muted: p.sourceCategories.isEmpty &&
                             p.distributionItemName == null,
                       ),
-                      // Harvest Return: how much comes back (of the same item that was given).
-                      if (p.isHarvestReturn && p.returnQuantity != null) ...[
-                        const SizedBox(height: 6),
-                        _InfoRow(
-                          icon: Icons.assignment_return_outlined,
-                          text: l10n.programMgmtHarvestReturnLine(
-                            _qty(p.returnQuantity!),
-                          ),
-                        ),
-                      ],
                     ],
                     const SizedBox(height: 6),
                     Row(

@@ -55,7 +55,6 @@ import '../../presentation/screens/farmer/my_payment_history_screen.dart';
 import '../../presentation/screens/admin/loan_requests_screen.dart';
 import '../../presentation/screens/farmer/my_programs_screen.dart';
 import '../../presentation/screens/farmer/received_items_screen.dart';
-import '../../presentation/screens/farmer/report_outcome_screen.dart';
 import '../../presentation/screens/farmer/request_assistance_screen.dart';
 import '../../presentation/screens/farmer/browse_programs_screen.dart';
 import '../../presentation/screens/farmer/program_details_screen.dart';
@@ -80,10 +79,7 @@ import '../../presentation/screens/admin/manage_accounts_screen.dart';
 import '../../presentation/screens/admin/staff_accountability_screen.dart';
 import '../../presentation/screens/admin/crop_management_screen.dart';
 import '../../presentation/screens/admin/crop_request_approval_screen.dart';
-import '../../data/models/program_outcome_model.dart';
-import '../../presentation/screens/admin/program_outcomes_screen.dart';
 import '../../presentation/screens/admin/program_products_screen.dart';
-import '../../presentation/screens/admin/program_outcome_detail_screen.dart';
 import '../../presentation/screens/admin/loan_item_management_screen.dart';
 import '../../presentation/screens/admin/program_management_screen.dart';
 import '../../presentation/screens/admin/program_enrollment_requests_screen.dart';
@@ -316,7 +312,11 @@ class AppRouter {
         // A signed-in user never sees Welcome; Splash sends them to their role.
         final signedIn = AuthService.isLoggedIn || HiveService.isLoggedIn();
         if (!signedIn) {
-          return isGuestAllowed(path) ? null : AppRoutes.welcome;
+          return isGuestAllowed(path)
+              ? null
+              : (HiveService.getRememberMe()
+                    ? AppRoutes.login
+                    : AppRoutes.welcome);
         }
         if (path == AppRoutes.welcome) return AppRoutes.splash;
 
@@ -849,28 +849,6 @@ class AppRouter {
           },
         ),
         GoRoute(
-          path: AppRoutes.programOutcomes,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: const ProgramOutcomesScreen(),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.programOutcomeDetail,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) {
-            final extra = s.extra as Map<String, dynamic>?;
-            final report = extra?['report'] as OutcomeReport?;
-            return AppPageTransitions.slideForward(
-              key: s.pageKey,
-              child: report == null
-                  ? const ProgramOutcomesScreen()
-                  : ProgramOutcomeDetailScreen(report: report),
-            );
-          },
-        ),
-        GoRoute(
           path: AppRoutes.requestAssistance,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) {
@@ -896,23 +874,6 @@ class AppRouter {
             // to this address opens that screen.
             child: const LoanRequestsScreen(),
           ),
-        ),
-        GoRoute(
-          path: AppRoutes.reportOutcome,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) {
-            final extra = s.extra as Map<String, dynamic>?;
-            final entry = extra?['entry'] as MyProgramEntry?;
-            return AppPageTransitions.slideForward(
-              key: s.pageKey,
-              child: entry == null
-                  ? const MyProgramsScreen()
-                  : ReportOutcomeScreen(
-                      entry: entry,
-                      returnNote: extra?['returnNote'] as String?,
-                    ),
-            );
-          },
         ),
         GoRoute(
           path: AppRoutes.programEnrollmentRequests,

@@ -740,21 +740,13 @@ class FarmerProfileRepository {
     try {
       const memberCols =
           'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
-          'amount_returned, settled_at, distributed_item_name, distributed_unit, '
-          'distribution_outcome, outcome_recorded_at, converted_loan_id, return_quantity, ';
+          'distributed_item_name, distributed_unit, ';
       const programCols =
-          'program_name, program_type, description, benefit_type, program_purpose, status, expected_return_percent, distribution_category, image_url';
-      // The item's type (Crop Item / Non-Crop Item) comes from Inventory Management and decides
-      // whether it is listed under the Harvest tab or under Received Items.
-      // program_members has TWO links to Inventory (the item given and the agreed return item), so the
-      // join names the one it means: the item the Farmer was GIVEN. Without it the whole query is refused
-      // as ambiguous and My Programs, Browse Programs and Received Items all load empty.
+          'program_name, program_type, description, program_purpose, status, distribution_category, image_url';
       const itemJoin =
           'cooperative_inventory!inventory_item_id(item_name, unit, image_url, item_type)';
       const itemJoinOld =
           'cooperative_inventory!inventory_item_id(item_name, unit, image_url)';
-      const returnCols =
-          'return_quantity, return_unit, return_crop:crop_master!return_crop_id(crop_name)';
       final rows = await OfflineCache.load(
         screen: cacheScreen,
         fetch: () async {
@@ -768,18 +760,15 @@ class FarmerProfileRepository {
               );
           try {
             return await read(
-              '${memberCols}round_no, cooperative_programs($programCols, $returnCols), $itemJoin, '
-              'return_item:cooperative_inventory!return_item_id(item_name, unit)',
+              '${memberCols}cooperative_programs($programCols), $itemJoin',
             );
           } catch (_) {
             try {
               // The Item Type column is not in the database yet.
               return await read(
-                '${memberCols}cooperative_programs($programCols, $returnCols), $itemJoinOld',
+                '${memberCols}cooperative_programs($programCols), $itemJoinOld',
               );
             } catch (_) {
-              // Phase 5A SQL not applied yet: the Harvest Return columns do not
-              // exist, so load the program without them.
               return await read(
                 '${memberCols}cooperative_programs($programCols), $itemJoinOld',
               );

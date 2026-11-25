@@ -316,7 +316,7 @@ class BuyerProfileRepository {
               title: localizeActivityRow(r),
               subtitle: 'Profile',
               messageKey: activityKeyForRow(r, admin: false),
-              timestamp: DateTime.parse(r['created_at'] as String),
+              timestamp: DateTime.parse(r['created_at'] as String).toLocal(),
             ),
           )
           .toList();

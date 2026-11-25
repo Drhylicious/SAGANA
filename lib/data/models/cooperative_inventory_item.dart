@@ -10,8 +10,6 @@ class InventoryItem {
   final String itemType;
   // The Crop Master crop a crop-type item is (its real id); null for a Non-Crop Item.
   final String? cropMasterId;
-  // What comes back when a Farmer returns this item in a Harvest Return program (null = the same item).
-  final String? returnItemId;
   final String unit;
   final double quantityOnHand;
   final double quantityReserved;
@@ -36,7 +34,6 @@ class InventoryItem {
     required this.category,
     this.itemType = kItemTypeNonCrop,
     this.cropMasterId,
-    this.returnItemId,
     required this.unit,
     required this.quantityOnHand,
     required this.quantityReserved,
@@ -61,7 +58,6 @@ class InventoryItem {
     category: m['category'] as String? ?? 'Agricultural Supplies',
     itemType: m['item_type'] as String? ?? kItemTypeNonCrop,
     cropMasterId: m['crop_master_id'] as String?,
-    returnItemId: m['return_item_id'] as String?,
     unit: m['unit'] as String? ?? 'kg',
     quantityOnHand: (m['quantity_on_hand'] as num?)?.toDouble() ?? 0,
     quantityReserved: (m['quantity_reserved'] as num?)?.toDouble() ?? 0,

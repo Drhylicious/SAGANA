@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'account_status_watcher.dart';
+import 'active_session_watcher.dart';
 import 'app_event_service.dart';
 import 'connectivity_service.dart';
 import 'hive_service.dart';
@@ -124,7 +125,9 @@ class SyncService {
           !_sameSession) {
         return;
       }
-      if (await AccountStatusWatcher.instance.checkNow() || !_sameSession) {
+      if (await AccountStatusWatcher.instance.checkNow() ||
+          await ActiveSessionWatcher.instance.checkNow() ||
+          !_sameSession) {
         return;
       }
       // Crops added or requested offline go first: a harvest or crop photo

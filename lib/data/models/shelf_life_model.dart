@@ -130,14 +130,21 @@ class ListingShelfLife {
   final double? discountPercent;
   final double? preDiscountPrice;
 
+  /// Set when the batch behind this listing was finalized as Rotten/Lost.
+  final DateTime? rottenAt;
+  final double rottenKg;
+
   const ListingShelfLife({
     this.unavailable = false,
     this.discountAppliedOn,
     this.discountPercent,
     this.preDiscountPrice,
+    this.rottenAt,
+    this.rottenKg = 0,
   });
 
   bool get isDiscounted => discountAppliedOn != null;
+  bool get isRotten => rottenAt != null;
 
   /// Reads the `listing_shelf_life` embed of a marketplace_listings row.
   static ListingShelfLife? fromEmbed(dynamic value) {
@@ -148,6 +155,8 @@ class ListingShelfLife {
       discountAppliedOn: _date(m['discount_applied_on']),
       discountPercent: (m['discount_percent'] as num?)?.toDouble(),
       preDiscountPrice: (m['pre_discount_price'] as num?)?.toDouble(),
+      rottenAt: _date(m['rotten_at']),
+      rottenKg: (m['rotten_kg'] as num?)?.toDouble() ?? 0,
     );
   }
 }

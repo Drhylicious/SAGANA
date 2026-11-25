@@ -100,7 +100,10 @@ class _AllListingsScreenState extends State<AllListingsScreen>
     final listings = await _repo.fetchAllListings();
     if (!mounted) return;
     setState(() {
-      _allListings = listings;
+      // All Listings displays only approved listings (including sold-out ones
+      // that were approved); pending and disapproved listings belong in Pending
+      // Approval.
+      _allListings = listings.where((l) => l.isApproved || l.isSold).toList();
       _isLoading = false;
       _hasLoadedOnce = true;
     });
@@ -344,8 +347,10 @@ class _AllListingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoldOutGrey(
-      active: listing.isSoldOut,
-      child: GestureDetector(
+      active: listing.isSoldOut || listing.isShelfRotten,
+      child: Opacity(
+        opacity: listing.isShelfRotten ? 0.65 : 1.0,
+        child: GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -430,6 +435,7 @@ class _AllListingCard extends StatelessWidget {
                           status: listing.status,
                           remainingKg: listing.remainingKg,
                           shelfUnavailable: listing.isShelfUnavailable,
+                          shelfRotten: listing.isShelfRotten,
                         ),
                       ],
                     ),
@@ -557,6 +563,7 @@ class _AllListingCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

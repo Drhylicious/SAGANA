@@ -70,7 +70,10 @@ class AdminListingModel {
   bool get isShelfUnavailable =>
       status == 'approved' && remainingKg > 0 && (shelfLife?.unavailable ?? false);
   bool get isShelfDiscounted =>
-      status == 'approved' && (shelfLife?.isDiscounted ?? false);
+      status == 'approved' &&
+      remainingKg > 0 &&
+      (shelfLife?.isDiscounted ?? false);
+  bool get isShelfRotten => shelfLife?.isRotten ?? false;
 
   const AdminListingModel({
     required this.id,

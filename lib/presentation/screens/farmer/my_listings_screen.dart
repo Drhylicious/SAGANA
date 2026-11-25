@@ -959,9 +959,11 @@ class _ListingCard extends StatelessWidget {
     );
 
     return SoldOutGrey(
-      active: listing.isSoldOut,
+      active: listing.isSoldOut || listing.isUnavailableDueToRotten,
       child: Opacity(
-        opacity: listing.isWithdrawn ? 0.65 : 1.0,
+        opacity: listing.isWithdrawn || listing.isUnavailableDueToRotten
+            ? 0.65
+            : 1.0,
         child: GestureDetector(
           onTap: onTap,
           child: Container(
@@ -1004,7 +1006,8 @@ class _StandardContent extends StatelessWidget {
     // (PopupMenuButton, not a bottom sheet), and only for Withdrawn/
     // Rejected — the two statuses whose only remaining action is Delete,
     // per the approved redesign.
-    final showMenu = listing.isWithdrawn || listing.isRejected;
+    final showMenu =
+        (listing.isWithdrawn || listing.isRejected) && !listing.isShelfRotten;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,10 +1035,12 @@ class _StandardContent extends StatelessWidget {
                           status: listing.status,
                           remainingKg: listing.remainingKg,
                           shelfUnavailable: listing.isShelfUnavailable,
+                          shelfRotten: listing.isShelfRotten,
                         ),
                         // The automatic expiry-day discount is on this listing.
                         if (listing.isShelfDiscounted &&
-                            !listing.isShelfUnavailable)
+                            !listing.isShelfUnavailable &&
+                            !listing.isShelfRotten)
                           ListingStatusBadge(
                             label: AppLocalizations.of(
                               context,
@@ -1150,7 +1155,23 @@ class _StandardContent extends StatelessWidget {
                   color: Theme.of(context).colorScheme.outline,
                 ),
               ),
-              if (listing.priceUpdateRequired) ...[
+              if (listing.priceConfirmationRequired) ...[
+                const SizedBox(height: 4),
+                Text(
+                  AppLocalizations.of(context).priceAdjustedConfirmHint(
+                    (listing.priceAdjustedFrom ?? listing.pricePerKg)
+                        .toStringAsFixed(2),
+                    listing.pricePerKg.toStringAsFixed(2),
+                    listing.unit,
+                  ),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.warningAmber,
+                  ),
+                ),
+              ] else if (listing.priceUpdateRequired) ...[
                 const SizedBox(height: 4),
                 Text(
                   AppLocalizations.of(context).priceUpdateRequiredHint(
@@ -1166,8 +1187,20 @@ class _StandardContent extends StatelessWidget {
                   ),
                 ),
               ],
-              // Past its shelf life (or discounted for it): say what to do.
-              if (listing.isShelfUnavailable || listing.isShelfDiscounted) ...[
+              // Finalized rotten/lost, or past its shelf life / discounted.
+              if (listing.isUnavailableDueToRotten) ...[
+                const SizedBox(height: 4),
+                Text(
+                  AppLocalizations.of(context).shelfListingRottenHint,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ] else if (listing.isShelfUnavailable ||
+                  listing.isShelfDiscounted) ...[
                 const SizedBox(height: 4),
                 Text(
                   listing.isShelfUnavailable
@@ -1189,7 +1222,9 @@ class _StandardContent extends StatelessWidget {
                   ),
                 ),
               ],
-              if (listing.isWithdrawn && listing.updatedAt != null) ...[
+              if (listing.isWithdrawn &&
+                  !listing.isShelfRotten &&
+                  listing.updatedAt != null) ...[
                 const SizedBox(height: 6),
                 Row(
                   children: [

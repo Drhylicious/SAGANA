@@ -1511,7 +1511,7 @@ abstract class AppLocalizations {
   /// No description provided for @balikTangkilikDistributionTab.
   ///
   /// In en, this message translates to:
-  /// **'Distribution'**
+  /// **'Free Distribution'**
   String get balikTangkilikDistributionTab;
 
   /// No description provided for @exportSelectReports.
@@ -10161,7 +10161,7 @@ abstract class AppLocalizations {
   /// No description provided for @programMgmtFilterDistribution.
   ///
   /// In en, this message translates to:
-  /// **'Distribution'**
+  /// **'Free Distribution'**
   String get programMgmtFilterDistribution;
 
   /// No description provided for @programMgmtFilterSales.
@@ -13017,7 +13017,7 @@ abstract class AppLocalizations {
   /// No description provided for @receivedItemsEmptyBody.
   ///
   /// In en, this message translates to:
-  /// **'Seeds, seedlings, produce, tools, livestock, fertilizer and other supplies you receive from a program are listed here, whether it was a Free Distribution or a Harvest Return.'**
+  /// **'Seeds, seedlings, produce, tools, livestock, fertilizer and other supplies you receive from a Free Distribution program are listed here.'**
   String get receivedItemsEmptyBody;
 
   /// No description provided for @receivedItemsFilterAll.
@@ -26129,7 +26129,7 @@ abstract class AppLocalizations {
   /// No description provided for @enhDistributionBenefitLoans.
   ///
   /// In en, this message translates to:
-  /// **'Distribution Benefit/Loans'**
+  /// **'Free Distribution'**
   String get enhDistributionBenefitLoans;
 
   /// No description provided for @enhCouldNotUpdateYourPasswordPleaseTryAgain.
@@ -30646,7 +30646,7 @@ abstract class AppLocalizations {
   /// No description provided for @shelfRottenScope.
   ///
   /// In en, this message translates to:
-  /// **'This covers what is available plus what is still unsold in its Marketplace listing. Quantities buyers already ordered, or that are committed to a cooperative offer or a DA-AMAD request, are not changed. Your other harvests are not affected.'**
+  /// **'This covers your available harvest, Marketplace listings (including unfulfilled orders), open cooperative offers, and unsold DA-AMAD Market Linking stock. Orders or deliveries already handed over are kept. Your other harvests are not affected.'**
   String get shelfRottenScope;
 
   /// No description provided for @shelfRottenNoteLabel.
@@ -32842,7 +32842,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutRoleLeadDeveloperDesc.
   ///
   /// In en, this message translates to:
-  /// **'Leads the technical build of SAGANA: the Flutter mobile app, the Supabase database and its security rules, offline sync, and the overall system architecture.'**
+  /// **'Leads the technical build: the Flutter mobile app, the Supabase database and its security rules, offline sync and the overall architecture.'**
   String get aboutRoleLeadDeveloperDesc;
 
   /// No description provided for @aboutRoleUiUxDesigner.
@@ -32854,7 +32854,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutRoleUiUxDesignerDesc.
   ///
   /// In en, this message translates to:
-  /// **'Designs how SAGANA looks and feels: screens, navigation, and visual style, with simple, bilingual layouts that work for members with different levels of digital experience.'**
+  /// **'Designs how SAGANA looks and feels: screens, navigation and visual style, in simple bilingual layouts for members with different levels of digital experience.'**
   String get aboutRoleUiUxDesignerDesc;
 
   /// No description provided for @aboutRoleSystemAnalyst.
@@ -32866,7 +32866,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutRoleSystemAnalystDesc.
   ///
   /// In en, this message translates to:
-  /// **'Gathers and documents what the cooperative needs: interviews with the Board and members, workflows, business rules, and the requirements the system is built against.'**
+  /// **'Gathers and documents what the cooperative needs: workflows, business rules and the requirements the system is built against.'**
   String get aboutRoleSystemAnalystDesc;
 
   /// No description provided for @aboutRoleQaTester.
@@ -32878,7 +32878,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutRoleQaTesterDesc.
   ///
   /// In en, this message translates to:
-  /// **'Checks that SAGANA works as specified: tests features for each role, verifies business rules and edge cases, reports defects, and confirms fixes before release.'**
+  /// **'Checks that SAGANA works as specified: tests features for each role, verifies business rules, reports defects and confirms fixes.'**
   String get aboutRoleQaTesterDesc;
 
   /// No description provided for @coopHeroFilipino.
@@ -34884,6 +34884,154 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Password must be at least 8 characters and include an uppercase letter, a number and a special character.'**
   String get passwordRequirements;
+
+  /// No description provided for @shelfTagRottenLost.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotten/Lost'**
+  String get shelfTagRottenLost;
+
+  /// No description provided for @shelfInspectInInventory.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspect in Manage Inventory'**
+  String get shelfInspectInInventory;
+
+  /// No description provided for @shelfListingRottenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded as rotten/lost in Manage Inventory. This listing is closed and can no longer be sold.'**
+  String get shelfListingRottenHint;
+
+  /// No description provided for @shelfDisposalExpiredError.
+  ///
+  /// In en, this message translates to:
+  /// **'This harvest is past its shelf life. Inspect it and confirm it is still usable in Manage Inventory first.'**
+  String get shelfDisposalExpiredError;
+
+  /// No description provided for @snOrderCancelledProduceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Order Cancelled — Produce Unavailable'**
+  String get snOrderCancelledProduceUnavailable;
+
+  /// No description provided for @loginRememberMe.
+  ///
+  /// In en, this message translates to:
+  /// **'Remember me'**
+  String get loginRememberMe;
+
+  /// No description provided for @sessionReplacedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed Out on This Device'**
+  String get sessionReplacedTitle;
+
+  /// No description provided for @sessionReplacedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account was accessed from another device ({device}), so this session was ended. Only one device can stay signed in at a time.'**
+  String sessionReplacedBody(String device);
+
+  /// No description provided for @sessionReplacedGenericBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account was signed in on another device, so this session was ended.'**
+  String get sessionReplacedGenericBody;
+
+  /// No description provided for @activityDeviceLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in on {device} (previous device signed out)'**
+  String activityDeviceLogin(String device);
+
+  /// No description provided for @farmerMgmtConfirmActivateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate {name}?'**
+  String farmerMgmtConfirmActivateTitle(String name);
+
+  /// No description provided for @farmerMgmtConfirmActivateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This will restore {name}\'s active farmer membership and allow them to sign in again.'**
+  String farmerMgmtConfirmActivateBody(String name);
+
+  /// No description provided for @farmerMgmtActivatedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is now active.'**
+  String farmerMgmtActivatedToast(String name);
+
+  /// No description provided for @reportsNoRecentExports.
+  ///
+  /// In en, this message translates to:
+  /// **'No downloaded reports yet. Generate a PDF or CSV in Export Center to record it here.'**
+  String get reportsNoRecentExports;
+
+  /// No description provided for @reportsViewAllExports.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Export Center'**
+  String get reportsViewAllExports;
+
+  /// No description provided for @priceAdjustedConfirmBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference Price changed to ₱{min}–₱{max}/{unit}. Your listing price was automatically adjusted from ₱{oldPrice} to ₱{newPrice}/{unit} and remains active. Accept this price or edit it within the new range for approval.'**
+  String priceAdjustedConfirmBanner(
+    String min,
+    String max,
+    String unit,
+    String oldPrice,
+    String newPrice,
+  );
+
+  /// No description provided for @priceAdjustedConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Price auto-adjusted from ₱{oldPrice} to ₱{newPrice}/{unit}. Review to accept or edit.'**
+  String priceAdjustedConfirmHint(
+    String oldPrice,
+    String newPrice,
+    String unit,
+  );
+
+  /// No description provided for @priceAdjustedAcceptAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept ₱{price}/{unit}'**
+  String priceAdjustedAcceptAction(String price, String unit);
+
+  /// No description provided for @priceAdjustedEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Price'**
+  String get priceAdjustedEditAction;
+
+  /// No description provided for @priceAdjustedAcceptedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Listing price confirmed.'**
+  String get priceAdjustedAcceptedToast;
+
+  /// No description provided for @priceAdjustedAcceptFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not confirm the price. Please try again.'**
+  String get priceAdjustedAcceptFailed;
+
+  /// No description provided for @snListingPriceAdjusted.
+  ///
+  /// In en, this message translates to:
+  /// **'Listing Price Adjusted'**
+  String get snListingPriceAdjusted;
+
+  /// No description provided for @snReferencePriceUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference Price Updated'**
+  String get snReferencePriceUpdated;
 }
 
 class _AppLocalizationsDelegate

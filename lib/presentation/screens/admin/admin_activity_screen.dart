@@ -415,7 +415,9 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
             item.sourceModule == 'members');
 
     return RecentActivityCard(
-      icon: moduleIcon(item.sourceModule),
+      icon: item.actionType == 'device_login'
+          ? Icons.devices_rounded
+          : moduleIcon(item.sourceModule),
       accentColor: moduleColor(item.sourceModule, cs),
       title: adminActivityDescription(l10n, item),
       subtitle: item.adminName ?? '',

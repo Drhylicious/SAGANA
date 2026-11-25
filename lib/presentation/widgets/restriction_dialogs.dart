@@ -400,7 +400,7 @@ Future<bool?> showManageRestrictions({
   var changed = false;
   return showManagementModal<bool>(
     context: context,
-    builder: (ctx) => _ManageRestrictionsSheet(
+    builder: (ctx) => ManageRestrictionsSheet(
       title: '${l10n.restrictManageTitle} · $displayName',
       memberId: memberId,
       repo: repo,
@@ -409,25 +409,30 @@ Future<bool?> showManageRestrictions({
   ).then((_) => changed);
 }
 
-class _ManageRestrictionsSheet extends StatefulWidget {
+class ManageRestrictionsSheet extends StatefulWidget {
   final String title;
   final String memberId;
-  final MemberRestrictionRepository repo;
+  final MemberRestrictionRepository? repo;
+  final Future<List<MemberRestriction>> Function(String memberId)? loader;
+  final Future<void> Function(String restrictionId)? lifter;
   final VoidCallback onChanged;
 
-  const _ManageRestrictionsSheet({
+  const ManageRestrictionsSheet({
+    super.key,
     required this.title,
     required this.memberId,
-    required this.repo,
+    this.repo,
+    this.loader,
+    this.lifter,
     required this.onChanged,
-  });
+  }) : assert(repo != null || (loader != null && lifter != null));
 
   @override
-  State<_ManageRestrictionsSheet> createState() =>
+  State<ManageRestrictionsSheet> createState() =>
       _ManageRestrictionsSheetState();
 }
 
-class _ManageRestrictionsSheetState extends State<_ManageRestrictionsSheet> {
+class _ManageRestrictionsSheetState extends State<ManageRestrictionsSheet> {
   List<MemberRestriction>? _items;
   String? _busyId;
 
@@ -439,7 +444,9 @@ class _ManageRestrictionsSheetState extends State<_ManageRestrictionsSheet> {
 
   Future<void> _load() async {
     try {
-      final items = await widget.repo.fetchActiveForMember(widget.memberId);
+      final items = widget.loader != null
+          ? await widget.loader!(widget.memberId)
+          : await widget.repo!.fetchActiveForMember(widget.memberId);
       if (mounted) setState(() => _items = items);
     } catch (_) {
       if (mounted) setState(() => _items = const []);
@@ -460,7 +467,11 @@ class _ManageRestrictionsSheetState extends State<_ManageRestrictionsSheet> {
     if (confirmed != true || !mounted) return;
     setState(() => _busyId = r.id);
     try {
-      await widget.repo.liftRestriction(r.id);
+      if (widget.lifter != null) {
+        await widget.lifter!(r.id);
+      } else {
+        await widget.repo!.liftRestriction(r.id);
+      }
       widget.onChanged();
       if (!mounted) return;
       AppToast.show(context, l10n.restrictLiftedToast);
@@ -543,6 +554,14 @@ class _ManageRestrictionsSheetState extends State<_ManageRestrictionsSheet> {
                       const SizedBox(width: 8),
                       OutlinedButton(
                         key: ValueKey('lift-restriction-${r.id}'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 40),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         onPressed: _busyId == null ? () => _lift(r) : null,
                         child: _busyId == r.id
                             ? const SizedBox(

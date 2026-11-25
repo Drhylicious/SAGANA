@@ -758,7 +758,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportsAnalyticsDashboard => 'Analytics Dashboard';
 
   @override
-  String get balikTangkilikDistributionTab => 'Distribution';
+  String get balikTangkilikDistributionTab => 'Free Distribution';
 
   @override
   String get exportSelectReports => 'Select Reports';
@@ -5626,7 +5626,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No programs match your search or filter';
 
   @override
-  String get programMgmtFilterDistribution => 'Distribution';
+  String get programMgmtFilterDistribution => 'Free Distribution';
 
   @override
   String get programMgmtFilterSales => 'Sales';
@@ -7364,7 +7364,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get receivedItemsEmptyBody =>
-      'Seeds, seedlings, produce, tools, livestock, fertilizer and other supplies you receive from a program are listed here, whether it was a Free Distribution or a Harvest Return.';
+      'Seeds, seedlings, produce, tools, livestock, fertilizer and other supplies you receive from a Free Distribution program are listed here.';
 
   @override
   String get receivedItemsFilterAll => 'All';
@@ -15226,7 +15226,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enhTotalPrograms => 'Total Programs';
 
   @override
-  String get enhDistributionBenefitLoans => 'Distribution Benefit/Loans';
+  String get enhDistributionBenefitLoans => 'Free Distribution';
 
   @override
   String get enhCouldNotUpdateYourPasswordPleaseTryAgain =>
@@ -18171,7 +18171,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shelfRottenScope =>
-      'This covers what is available plus what is still unsold in its Marketplace listing. Quantities buyers already ordered, or that are committed to a cooperative offer or a DA-AMAD request, are not changed. Your other harvests are not affected.';
+      'This covers your available harvest, Marketplace listings (including unfulfilled orders), open cooperative offers, and unsold DA-AMAD Market Linking stock. Orders or deliveries already handed over are kept. Your other harvests are not affected.';
 
   @override
   String get shelfRottenNoteLabel => 'Note (optional)';
@@ -19517,28 +19517,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutRoleLeadDeveloperDesc =>
-      'Leads the technical build of SAGANA: the Flutter mobile app, the Supabase database and its security rules, offline sync, and the overall system architecture.';
+      'Leads the technical build: the Flutter mobile app, the Supabase database and its security rules, offline sync and the overall architecture.';
 
   @override
   String get aboutRoleUiUxDesigner => 'UI/UX Designer';
 
   @override
   String get aboutRoleUiUxDesignerDesc =>
-      'Designs how SAGANA looks and feels: screens, navigation, and visual style, with simple, bilingual layouts that work for members with different levels of digital experience.';
+      'Designs how SAGANA looks and feels: screens, navigation and visual style, in simple bilingual layouts for members with different levels of digital experience.';
 
   @override
   String get aboutRoleSystemAnalyst => 'System Analyst';
 
   @override
   String get aboutRoleSystemAnalystDesc =>
-      'Gathers and documents what the cooperative needs: interviews with the Board and members, workflows, business rules, and the requirements the system is built against.';
+      'Gathers and documents what the cooperative needs: workflows, business rules and the requirements the system is built against.';
 
   @override
   String get aboutRoleQaTester => 'QA Tester';
 
   @override
   String get aboutRoleQaTesterDesc =>
-      'Checks that SAGANA works as specified: tests features for each role, verifies business rules and edge cases, reports defects, and confirms fixes before release.';
+      'Checks that SAGANA works as specified: tests features for each role, verifies business rules, reports defects and confirms fixes.';
 
   @override
   String get coopHeroFilipino =>
@@ -20784,4 +20784,105 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get passwordRequirements =>
       'Password must be at least 8 characters and include an uppercase letter, a number and a special character.';
+
+  @override
+  String get shelfTagRottenLost => 'Rotten/Lost';
+
+  @override
+  String get shelfInspectInInventory => 'Inspect in Manage Inventory';
+
+  @override
+  String get shelfListingRottenHint =>
+      'Recorded as rotten/lost in Manage Inventory. This listing is closed and can no longer be sold.';
+
+  @override
+  String get shelfDisposalExpiredError =>
+      'This harvest is past its shelf life. Inspect it and confirm it is still usable in Manage Inventory first.';
+
+  @override
+  String get snOrderCancelledProduceUnavailable =>
+      'Order Cancelled — Produce Unavailable';
+
+  @override
+  String get loginRememberMe => 'Remember me';
+
+  @override
+  String get sessionReplacedTitle => 'Signed Out on This Device';
+
+  @override
+  String sessionReplacedBody(String device) {
+    return 'Your account was accessed from another device ($device), so this session was ended. Only one device can stay signed in at a time.';
+  }
+
+  @override
+  String get sessionReplacedGenericBody =>
+      'Your account was signed in on another device, so this session was ended.';
+
+  @override
+  String activityDeviceLogin(String device) {
+    return 'Signed in on $device (previous device signed out)';
+  }
+
+  @override
+  String farmerMgmtConfirmActivateTitle(String name) {
+    return 'Reactivate $name?';
+  }
+
+  @override
+  String farmerMgmtConfirmActivateBody(String name) {
+    return 'This will restore $name\'s active farmer membership and allow them to sign in again.';
+  }
+
+  @override
+  String farmerMgmtActivatedToast(String name) {
+    return '$name is now active.';
+  }
+
+  @override
+  String get reportsNoRecentExports =>
+      'No downloaded reports yet. Generate a PDF or CSV in Export Center to record it here.';
+
+  @override
+  String get reportsViewAllExports => 'Open Export Center';
+
+  @override
+  String priceAdjustedConfirmBanner(
+    String min,
+    String max,
+    String unit,
+    String oldPrice,
+    String newPrice,
+  ) {
+    return 'Reference Price changed to ₱$min–₱$max/$unit. Your listing price was automatically adjusted from ₱$oldPrice to ₱$newPrice/$unit and remains active. Accept this price or edit it within the new range for approval.';
+  }
+
+  @override
+  String priceAdjustedConfirmHint(
+    String oldPrice,
+    String newPrice,
+    String unit,
+  ) {
+    return 'Price auto-adjusted from ₱$oldPrice to ₱$newPrice/$unit. Review to accept or edit.';
+  }
+
+  @override
+  String priceAdjustedAcceptAction(String price, String unit) {
+    return 'Accept ₱$price/$unit';
+  }
+
+  @override
+  String get priceAdjustedEditAction => 'Edit Price';
+
+  @override
+  String get priceAdjustedAcceptedToast => 'Listing price confirmed.';
+
+  @override
+  String get priceAdjustedAcceptFailed =>
+      'Could not confirm the price. Please try again.';
+
+  @override
+  String get snListingPriceAdjusted => 'Listing Price Adjusted';
+
+  @override
+  String get snReferencePriceUpdated => 'Reference Price Updated';
 }

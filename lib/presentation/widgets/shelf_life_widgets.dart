@@ -200,6 +200,29 @@ class ShelfLifeNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final messageRow = Row(
+      crossAxisAlignment: action == null
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: action == null ? 0 : 2),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              height: 1.4,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
@@ -208,24 +231,17 @@ class ShelfLifeNote extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.inter(
-                fontSize: 11.5,
-                height: 1.4,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+      child: action == null
+          ? messageRow
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                messageRow,
+                const SizedBox(height: 4),
+                Align(alignment: Alignment.centerRight, child: action!),
+              ],
             ),
-          ),
-          if (action != null) ...[const SizedBox(width: 8), action!],
-        ],
-      ),
     );
   }
 }
@@ -483,7 +499,9 @@ class _ShelfLifeCheckSheetState extends State<_ShelfLifeCheckSheet> {
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
-          onPressed: () => setState(() => _step = _CheckStep.rotten),
+          onPressed: batch.hasCheckableStock
+              ? () => setState(() => _step = _CheckStep.rotten)
+              : null,
           icon: const Icon(Icons.delete_outline_rounded, size: 18),
           label: Text(
             l10n.shelfActionRotten(batch.cropName),

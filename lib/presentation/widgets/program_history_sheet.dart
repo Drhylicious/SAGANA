@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
-import 'program_return_panel.dart' show resolutionLabel;
 import '../../data/models/program_model.dart';
 import '../../data/repositories/program_repository.dart';
 import 'management_modal.dart';
@@ -328,59 +327,11 @@ class ProgramHistoryText {
           Icons.inventory_2_outlined,
           AppConstants.programPurple,
         );
-      case 'outcome_recorded':
-      case 'return_confirmed':
-        return const ProgramHistoryEventStyle(
-          Icons.fact_check_outlined,
-          AppConstants.buyerBlue,
-        );
-      case 'converted_to_loan':
-        return const ProgramHistoryEventStyle(
-          Icons.request_quote_outlined,
-          AppConstants.programPurple,
-        );
       case 'activity_created':
       case 'activity_updated':
         return const ProgramHistoryEventStyle(
           Icons.event_outlined,
           AppConstants.buyerBlue,
-        );
-      case 'outcome_submitted':
-        return const ProgramHistoryEventStyle(
-          Icons.assignment_outlined,
-          AppConstants.warningAmber,
-        );
-      case 'outcome_reviewed':
-        return const ProgramHistoryEventStyle(
-          Icons.rule_rounded,
-          AppConstants.buyerBlue,
-        );
-      case 'outcome_verified':
-        return const ProgramHistoryEventStyle(
-          Icons.agriculture_outlined,
-          AppConstants.programPurple,
-        );
-      case 'outcome_finalized':
-        return const ProgramHistoryEventStyle(
-          Icons.flag_outlined,
-          AppConstants.successGreen,
-        );
-      case 'return_opened':
-      case 'return_adjusted':
-      case 'return_receipt':
-        return const ProgramHistoryEventStyle(
-          Icons.agriculture_rounded,
-          AppConstants.primaryGreen,
-        );
-      case 'return_closed':
-        return const ProgramHistoryEventStyle(
-          Icons.task_alt_rounded,
-          AppConstants.onSurfaceVariant,
-        );
-      case 'resolution_recorded':
-        return const ProgramHistoryEventStyle(
-          Icons.gavel_rounded,
-          AppConstants.programPurple,
         );
       case 'assistance_requested':
         return const ProgramHistoryEventStyle(
@@ -431,60 +382,6 @@ class ProgramHistoryText {
         return (qty != null && item != null)
             ? l10n.programHistDistributed('${_num(qty)} $item', _name(e))
             : l10n.programHistDistributedPlain(_name(e));
-      case 'outcome_recorded':
-        return l10n.programHistOutcome(
-          _name(e),
-          d['outcome'] == 'failed'
-              ? l10n.programMgmtStageFailed
-              : d['outcome'] == 'thriving'
-              ? l10n.programMgmtThriving
-              : '${d['outcome']}',
-        );
-      case 'return_confirmed':
-        return l10n.programHistReturnConfirmed(_name(e));
-      case 'converted_to_loan':
-        return l10n.programHistConverted(_name(e));
-      case 'outcome_submitted':
-        return l10n.programHistOutcomeSubmitted(
-          _name(e),
-          d['outcome'] == 'failed'
-              ? l10n.outcStatusFailed
-              : l10n.outcStatusSuccessful,
-        );
-      case 'outcome_reviewed':
-        return d['decision'] == 'returned'
-            ? l10n.programHistOutcomeReturned(_name(e))
-            : l10n.programHistOutcomeValidated(_name(e));
-      case 'outcome_verified':
-        return l10n.programHistOutcomeVerified(
-          _name(e),
-          d['finding'] == 'disputes'
-              ? l10n.outcFindingDisputes
-              : l10n.outcFindingConfirms,
-        );
-      case 'outcome_finalized':
-        return l10n.programHistOutcomeFinalized(
-          _name(e),
-          d['outcome'] == 'failed'
-              ? l10n.outcStatusFailed
-              : l10n.outcStatusSuccessful,
-        );
-      case 'return_opened':
-        return l10n.programHistReturnOpened(_name(e), _qtyText(d['after'], d));
-      case 'return_adjusted':
-        return l10n.programHistReturnAdjusted(_name(e));
-      case 'return_receipt':
-        return l10n.programHistReturnReceipt(
-          _name(e),
-          _qtyText(d['quantity'], d),
-        );
-      case 'return_closed':
-        return l10n.programHistReturnClosed(_name(e));
-      case 'resolution_recorded':
-        final res = resolutionLabel(l10n, '${d['resolution']}');
-        return d['default'] == true
-            ? l10n.programHistResolutionDefault(_name(e), res)
-            : l10n.programHistResolution(_name(e), res);
       case 'assistance_requested':
         return l10n.programHistAssistRequested(
           _name(e),
@@ -509,10 +406,6 @@ class ProgramHistoryText {
         return e.type;
     }
   }
-
-  /// "4 kg Peanut" for a return event.
-  static String _qtyText(Object? qty, Map<String, dynamic> d) =>
-      '${_num(qty)} ${d['unit'] ?? ''} ${d['crop'] ?? ''}'.trim();
 
   static String _activityTitle(ProgramHistoryEntry e) {
     final n = (e.details['new'] as Map?)?['title'] as String?;
@@ -574,16 +467,8 @@ class ProgramHistoryText {
         return l10n.programMgmtFieldItem;
       case 'source_categories':
         return l10n.programMgmtFieldSources;
-      case 'return_crop_id':
-        return l10n.programMgmtFieldReturnCrop;
-      case 'return_quantity':
-        return l10n.programMgmtFieldReturnQuantity;
-      case 'return_unit':
-        return l10n.programMgmtFieldReturnUnit;
       case 'status':
         return l10n.programHistFieldStatus;
-      case 'benefit_type':
-        return l10n.programHistFieldBenefit;
       default:
         return key.replaceAll('_', ' ');
     }
@@ -596,10 +481,6 @@ class ProgramHistoryText {
     switch (key) {
       case 'budget':
         return '₱${_num(v)}';
-      case 'benefit_type':
-        return v == 'revenue_share'
-            ? l10n.programMgmtBenefitReturnChip
-            : l10n.programMgmtBenefitFreeChip;
       case 'status':
         switch (v) {
           case 'active':
@@ -612,7 +493,6 @@ class ProgramHistoryText {
         return v is List ? v.join(', ') : '$v';
       case 'image_url':
       case 'distribution_item_id':
-      case 'return_crop_id':
         // A URL / id means nothing to a reader; "changed" is the fact.
         return l10n.programHistValueSet;
       default:
@@ -620,46 +500,13 @@ class ProgramHistoryText {
     }
   }
 
-  /// "Budget: ₱5000 → ₱8000" lines for a program edit; the staff note for a
-  /// review, verification or final decision.
+  /// "Budget: ₱5000 → ₱8000" lines for a program edit.
   static List<String> changeLines(
     AppLocalizations l10n,
     ProgramHistoryEntry e,
   ) {
-    if (e.type == 'outcome_reviewed' ||
-        e.type == 'outcome_verified' ||
-        e.type == 'outcome_finalized') {
-      final note = (e.details['note'] as String?)?.trim() ?? '';
-      return [
-        if (e.type == 'outcome_verified' && e.details['quantity'] != null)
-          l10n.programHistMeasured(
-            '${_num(e.details['quantity'])} ${e.details['unit'] ?? ''}'.trim(),
-          ),
-        if (note.isNotEmpty) '"$note"',
-      ];
-    }
     final d = e.details;
-    if (e.type == 'return_adjusted' || e.type == 'return_closed') {
-      final reason = (d['reason'] as String?)?.trim() ?? '';
-      return [
-        if (e.type == 'return_adjusted')
-          l10n.programHistQtyChange(
-            _num(d['before']),
-            _num(d['after']),
-            '${d['unit'] ?? ''}',
-          ),
-        if (e.type == 'return_closed')
-          l10n.programHistReceivedOfDue(
-            _num(d['after']),
-            _num(d['before']),
-            '${d['unit'] ?? ''}',
-          ),
-        if (reason.isNotEmpty) '"$reason"',
-      ];
-    }
-    if (e.type == 'return_receipt' ||
-        e.type == 'resolution_recorded' ||
-        e.type == 'assistance_rejected') {
+    if (e.type == 'assistance_rejected') {
       final note = ((d['reason'] ?? d['note']) as String?)?.trim() ?? '';
       return [if (note.isNotEmpty) '"$note"'];
     }

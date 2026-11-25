@@ -550,7 +550,6 @@ void main() {
                 id: 'p9',
                 programName: 'Peanut Seed Distribution',
                 programType: 'Crop',
-                benefitType: 'grant',
                 seasonYear: 2026,
                 status: status,
                 memberCount: 4,

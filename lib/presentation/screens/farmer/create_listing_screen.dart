@@ -142,8 +142,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final batches = await _inventoryRepo.fetchAvailableBatches();
     if (!mounted) return;
 
-    InventoryBatchModel? initial =
-        preselect ?? (batches.isNotEmpty ? batches.first : null);
+    InventoryBatchModel? initial;
+    if (preselect != null) {
+      initial = batches.cast<InventoryBatchModel?>().firstWhere(
+        (b) => b?.id == preselect.id,
+        orElse: () => preselect,
+      );
+    } else if (batches.isNotEmpty) {
+      initial = batches.first;
+    }
 
     setState(() {
       _batches = batches;

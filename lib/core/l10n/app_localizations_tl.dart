@@ -772,7 +772,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get reportsAnalyticsDashboard => 'Buod ng pagsusuri';
 
   @override
-  String get balikTangkilikDistributionTab => 'Distribusyon';
+  String get balikTangkilikDistributionTab => 'Libreng Pamamahagi';
 
   @override
   String get exportSelectReports => 'Pumili ng Ulat';
@@ -5704,7 +5704,7 @@ class AppLocalizationsTl extends AppLocalizations {
       'Walang programang tumutugma sa iyong paghahanap o filter';
 
   @override
-  String get programMgmtFilterDistribution => 'Pamamahagi';
+  String get programMgmtFilterDistribution => 'Libreng Pamamahagi';
 
   @override
   String get programMgmtFilterSales => 'Benta';
@@ -15423,7 +15423,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get enhTotalPrograms => 'Kabuuang programa';
 
   @override
-  String get enhDistributionBenefitLoans => 'Tulong o pautang na ipinamamahagi';
+  String get enhDistributionBenefitLoans => 'Libreng Pamamahagi';
 
   @override
   String get enhCouldNotUpdateYourPasswordPleaseTryAgain =>
@@ -18364,7 +18364,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get shelfRottenScope =>
-      'Sakop nito ang available at ang hindi pa nabebenta sa alok nito sa Marketplace. Hindi mababago ang mga na-order na ng mamimili, o ang nakalaan sa alok sa kooperatiba o sa DA-AMAD. Hindi apektado ang iba mong ani.';
+      'Sakop nito ang natitira mong ani, mga listing sa Pamilihan (kasama ang mga order na hindi pa naibibigay), mga bukas na alok sa kooperatiba, at hindi pa nabebentang DA-AMAD Market Linking. Mananatili ang mga order o delivery na naibigay na. Hindi apektado ang iba mong ani.';
 
   @override
   String get shelfRottenNoteLabel => 'Tala (opsyonal)';
@@ -19699,28 +19699,28 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get aboutRoleLeadDeveloperDesc =>
-      'Namumuno sa teknikal na pagbuo ng SAGANA: ang Flutter mobile app, ang Supabase database at mga panuntunan nito sa seguridad, offline sync, at ang kabuuang arkitektura ng sistema.';
+      'Namumuno sa teknikal na pagbuo: ang Flutter mobile app, ang Supabase database at mga panuntunan nito sa seguridad, offline sync, at ang kabuuang arkitektura.';
 
   @override
   String get aboutRoleUiUxDesigner => 'UI/UX Designer';
 
   @override
   String get aboutRoleUiUxDesignerDesc =>
-      'Nagdidisenyo kung paano ang hitsura at pakiramdam ng SAGANA: mga screen, nabigasyon, at istilong biswal, na may simple at bilinggwal na layout para sa mga miyembrong magkakaiba ang karanasan sa digital.';
+      'Nagdidisenyo kung paano ang hitsura at pakiramdam ng SAGANA: mga screen, nabigasyon, at istilong biswal, sa simple at bilinggwal na mga layout para sa mga miyembrong magkakaiba ang karanasan sa digital.';
 
   @override
   String get aboutRoleSystemAnalyst => 'System Analyst';
 
   @override
   String get aboutRoleSystemAnalystDesc =>
-      'Nangangalap at nagdodokumento ng pangangailangan ng kooperatiba: mga panayam sa Lupon at mga miyembro, mga proseso, mga patakaran sa negosyo, at ang mga requirement na pinagbabatayan ng sistema.';
+      'Nangangalap at nagdodokumento ng pangangailangan ng kooperatiba: mga daloy ng trabaho, mga patakaran sa negosyo, at ang mga requirement na pinagbabatayan ng sistema.';
 
   @override
   String get aboutRoleQaTester => 'QA Tester';
 
   @override
   String get aboutRoleQaTesterDesc =>
-      'Tinitiyak na gumagana ang SAGANA ayon sa detalye: sinusubok ang mga feature para sa bawat role, sinusuri ang mga patakaran sa negosyo at mga espesyal na kaso, nag-uulat ng depekto, at kinukumpirma ang mga ayos bago ilabas.';
+      'Tinitiyak na gumagana ang SAGANA ayon sa detalye: sinusubok ang mga feature para sa bawat role, sinusuri ang mga patakaran sa negosyo, nag-uulat ng depekto, at kinukumpirma ang mga ayos.';
 
   @override
   String get coopHeroFilipino =>
@@ -20939,4 +20939,105 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get passwordRequirements =>
       'Dapat ay hindi bababa sa 8 character ang password at may kahit isang malaking titik, isang numero, at isang espesyal na character.';
+
+  @override
+  String get shelfTagRottenLost => 'Bulok/Nawala';
+
+  @override
+  String get shelfInspectInInventory => 'Suriin sa Pamamahala ng Imbentaryo';
+
+  @override
+  String get shelfListingRottenHint =>
+      'Naitala bilang bulok/nawala sa Pamamahala ng Imbentaryo. Sarado na ang listing na ito at hindi na maibebenta.';
+
+  @override
+  String get shelfDisposalExpiredError =>
+      'Lampas na sa shelf life ang aning ito. Suriin muna ito at kumpirmahin sa Pamamahala ng Imbentaryo kung maayos pa.';
+
+  @override
+  String get snOrderCancelledProduceUnavailable =>
+      'Kinansela ang Order — Hindi na Mabibili ang Ani';
+
+  @override
+  String get loginRememberMe => 'Tandaan ako';
+
+  @override
+  String get sessionReplacedTitle => 'Nai-sign Out sa Device na Ito';
+
+  @override
+  String sessionReplacedBody(String device) {
+    return 'Binuksan ang iyong account sa ibang device ($device), kaya natapos ang session na ito. Isang device lang ang maaaring naka-sign in nang sabay.';
+  }
+
+  @override
+  String get sessionReplacedGenericBody =>
+      'Nag-sign in ang iyong account sa ibang device, kaya natapos ang session na ito.';
+
+  @override
+  String activityDeviceLogin(String device) {
+    return 'Nag-sign in sa $device (nai-sign out ang nakaraang device)';
+  }
+
+  @override
+  String farmerMgmtConfirmActivateTitle(String name) {
+    return 'Ibalik bilang Aktibo si $name?';
+  }
+
+  @override
+  String farmerMgmtConfirmActivateBody(String name) {
+    return 'Ibabalik nito ang aktibong pagiging miyembro ni $name at papayagan siyang mag-sign in muli.';
+  }
+
+  @override
+  String farmerMgmtActivatedToast(String name) {
+    return 'Aktibo na muli si $name.';
+  }
+
+  @override
+  String get reportsNoRecentExports =>
+      'Wala pang na-download na ulat. Gumawa ng PDF o CSV sa Export Center para maitala rito.';
+
+  @override
+  String get reportsViewAllExports => 'Buksan ang Export Center';
+
+  @override
+  String priceAdjustedConfirmBanner(
+    String min,
+    String max,
+    String unit,
+    String oldPrice,
+    String newPrice,
+  ) {
+    return 'Nagbago ang Reference Price sa ₱$min–₱$max/$unit. Awtomatikong inayos ang presyo ng iyong alok mula ₱$oldPrice patungong ₱$newPrice/$unit at nananatiling aktibo ito. Tanggapin ang presyong ito o i-edit sa loob ng bagong saklaw para aprubahan.';
+  }
+
+  @override
+  String priceAdjustedConfirmHint(
+    String oldPrice,
+    String newPrice,
+    String unit,
+  ) {
+    return 'Awtomatikong inayos ang presyo mula ₱$oldPrice patungong ₱$newPrice/$unit. Suriin upang tanggapin o i-edit.';
+  }
+
+  @override
+  String priceAdjustedAcceptAction(String price, String unit) {
+    return 'Tanggapin ang ₱$price/$unit';
+  }
+
+  @override
+  String get priceAdjustedEditAction => 'I-edit ang Presyo';
+
+  @override
+  String get priceAdjustedAcceptedToast => 'Nakumpirma na ang presyo ng alok.';
+
+  @override
+  String get priceAdjustedAcceptFailed =>
+      'Hindi makumpirma ang presyo. Pakisubukan muli.';
+
+  @override
+  String get snListingPriceAdjusted => 'Inayos ang Presyo ng Alok';
+
+  @override
+  String get snReferencePriceUpdated => 'Na-update ang Reference Price';
 }

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../core/utils/listing_order.dart' show stableGroupSort;
 import '../../core/utils/quantity_utils.dart';
 import '../../data/models/cooperative_offer_model.dart';
 import 'crop_photo_capture.dart';
@@ -246,12 +247,23 @@ List<CooperativeOfferModel> filterCoopOffers(
   bool matchFarmerName = false,
 }) {
   final q = query.trim().toLowerCase();
-  return offers.where((o) {
+  final filtered = offers.where((o) {
     if (!filter.matches(o)) return false;
     if (q.isEmpty) return true;
     return o.cropName.toLowerCase().contains(q) ||
         (matchFarmerName && o.farmerName.toLowerCase().contains(q));
-  }).toList();
+  });
+
+  // Active/pending offers first (newest first), then completed, then declined,
+  // with cancelled offers always at the very bottom.
+  int groupOf(CooperativeOfferModel o) {
+    if (o.isCancelled) return 3;
+    if (o.isDeclined) return 2;
+    if (o.isCompleted) return 1;
+    return 0;
+  }
+
+  return stableGroupSort(filtered, groupOf);
 }
 
 // ─── Price summary ───────────────────────────────────────────────────────────

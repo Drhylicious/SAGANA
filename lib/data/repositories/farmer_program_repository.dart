@@ -5,9 +5,6 @@ import '../services/offline_cache.dart';
 import '../models/cooperative_product_model.dart';
 import '../models/program_model.dart';
 import '../models/program_enrollment_request_model.dart';
-import '../models/program_outcome_model.dart';
-import '../models/program_return_model.dart';
-import '../services/outcome_evidence_service.dart';
 import '../services/server_only.dart';
 
 /// Farmer-side repository for the Cooperative Product Sales Program —
@@ -126,119 +123,6 @@ class FarmerProgramRepository {
     } catch (_) {
       // The pricing script may not be applied yet: show regular prices.
       return (discountPercent: 0.0, isMember: false);
-    }
-  }
-
-  // ─── Outcome reports (Proposal 11) ────────────────────────────────────────
-
-  /// The Farmer's own outcome reports, newest first. Reads through
-  /// get_my_outcome_reports(), which leaves out every staff identity.
-  /// The status ('pending' | 'approved') of this Farmer's request for another distribution, by the failed
-  /// round it follows.
-  Future<Map<String, String>> fetchMyRedistributionRequests() async {
-    try {
-      final uid = _client.auth.currentUser?.id;
-      if (uid == null) return {};
-      final rows = await _client
-          .from('program_redistribution_requests')
-          .select('program_member_id, status')
-          .eq('farmer_id', uid);
-      return {
-        for (final r in rows) r['program_member_id'] as String: r['status'] as String,
-      };
-    } catch (_) {
-      return {};
-    }
-  }
-
-  /// Asks the cooperative for another distribution after "Eligible for Reassessment". A note is required.
-  Future<void> requestRedistribution({required String memberId, required String note}) async {
-    await ServerOnly.ensureOnline();
-    await _client.rpc('request_program_redistribution', params: {
-      'p_member_id': memberId,
-      'p_note': note,
-    });
-  }
-
-  /// This Farmer's harvest returns and the plain status of failed outcomes.
-  Future<MyReturnsSnapshot> fetchMyReturns() async {
-    try {
-      final res = await _client.rpc('get_my_program_returns');
-      return MyReturnsSnapshot.fromMap(Map<String, dynamic>.from(res as Map));
-    } catch (_) {
-      return const MyReturnsSnapshot();
-    }
-  }
-
-  Future<List<MyOutcomeReport>> fetchMyOutcomeReports() async {
-    try {
-      final rows = await OfflineCache.load(
-        screen: 'my_outcome_reports',
-        fetch: () async {
-          final res = await _client.rpc('get_my_outcome_reports');
-          return (res as List)
-              .map((r) => Map<String, dynamic>.from(r as Map))
-              .toList();
-        },
-      );
-      return rows.map(MyOutcomeReport.fromMap).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  static String _day(DateTime? d) =>
-      d == null ? '' : d.toIso8601String().split('T').first;
-
-  /// Uploads the photos, then files the report. Needs a connection (a report
-  /// with evidence cannot be queued). Throws [OutcomeActionException] with the
-  /// reason when it is refused; photos already uploaded are cleaned up.
-  Future<void> submitOutcomeReport({
-    required String programMemberId,
-    required String outcome, // 'successful' | 'failed'
-    required String explanation,
-    DateTime? plantedDate,
-    DateTime? harvestDate,
-    double? quantity,
-    String? unit,
-    String? failureCause,
-    DateTime? failureDate,
-    required List<PickedPhoto> photos,
-  }) async {
-    try {
-      await ServerOnly.ensureOnline();
-    } catch (_) {
-      throw const OutcomeActionException('offline', offline: true);
-    }
-    final evidence = OutcomeEvidenceService();
-    final paths = <String>[];
-    try {
-      for (final p in photos) {
-        paths.add(await evidence.upload(p.bytes, p.extension));
-      }
-      await _client.rpc(
-        'submit_program_outcome_report',
-        params: {
-          'p_program_member_id': programMemberId,
-          'p_outcome': outcome,
-          'p_explanation': explanation,
-          'p_planted_date': plantedDate == null ? null : _day(plantedDate),
-          'p_harvest_date': harvestDate == null ? null : _day(harvestDate),
-          'p_quantity': quantity,
-          'p_unit': unit,
-          'p_area': null,
-          'p_area_unit': null,
-          'p_failure_cause': failureCause,
-          'p_failure_date': failureDate == null ? null : _day(failureDate),
-          'p_photo_paths': paths,
-        },
-      );
-    } on PostgrestException catch (e) {
-      await evidence.removeAll(paths);
-      throw OutcomeActionException(e.message);
-    } catch (e) {
-      await evidence.removeAll(paths);
-      throw OutcomeActionException('$e');
     }
   }
 

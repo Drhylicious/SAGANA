@@ -32,18 +32,13 @@ class OfflineReadClient extends http.BaseClient {
     'get_supply_chain_records',
     'get_supply_chain_totals',
     'get_programs_completion_status',
-    'get_program_returns',
-    'get_failed_resolutions',
     'get_my_assistance_options',
     'get_my_assistance_requests',
     'get_assistance_requests',
     'list_loanable_items',
     'get_my_loan_requests',
     'get_program_product_stats',
-    'get_my_program_returns',
-    'get_my_outcome_reports',
     'get_my_marketplace_buyer_names',
-    'get_program_outcome_reports',
     'get_program_history',
     'get_my_activity_share',
     'get_manager_sign_in_emails',
@@ -427,9 +422,13 @@ class OfflineReadClient extends http.BaseClient {
         ? _readRpcs.contains(segments.last) &&
               const ['GET', 'HEAD', 'POST'].contains(request.method)
         : request.method == 'GET' || request.method == 'HEAD';
-    // Account status must always be a live verdict; offline routing already
-    // uses the explicitly saved local session instead.
-    final accountStatus = rest && !rpc && segments[2] == 'user_roles';
+    // Account status & active session checks must always be live verdicts;
+    // offline routing uses the explicitly saved local session instead.
+    final accountStatus =
+        rest &&
+        !rpc &&
+        (segments[2] == 'user_roles' ||
+            segments[2] == 'user_active_sessions');
     if (!eligible || !rest || !read || accountStatus) {
       if (held) {
         throw http.ClientException('No internet connection.', request.url);

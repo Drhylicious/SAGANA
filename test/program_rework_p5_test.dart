@@ -106,13 +106,12 @@ void main() {
       );
       final blocked = ProgramCompletionStatus.fromMap({
         'program_id': 'p',
-        'blockers': {'awaiting_outcome': 2, 'open_orders': 1, 'allocated_stock': 0},
+        'blockers': {'open_orders': 1, 'allocated_stock': 2},
         'ready': false,
       });
       expect(blocked.isReady, isFalse);
-      expect(blocked.awaitingOutcome, 2);
       expect(blocked.openOrders, 1);
-      expect(blocked.allocatedStock, 0);
+      expect(blocked.allocatedStock, 2);
     });
   });
 
@@ -125,17 +124,18 @@ void main() {
       expect(_read('lib/presentation/widgets/admin_program_card.dart'), isNot(contains('onDelete')));
     });
 
-    test('the top bar is a three-dot menu with red indicators', () {
-      expect(screen, contains('PopupMenuButton<String>'));
+    test('the top bar displays only Join Requests (no three-dot menu)', () {
+      expect(screen, isNot(contains('PopupMenuButton<String>')));
+      expect(screen, contains('AppRoutes.programEnrollmentRequests'));
       expect(screen, contains('_requestsMenu'));
     });
 
-    test('Distribution members are four swipeable sections; Sales is a plain list', () {
+    test('Free Distribution members have two swipeable sections; Sales is a plain list', () {
       expect(screen, contains('DefaultTabController'));
       expect(screen, contains('memTabToDistribute'));
       expect(screen, contains('memTabDistributed'));
-      expect(screen, contains('memTabSuccessful'));
-      expect(screen, contains('memTabFailed'));
+      expect(screen, isNot(contains('memTabSuccessful')));
+      expect(screen, isNot(contains('memTabFailed')));
       expect(screen, contains('memEmptySales'));
     });
 
@@ -156,9 +156,7 @@ void main() {
       expect(screen, contains('AppRoutes.programProducts'));
     });
 
-    test('Outcome Review has Pending | Finalized | Returned; Enrollment has no Declined', () {
-      final outcomes = _read('lib/presentation/screens/admin/program_outcomes_screen.dart');
-      expect(outcomes, contains('TabController(length: 3'));
+    test('Enrollment has no Declined', () {
       final enroll = _read('lib/presentation/screens/admin/program_enrollment_requests_screen.dart');
       expect(enroll, isNot(contains('reqFilterDeclined')));
     });
