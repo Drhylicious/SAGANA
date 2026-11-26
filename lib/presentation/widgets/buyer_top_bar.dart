@@ -8,7 +8,6 @@ import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/notification_badge_service.dart';
-import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
 import 'sagana_logo_mark.dart';
 import 'shared_widgets.dart';
@@ -31,7 +30,7 @@ Future<void> confirmBuyerSignOut(BuildContext context) async {
   );
   if (confirmed == true) {
     await AuthService.logout();
-    if (context.mounted) context.go(AppRoutes.welcome);
+    if (context.mounted) context.go(signedOutDestination());
   }
 }
 

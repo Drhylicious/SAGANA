@@ -3,6 +3,7 @@ import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import '../models/buyer_address_model.dart';
 import '../models/farmer_profile_model.dart';
+import '../models/program_model.dart';
 import '../models/farmer_member_model.dart';
 import '../models/loan_model.dart';
 import '../models/contribution_model.dart';
@@ -532,6 +533,23 @@ class FarmerDetailsRepository {
         referenceId: farmerId,
       );
     }
+  }
+
+  Future<FarmerDistributionSummary> fetchFarmerDistributionSummary(
+    String farmerId,
+  ) async {
+    try {
+      final res = await _client.rpc(
+        'get_farmer_distribution_summary',
+        params: {'p_farmer_id': farmerId},
+      );
+      if (res is Map) {
+        return FarmerDistributionSummary.fromMap(
+          Map<String, dynamic>.from(res),
+        );
+      }
+    } catch (_) {}
+    return const FarmerDistributionSummary();
   }
 
   Future<List<MemberStatusEvent>> fetchStatusHistory(String farmerId) async {

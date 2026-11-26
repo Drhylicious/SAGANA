@@ -247,7 +247,13 @@ void main() {
             .where((d) => d.decoration.errorText != null)
             .map((d) => d.decoration.errorText)
             .toList();
-        expect(decorators, containsAll(['Date of birth is required', 'Gender is required']));
+        expect(decorators, contains('Date of birth is required'));
+
+        final genderError = tester.widget<Text>(find.text('Gender is required'));
+        final errorColor = Theme.of(
+          tester.element(find.byType(AccountGenderField)),
+        ).colorScheme.error;
+        expect(genderError.style?.color, errorColor);
       });
     });
 

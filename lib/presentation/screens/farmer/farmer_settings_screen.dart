@@ -105,7 +105,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
       setState(() => _isSigningOut = true);
       await AuthService.logout();
       if (mounted) {
-        GoRouter.of(context).go(AppRoutes.welcome);
+        GoRouter.of(context).go(signedOutDestination());
       }
     }
   }

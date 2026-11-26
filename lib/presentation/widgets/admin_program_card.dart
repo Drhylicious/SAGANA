@@ -181,7 +181,7 @@ class AdminProgramCard extends StatelessWidget {
                       children: [
                         _Pill(
                           label: p.isSalesProgram
-                              ? l10n.programMgmtFilterSales
+                              ? l10n.reportsProductSalesShort
                               : l10n.programMgmtFilterDistribution,
                           color: p.isSalesProgram
                               ? AppConstants.successGreen
@@ -189,8 +189,16 @@ class AdminProgramCard extends StatelessWidget {
                         ),
                         if (p.hasMemberDiscount)
                           _Pill(
-                            label: l10n.programMgmtMemberDiscountChip(_pct(p.memberDiscountPercent)),
+                            label: l10n.programMgmtMemberDiscountChip(
+                              _pct(p.memberDiscountPercent),
+                            ),
                             color: AppConstants.successGreen,
+                          ),
+                        if (p.hasCooperativeShare)
+                          _Pill(
+                            label:
+                                'Return Percentage (${_pct(p.cooperativeSharePercent)}%)',
+                            color: AppConstants.buyerBlue,
                           ),
                       ],
                     ),

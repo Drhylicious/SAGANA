@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/program_model.dart';
 import '../../../data/models/program_enrollment_request_model.dart';
@@ -178,7 +179,7 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                       onTap: () => setState(() => _purposeFilter = label),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                          horizontal: 12,
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
@@ -336,119 +337,196 @@ class _AvailableProgramCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final accent = program.isSalesProgram
         ? AppConstants.successGreen
-        : AppConstants.programPurple;
-    // A single BoxDecoration can't mix a borderRadius with a non-uniform
-    // Border (different colors per side) — Flutter throws "A borderRadius
-    // can only be given on borders with uniform colors." at paint time.
-    // The colored left stripe is its own widget instead, sitting flush
-    // beside a normally-bordered (uniform, radius-safe) card.
+        : AppConstants.buyerBlue;
+    final hasPhoto =
+        program.imageUrl != null && program.imageUrl!.isNotEmpty;
+    final fallbackIcon = program.isSalesProgram
+        ? Icons.storefront_rounded
+        : Icons.volunteer_activism_rounded;
+    final statusBadgeLabel = entry != null
+        ? l10n.farmerProgStageEnrolled
+        : request != null
+            ? (request!.isPending
+                ? l10n.buyerOrderDetailPendingTimestamp
+                : request!.isRejected
+                    ? l10n.farmerMgmtStatusRejectedLabel
+                    : l10n.farmerDetailsProgStatusActive)
+            : l10n.farmerDetailsProgStatusActive;
+    final statusBadgeColor = entry != null
+        ? AppConstants.successGreen
+        : request != null
+            ? _stateColor(context)
+            : AppConstants.successGreen;
+
     return GestureDetector(
       onTap: onTap,
-      // IntrinsicHeight, not a bare Row — CrossAxisAlignment.stretch tries
-      // to stretch children to the Row's own height, but inside a
-      // ListView item that height is unbounded (0..Infinity), which
-      // crashes with "BoxConstraints forces an infinite height."
-      // IntrinsicHeight measures the tallest child first and constrains
-      // the Row to that real height instead.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: accent,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(AppConstants.radiusLg),
-                ),
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF455A64).withValues(alpha: 0.05),
+              blurRadius: 8,
             ),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: context.saganaColors.cardBackground,
-                  borderRadius: const BorderRadius.horizontal(
-                    right: Radius.circular(AppConstants.radiusLg),
-                  ),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outline.withValues(alpha: 0.10),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      alignment: Alignment.center,
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 120,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (hasPhoto)
+                    Image.network(
+                      program.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _bannerFallback(accent, fallbackIcon),
+                    )
+                  else
+                    _bannerFallback(accent, fallbackIcon),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
+                        color: statusBadgeColor,
                         borderRadius: BorderRadius.circular(
-                          AppConstants.radiusMd,
+                          AppConstants.radiusFull,
                         ),
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child:
-                          (program.imageUrl != null &&
-                              program.imageUrl!.isNotEmpty)
-                          ? Image.network(
-                              program.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
-                                program.isSalesProgram
-                                    ? Icons.storefront_rounded
-                                    : Icons.volunteer_activism_rounded,
-                                color: accent,
-                                size: 22,
-                              ),
-                            )
-                          : Icon(
-                              program.isSalesProgram
-                                  ? Icons.storefront_rounded
-                                  : Icons.volunteer_activism_rounded,
-                              color: accent,
-                              size: 22,
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            program.programName,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _stateLabel(AppLocalizations.of(context)),
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: _stateColor(context),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        statusBadgeLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: Theme.of(context).colorScheme.outline,
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          program.programName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: cs.outline,
+                      ),
+                    ],
+                  ),
+                  if (program.programType.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${program.programType} · ${program.seasonYear}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
-                ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _PurposePill(
+                        label: program.isSalesProgram
+                            ? l10n.reportsProductSalesShort
+                            : l10n.programMgmtFilterDistribution,
+                        color: accent,
+                      ),
+                      if (program.hasCooperativeShare)
+                        _PurposePill(
+                          label:
+                              'Return Percentage (${formatQuantity(program.cooperativeSharePercent)}%)',
+                          color: AppConstants.buyerBlue,
+                        ),
+                      if (program.hasMemberDiscount)
+                        _PurposePill(
+                          label: l10n.programMgmtMemberDiscountChip(
+                            formatQuantity(program.memberDiscountPercent),
+                          ),
+                          color: AppConstants.successGreen,
+                        ),
+                    ],
+                  ),
+                  if ((program.description ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      program.description!.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Divider(
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.12),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(
+                        entry != null
+                            ? Icons.check_circle_outline_rounded
+                            : request?.isPending == true
+                                ? Icons.hourglass_bottom_rounded
+                                : Icons.touch_app_outlined,
+                        size: 15,
+                        color: _stateColor(context),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _stateLabel(l10n),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _stateColor(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
@@ -456,6 +534,12 @@ class _AvailableProgramCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _bannerFallback(Color accent, IconData icon) => Container(
+    color: accent.withValues(alpha: 0.12),
+    alignment: Alignment.center,
+    child: Icon(icon, size: 38, color: accent.withValues(alpha: 0.7)),
+  );
 
   String _stateLabel(AppLocalizations l10n) {
     if (entry != null) return l10n.joinTapDetailsJoined;
@@ -472,4 +556,27 @@ class _AvailableProgramCard extends StatelessWidget {
     if (request!.isRejected) return AppConstants.errorRed;
     return AppConstants.successGreen;
   }
+}
+
+class _PurposePill extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _PurposePill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+    ),
+    child: Text(
+      label,
+      style: GoogleFonts.inter(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    ),
+  );
 }

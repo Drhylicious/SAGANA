@@ -497,7 +497,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       cropName: batch.cropName,
       availableKg: batch.availableKg,
       unit: batch.unit,
-      isCoopEligible: batch.isCoopEligible,
+      // Produce received from a Free Distribution program cannot be offered back to the cooperative.
+      isCoopEligible: batch.isCoopEligible && !batch.fromProgram,
       exclusiveChannel: batch.exclusiveChannel,
     );
     if (action == null || !mounted) return;

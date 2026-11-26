@@ -160,6 +160,7 @@ class ProgramRepository {
     String programPurpose = 'distribution',
     String? imageUrl,
     double? memberDiscountPercent,
+    double? cooperativeSharePercent,
     List<String>? sourceCategories,
   }) async {
     final trimmedName = name.trim();
@@ -206,6 +207,8 @@ class ProgramRepository {
             // program works the same before and after the pricing script.
             if (memberDiscountPercent != null)
               'member_discount_percent': memberDiscountPercent,
+            if (cooperativeSharePercent != null && cooperativeSharePercent > 0)
+              'cooperative_share_percent': cooperativeSharePercent,
             if (sourceCategories != null) 'source_categories': sourceCategories,
           })
           .select('id')
@@ -237,6 +240,7 @@ class ProgramRepository {
     String? distributionItemId,
     String? imageUrl,
     double? memberDiscountPercent,
+    double? cooperativeSharePercent,
     List<String>? sourceCategories,
   }) async {
     // Program Purpose is fixed when a program is created, so it is not sent here.
@@ -246,6 +250,8 @@ class ProgramRepository {
           .update({
             if (memberDiscountPercent != null)
               'member_discount_percent': memberDiscountPercent,
+            if (cooperativeSharePercent != null)
+              'cooperative_share_percent': cooperativeSharePercent,
             if (sourceCategories != null) 'source_categories': sourceCategories,
             'program_name': name.trim(),
             'program_type': type.trim(),
@@ -905,5 +911,52 @@ class ProgramRepository {
               ProgramHistoryEntry.fromMap(Map<String, dynamic>.from(r as Map)),
         )
         .toList();
+  }
+
+  Future<ProgramDistributionSummary> fetchProgramDistributionSummary(
+    String programId,
+  ) async {
+    try {
+      final res = await _client.rpc(
+        'get_program_distribution_summary',
+        params: {'p_program_id': programId},
+      );
+      if (res is Map) {
+        return ProgramDistributionSummary.fromMap(
+          Map<String, dynamic>.from(res),
+        );
+      }
+    } catch (_) {}
+    return const ProgramDistributionSummary();
+  }
+
+  Future<void> recordProgramSharePayment(
+    String shareId, {
+    String? notes,
+  }) async {
+    await _client.rpc(
+      'record_program_share_payment',
+      params: {
+        'p_share_id': shareId,
+        if (notes != null && notes.trim().isNotEmpty) 'p_notes': notes.trim(),
+      },
+    );
+  }
+
+  Future<List<ProgramSaleShare>> fetchMyProgramShares() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return [];
+    try {
+      final rows = await _client
+          .from('program_sale_shares')
+          .select()
+          .eq('farmer_id', uid)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(rows)
+          .map(ProgramSaleShare.fromMap)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 }

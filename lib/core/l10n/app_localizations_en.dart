@@ -1978,10 +1978,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerDetailsProgSearchHint => 'Search programs';
 
   @override
-  String get farmerDetailsProgSalesPurpose => 'Sales Program';
+  String get farmerDetailsProgSalesPurpose => 'Product Sales';
 
   @override
-  String get farmerDetailsProgDistributionPurpose => 'Distribution Program';
+  String get farmerDetailsProgDistributionPurpose => 'Free Distribution';
 
   @override
   String get farmerDetailsProgStatusActive => 'Active';
@@ -5629,7 +5629,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get programMgmtFilterDistribution => 'Free Distribution';
 
   @override
-  String get programMgmtFilterSales => 'Sales';
+  String get programMgmtFilterSales => 'Product Sales';
 
   @override
   String get programMgmtCreateFirst => 'Create First Program';
@@ -9440,10 +9440,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get programHistValueSet => 'updated';
 
   @override
-  String get farmerProgSalesProgram => 'Sales Program';
+  String get farmerProgSalesProgram => 'Product Sales';
 
   @override
-  String get farmerProgDistributionProgram => 'Distribution Program';
+  String get farmerProgDistributionProgram => 'Free Distribution';
 
   @override
   String get farmerProgNoMatch => 'No programs match your search.';

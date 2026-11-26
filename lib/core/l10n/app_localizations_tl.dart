@@ -5707,7 +5707,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programMgmtFilterDistribution => 'Libreng Pamamahagi';
 
   @override
-  String get programMgmtFilterSales => 'Benta';
+  String get programMgmtFilterSales => 'Benta ng Produkto';
 
   @override
   String get programMgmtCreateFirst => 'Gumawa ng Unang Program';
@@ -9544,10 +9544,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get programHistValueSet => 'binago';
 
   @override
-  String get farmerProgSalesProgram => 'Programa sa Pagbebenta';
+  String get farmerProgSalesProgram => 'Benta ng Produkto';
 
   @override
-  String get farmerProgDistributionProgram => 'Programa sa Pamamahagi';
+  String get farmerProgDistributionProgram => 'Libreng Pamamahagi';
 
   @override
   String get farmerProgNoMatch =>

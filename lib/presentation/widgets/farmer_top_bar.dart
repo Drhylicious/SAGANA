@@ -9,7 +9,6 @@ import '../../core/theme/sagana_colors.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/notification_badge_service.dart';
 import '../../data/services/profile_state_service.dart';
-import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
 import 'sagana_logo_mark.dart';
 import 'shared_widgets.dart';
@@ -34,7 +33,7 @@ Future<void> confirmFarmerSignOut(BuildContext context) async {
   if (confirmed == true) {
     FarmerProfileStateService.instance.clear();
     await AuthService.logout();
-    if (context.mounted) GoRouter.of(context).go(AppRoutes.welcome);
+    if (context.mounted) GoRouter.of(context).go(signedOutDestination());
   }
 }
 

@@ -6,7 +6,6 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/services/auth_service.dart';
-import '../../routes/app_routes.dart';
 import 'app_toast.dart';
 import 'password_requirements.dart';
 import 'shared_widgets.dart';
@@ -79,7 +78,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       PostActionFeedback.success(context, l10n.passwordUpdatedSigningOut);
       Navigator.pop(context);
       await AuthService.logout();
-      if (mounted) context.go(AppRoutes.welcome);
+      if (mounted) context.go(signedOutDestination());
     } catch (e) {
       if (!mounted) return;
       setState(() {

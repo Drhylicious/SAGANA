@@ -35,7 +35,7 @@ Future<void> confirmAdminSignOut(BuildContext context) async {
   if (confirmed == true) {
     AdminProfileStateService.instance.clear();
     await AuthService.logout();
-    if (context.mounted) context.go(AppRoutes.welcome);
+    if (context.mounted) context.go(signedOutDestination());
   }
 }
 

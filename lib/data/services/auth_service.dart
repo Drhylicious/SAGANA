@@ -6,6 +6,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/utils/activity_throttle.dart';
 import '../../core/utils/input_validation_utils.dart';
 import '../../core/utils/person_name.dart';
+import '../../routes/app_routes.dart';
 import '../models/suspension_notice.dart';
 import '../models/user_model.dart';
 import 'account_status_watcher.dart';
@@ -28,6 +29,11 @@ import 'connectivity_service.dart';
 class RegistrationNotCancelledException implements Exception {
   const RegistrationNotCancelledException();
 }
+
+/// Destination after signing out or opening the app while signed out:
+/// skips Welcome when Remember Me is enabled so the user lands on Login.
+String signedOutDestination() =>
+    HiveService.getRememberMe() ? AppRoutes.login : AppRoutes.welcome;
 
 class AuthService {
   AuthService._();

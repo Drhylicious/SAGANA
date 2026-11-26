@@ -3689,13 +3689,13 @@ abstract class AppLocalizations {
   /// No description provided for @farmerDetailsProgSalesPurpose.
   ///
   /// In en, this message translates to:
-  /// **'Sales Program'**
+  /// **'Product Sales'**
   String get farmerDetailsProgSalesPurpose;
 
   /// No description provided for @farmerDetailsProgDistributionPurpose.
   ///
   /// In en, this message translates to:
-  /// **'Distribution Program'**
+  /// **'Free Distribution'**
   String get farmerDetailsProgDistributionPurpose;
 
   /// No description provided for @farmerDetailsProgStatusActive.
@@ -10167,7 +10167,7 @@ abstract class AppLocalizations {
   /// No description provided for @programMgmtFilterSales.
   ///
   /// In en, this message translates to:
-  /// **'Sales'**
+  /// **'Product Sales'**
   String get programMgmtFilterSales;
 
   /// No description provided for @programMgmtCreateFirst.
@@ -16431,13 +16431,13 @@ abstract class AppLocalizations {
   /// No description provided for @farmerProgSalesProgram.
   ///
   /// In en, this message translates to:
-  /// **'Sales Program'**
+  /// **'Product Sales'**
   String get farmerProgSalesProgram;
 
   /// No description provided for @farmerProgDistributionProgram.
   ///
   /// In en, this message translates to:
-  /// **'Distribution Program'**
+  /// **'Free Distribution'**
   String get farmerProgDistributionProgram;
 
   /// No description provided for @farmerProgNoMatch.

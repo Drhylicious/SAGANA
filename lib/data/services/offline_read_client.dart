@@ -51,6 +51,8 @@ class OfflineReadClient extends http.BaseClient {
     // market data shared with the guest view. Checks made right before a
     // server decision (program completion warnings) stay live.
     'get_farmer_programs_view',
+    'get_program_distribution_summary',
+    'get_farmer_distribution_summary',
     'get_loan_capital_standing',
     'get_price_update_required_listings',
     'get_listing_price_rule',

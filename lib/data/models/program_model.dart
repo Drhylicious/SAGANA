@@ -59,6 +59,9 @@ class CooperativeProgram {
   // Product Sales programs: percent off the regular price an ENROLLED member
   // pays (Balik-Tangkilik at the point of sale). Set per program; 0 = none.
   final double memberDiscountPercent;
+  // Free Distribution programs: optional cooperative share % when distributed
+  // Harvested Produce is sold by the farmer. 0 = none.
+  final double cooperativeSharePercent;
   // Product Sales programs: the inventory categories products may be added from.
   final List<String> sourceCategories;
   // When the program was created (shown on the Program card as MM/DD/YY). Who created
@@ -82,6 +85,7 @@ class CooperativeProgram {
     this.distributionItemUnit,
     this.distributionItemStock,
     this.memberDiscountPercent = 0,
+    this.cooperativeSharePercent = 0,
     this.sourceCategories = const [],
     this.createdAt,
   });
@@ -106,6 +110,8 @@ class CooperativeProgram {
         distributionItemStock: (item?['quantity_on_hand'] as num?)?.toDouble(),
         memberDiscountPercent:
             (m['member_discount_percent'] as num?)?.toDouble() ?? 0,
+        cooperativeSharePercent:
+            (m['cooperative_share_percent'] as num?)?.toDouble() ?? 0,
         sourceCategories: ((m['source_categories'] as List?) ?? const [])
             .map((e) => '$e')
             .toList(),
@@ -118,6 +124,7 @@ class CooperativeProgram {
   bool get isActive => status == 'active';
   bool get isSalesProgram => programPurpose == 'sales';
   bool get hasMemberDiscount => isSalesProgram && memberDiscountPercent > 0;
+  bool get hasCooperativeShare => !isSalesProgram && cooperativeSharePercent > 0;
 
   /// Required fields this program still lacks (Free Distribution and Product Sales).
   /// Mirrors program_missing_fields() in the database (keep the two in step).
@@ -813,3 +820,210 @@ class ProgramPurchase {
 }
 
 DateTime? _ppDate(dynamic v) => v == null ? null : DateTime.parse(v as String).toLocal();
+
+// ─── Free Distribution outcome & cooperative share tracking ─────────────────
+
+class ProgramSaleShare {
+  final String id;
+  final String programId;
+  final String programMemberId;
+  final String farmerId;
+  final String farmerName;
+  final String batchId;
+  final String cropName;
+  final String unit;
+  final String saleChannel;
+  final double quantitySold;
+  final double grossAmount;
+  final double sharePercent;
+  final double amountOwed;
+  final String status; // 'unpaid' | 'paid'
+  final DateTime? paidAt;
+  final String? notes;
+  final DateTime createdAt;
+
+  const ProgramSaleShare({
+    required this.id,
+    required this.programId,
+    required this.programMemberId,
+    required this.farmerId,
+    this.farmerName = 'Farmer',
+    required this.batchId,
+    this.cropName = '',
+    this.unit = 'kg',
+    required this.saleChannel,
+    required this.quantitySold,
+    required this.grossAmount,
+    required this.sharePercent,
+    required this.amountOwed,
+    required this.status,
+    this.paidAt,
+    this.notes,
+    required this.createdAt,
+  });
+
+  bool get isPaid => status == 'paid';
+
+  factory ProgramSaleShare.fromMap(Map<String, dynamic> m) => ProgramSaleShare(
+    id: m['id'] as String,
+    programId: m['program_id'] as String,
+    programMemberId: m['program_member_id'] as String,
+    farmerId: m['farmer_id'] as String,
+    farmerName: m['farmer_name'] as String? ?? 'Farmer',
+    batchId: m['batch_id'] as String,
+    cropName: m['crop_name'] as String? ?? '',
+    unit: m['unit'] as String? ?? 'kg',
+    saleChannel: m['sale_channel'] as String? ?? 'marketplace',
+    quantitySold: (m['quantity_sold'] as num?)?.toDouble() ?? 0,
+    grossAmount: (m['gross_amount'] as num?)?.toDouble() ?? 0,
+    sharePercent: (m['share_percent'] as num?)?.toDouble() ?? 0,
+    amountOwed: (m['amount_owed'] as num?)?.toDouble() ?? 0,
+    status: m['status'] as String? ?? 'unpaid',
+    paidAt: _ppDate(m['paid_at']),
+    notes: m['notes'] as String?,
+    createdAt: _ppDate(m['created_at']) ?? DateTime.now(),
+  );
+}
+
+class ProgramMemberOutcome {
+  final String programMemberId;
+  final String farmerId;
+  final String farmerName;
+  final String batchId;
+  final String batchNumber;
+  final String cropName;
+  final String unit;
+  final double distributedQty;
+  final double availableQty;
+  final double reservedQty;
+  final double soldQty;
+  final double rottenQty;
+  final double listedQty;
+  final bool marketLinkingActive;
+
+  const ProgramMemberOutcome({
+    required this.programMemberId,
+    required this.farmerId,
+    this.farmerName = 'Farmer',
+    required this.batchId,
+    this.batchNumber = '',
+    this.cropName = '',
+    this.unit = 'kg',
+    this.distributedQty = 0,
+    this.availableQty = 0,
+    this.reservedQty = 0,
+    this.soldQty = 0,
+    this.rottenQty = 0,
+    this.listedQty = 0,
+    this.marketLinkingActive = false,
+  });
+
+  bool get isAvailableOnMarketplace => listedQty > 0 || marketLinkingActive;
+  bool get hasSold => soldQty > 0;
+  bool get hasRotten => rottenQty > 0;
+  bool get isNotYetListed =>
+      !isAvailableOnMarketplace && availableQty > 0 && soldQty <= 0;
+
+  factory ProgramMemberOutcome.fromMap(Map<String, dynamic> m) =>
+      ProgramMemberOutcome(
+        programMemberId: m['program_member_id'] as String,
+        farmerId: m['farmer_id'] as String,
+        farmerName: m['farmer_name'] as String? ?? 'Farmer',
+        batchId: m['batch_id'] as String,
+        batchNumber: m['batch_number'] as String? ?? '',
+        cropName: m['crop_name'] as String? ?? '',
+        unit: m['unit'] as String? ?? 'kg',
+        distributedQty: (m['distributed_qty'] as num?)?.toDouble() ?? 0,
+        availableQty: (m['available_qty'] as num?)?.toDouble() ?? 0,
+        reservedQty: (m['reserved_qty'] as num?)?.toDouble() ?? 0,
+        soldQty: (m['sold_qty'] as num?)?.toDouble() ?? 0,
+        rottenQty: (m['rotten_qty'] as num?)?.toDouble() ?? 0,
+        listedQty: (m['listed_qty'] as num?)?.toDouble() ?? 0,
+        marketLinkingActive: m['market_linking_active'] as bool? ?? false,
+      );
+}
+
+class ProgramDistributionSummary {
+  final double distributedQty;
+  final double soldQty;
+  final double unsoldQty;
+  final double rottenQty;
+  final double totalOwed;
+  final double totalPaid;
+  final double totalUnpaid;
+  final List<ProgramSaleShare> shares;
+  final List<ProgramMemberOutcome> memberOutcomes;
+
+  const ProgramDistributionSummary({
+    this.distributedQty = 0,
+    this.soldQty = 0,
+    this.unsoldQty = 0,
+    this.rottenQty = 0,
+    this.totalOwed = 0,
+    this.totalPaid = 0,
+    this.totalUnpaid = 0,
+    this.shares = const [],
+    this.memberOutcomes = const [],
+  });
+
+  factory ProgramDistributionSummary.fromMap(Map<String, dynamic> m) =>
+      ProgramDistributionSummary(
+        distributedQty: (m['distributed_qty'] as num?)?.toDouble() ?? 0,
+        soldQty: (m['sold_qty'] as num?)?.toDouble() ?? 0,
+        unsoldQty: (m['unsold_qty'] as num?)?.toDouble() ?? 0,
+        rottenQty: (m['rotten_qty'] as num?)?.toDouble() ?? 0,
+        totalOwed: (m['total_owed'] as num?)?.toDouble() ?? 0,
+        totalPaid: (m['total_paid'] as num?)?.toDouble() ?? 0,
+        totalUnpaid: (m['total_unpaid'] as num?)?.toDouble() ?? 0,
+        shares: ((m['shares'] as List?) ?? const [])
+            .map((e) => ProgramSaleShare.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        memberOutcomes: ((m['member_outcomes'] as List?) ?? const [])
+            .map(
+              (e) => ProgramMemberOutcome.fromMap(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
+            .toList(),
+      );
+}
+
+class FarmerDistributionSummary {
+  final int toDistributeCount;
+  final int distributedCount;
+  final int completedCount;
+  final double distributedQty;
+  final double soldQty;
+  final double unsoldQty;
+  final double rottenQty;
+  final double totalOwed;
+  final double totalPaid;
+  final double totalUnpaid;
+
+  const FarmerDistributionSummary({
+    this.toDistributeCount = 0,
+    this.distributedCount = 0,
+    this.completedCount = 0,
+    this.distributedQty = 0,
+    this.soldQty = 0,
+    this.unsoldQty = 0,
+    this.rottenQty = 0,
+    this.totalOwed = 0,
+    this.totalPaid = 0,
+    this.totalUnpaid = 0,
+  });
+
+  factory FarmerDistributionSummary.fromMap(Map<String, dynamic> m) =>
+      FarmerDistributionSummary(
+        toDistributeCount: (m['to_distribute_count'] as num?)?.toInt() ?? 0,
+        distributedCount: (m['distributed_count'] as num?)?.toInt() ?? 0,
+        completedCount: (m['completed_count'] as num?)?.toInt() ?? 0,
+        distributedQty: (m['distributed_qty'] as num?)?.toDouble() ?? 0,
+        soldQty: (m['sold_qty'] as num?)?.toDouble() ?? 0,
+        unsoldQty: (m['unsold_qty'] as num?)?.toDouble() ?? 0,
+        rottenQty: (m['rotten_qty'] as num?)?.toDouble() ?? 0,
+        totalOwed: (m['total_owed'] as num?)?.toDouble() ?? 0,
+        totalPaid: (m['total_paid'] as num?)?.toDouble() ?? 0,
+        totalUnpaid: (m['total_unpaid'] as num?)?.toDouble() ?? 0,
+      );
+}

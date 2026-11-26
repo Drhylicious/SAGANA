@@ -4,6 +4,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../core/utils/app_utils.dart';
+import 'app_dropdown_field.dart';
 import 'password_requirements.dart' show isPasswordValid;
 
 // Building blocks shared by the Manager's account-creation forms (Create
@@ -357,24 +358,12 @@ class AccountGenderField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
+    return AppDropdownField<String>(
+      value: value,
+      hintText: hint,
+      items: options.keys.toList(),
+      itemLabel: (k) => options[k] ?? k,
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      decoration: const InputDecoration(errorMaxLines: 3),
-      hint: Text(
-        hint,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-      ),
-      items: options.entries
-          .map(
-            (e) => DropdownMenuItem(
-              value: e.key,
-              child: Text(e.value, style: GoogleFonts.inter(fontSize: 13)),
-            ),
-          )
-          .toList(),
       validator: (v) => v == null ? requiredMessage : null,
       onChanged: onChanged,
     );

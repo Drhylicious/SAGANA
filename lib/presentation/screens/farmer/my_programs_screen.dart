@@ -6,7 +6,9 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/program_assistance_model.dart';
+import '../../../data/models/program_model.dart';
 import '../../../data/repositories/program_assistance_repository.dart';
+import '../../../data/repositories/program_repository.dart';
 import '../../../core/utils/app_error_message.dart';
 import '../../widgets/app_toast.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
@@ -30,8 +32,10 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   final _repo = FarmerProfileRepository();
   List<MyProgramEntry> _programs = [];
   final _assistRepo = ProgramAssistanceRepository();
+  final _programRepo = ProgramRepository();
   Map<String, AssistanceOption> _assistOptions = {};
   Map<String, AssistanceRequest> _assistLatest = {};
+  Map<String, List<ProgramSaleShare>> _sharesByMember = {};
   // Search and the All / Free Distribution / Sales chips (the same format as Browse Programs).
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -73,9 +77,14 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
       _repo.fetchMyPrograms(),
       _assistRepo.fetchMyOptions(),
       _assistRepo.fetchMyRequests(),
+      _programRepo.fetchMyProgramShares(),
     ]);
     if (!mounted) return;
     final programs = results[0] as List<MyProgramEntry>;
+    final sharesMap = <String, List<ProgramSaleShare>>{};
+    for (final s in results[3] as List<ProgramSaleShare>) {
+      sharesMap.putIfAbsent(s.programMemberId, () => []).add(s);
+    }
     setState(() {
       _programs = programs;
       _assistOptions = {
@@ -87,6 +96,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
       for (final r in results[2] as List<AssistanceRequest>) {
         _assistLatest.putIfAbsent(r.programMemberId, () => r);
       }
+      _sharesByMember = sharesMap;
       _isLoading = false;
     });
   }
@@ -285,6 +295,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                             entry: shown[i],
                             assistOption: _assistOptions[shown[i].id],
                             assistRequest: _assistLatest[shown[i].id],
+                            shares: _sharesByMember[shown[i].id] ?? const [],
                             onAssist: () => _openAssistance(shown[i]),
                             onCancelAssist: () => _cancelAssistance(
                               _assistLatest[shown[i].id]!,
@@ -321,6 +332,7 @@ class MyProgramCard extends StatelessWidget {
   final MyProgramEntry entry;
   final AssistanceOption? assistOption;
   final AssistanceRequest? assistRequest;
+  final List<ProgramSaleShare> shares;
   final VoidCallback? onAssist;
   final VoidCallback? onCancelAssist;
   // Staff view (Farmer Details): the same card, nothing to tap. No buttons, no links.
@@ -333,6 +345,7 @@ class MyProgramCard extends StatelessWidget {
     required this.entry,
     this.assistOption,
     this.assistRequest,
+    this.shares = const [],
     this.onAssist,
     this.onCancelAssist,
     this.readOnly = false,
@@ -436,6 +449,7 @@ class MyProgramCard extends StatelessWidget {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _Badge(
                         label: entry.isSalesProgram
@@ -443,6 +457,21 @@ class MyProgramCard extends StatelessWidget {
                             : l10n.farmerProgDistributionProgram,
                         color: accent,
                       ),
+                      if (!entry.isSalesProgram &&
+                          entry.cooperativeSharePercent > 0)
+                        _Badge(
+                          label:
+                              'Return Percentage (${formatQuantity(entry.cooperativeSharePercent)}%)',
+                          color: AppConstants.buyerBlue,
+                        ),
+                      if (entry.isSalesProgram &&
+                          entry.memberDiscountPercent > 0)
+                        _Badge(
+                          label: l10n.programMgmtMemberDiscountChip(
+                            formatQuantity(entry.memberDiscountPercent),
+                          ),
+                          color: AppConstants.successGreen,
+                        ),
                       Text(
                         l10n.farmerProgEnrolledOn(formatDate(entry.enrolledAt)),
                         style: GoogleFonts.inter(
@@ -590,6 +619,23 @@ class MyProgramCard extends StatelessWidget {
             color: AppConstants.successGreen,
           ),
         ),
+        if (shares.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (final s in shares)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Coop Share (${formatQuantity(s.sharePercent)}% on ${formatQuantity(s.quantitySold)} ${s.unit}): ₱${s.amountOwed.toStringAsFixed(2)} · ${s.isPaid ? 'Paid' : 'Unpaid'}',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: s.isPaid
+                      ? AppConstants.successGreen
+                      : AppConstants.warningAmber,
+                ),
+              ),
+            ),
+        ],
       ],
     ];
   }

@@ -230,6 +230,8 @@ class MyProgramEntry {
   final String? itemImageUrl;
   // The item's type from Inventory Management ('seeds_seedlings', 'harvested_produce', or 'non_crop').
   final String? itemType;
+  final double cooperativeSharePercent;
+  final double memberDiscountPercent;
 
   const MyProgramEntry({
     required this.id,
@@ -249,6 +251,8 @@ class MyProgramEntry {
     this.programImageUrl,
     this.itemImageUrl,
     this.itemType,
+    this.cooperativeSharePercent = 0,
+    this.memberDiscountPercent = 0,
   });
 
   /// Seeds & Seedlings or Harvested Produce (a Crop Master crop); everything else is a Non-Crop Item.
@@ -287,6 +291,10 @@ class MyProgramEntry {
       programImageUrl: program['image_url'] as String?,
       itemImageUrl: item?['image_url'] as String?,
       itemType: item?['item_type'] as String?,
+      cooperativeSharePercent:
+          (program['cooperative_share_percent'] as num?)?.toDouble() ?? 0,
+      memberDiscountPercent:
+          (program['member_discount_percent'] as num?)?.toDouble() ?? 0,
     );
   }
 }

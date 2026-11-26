@@ -373,23 +373,14 @@ class PersonNameFields extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AccountFieldLabel(label: l10n.nameSuffixLabel, cs: cs),
-                  DropdownButtonFormField<String>(
+                  AppDropdownField<String>(
                     key: const ValueKey('name-suffix'),
-                    initialValue: suffix ?? _noSuffix,
-                    isExpanded: true,
-                    decoration: const InputDecoration(errorMaxLines: 3),
-                    items: [
-                      for (final v in const [_noSuffix, ...PersonName.suffixes])
-                        DropdownMenuItem(
-                          value: v,
-                          child: Text(
-                            v == _noSuffix ? l10n.nameSuffixNone : v,
-                            style: GoogleFonts.inter(fontSize: 13),
-                          ),
-                        ),
-                    ],
-                    onChanged: (v) =>
-                        onSuffixChanged(v == _noSuffix ? null : v),
+                    value: suffix,
+                    hintText: l10n.nameSuffixNone,
+                    items: const [_noSuffix, ...PersonName.suffixes],
+                    menuMaxHeight: 340,
+                    itemLabel: (v) => v == _noSuffix ? l10n.nameSuffixNone : v,
+                    onChanged: (v) => onSuffixChanged(v == _noSuffix ? null : v),
                   ),
                 ],
               ),

@@ -3,6 +3,7 @@ import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/utils/app_error_message.dart';
+import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_toast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -392,21 +393,18 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                   ),
                   const SizedBox(height: 16),
 
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: selectedCropType,
-                    decoration: InputDecoration(
-                      labelText: l10n.cropRequestCropTypeLabel,
-                      helperText: l10n.cropRequestCropTypeHelper,
-                    ),
+                  AppDropdownField<String>(
+                    value: selectedCropType,
+                    labelText: l10n.cropRequestCropTypeLabel,
+                    hintText: l10n.cropRequestCropTypeLabel,
+                    helperText: l10n.cropRequestCropTypeHelper,
                     items: [
-                      for (final t in MarketTypes.instance.activeTypes)
-                        DropdownMenuItem(
-                          value: t.code,
-                          child: Text(MarketTypes.instance.label(t.code)),
-                        ),
+                      for (final t in MarketTypes.instance.activeTypes) t.code,
                     ],
-                    onChanged: (v) => setSheet(() => selectedCropType = v!),
+                    itemLabel: MarketTypes.instance.label,
+                    onChanged: (v) {
+                      if (v != null) setSheet(() => selectedCropType = v);
+                    },
                   ),
                   const SizedBox(height: 14),
                   TextFormField(

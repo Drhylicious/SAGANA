@@ -438,6 +438,11 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           ? _trimQty(existing.memberDiscountPercent)
           : '',
     );
+    final shareCtrl = TextEditingController(
+      text: existing != null && !existing.isSalesProgram
+          ? _trimQty(existing.cooperativeSharePercent)
+          : '0',
+    );
     String selectedPurpose = existing?.programPurpose ?? 'distribution';
     // The inventory categories this program distributes from (both program types).
     final selectedSources = <String>[...?existing?.sourceCategories];
@@ -504,6 +509,14 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                               existing.memberDiscountPercent != discount))
                   ? discount
                   : null;
+              final sharePercent = double.tryParse(shareCtrl.text.trim()) ?? 0;
+              final double? shareToSave =
+                  selectedPurpose == 'distribution' &&
+                      (sharePercent > 0 ||
+                          (existing != null &&
+                              existing.cooperativeSharePercent != sharePercent))
+                  ? sharePercent
+                  : null;
               setSheet(() => isSaving = true);
 
               String? imageUrl = existingImageUrl;
@@ -546,6 +559,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     programPurpose: selectedPurpose,
                     imageUrl: imageUrl,
                     memberDiscountPercent: discountToSave,
+                    cooperativeSharePercent: shareToSave,
                     sourceCategories: selectedSources,
                   );
                   ok = createdId != null;
@@ -584,6 +598,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     distributionItemId: null,
                     imageUrl: imageUrl,
                     memberDiscountPercent: discountToSave,
+                    cooperativeSharePercent: shareToSave,
                     sourceCategories: selectedSources,
                   );
                 } catch (e, st) {
@@ -855,6 +870,29 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     if (isDistribution) ...[
                       const SizedBox(height: 12),
                       sourcesField(),
+                      const SizedBox(height: 12),
+                      LabeledTextField(
+                        controller: shareCtrl,
+                        label: 'Cooperative Share (%)',
+                        hint: '0',
+                        suffixText: '%',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,2}'),
+                          ),
+                        ],
+                        validator: (v) {
+                          final t = (v ?? '').trim();
+                          if (t.isEmpty) return null;
+                          final n = double.tryParse(t);
+                          return (n == null || n < 0 || n > 100)
+                              ? 'Enter a percentage from 0 to 100.'
+                              : null;
+                        },
+                      ),
                     ],
                     if (selectedPurpose == 'sales') ...[
                       const SizedBox(height: 12),
@@ -890,7 +928,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       controller: budgetCtrl,
                       label: label(l10n.programMgmtBudgetLabel),
                       hint: '0.00',
-                      prefixText: 'â‚± ',
+                      prefixText: '₱ ',
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -968,15 +1006,31 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
             DetailRow(
               l10n.detailsPurpose,
               p.isSalesProgram
-                  ? l10n.programMgmtFilterSales
+                  ? l10n.reportsProductSalesShort
                   : l10n.programMgmtFilterDistribution,
             ),
+            if (p.programType.trim().isNotEmpty)
+              DetailRow(l10n.enhProgramType, p.programType),
             DetailRow(l10n.detailsStatus, _statusLabel(l10n, p.status)),
             DetailRow(l10n.detailsSeason, '${p.seasonYear}'),
             if (p.budget != null)
               DetailRow(
                 l10n.detailsBudget,
-                'â‚±${p.budget!.toStringAsFixed(2)}',
+                '₱${p.budget!.toStringAsFixed(2)}',
+              ),
+            if (!p.isSalesProgram &&
+                (p.sourceCategories.isNotEmpty ||
+                    (p.distributionCategory ?? '').trim().isNotEmpty))
+              DetailRow(
+                l10n.enhDistributionCategory,
+                p.sourceCategories.isNotEmpty
+                    ? p.sourceCategories.join(', ')
+                    : p.distributionCategory!.trim(),
+              ),
+            if (!p.isSalesProgram)
+              DetailRow(
+                'Return Percentage',
+                '${formatQuantity(p.cooperativeSharePercent)}%',
               ),
             if ((p.distributionItemName ?? '').isNotEmpty)
               DetailRow(l10n.detailsItemGiven, p.distributionItemName!),
@@ -1154,21 +1208,13 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                             accent: AppConstants.programPurple,
                             child: _buildKpiSection([
                               ReportIconStatCard(
-                                icon: Icons.star_rounded,
-                                accent: AppConstants.programPurple,
+                                icon: Icons.volunteer_activism_rounded,
+                                accent: AppConstants.buyerBlue,
                                 label: AppLocalizations.of(
                                   context,
-                                ).enhTotalPrograms,
-                                value: '${_programs.length}',
-                              ),
-                              ReportIconStatCard(
-                                icon: Icons.play_circle_fill_rounded,
-                                accent: AppConstants.successGreen,
-                                label: AppLocalizations.of(
-                                  context,
-                                ).farmerDetailsProgStatusActive,
+                                ).enhDistributionBenefitLoans,
                                 value:
-                                    '${_programs.where((p) => p.status == 'active').length}',
+                                    '${_programs.where((p) => p.programPurpose == 'distribution').length}',
                               ),
                               ReportIconStatCard(
                                 icon: Icons.storefront_rounded,
@@ -1178,28 +1224,6 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                 ).reportsProductSalesShort,
                                 value:
                                     '${_programs.where((p) => p.isSalesProgram).length}',
-                              ),
-                              ReportIconStatCard(
-                                icon: Icons.request_quote_rounded,
-                                accent: AppConstants.buyerBlue,
-                                label: AppLocalizations.of(
-                                  context,
-                                ).enhDistributionBenefitLoans,
-                                value:
-                                    '${_programs.where((p) => p.programPurpose == 'distribution').length}',
-                              ),
-                              ReportIconStatCard(
-                                icon: Icons.groups_rounded,
-                                accent: AppConstants.primaryGreen,
-                                label: l10n.marketLinkKpiEnrolled,
-                                value:
-                                    // Enrollment across every program purpose â€”
-                                    // memberCount is already purpose-agnostic (it's
-                                    // just each program's active program_members
-                                    // count), so Distribution and Product Sales
-                                    // enrollments are summed together here, not
-                                    // hardcoded to one purpose.
-                                    '${_programs.fold<int>(0, (sum, p) => sum + p.memberCount)}',
                               ),
                             ]),
                           ),
@@ -1449,6 +1473,16 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   // this module's card count isn't fixed at 4 anymore now that Distribution
   // Benefit/Loans joined Total Programs/Active/Product Sales/Enrollment.
   Widget _buildKpiSection(List<Widget> cards) {
+    if (cards.length == 2) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: cards[0]),
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(child: cards[1]),
+        ],
+      );
+    }
     if (cards.length.isEven) {
       return GridView.count(
         crossAxisCount: 2,
@@ -1458,7 +1492,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppConstants.spacingSm,
         crossAxisSpacing: AppConstants.spacingSm,
-        childAspectRatio: 1.9,
+        childAspectRatio: 1.5,
         children: cards,
       );
     }
@@ -1529,6 +1563,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   List<DistributionItem> _items = [];
   // Product Sales: each member's orders, spent, saved and pending (one read for all).
   Map<String, MemberPurchaseSummary> _purchaseSummaries = {};
+  ProgramDistributionSummary _distSummary = const ProgramDistributionSummary();
   bool _isLoading = true;
 
   // Distribution happens inline on the member's own card (no extra modal).
@@ -1540,6 +1575,11 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   String? _distError;
   // Product Sales: the member search (by Farmer name).
   String _memberQuery = '';
+  // Harvested Produce Free Distribution: filter & search inside Distributed tab.
+  // 'all' | 'not_listed' | 'listed' | 'sold'
+  String _distSubFilter = 'all';
+  String _distQuery = '';
+  final _distSearchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -1550,6 +1590,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   @override
   void dispose() {
     _qtyCtrl.dispose();
+    _distSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -1580,14 +1621,132 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       widget.program.isSalesProgram
           ? widget.repo.fetchPurchaseSummaries(widget.program.id)
           : Future<Map<String, MemberPurchaseSummary>>.value(const {}),
+      !widget.program.isSalesProgram
+          ? widget.repo.fetchProgramDistributionSummary(widget.program.id)
+          : Future<ProgramDistributionSummary>.value(
+              const ProgramDistributionSummary(),
+            ),
     ]);
     if (!mounted) return;
     setState(() {
       _members = results[0] as List<ProgramMember>;
       _items = results[1] as List<DistributionItem>;
       _purchaseSummaries = results[2] as Map<String, MemberPurchaseSummary>;
+      _distSummary = results[3] as ProgramDistributionSummary;
       _isLoading = false;
     });
+  }
+
+  Future<void> _openSharesSheet() async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    await showManagementModal<void>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) => ManagementModalShell(
+            title: 'Cooperative Share Collections',
+            bodyIsScrollable: true,
+            body: _distSummary.shares.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'No cooperative share records yet.',
+                      style: GoogleFonts.inter(color: cs.onSurfaceVariant),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    itemCount: _distSummary.shares.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final s = _distSummary.shares[i];
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: ctx.saganaColors.cardBackground,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusLg,
+                          ),
+                          border: Border.all(
+                            color: cs.outline.withValues(alpha: 0.14),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.farmerName,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${formatQuantity(s.quantitySold)} ${s.unit} ${s.cropName} · Gross ₱${s.grossAmount.toStringAsFixed(2)} (${formatQuantity(s.sharePercent)}%)',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Share: ₱${s.amountOwed.toStringAsFixed(2)} · ${s.isPaid ? 'Paid' : 'Unpaid'}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: s.isPaid
+                                          ? AppConstants.successGreen
+                                          : AppConstants.warningAmber,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!s.isPaid)
+                              TextButton(
+                                onPressed: () async {
+                                  if (!requireManage(
+                                    context,
+                                    StaffModule.dashboard,
+                                  )) {
+                                    return;
+                                  }
+                                  try {
+                                    await widget.repo
+                                        .recordProgramSharePayment(s.id);
+                                    if (!mounted) return;
+                                    await _loadMembers();
+                                    if (ctx.mounted) setSheet(() {});
+                                    _showSnack('Share payment recorded.');
+                                  } catch (e, st) {
+                                    if (!mounted) return;
+                                    _showSnack(
+                                      friendlyError(
+                                        l10n,
+                                        e,
+                                        st,
+                                        l10n.adminInvFailedTryAgain,
+                                      ),
+                                      isError: true,
+                                    );
+                                  }
+                                },
+                                child: const Text('Record Payment'),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        );
+      },
+    );
   }
 
   String _formatDate(DateTime dt) {
@@ -1833,7 +1992,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   Widget _salesStats(ProgramMember m, AppLocalizations l10n) {
     final cs = Theme.of(context).colorScheme;
     final s = _purchaseSummaries[m.farmerId] ?? const MemberPurchaseSummary();
-    String peso(double v) => 'â‚±${formatQuantityGrouped(v)}';
+    String peso(double v) => '₱${formatQuantityGrouped(v)}';
     // Each figure may be as wide as the card and no wider, so a long one wraps instead of
     // running past the edge (big amounts, Tagalog, large text sizes).
     Widget stat(IconData icon, String text, {Color? color}) => LayoutBuilder(
@@ -2196,31 +2355,101 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
 
     final toDistribute = _members.where((m) => !m.isDistributed).toList();
     final handedOut = _members.where((m) => m.isDistributed).toList();
+    final hasProduceItems =
+        _eligibleItems.any((i) => i.itemType == 'harvested_produce') ||
+        _distSummary.memberOutcomes.isNotEmpty ||
+        _distSummary.soldQty > 0 ||
+        _distSummary.unsoldQty > 0 ||
+        _distSummary.rottenQty > 0;
+    final showShareSection =
+        widget.program.hasCooperativeShare || _distSummary.totalOwed > 0;
 
-    // Free Distribution has no outcome process: once an item is handed out it belongs to the Farmer.
+    if (!hasProduceItems && !showShareSection) {
+      // Non-produce Free Distribution (Seeds, Tools, Livestock): 2-tab layout.
+      return DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            ...notices,
+            TabBar(
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: cs.onSurfaceVariant,
+              indicatorColor: Theme.of(context).colorScheme.primary,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: cs.outline.withValues(alpha: 0.15),
+              labelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedLabelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              tabs: [
+                Tab(text: l10n.memTabToDistribute(toDistribute.length)),
+                Tab(text: l10n.memTabDistributed(handedOut.length)),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _list(
+                    toDistribute,
+                    l10n.memEmptyToDistribute,
+                    toDistribute: true,
+                  ),
+                  _list(handedOut, l10n.memEmptyDistributed),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final outcomes = _distSummary.memberOutcomes;
+    final rottenOutcomes = outcomes.where((o) => o.hasRotten).toList();
+
+    // Harvested Produce Free Distribution: 3-tab section layout (no KPI cards).
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
           ...notices,
-          // Two sections only: the tabs share the width equally, each label centered.
           TabBar(
             labelColor: Theme.of(context).colorScheme.primary,
             unselectedLabelColor: cs.onSurfaceVariant,
             indicatorColor: Theme.of(context).colorScheme.primary,
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: cs.outline.withValues(alpha: 0.15),
+            labelPadding: const EdgeInsets.symmetric(horizontal: 6),
             labelStyle: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
             unselectedLabelStyle: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
             tabs: [
-              Tab(text: l10n.memTabToDistribute(toDistribute.length)),
-              Tab(text: l10n.memTabDistributed(handedOut.length)),
+              Tab(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(l10n.memTabToDistribute(toDistribute.length)),
+                ),
+              ),
+              Tab(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(l10n.memTabDistributed(handedOut.length)),
+                ),
+              ),
+              Tab(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Rotten/Lost (${rottenOutcomes.length})'),
+                ),
+              ),
             ],
           ),
           Expanded(
@@ -2231,12 +2460,364 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                   l10n.memEmptyToDistribute,
                   toDistribute: true,
                 ),
-                _list(handedOut, l10n.memEmptyDistributed),
+                _buildProduceDistributedTab(
+                  handedOut: handedOut,
+                  outcomes: outcomes,
+                  showShareSection: showShareSection,
+                  l10n: l10n,
+                  cs: cs,
+                ),
+                _buildRottenLostTab(rottenOutcomes, cs),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProduceDistributedTab({
+    required List<ProgramMember> handedOut,
+    required List<ProgramMemberOutcome> outcomes,
+    required bool showShareSection,
+    required AppLocalizations l10n,
+    required ColorScheme cs,
+  }) {
+    final q = _distQuery.trim().toLowerCase();
+    bool matchesOutcome(ProgramMemberOutcome o) =>
+        q.isEmpty ||
+        o.farmerName.toLowerCase().contains(q) ||
+        o.cropName.toLowerCase().contains(q) ||
+        o.batchNumber.toLowerCase().contains(q);
+
+    final searchedOutcomes = outcomes.where(matchesOutcome).toList();
+    final notListed = searchedOutcomes.where((o) => o.isNotYetListed).toList();
+    final listed =
+        searchedOutcomes.where((o) => o.isAvailableOnMarketplace).toList();
+    final sold = searchedOutcomes.where((o) => o.hasSold).toList();
+
+    final chips = [
+      ('all', 'All (${q.isEmpty ? handedOut.length : searchedOutcomes.length})'),
+      ('not_listed', 'Unlisted (${notListed.length})'),
+      ('listed', 'Listed (${listed.length})'),
+      ('sold', 'Sold (${sold.length})'),
+    ];
+
+    final filteredOutcomes = switch (_distSubFilter) {
+      'not_listed' => notListed,
+      'listed' => listed,
+      'sold' => sold,
+      _ => searchedOutcomes,
+    };
+
+    final searchedShares = _distSummary.shares.where((s) {
+      if (q.isEmpty) return true;
+      return s.farmerName.toLowerCase().contains(q) ||
+          s.cropName.toLowerCase().contains(q);
+    }).toList();
+
+    final searchedHandedOut = q.isEmpty
+        ? handedOut
+        : handedOut
+            .where((m) => m.farmerName.toLowerCase().contains(q))
+            .toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+          child: TextField(
+            controller: _distSearchCtrl,
+            onChanged: (v) => setState(() => _distQuery = v),
+            decoration: InputDecoration(
+              hintText: 'Search farmer, crop, or batch...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _distQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: () {
+                        _distSearchCtrl.clear();
+                        setState(() => _distQuery = '');
+                      },
+                    )
+                  : null,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 44,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+            itemCount: chips.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final (key, label) = chips[i];
+              return _PurposeChip(
+                label: label,
+                isSelected: _distSubFilter == key,
+                onTap: () => setState(() => _distSubFilter = key),
+                cs: cs,
+                sagana: context.saganaColors,
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: _distSubFilter == 'all' && outcomes.isEmpty
+              ? _list(searchedHandedOut, l10n.memEmptyDistributed)
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  children: [
+                    if (_distSubFilter == 'sold' && showShareSection) ...[
+                      _buildShareBanner(cs),
+                      const SizedBox(height: 10),
+                    ],
+                    if (_distSubFilter == 'sold' &&
+                        searchedShares.isNotEmpty) ...[
+                      for (final s in searchedShares) ...[
+                        _buildShareRecordCard(s, l10n, cs),
+                        const SizedBox(height: 10),
+                      ],
+                    ] else if (filteredOutcomes.isEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: Center(
+                          child: Text(
+                            _distSubFilter == 'listed'
+                                ? 'No distributed produce is currently listed on the Marketplace.'
+                                : _distSubFilter == 'sold'
+                                    ? 'No distributed produce has been sold yet.'
+                                    : 'No matching records found.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      for (final o in filteredOutcomes) ...[
+                        _buildOutcomeRecordCard(o, cs),
+                        const SizedBox(height: 10),
+                      ],
+                    ],
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShareBanner(ColorScheme cs) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: cs.primary.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.payments_outlined, size: 16, color: cs.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Cooperative Share (${formatQuantity(widget.program.cooperativeSharePercent)}%): Paid ₱${_distSummary.totalPaid.toStringAsFixed(2)} · Unpaid ₱${_distSummary.totalUnpaid.toStringAsFixed(2)}',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildShareRecordCard(
+    ProgramSaleShare s,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: context.saganaColors.cardBackground,
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      border: Border.all(color: cs.outline.withValues(alpha: 0.14)),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.farmerName,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${formatQuantity(s.quantitySold)} ${s.unit} ${s.cropName} · Gross ₱${s.grossAmount.toStringAsFixed(2)}',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Share (${formatQuantity(s.sharePercent)}%): ₱${s.amountOwed.toStringAsFixed(2)} · ${s.isPaid ? 'Paid' : 'Unpaid'}',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: s.isPaid
+                      ? AppConstants.successGreen
+                      : AppConstants.warningAmber,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!s.isPaid)
+          TextButton(
+            onPressed: () async {
+              if (!requireManage(context, StaffModule.dashboard)) return;
+              try {
+                await widget.repo.recordProgramSharePayment(s.id);
+                if (!mounted) return;
+                await _loadMembers();
+                _showSnack('Share payment recorded.');
+              } catch (e, st) {
+                if (!mounted) return;
+                _showSnack(
+                  friendlyError(l10n, e, st, l10n.adminInvFailedTryAgain),
+                  isError: true,
+                );
+              }
+            },
+            child: const Text('Record Payment'),
+          ),
+      ],
+    ),
+  );
+
+  Widget _buildOutcomeRecordCard(
+    ProgramMemberOutcome o,
+    ColorScheme cs, {
+    bool rottenOnly = false,
+  }) {
+    final badgeText = rottenOnly
+        ? '${formatQuantity(o.rottenQty)} ${o.unit} Rotten/Lost'
+        : o.isAvailableOnMarketplace
+            ? (o.marketLinkingActive
+                ? 'Market Linking'
+                : 'Listed (${formatQuantity(o.listedQty)} ${o.unit})')
+            : o.hasSold
+                ? 'Sold (${formatQuantity(o.soldQty)} ${o.unit})'
+                : 'Not Yet Listed';
+    final badgeColor = rottenOnly
+        ? AppConstants.errorRed
+        : o.isAvailableOnMarketplace
+            ? AppConstants.buyerBlue
+            : o.hasSold
+                ? AppConstants.successGreen
+                : cs.onSurfaceVariant;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  o.farmerName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${formatQuantity(o.distributedQty)} ${o.unit} ${o.cropName}${o.batchNumber.isNotEmpty ? ' · ${o.batchNumber}' : ''}',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                if (!rottenOnly) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sold: ${formatQuantity(o.soldQty)} ${o.unit} · Available: ${formatQuantity(o.availableQty)} ${o.unit}${o.rottenQty > 0 ? ' · Rotten: ${formatQuantity(o.rottenQty)} ${o.unit}' : ''}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: badgeColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            ),
+            child: Text(
+              badgeText,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: badgeColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRottenLostTab(
+    List<ProgramMemberOutcome> rottenOutcomes,
+    ColorScheme cs,
+  ) {
+    if (rottenOutcomes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No distributed produce has been recorded as Rotten/Lost.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: rottenOutcomes.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) =>
+          _buildOutcomeRecordCard(rottenOutcomes[i], cs, rottenOnly: true),
     );
   }
 }

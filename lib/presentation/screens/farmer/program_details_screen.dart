@@ -48,6 +48,10 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   void initState() {
     super.initState();
     _existingRequest = widget.existingRequest;
+    _memberDiscount =
+        widget.entry?.memberDiscountPercent ??
+        widget.program?.memberDiscountPercent ??
+        0;
     _loadDiscount();
   }
 
@@ -80,6 +84,10 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   String? get _distributionCategory =>
       widget.entry?.distributionCategory ??
       widget.program?.distributionCategory;
+  double get _cooperativeSharePercent =>
+      widget.entry?.cooperativeSharePercent ??
+      widget.program?.cooperativeSharePercent ??
+      0;
 
   String get _programTypeLabel {
     final t = _programType;
@@ -88,7 +96,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
   }
 
   String get _programPurposeLabel => _isSalesProgram
-      ? AppLocalizations.of(context).adminDashStatSalesAllTime
+      ? AppLocalizations.of(context).reportsProductSalesShort
       : AppLocalizations.of(context).balikTangkilikDistributionTab;
 
   Future<void> _requestEnrollment() async {
@@ -173,9 +181,18 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                               context,
                             ).enhProgramPurpose459,
                             value: _programPurposeLabel,
-                            isLast: _isSalesProgram,
                           ),
-                          if (!_isSalesProgram)
+                          if (_isSalesProgram)
+                            _InfoRow(
+                              icon: Icons.percent_rounded,
+                              label: AppLocalizations.of(
+                                context,
+                              ).detailsMemberDiscount,
+                              value:
+                                  '${_memberDiscount == _memberDiscount.roundToDouble() ? _memberDiscount.toStringAsFixed(0) : _memberDiscount.toStringAsFixed(1)}%',
+                              isLast: true,
+                            ),
+                          if (!_isSalesProgram) ...[
                             _InfoRow(
                               icon: Icons.inventory_2_outlined,
                               label: AppLocalizations.of(
@@ -186,12 +203,36 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                                   AppLocalizations.of(
                                     context,
                                   ).commonNotSpecified,
+                            ),
+                            _InfoRow(
+                              icon: Icons.percent_rounded,
+                              label: 'Return Percentage',
+                              value:
+                                  '${_cooperativeSharePercent == _cooperativeSharePercent.roundToDouble() ? _cooperativeSharePercent.toStringAsFixed(0) : _cooperativeSharePercent.toStringAsFixed(1)}%',
                               isLast: true,
                             ),
+                          ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
+
+                    if (!_isSalesProgram && _cooperativeSharePercent > 0) ...[
+                      _SectionCard(
+                        icon: Icons.payments_outlined,
+                        title: 'Cooperative Share',
+                        child: Text(
+                          'A ${_cooperativeSharePercent == _cooperativeSharePercent.roundToDouble() ? _cooperativeSharePercent.toStringAsFixed(0) : _cooperativeSharePercent.toStringAsFixed(1)}% cooperative share applies to distributed Harvested Produce that you sell. Unsold or Rotten/Lost produce has no share owed.',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppConstants.buyerBlue,
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     if (_isSalesProgram && _memberDiscount > 0) ...[
                       _SectionCard(

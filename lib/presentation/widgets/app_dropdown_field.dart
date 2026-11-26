@@ -59,9 +59,11 @@ class AppDropdownField<T> extends FormField<T> {
     // dropdown in a row with a standard text field passes 54, so the two boxes
     // are the same 56 px tall.
     double fieldHeight = 48,
+    AutovalidateMode? autovalidateMode,
   }) : super(
          initialValue: value,
          validator: validator,
+         autovalidateMode: autovalidateMode,
          builder: (field) {
            return _DropdownFieldBody<T>(
              value: field.value,

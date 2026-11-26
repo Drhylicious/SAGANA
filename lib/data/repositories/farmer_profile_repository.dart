@@ -742,6 +742,8 @@ class FarmerProfileRepository {
           'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
           'distributed_item_name, distributed_unit, ';
       const programCols =
+          'program_name, program_type, description, program_purpose, status, distribution_category, image_url, cooperative_share_percent, member_discount_percent';
+      const programColsOld =
           'program_name, program_type, description, program_purpose, status, distribution_category, image_url';
       const itemJoin =
           'cooperative_inventory!inventory_item_id(item_name, unit, image_url, item_type)';
@@ -764,9 +766,9 @@ class FarmerProfileRepository {
             );
           } catch (_) {
             try {
-              // The Item Type column is not in the database yet.
+              // The Item Type or cooperative_share_percent column is not in the database yet.
               return await read(
-                '${memberCols}cooperative_programs($programCols), $itemJoinOld',
+                '${memberCols}cooperative_programs($programColsOld), $itemJoinOld',
               );
             } catch (_) {
               return await read(
